@@ -471,6 +471,10 @@ const allHidden = homeHash === "#home-all-hidden";
 // #home-scheduled-nocli where the agentry command is not found;
 // #home-strict-scheduled is #home-strict with the card.
 const homeScheduled = homeHash.startsWith("#home-scheduled") || homeHash === "#home-strict-scheduled";
+// harnessEngineChoice is the engine the picker remembers, as Go's settings
+// would.
+let harnessEngineChoice = window.location.hash === "#engines-chosen" ? "podman" : "";
+
 // engineFound is the engine detection found for a Run defaults state:
 // Docker Engine on this computer, podman found natively, or Docker Desktop
 // beside the two traps (#docker-trap).
@@ -1044,6 +1048,7 @@ g.go = { app: {
         case "macos": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", engine: { ...noEngine, tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
         case "windows": return { ...base, os: "windows", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "error during connect: open //./pipe/docker_engine: The system cannot find the file specified.", engine: { ...noEngine, tried: ["the docker CLI's current context: error during connect: open //./pipe/docker_engine: The system cannot find the file specified."] } };
         case "emptysocket": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", warnings: [socketTrap], engine: { ...noEngine, warnings: [socketTrap], tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
+        case "chosenSilent": return { ...base, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "your chosen engine, the docker CLI's context colima, is not answering: Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?", engine: { ...noEngine, chosen: true, choice: "context:colima", tried: ["the docker CLI's context colima (your choice under Settings → Run defaults → Container engine): Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?"] } };
         case "trap":
         case "podman": return { ...base, state: "ready", canInstall: false, engineInstalled: true, inDockerGroup: false, dockerOk: true, dockerErr: "", engine: engineFound(state), warnings: engineFound(state).warnings };
         default: return { ...base, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
@@ -1059,10 +1064,34 @@ g.go = { app: {
     RemoveManagedEngine: async () => ({ state: "managedOffer", dockerOk: false, engine: { found: false, rootless: false, err: "", tried: [], warnings: [] }, warnings: [], managed: { supported: true, installed: false, current: false, running: false } }),
     EnablePodmanSocket: async () => ({ state: "ready", dockerOk: true, engine: engineFound("podman"), warnings: [] }),
     RedetectEngine: async () => engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"),
+    // The engine picker: #engines-chosen remembers podman, #engines-locked
+    // is an app started with its engine named in its environment; otherwise
+    // Docker Engine on the default context is in use, automatically, and a
+    // second context and podman answer too.
+    ListEngines: async () => {
+      if (window.location.hash === "#engines-locked") return { choice: "", choiceLabel: "automatic", candidates: [], tried: [], locked: "the app was started with an engine named in its environment (AGENTRY_ENGINE, DOCKER_HOST or DOCKER_CONTEXT), which it drives as named; start the app without it to choose here" };
+      const podman = { ...engineFound("podman"), chosen: harnessEngineChoice === "podman", choice: harnessEngineChoice === "podman" ? "podman" : "" };
+      const colima = { found: true, kind: "docker", cli: "docker", version: "29.5.2", endpoint: "unix:///home/me/.colima/default/docker.sock", rootless: false, how: "the docker CLI's context colima", summary: "docker 29.5.2, rootful, at unix:///home/me/.colima/default/docker.sock, found as the docker CLI's context colima", err: "", tried: [], warnings: [], managed: false, chosen: false };
+      return {
+        choice: harnessEngineChoice, choiceLabel: harnessEngineChoice === "podman" ? "podman on this computer" : "automatic",
+        candidates: [
+          { choice: "context:default", label: "the docker CLI's context default", engine: { ...engineFound("docker"), how: "the docker CLI's context default" }, current: harnessEngineChoice === "" },
+          { choice: "context:colima", label: "the docker CLI's context colima", engine: colima, current: false },
+          { choice: "podman", label: "podman on this computer", engine: podman, current: harnessEngineChoice === "podman" },
+        ],
+        tried: ["the socket of Docker Desktop (/home/me/.docker/desktop/docker.sock): nothing answers at /home/me/.docker/desktop/docker.sock (connection refused)"],
+      };
+    },
+    SetEngineChoice: async (choice: string) => {
+      harnessEngineChoice = choice;
+      if (choice === "") return engineFound("docker");
+      const e = engineFound("podman");
+      return { ...e, chosen: true, choice, choiceLabel: "podman on this computer", summary: e.summary + ", your choice" };
+    },
     RestartNow: async () => undefined,
     SetupStatus: async () => (window.location.hash === "#setup-custom-http"
       ? { dockerOk: true, engine: engineFound("docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
-      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap|managed)$/.test(window.location.hash), engine: engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap|managed)$/.test(window.location.hash), engine: harnessEngineChoice === "podman" ? { ...engineFound("podman"), chosen: true, choice: "podman", summary: engineFound("podman").summary + ", your choice" } : engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
     // machine; "" for https and loopback.
     EndpointWarning: async (u: string) => {

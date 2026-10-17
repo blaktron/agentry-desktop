@@ -218,7 +218,8 @@ func startWindows(ctx context.Context, i *windowsengine.Installer, first bool, l
 // the background, where the app installed it and the app was not started
 // with an engine named in its environment: when no engine answers, and
 // once when its provisioning script was missing, since an engine that
-// answers without it stops answering about a minute after its start.
+// answers without it stops answering about a minute after its start. With
+// an engine chosen in Settings it is given its script and not started.
 // Errors go to logw; the card says what detection then finds.
 func StartWindowsEngineAtLaunch(ctx context.Context, logw io.Writer) {
 	i := windowsInstaller()
@@ -229,6 +230,12 @@ func StartWindowsEngineAtLaunch(ctx context.Context, logw io.Writer) {
 	added, err := i.Provision()
 	if err != nil {
 		_, _ = fmt.Fprintf(logw, "give Rancher Desktop its provisioning script: %v\n", err)
+	}
+	// With an engine chosen in Settings, the app starts nothing on its own:
+	// the card offers Start when the chosen engine is Rancher Desktop.
+	if c, err := loadEngineChoice(); err != nil || c != "" {
+		_, _ = fmt.Fprintf(logw, "Rancher Desktop is left as it is: an engine is chosen in Settings (%s)\n", ChoiceLabel(c))
+		return
 	}
 	if found := DetectEngine(ctx, true); found.Found && !added {
 		return

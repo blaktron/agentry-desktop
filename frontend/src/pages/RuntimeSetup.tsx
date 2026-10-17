@@ -11,6 +11,7 @@ import {
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
 import { ProviderTiles } from "./ProviderTiles";
+import { asSentence } from "../signIns";
 
 // The provider table (src/modelSetup.ts) mirrors the CLI's for form
 // prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
@@ -860,11 +861,18 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
           onStart={() => act("Starting Rancher Desktop…", RunAPI.StartWindowsEngine)}
         />
       )}
+      {prereq.state === "chosenSilent" && (
+        <ChosenSilent
+          err={prereq.dockerErr}
+          busy={!!busy}
+          onAutomatic={() => act(CHECKING_ENGINE, async () => { await RunAPI.SetEngineChoice(""); return RunAPI.PrereqStatus(); })}
+        />
+      )}
       {(prereq.state === "manual" || prereq.state === "managedOffer" || prereq.state === "windowsOffer") && prereq.os !== "linux" && (
         <EngineChoices os={prereq.os} err={prereq.state === "manual" ? prereq.dockerErr : undefined} intro={prereq.state === "managedOffer" || prereq.state === "windowsOffer" ? "Or install one of these yourself; the app finds whichever answers:" : undefined} />
       )}
 
-      {prereq.dockerErr && !prereq.engineInstalled && prereq.os === "linux" && <p className="small mono">{prereq.dockerErr}</p>}
+      {prereq.dockerErr && !prereq.engineInstalled && prereq.os === "linux" && prereq.state !== "chosenSilent" && <p className="small mono">{prereq.dockerErr}</p>}
       <EngineTried tried={prereq.engine?.tried} />
       {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Re-detect</Button>}
 
@@ -902,6 +910,25 @@ export const CHECKING_ENGINE = "Checking the container engine…";
 export function EngineWarnings({ warnings }: { warnings?: string[] }) {
   if (!warnings || warnings.length === 0) return null;
   return <>{warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}</>;
+}
+
+/** The engine chosen in Settings does not answer: the app asks it alone, so
+ * nothing else is offered in its place; start it, or go back to automatic
+ * detection, which adopts the first engine that answers. */
+function ChosenSilent({ err, busy, onAutomatic }: { err?: string; busy: boolean; onAutomatic: () => void }) {
+  return (
+    <>
+      <p className="small">
+        {err ? asSentence(err) : "The container engine you chose does not answer."} Start it and re-detect, or choose
+        another under <strong>Settings → Run defaults → Container engine</strong>. Runs on this computer wait for it: the
+        app does not switch to another engine on its own.
+      </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button disabled={busy} onClick={onAutomatic} data-testid="engine-automatic"
+          title="Forgets the choice and adopts the first engine that answers, in the app's order">Use automatic detection</Button>
+      </div>
+    </>
+  );
 }
 
 /** Each place detection asked and what it said, under the state. */

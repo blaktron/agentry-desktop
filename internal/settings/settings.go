@@ -94,6 +94,11 @@ type Settings struct {
 	// setup's Where step; the credit hold and every consent are still asked
 	// on each run.
 	RunWhere string `yaml:"runWhere,omitempty" json:"runWhere,omitempty"`
+	// EngineChoice is Settings → Run defaults → Container engine: the
+	// engine detection asks alone, by the place it answers at ("managed",
+	// "podman", "context:<name>", "socket:<path>"); "" for automatic, the
+	// first that answers in detection's order.
+	EngineChoice string `yaml:"engineChoice,omitempty" json:"engineChoice,omitempty"`
 	// DefaultOutputDir is Settings → Run defaults → Output folder, chosen
 	// through the native picker on that page and nowhere else, "" for none.
 	// A run's gate admits it as an output folder because it is read from

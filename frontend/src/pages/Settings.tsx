@@ -692,17 +692,59 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   );
 }
 
-// EngineCard is the container engine found, with Re-detect: the whole
-// detection run again from nothing, for a person who changed engines, and
-// what it found adopted. The traps detection saw stand beside the line.
+// EngineCard is the container engine found, with Re-detect: the detection
+// run again from nothing, for a person who changed engines, and what it
+// found adopted (with an engine chosen, that engine asked again). The traps detection saw stand beside the line.
+// Choose an engine lists every engine that answers, for a computer with
+// more than one, and the one chosen is the engine runs drive from then on.
 function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChanged: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [found, setFound] = useState<app.EngineView | null>(null);
+  const [choices, setChoices] = useState<app.EngineChoicesView | null>(null);
+  const [chose, setChose] = useState<app.EngineView | null>(null);
+  async function listEngines() {
+    setBusy(true);
+    setErr(null);
+    setFound(null);
+    try {
+      setChoices(await RunAPI.ListEngines());
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Use this, or Use automatic: remembered and adopted at once; a choice
+  // that does not answer is refused in Go's words and the engine stays.
+  async function choose(choice: string) {
+    setBusy(true);
+    setErr(null);
+    setFound(null);
+    setChose(null);
+    try {
+      setChose(await RunAPI.SetEngineChoice(choice));
+    } catch (e) {
+      setErr(String(e));
+      setBusy(false);
+      return;
+    }
+    // The choice is made; a listing or a status read that fails afterwards
+    // is said as itself.
+    try {
+      setChoices(await RunAPI.ListEngines());
+      await onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function redetect() {
     setBusy(true);
     setErr(null);
     setFound(null);
+    setChose(null);
     try {
       setFound(await RunAPI.RedetectEngine());
       await onChanged();
@@ -733,14 +775,70 @@ function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChange
       <EngineWarnings warnings={setup.engine?.warnings} />
       {found && !found.found && <Notice tone="warn">Re-detect found no engine: {found.err}</Notice>}
       {found && found.found && <p className="small" role="status">Re-detect found {found.summary}.</p>}
+      {chose && chose.found && <p className="small" role="status">Runs now drive {chose.summary}.</p>}
+      {choices && <EnginePicker choices={choices} busy={busy} onChoose={(c) => void choose(c)} />}
       <ErrorBox error={err} />
       <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
         {!busy && setup.engine?.managed && (
           <Button variant="danger" onClick={() => void removeManaged()} title="Stops the virtual machine and deletes it with its data and the three binaries; runs then need another engine" data-testid="remove-managed-engine">Remove Agentry&apos;s engine</Button>
         )}
-        {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title="Runs the whole detection again, from nothing, and adopts what it finds">Re-detect</Button>}
+        {!busy && !choices && (
+          <Button onClick={() => void listEngines()} title="Lists every container engine that answers on this computer, to choose the one runs drive" data-testid="choose-engine">Choose an engine…</Button>
+        )}
+        {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title={setup.engine?.chosen ? "Asks the engine you chose again, and adopts it if it answers" : "Runs the whole detection again, from nothing, and adopts what it finds"}>Re-detect</Button>}
       </div>
     </Card>
+  );
+}
+
+// engineFacts is what answers at a place, without how it was found, which
+// the row's own label says.
+function engineFacts(e: app.EngineView): string {
+  const who = e.cli && e.cli !== e.kind ? `${e.kind} through the ${e.cli} CLI` : e.kind;
+  return `${who} ${e.version}, ${e.rootless ? "rootless" : "rootful"}, at ${e.endpoint}`;
+}
+
+// EnginePicker lists Automatic and every engine that answers, the one in
+// use and the one chosen marked, with Use this on the others. An app
+// started with its engine named in its environment drives that one and
+// lists nothing.
+function EnginePicker({ choices, busy, onChoose }: { choices: app.EngineChoicesView; busy: boolean; onChoose: (choice: string) => void }) {
+  if (choices.locked) return <Notice tone="info">{asSentence(choices.locked)}</Notice>;
+  const row = { borderTop: "1px solid var(--border)", padding: "8px 0", gap: 12, alignItems: "center" } as const;
+  return (
+    <div data-engine-picker style={{ marginTop: 10 }}>
+      <p className="muted small" style={{ marginBottom: 4 }}>
+        The engines that answer on this computer. Runs drive the one chosen here, and the app asks it alone from then on:
+        if it stops answering, the app says so rather than switching to another. Automatic takes the first that answers,
+        in the app&apos;s order.
+      </p>
+      <div className="row" style={row} data-engine-choice="">
+        <span className="grow small">
+          <strong>Automatic</strong> <span className="muted">the first engine that answers</span>
+          {choices.choice === "" && <> <span className="badge">your choice</span></>}
+        </span>
+        {choices.choice !== "" && <Button disabled={busy} onClick={() => onChoose("")} data-testid="engine-use-automatic">Use automatic</Button>}
+      </div>
+      {choices.candidates.map((c) => (
+        <div key={c.choice} className="row" style={row} data-engine-choice={c.choice}>
+          <span className="grow small">
+            <strong>{c.label.charAt(0).toUpperCase() + c.label.slice(1)}</strong>
+            {c.current && <> <span className="badge">in use</span></>}
+            {c.choice === choices.choice && <> <span className="badge">your choice</span></>}
+            <br />
+            <span className="muted">{engineFacts(c.engine)}</span>
+          </span>
+          {c.choice !== choices.choice && <Button disabled={busy} onClick={() => onChoose(c.choice)}>Use this</Button>}
+        </div>
+      ))}
+      {choices.candidates.length === 0 && <p className="small">No container engine answers on this computer right now.</p>}
+      {choices.tried.length > 0 && (
+        <details className="small">
+          <summary>Where the app looked</summary>
+          <ul className="muted small">{choices.tried.map((t) => <li key={t}>{t}</li>)}</ul>
+        </details>
+      )}
+    </div>
   );
 }
 
