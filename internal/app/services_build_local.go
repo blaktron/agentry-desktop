@@ -104,6 +104,7 @@ func localInstallConsentText(s *localinstall.Staged, prev *installed.Record, dir
 		Namespace: m.Namespace, Name: m.Name, Version: m.Version,
 		Capabilities:           installed.Snapshot(m.Contract()),
 		NeedsCapabilityConfirm: true,
+		ServerReach:            install.ServerReach(m.Contract()),
 	}
 	if prev != nil {
 		d := installed.DiffCapabilities(prev.Capabilities, plan.Capabilities)

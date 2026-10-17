@@ -181,9 +181,18 @@ type Plan struct {
 	// MCPServers is each declared MCP server's pin, tool allowlist and
 	// plain env, for the review; never a secret.
 	MCPServers []mcpview.Server `json:"mcpServers"`
-	// NeedsCapabilityConfirm: first install declaring egress, exec, a target
-	// host or a browser.
+	// NeedsCapabilityConfirm: a first install of a release that declares
+	// anything Confirms names.
 	NeedsCapabilityConfirm bool `json:"needsCapabilityConfirm"`
+	// Confirms names what the release declares that a first install asks
+	// about, in the CLI's install-gate words ("network egress", "a remote
+	// MCP server", …); empty when it declares none of it. Filled on every
+	// plan; the consent shows it when NeedsCapabilityConfirm is set.
+	Confirms []string `json:"confirms"`
+	// ServerReach is each declared MCP server's own network reach as the
+	// consent states it: a remote server by its address, a package server's
+	// egress by its hosts.
+	ServerReach []string `json:"serverReach"`
 	// PrevVersion is the version currently at this key ("" on first install).
 	PrevVersion string `json:"prevVersion,omitempty"`
 	// Diff vs the installed contract (nil on first install).
@@ -379,7 +388,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 
 // readRecord fills what the plan owes to the record already at its key:
 // the installed version and the capability diff against it, or on a first
-// install the consent a declared egress or exec owes.
+// install the capability consent its declaration owes.
 func readRecord(plan *Plan, m *manifest.Manifest) {
 	state, serr := installed.Load()
 	if serr != nil {
@@ -394,15 +403,78 @@ func readRecord(plan *Plan, m *manifest.Manifest) {
 	} else {
 		plan.NeedsCapabilityConfirm = needsCapabilityConfirm(m.Capabilities)
 	}
+	plan.Confirms = confirmedCapabilities(m.Capabilities)
+	plan.ServerReach = ServerReach(m.Capabilities)
 }
 
 // needsCapabilityConfirm reports whether a first install of c asks for
-// the capability consent: declared network egress or exec, a target host,
-// a machine the person names and the agent works as the account they sign
-// in with (the CLI's install gate), or a browser, which
-// opens the sites the person names.
+// the capability consent: whether it declares anything
+// confirmedCapabilities names.
 func needsCapabilityConfirm(c manifest.Capabilities) bool {
-	return len(c.Network.Egress.Hosts) > 0 || len(c.Exec.Commands) > 0 || len(c.TargetHosts) > 0 || c.Browser != nil
+	return len(confirmedCapabilities(c)) > 0
+}
+
+// confirmedCapabilities names what c declares that a first install asks
+// about, in the words of the CLI's install gate, so the desktop and the
+// CLI ask about the same things: the release's own network egress and
+// exec, a remote MCP server, a package MCP server's own egress, a target
+// host and a browser. A remote server is network reach to its vendor, and
+// a package server's egress network reach from its container, whatever
+// the release's own egress says.
+func confirmedCapabilities(c manifest.Capabilities) []string {
+	var what []string
+	if len(c.Network.Egress.Hosts) > 0 {
+		what = append(what, "network egress")
+	}
+	if len(c.Exec.Commands) > 0 {
+		what = append(what, "exec")
+	}
+	if slices.ContainsFunc(c.MCPServers, manifest.MCPServer.IsRemote) {
+		what = append(what, "a remote MCP server")
+	}
+	for _, srv := range c.MCPServers {
+		if w, _ := serverEgress(srv); w != "" {
+			what = append(what, w)
+		}
+	}
+	switch n := len(c.TargetHosts); {
+	case n == 1:
+		what = append(what, "a target host")
+	case n > 1:
+		what = append(what, "target hosts")
+	}
+	if c.Browser != nil {
+		what = append(what, "a web browser")
+	}
+	return what
+}
+
+// ServerReach is each declared MCP server's own network reach, one line
+// per server that has any, for the consent to list beside the release's
+// own capabilities.
+func ServerReach(c manifest.Capabilities) []string {
+	var lines []string
+	for _, srv := range c.MCPServers {
+		if srv.IsRemote() {
+			lines = append(lines, "a remote MCP server: "+srv.URL)
+		} else if w, where := serverEgress(srv); w != "" {
+			lines = append(lines, w+" "+where)
+		}
+	}
+	return lines
+}
+
+// serverEgress is a package server's own egress in the consent's words,
+// and where it may go: "" for a remote server or one that declares none.
+func serverEgress(srv manifest.MCPServer) (what, where string) {
+	switch {
+	case srv.IsRemote() || len(srv.Egress) == 0:
+		return "", ""
+	case slices.Contains(srv.Egress, "*"):
+		return "UNRESTRICTED network egress for MCP server " + srv.SourceID() + "@" + srv.Version, "(any host, policy-gated)"
+	default:
+		return "network egress for MCP server " + srv.SourceID() + "@" + srv.Version, "to " + strings.Join(srv.Egress, ", ")
+	}
 }
 
 // PrepareExport derives a coding-agent export from a pending runner plan:
@@ -412,7 +484,7 @@ func needsCapabilityConfirm(c manifest.Capabilities) bool {
 // with its own record, so a one-click install with Settings' "also
 // install into <coding agent>" on writes both. The export plan owes the
 // gates its own record owes: a first export of a release that declares
-// egress or exec needs the capability consent even when the runner record
+// anything the consent asks about needs it even when the runner record
 // already carries it, since the coding agent enforces nothing. The runner
 // plan stays pending; each is confirmed on its own.
 func (e *Engine) PrepareExport(runnerPlanID, target, dir string) (*Plan, error) {

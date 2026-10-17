@@ -18,6 +18,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/app"
 	"github.com/blaktron/agentry-desktop/internal/applog"
+	"github.com/blaktron/agentry-desktop/internal/baked"
 	"github.com/blaktron/agentry-desktop/internal/clipath"
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/hostpath"
@@ -33,6 +34,12 @@ func main() {
 	// give it the PATH a terminal opened now would have before anything
 	// looks a program up (internal/hostpath says why).
 	hostpath.ForGUI()
+	// A release reads back what the build was made to talk to: the
+	// registry and the update channel its linker flags set
+	// (internal/baked). No window, no other argument is read.
+	if len(os.Args) > 1 && os.Args[1] == baked.Flag {
+		os.Exit(baked.Main(os.Stdout))
+	}
 	// The Windows uninstaller's "Also remove my Agentry settings and
 	// sign-in" runs this binary once more, headless, before deleting it
 	// (build/windows/installer/project.nsi; internal/uninstall says what

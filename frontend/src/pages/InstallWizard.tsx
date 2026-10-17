@@ -10,6 +10,7 @@ import { install } from "../../wailsjs/go/models";
 import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
 import { secretsRow } from "../requiredKeys";
 import { browserCap, browserLine } from "../browser";
+import { acceptSentence } from "../installConsent";
 
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
@@ -172,7 +173,7 @@ export default function InstallWizard({
             )}
 
             <h3>Declared capabilities</h3>
-            <CapsTable caps={plan.capabilities} shipped={plan.shippedKnowledge} secrets={secretsRow(plan.declaredSecrets, plan.optionalSecrets)} />
+            <CapsTable caps={plan.capabilities} shipped={plan.shippedKnowledge} secrets={secretsRow(plan.declaredSecrets, plan.optionalSecrets)} serverReach={plan.serverReach} />
             {(plan.mcpServers ?? []).length > 0 && (
               <>
                 <h3>Declared MCP servers</h3>
@@ -221,7 +222,7 @@ export default function InstallWizard({
               <label className="check-row">
                 <input type="checkbox" checked={acceptCaps} onChange={(e) => setAcceptCaps(e.target.checked)} />
                 <span>
-                  <strong>{plan.requiresWidenedConfirm ? "Accept the widened capability contract." : `Accept the declared ${declaredWords(plan.capabilities)}.`}</strong>{" "}
+                  <strong>{plan.requiresWidenedConfirm ? "Accept the widened capability contract." : acceptSentence(plan.confirms)}</strong>{" "}
                   <span className="muted">The agent may do what is listed above once your tools run it.</span>
                 </span>
               </label>
@@ -254,25 +255,15 @@ export default function InstallWizard({
   );
 }
 
-// declaredWords names what a first install's consent accepts: the network
-// and exec capabilities, a target host, a browser, or several: "Accept the
-// declared browser."
-function declaredWords(caps: install.Plan["capabilities"]): string {
-  const what: string[] = [];
-  if (caps.egressHosts?.length || caps.execCommands?.length) what.push("network/exec capabilities");
-  if (caps.targetHosts?.length) what.push(caps.targetHosts.length === 1 ? "target host" : "target hosts");
-  if (caps.browser) what.push("browser");
-  if (what.length <= 1) return what[0] ?? "capabilities";
-  return `${what.slice(0, -1).join(", ")} and ${what[what.length - 1]}`;
-}
-
-function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[]; secrets: string }) {
+function CapsTable({ caps, shipped, secrets, serverReach }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[]; secrets: string; serverReach?: string[] }) {
   const rows: [string, string][] = [];
   const list = (v?: string[]) => (v && v.length ? v.join(", ") : "");
   if (list(caps.egressHosts)) rows.push(["network egress", list(caps.egressHosts)]);
   if (caps.fsRead && caps.fsRead !== "none") rows.push(["filesystem read", caps.fsRead === "paths" ? `paths: ${list(caps.fsReadPaths)}` : caps.fsRead]);
   if (caps.fsWrite && caps.fsWrite !== "none") rows.push(["filesystem write", caps.fsWrite === "paths" ? `paths: ${list(caps.fsWritePaths)}` : caps.fsWrite]);
   if (list(caps.execCommands)) rows.push(["exec", list(caps.execCommands)]);
+  // Each MCP server's own reach, which asks for the consent by itself.
+  for (const r of serverReach ?? []) rows.push(["MCP server reach", r]);
   // Every declared secret, the release's own and its servers', an optional
   // one marked: moving one between optional and required asks for no new
   // consent.

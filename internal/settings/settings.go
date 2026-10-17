@@ -375,14 +375,21 @@ func Host(regURL string) (string, error) {
 	return u.Host, nil
 }
 
-// ValidateURL rejects anything that is not a plain http(s) base URL.
+// ValidateURL rejects anything that is not a plain http(s) base URL. Its
+// refusals name the address without any userinfo typed into it, since a
+// message is shown on screen and may be pasted elsewhere.
 func ValidateURL(regURL string) error {
 	u, err := url.Parse(regURL)
 	if err != nil {
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
 		return fmt.Errorf("invalid registry URL: %w", err)
 	}
+	shown := ShownURL(regURL)
 	if u.Host == "" || u.Hostname() == "" {
-		return fmt.Errorf("registry URL %q has no host", regURL)
+		return fmt.Errorf("registry URL %q has no host", shown)
 	}
 	switch u.Scheme {
 	case "https":
@@ -397,10 +404,22 @@ func ValidateURL(regURL string) error {
 		if ip := net.ParseIP(u.Hostname()); ip != nil && ip.IsLoopback() {
 			return nil
 		}
-		return fmt.Errorf("registry URL %q must use https off this machine: the token would travel in clear", regURL)
+		return fmt.Errorf("registry URL %q must use https off this machine: the token would travel in clear", shown)
 	default:
-		return fmt.Errorf("registry URL must be https (or http on this machine), got %q", regURL)
+		return fmt.Errorf("registry URL must be https (or http on this machine), got %q", shown)
 	}
+}
+
+// ShownURL is an address as a message may show it: as typed, less any
+// userinfo (a name, a password or a token before the "@"). An address that
+// does not parse is not shown at all.
+func ShownURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "the address entered"
+	}
+	u.User = nil
+	return u.String()
 }
 
 // TokenFor resolves the PAT for a registry: the OS keychain first, then the

@@ -343,3 +343,24 @@ func TestTheSubscriptionReadNeverFollowsARedirect(t *testing.T) {
 		t.Fatalf("sub=%+v err=%v, %d requests elsewhere; want the redirect refused and none", sub, err, elsewhere)
 	}
 }
+
+// A registry that cannot be reached is named by its origin alone: a
+// password or token typed into the address is not in the error the
+// Settings page shows.
+func TestAnUnreachableRegistryIsNamedWithoutItsUserinfo(t *testing.T) {
+	for _, strict := range []bool{true, false} {
+		_, err := readSubscription(context.Background(), "http://user:secret@127.0.0.1:1", "agy_test", strict)
+		if err == nil {
+			if strict {
+				t.Fatal("the strict read of an unreachable registry gave no error")
+			}
+			continue // the lenient read gives up quietly on an unreachable meta
+		}
+		if strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "user") {
+			t.Errorf("strict %v: the error shows the userinfo: %v", strict, err)
+		}
+		if !strings.Contains(err.Error(), "http://127.0.0.1:1") {
+			t.Errorf("strict %v: the error does not name the registry: %v", strict, err)
+		}
+	}
+}
