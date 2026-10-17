@@ -285,3 +285,23 @@ func TestAtLaunchAnAnsweringRancherDesktopIsRestartedOnlyToAddItsScript(t *testi
 		t.Fatalf("with its script: ran %q", got[len(want):])
 	}
 }
+
+// With an engine chosen in Settings, Rancher Desktop installed by the app
+// is given its provisioning script at launch and neither started nor
+// restarted.
+func TestWithAnEngineChosenRancherDesktopIsProvisionedAndNotStarted(t *testing.T) {
+	withEngines(t, engineFixture{choice: "context:desktop-linux"})
+	i, calls := windowsRig(t, map[string]int{})
+	installedByTheApp(t, i)
+	var log strings.Builder
+	StartWindowsEngineAtLaunch(context.Background(), &log)
+	if c := calls(); len(c) != 1 || c[0] != "" {
+		t.Fatalf("ran %q with an engine chosen", c)
+	}
+	if !strings.Contains(log.String(), "an engine is chosen in Settings (the docker CLI's context desktop-linux)") {
+		t.Errorf("log %q", log.String())
+	}
+	if b, _ := os.ReadFile(i.ProvisionPath()); string(b) != windowsengine.HealthcheckFix {
+		t.Fatalf("the provisioning script is %q", b)
+	}
+}

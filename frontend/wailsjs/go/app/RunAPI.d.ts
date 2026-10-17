@@ -106,6 +106,8 @@ export function KeepOwnClient(arg1:string,arg2:string,arg3:string):Promise<void>
 
 export function KeepsSecrets(arg1:string):Promise<boolean>;
 
+export function ListEngines():Promise<app.EngineChoicesView>;
+
 export function ListModels(arg1:string,arg2:string,arg3:string):Promise<app.CatalogView>;
 
 export function ModelSignIns():Promise<Array<run.ModelSignIn>>;
@@ -165,6 +167,8 @@ export function SecretsPageURL(arg1:string):Promise<string>;
 export function SendHostedTurn(arg1:string):Promise<void>;
 
 export function SendTurn(arg1:string):Promise<void>;
+
+export function SetEngineChoice(arg1:string):Promise<app.EngineView>;
 
 export function SetHostedSecret(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 

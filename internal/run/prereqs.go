@@ -100,6 +100,13 @@ const (
 	// (DockerErr says what). The engine the app manages itself adds two
 	// more (managed.go): StateManagedOffer and StateManagedStopped.
 	StateManual = "manual"
+	// StateChosenSilent: an engine is chosen under Settings → Run defaults
+	// → Container engine and does not answer; nothing else is offered in
+	// its place but the way back to automatic detection (DockerErr says
+	// what the chosen place said). Agentry's engine, chosen and stopped,
+	// is StateManagedStopped instead, which offers its Start, and so is any
+	// state that starts or repairs the chosen engine (DetectPrereqs).
+	StateChosenSilent = "chosenSilent"
 )
 
 // Prereqs is the machine's container-engine story, as the settings page
@@ -169,8 +176,38 @@ var distroInstall = map[string]engineInstall{
 
 // DetectPrereqs reports what the page should show and what a click would
 // do. It runs the engine detection (an engine adopted earlier that still
-// answers is kept), then, on Linux, reads what is installed.
+// answers is kept), then, on Linux, reads what is installed. With an engine
+// chosen in Settings that does not answer, a state that would offer
+// another engine (an install, the hand-off to the engines to choose from)
+// becomes StateChosenSilent; a state that starts or repairs the chosen one
+// (podman's socket, the docker group, Start) stays.
 func DetectPrereqs(ctx context.Context) *Prereqs {
+	p := detectPrereqs(ctx)
+	p.State = settleChosen(p.State, p.Engine)
+	return p
+}
+
+// settleChosen is the card's state with an engine chosen that does not
+// answer: a state that would offer another engine becomes
+// StateChosenSilent, any other stays.
+func settleChosen(state string, e Engine) string {
+	if !e.Chosen || e.Found {
+		return state
+	}
+	switch state {
+	case StateManual, StateInstallable, StateWindowsOffer:
+		return StateChosenSilent
+	case StateManagedOffer:
+		// Agentry's engine chosen and since removed: installing it again
+		// answers the choice.
+		if e.Choice != choiceManaged {
+			return StateChosenSilent
+		}
+	}
+	return state
+}
+
+func detectPrereqs(ctx context.Context) *Prereqs {
 	p := &Prereqs{OS: runtime.GOOS, DownloadURL: "https://docs.docker.com/engine/install/"}
 	if runtime.GOOS != "linux" {
 		p.DownloadURL = "https://www.docker.com/products/docker-desktop/"
