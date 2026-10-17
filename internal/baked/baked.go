@@ -14,7 +14,10 @@ import (
 )
 
 // Flag makes the binary print the values and exit, before any window opens.
-const Flag = "--print-baked"
+// It is a variable, not a constant, so its bytes are in the binary as they
+// read: a release runs a binary only once it finds them, since one built
+// before the flag would open its window instead.
+var Flag = "--print-baked"
 
 // Main prints the registry the app starts pointed at and the update
 // channel it checks, one per line, and answers the exit code.
