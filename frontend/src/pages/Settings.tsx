@@ -1038,9 +1038,8 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
             <p className="muted">{signInLine(settings, signIn.url)}</p>
             <p className="muted">
               Paste a personal access token. Create one on the registry's site under Settings →
-              Authentication (<span className="mono">/ui/account/tokens</span> on a registry without the
-              site), or with <span className="mono">agentry login</span>. Signing in also pins the registry's
-              signing keys on first use (TOFU).
+              Authentication, or with <span className="mono">agentry login</span>. Signing in also pins the
+              registry's signing keys on first use (TOFU).
             </p>
             <Input
               type="password"
