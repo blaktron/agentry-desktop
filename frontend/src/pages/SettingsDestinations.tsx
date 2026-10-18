@@ -90,7 +90,8 @@ export function DestinationsSettings() {
   }, [draft?.kind, draft?.editing, draft?.bucket, draft?.region, draft?.endpoint, draft?.onMyNetwork]);
 
   const saved = draft ? status?.destinations.find((d) => d.name === draft.editing) : undefined;
-  const nameBad = draft && draft.editing === "" ? nameProblem(draft.name) : "";
+  const taken = !!draft && draft.editing === "" && !!status?.destinations.some((d) => d.name === draft.name.trim());
+  const nameBad = draft && draft.editing === "" ? (taken ? "A destination of that name is saved: edit it, or choose another name." : nameProblem(draft.name)) : "";
   const needsSecret = !!draft && (isBucket ? !keeps : !saved || !saved.hasSecret);
   const needsKeyId = !!draft && isBucket && !keeps;
   const where = isBucket ? draft.bucket.trim() !== "" : !!draft && draft.url.trim() !== "";

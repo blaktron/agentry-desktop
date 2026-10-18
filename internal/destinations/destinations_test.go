@@ -470,8 +470,11 @@ func TestABucketIsSentToOnlyWithBothHalvesOfItsKeyPair(t *testing.T) {
 	if st, _ := Load(); st.Destinations[0].CanSend || !st.Destinations[0].HasAccessKey || st.Destinations[0].HasSecret {
 		t.Errorf("view: %+v", st.Destinations[0])
 	}
-	if !UsesBucket([]string{"reports"}) || UsesBucket([]string{"nothing"}) {
-		t.Error("UsesBucket")
+	if !AnyBucket() {
+		t.Error("AnyBucket")
+	}
+	if err := Remove("reports"); err != nil || AnyBucket() {
+		t.Errorf("AnyBucket after the bucket is removed: %v", err)
 	}
 }
 

@@ -357,16 +357,12 @@ func CanSend(name string) bool {
 	return ok && canSend(d)
 }
 
-// UsesBucket says one of the saved destinations named is a bucket.
-func UsesBucket(names []string) bool {
+// AnyBucket says one of the saved destinations is a bucket. A command that does
+// not know buckets refuses the whole destinations file once it holds one.
+func AnyBucket() bool {
 	s, err := destination.Load()
 	if err != nil {
 		return false
 	}
-	for _, n := range names {
-		if d, ok := s.Find(n); ok && d.Kind == destination.KindS3 {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(s.Destinations, func(d destination.Destination) bool { return d.Kind == destination.KindS3 })
 }

@@ -490,10 +490,10 @@ func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *sc
 	if err != nil {
 		return fmt.Errorf("the agentry command did not answer: %w", err)
 	}
-	if destinations.UsesBucket(req.Destinations) {
+	if len(req.Destinations) > 0 && destinations.AnyBucket() {
 		// An older command refuses the whole destinations file once it holds a
-		// bucket, so a fire of any schedule would not deliver.
-		if why := schedules.OlderThan(line, schedules.MinBucketCLI, "a schedule that sends to a bucket"); why != "" {
+		// bucket, so a fire that names any destination would not deliver.
+		if why := schedules.OlderThan(line, schedules.MinBucketCLI, "a schedule that sends to a destination while a bucket is saved"); why != "" {
 			return errors.New(why)
 		}
 	}

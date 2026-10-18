@@ -485,10 +485,11 @@ func TestAScheduleNeedsAnAgentryThatKeepsWhereItsFiresDeliver(t *testing.T) {
 	}
 }
 
-// TestAScheduleThatSendsToABucketNeedsAnAgentryThatKnowsBuckets: an older command
-// refuses a destinations file holding a bucket as a whole, so no schedule is made
-// for a bucket with one, and a webhook still is.
-func TestAScheduleThatSendsToABucketNeedsAnAgentryThatKnowsBuckets(t *testing.T) {
+// TestAScheduleThatSendsAnywhereNeedsAnAgentryThatKnowsBucketsOnceOneIsSaved: an
+// older command refuses a destinations file holding a bucket as a whole, so with
+// a bucket saved no schedule that names a destination is made for it, a webhook's
+// included, and a schedule that names none still is.
+func TestAScheduleThatSendsAnywhereNeedsAnAgentryThatKnowsBucketsOnceOneIsSaved(t *testing.T) {
 	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.139 default"}
 	s := newScheduleAPI(t, f, true)
 	keyring.MockInit()
@@ -497,19 +498,26 @@ func TestAScheduleThatSendsToABucketNeedsAnAgentryThatKnowsBuckets(t *testing.T)
 	if _, err := api.Save(destinations.Input{Name: "n8n", URL: "https://hooks.example.com/x", Secret: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := api.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: "my-reports", Region: "eu-west-1", AccessKeyID: "AKIAKEYID1234", Secret: "SECRET"}); err != nil {
-		t.Fatal(err)
-	}
 	out := t.TempDir()
 	s.app.markPicked(out)
 	req := scheduleReq(out)
-	req.Destinations = []string{"archive"}
-	if _, err := s.Add(req, nil); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.140") || len(f.adds()) != 0 {
-		t.Fatalf("an old command with a bucket: %v %q", err, f.adds())
-	}
 	req.Destinations = []string{"n8n"}
 	if _, err := s.Add(req, nil); err != nil {
-		t.Fatalf("a webhook with the same command: %v", err)
+		t.Fatalf("a webhook with no bucket saved: %v", err)
+	}
+	if _, err := api.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: "my-reports", Region: "eu-west-1", AccessKeyID: "AKIAKEYID1234", Secret: "SECRET"}); err != nil {
+		t.Fatal(err)
+	}
+	f.calls = nil
+	for _, names := range [][]string{{"archive"}, {"n8n"}} {
+		req.Destinations = names
+		if _, err := s.Add(req, nil); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.140") || len(f.adds()) != 0 {
+			t.Fatalf("%v with an old command and a bucket saved: %v %q", names, err, f.adds())
+		}
+	}
+	req.Destinations = nil
+	if _, err := s.Add(req, nil); err != nil {
+		t.Fatalf("a schedule naming no destination: %v", err)
 	}
 	f.version = "agentry version 0.6.140-dev.2 default"
 	f.calls = nil
