@@ -128,6 +128,8 @@ type RunAPI struct {
 	// is the file-manager seam a test substitutes.
 	foldersMu sync.Mutex
 	folders   map[string]string
+	// localRuns are the runs this computer's engine ran, by run id.
+	localRuns map[string]bool
 	// downloading holds the runs In Agentry whose Download output is under
 	// way, so a second click is refused (services_history.go).
 	downloading sync.Map
@@ -195,7 +197,7 @@ type SessionEventView struct {
 // of the person's turns, and its one limit is Run defaults' Chat idle
 // timeout, none by default, which Go reads here from desktop.yaml. maxTurns
 // is the tool-call budget, as a run's: -1 keeps the policy's, 0 lifts it.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
 		return nil, err
@@ -251,6 +253,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		OutDir:                 outDir,
 		OutDirIsRoot:           isSavedOutputDir(outDir),
 		DeliverTo:              deliverFolder(),
+		Destinations:           destinations,
 		KeepProfile:            keepProfile,
 		MaxTurns:               maxTurns,
 		ChatIdleTimeoutSeconds: idle,
@@ -1028,7 +1031,7 @@ type RunResultView struct {
 // sourceTokens are access tokens for this run's input sources, by question
 // id: each reaches that source's fetch step alone, and a source given none
 // uses the key saved for its host (services_sources.go).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn) (*RunResultView, error) {
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -1092,6 +1095,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		OutDir:             outDir,
 		OutDirIsRoot:       isSavedOutputDir(outDir),
 		DeliverTo:          deliverFolder(),
+		Destinations:       destinations,
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,

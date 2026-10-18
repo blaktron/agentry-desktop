@@ -57,7 +57,7 @@ func TestAJunctionOutOfAPickedFolderIsRefused(t *testing.T) {
 
 	// A binding refuses it too, before anything runs.
 	r := &RunAPI{app: app}
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("RunAgent with an input through a junction: %v", err)
 	}
 }

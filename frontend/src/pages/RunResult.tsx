@@ -22,7 +22,7 @@ import { localUseLine } from "../usage";
 import { PdfViewer } from "../PdfViewer";
 import { pdfActions } from "../reportPdf";
 import { withheldLine } from "../deliverables";
-import { DeliverableItem } from "./Deliverables";
+import { DeliverableItem, SentTo } from "./Deliverables";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, decode, unsafeExec, ask, children,
@@ -88,6 +88,10 @@ export function RunResultView({
           {deliverables.withheld > 0 && <p className="muted small" data-deliverables-withheld>{withheldLine(deliverables.withheld)}</p>}
           {deliverables.truncated && <p className="muted small">The run listed more files than are shown here.</p>}
         </section>
+      )}
+
+      {deliverables && (deliverables.sent?.length ?? 0) > 0 && (
+        <SentTo runId={runId} sent={deliverables.sent} onChanged={setDeliverables} />
       )}
 
       <section aria-labelledby="run-result-message">

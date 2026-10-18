@@ -28,6 +28,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
 	"github.com/blaktron/agentry-cli/pkg/runner/compile"
+	"github.com/blaktron/agentry-cli/pkg/runner/destination"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
@@ -397,6 +398,13 @@ type Request struct {
 	// was for, each after its digest is checked, under a QuickAgent and date
 	// folder, the run's own folder left as it is. "" delivers nothing.
 	DeliverTo string
+	// Destinations are the saved destinations (the CLI's, by name) the run
+	// sends its result and deliverables to once it has succeeded, as `agentry
+	// run --destination` does. A name that is not saved, or has no signing
+	// secret, refuses the run before it starts. Nothing but the person's choice
+	// in the run setup puts one here; none sends nowhere, and a QuickAgent's
+	// default set is the setup's to preselect, not the engine's to apply.
+	Destinations []string
 	// KeepProfile overrides the completion choice (nil = stored profile,
 	// else the policy default).
 	KeepProfile *bool
@@ -543,6 +551,12 @@ type prepared struct {
 // prepare does the install → plan → images → profile → intake steps for
 // the run mode; it is Run without the run.
 func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mode) (*prepared, error) {
+	// Where the run sends its result is read first, so a name that is not
+	// saved, or has no signing secret, refuses before anything is installed.
+	dests, err := destination.Resolve(req.Destinations)
+	if err != nil {
+		return nil, engine.Classify(engine.ExitUsage, err)
+	}
 	home, err := Home()
 	if err != nil {
 		return nil, err
@@ -855,6 +869,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			RunnerHome:       home,
 			OutDir:           outDir,
 			DeliverTo:        req.DeliverTo,
+			Destinations:     dests,
 			Task:             task,
 			InputPaths:       req.InputPaths,
 			Knowledge:        knowledgePacks,

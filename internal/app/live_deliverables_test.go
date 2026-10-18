@@ -74,7 +74,7 @@ func TestLiveDeliverables(t *testing.T) {
 	}
 	t.Logf("the Deliverables folder: %s", root)
 
-	res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
+	res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestLiveDeliverables(t *testing.T) {
 	if _, err := (&SettingsAPI{app: app}).SetDeliverables(false); err != nil {
 		t.Fatal(err)
 	}
-	res2, err := r.RunAgent(reg, ref, "Write this week's digest again.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
+	res2, err := r.RunAgent(reg, ref, "Write this week's digest again.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
 	if err != nil || res2.Status != "ok" {
 		t.Fatalf("the second run: %+v, %v", res2, err)
 	}

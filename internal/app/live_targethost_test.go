@@ -162,7 +162,7 @@ func TestLiveTargetHost(t *testing.T) {
 		}
 		app.markPicked(out)
 		asked = nil
-		res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"server": server}, false, false, nil, false, nil, given)
+		res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"server": server}, false, false, nil, false, nil, given, nil)
 		if res != nil {
 			t.Logf("%s: status %s, exit %d, %s", name, res.Status, res.ExitCode, res.Error)
 		}

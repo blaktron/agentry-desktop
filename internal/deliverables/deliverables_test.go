@@ -331,3 +331,51 @@ func TestDefaultRootIsAnAgentryFolderInDocuments(t *testing.T) {
 		t.Fatalf("DefaultRoot = %q", root)
 	}
 }
+
+// TestTheRecordKeepsTheLatestWordOfEachSendAndNeverMixesItWithTheCopies: a
+// webhook send is a Send (the ledger's later line, a retry, wins), never a copy
+// in the Deliverables folder, and a line that names nothing the app holds is
+// not offered.
+func TestTheRecordKeepsTheLatestWordOfEachSendAndNeverMixesItWithTheCopies(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, content string) {
+		p := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sha := strings.Repeat("a", 64)
+	write("result.json", `{"agentry":"run/v1","status":"ok","ref":"acme/w@1","deliverables":{"files":[{"path":"reports/a.md","title":"A","sha256":"`+sha+`","bytes":1,"type":"md","marked":true}]},
+	 "deliveries":[
+	  {"destination":"n8n","kind":"webhook","host":"h:443","object":"reports/a.md","sha256":"`+sha+`","status":"failed","error":"status"},
+	  {"destination":"/docs","kind":"folder","object":"/docs/w/a.md","sha256":"`+sha+`","status":"delivered"}]}`)
+	write("receipts/deliveries.ndjson", strings.Join([]string{
+		`{"destination":"n8n","kind":"webhook","host":"h:443","object":"reports/a.md","sha256":"` + sha + `","status":"failed","error":"status"}`,
+		`{"destination":"n8n","kind":"webhook","host":"h:443","object":"reports/a.md","sha256":"` + sha + `","status":"delivered"}`,
+		`{"destination":"n8n","kind":"webhook","host":"h:443","object":"result","sha256":"` + sha + `","status":"refused","error":"too-large"}`,
+		`{"destination":"bad\u0007","kind":"webhook","host":"h:443","object":"reports/a.md","status":"delivered"}`,
+		`{"destination":"x","kind":"webhook","host":"h:443","object":"../../etc/passwd","status":"delivered"}`,
+		`{"destination":"x","kind":"webhook","host":"h:443","object":"reports/a.md","status":"great"}`,
+	}, "\n")+"\n")
+	rec := ReadRecord(dir)
+	if len(rec.Sends) != 2 {
+		t.Fatalf("sends: %+v", rec.Sends)
+	}
+	if s := rec.Sends[0]; s.Destination != "n8n" || s.Object != "reports/a.md" || s.Status != "delivered" || s.Error != "" {
+		t.Errorf("the retry did not win: %+v", s)
+	}
+	if s := rec.Sends[1]; s.Object != "result" || s.Status != "refused" || s.Error != "too-large" {
+		t.Errorf("the result's line: %+v", s)
+	}
+	for _, d := range rec.Deliveries {
+		if d.Kind == "webhook" {
+			t.Errorf("a send is among the copies: %+v", d)
+		}
+	}
+	if len(rec.Deliveries) == 0 {
+		t.Error("the folder copy is gone from the record")
+	}
+}

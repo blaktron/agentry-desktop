@@ -73,7 +73,7 @@ func startRun(t *testing.T, r *RunAPI, f *fakeEngine) (run.Request, chan error) 
 	t.Helper()
 	errc := make(chan error, 1)
 	go func() {
-		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
+		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
 		errc <- err
 	}()
 	select {
@@ -368,7 +368,7 @@ func TestQuittingWithAChatStartedEndsItThenSweeps(t *testing.T) {
 		close(events)
 		return &fakeChat{f: f, id: req.RunID, events: events}, nil
 	}
-	if _, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil); err != nil {
+	if _, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !recorded(r, "ab12cd34") || r.current() == nil {

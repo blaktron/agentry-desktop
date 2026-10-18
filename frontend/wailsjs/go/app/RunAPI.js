@@ -298,8 +298,12 @@ export function RestartNow() {
   return window['go']['app']['RunAPI']['RestartNow']();
 }
 
-export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) {
-  return window['go']['app']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
+export function RetryDelivery(arg1, arg2) {
+  return window['go']['app']['RunAPI']['RetryDelivery'](arg1, arg2);
+}
+
+export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17) {
+  return window['go']['app']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17);
 }
 
 export function RunDeliverablePDF(arg1, arg2) {
@@ -414,8 +418,8 @@ export function StartManagedEngine() {
   return window['go']['app']['RunAPI']['StartManagedEngine']();
 }
 
-export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {
-  return window['go']['app']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
+export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) {
+  return window['go']['app']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
 }
 
 export function StartWindowsEngine() {

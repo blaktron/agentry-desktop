@@ -164,7 +164,11 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// "-browser" is the browser's own network, named above; "-docker" is the
 	// volume of the docker filter's container on Docker Desktop, labelled with the
 	// run and so removed with the session's by label.
-	want := []string{"-browser", "-docker", "-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
+	// "-dlv" is a delivery's network, named by an id of the delivery's own and not
+	// the run's (a delivery runs after the run's record is gone, and a later one
+	// for a finished run's folder has no run): it is removed by the step and, from
+	// its containers' owner labels, by engine.SweepAbandoned.
+	want := []string{"-browser", "-dlv", "-docker", "-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
@@ -173,8 +177,8 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// model list's: named as a run's "-net" (and "-egress"), under a run id no run
 	// record holds, so a list killed midway is removed by engine.SweepAbandoned,
 	// which the engine runs before each run, from its containers' owner labels;
-	// and the browser's own.
-	if creates != 7 {
-		t.Fatalf("the engine makes a network in %d places, and the sweep knows 7: revisit runNetworks before taking this agentry-cli", creates)
+	// the browser's own; and a delivery's.
+	if creates != 8 {
+		t.Fatalf("the engine makes a network in %d places, and the sweep knows 8: revisit runNetworks before taking this agentry-cli", creates)
 	}
 }

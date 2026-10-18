@@ -131,7 +131,7 @@ func TestLiveBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.markPicked(out)
-	res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"site": site}, false, false, nil, false, nil, nil)
+	res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"site": site}, false, false, nil, false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

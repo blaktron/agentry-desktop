@@ -3,7 +3,8 @@ import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/app/SelfUpdateAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
-import { app } from "../../wailsjs/go/models";
+import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
+import { app, destinations } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
 import { fmtDuration } from "../usage";
@@ -27,6 +28,7 @@ import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
 import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
+import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
 // Settings as five cards: the landing is a card per section, each card the
@@ -41,7 +43,7 @@ import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from
 //
 // Report design comes second, after Profile, as on the site: the account's
 // report design and its editor.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -50,7 +52,7 @@ export type SettingsPart =
   | "themes" | "design-editor" | "design-preview"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
-  | "connections" | "own-clients"
+  | "connections" | "own-clients" | "destinations"
   | "home-cards" | "pins" | "reset-home";
 type Part = { id: SettingsPart; label: string };
 
@@ -103,6 +105,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     id: "connections", title: "Connections",
     sentence: "The sign-ins to MCP servers kept on this computer, one per QuickAgent version, with Disconnect, and your own OAuth clients.",
     parts: [{ id: "connections", label: "Connections" }, { id: "own-clients", label: "Your OAuth clients" }],
+  },
+  {
+    id: "destinations", title: "Destinations",
+    sentence: "The webhooks a run may send its result and deliverables to, each with its signing secret kept in the system keychain.",
+    parts: [{ id: "destinations", label: "Destinations" }],
   },
   {
     id: "home", title: "Home",
@@ -233,6 +240,7 @@ export default function Settings({
         </>
       )}
       {section === "connections" && <ConnectionsSettings />}
+      {section === "destinations" && <DestinationsSettings />}
       {section === "home" && <HomeSettings />}
     </div>
   );
@@ -261,6 +269,7 @@ type Statuses = {
   defaults?: app.RunDefaultsView | null;
   home?: app.HomeLayoutView | null;
   connections?: app.KeptConnectionsView | null;
+  destinations?: destinations.Status | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
@@ -282,6 +291,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     // Through a promise, so a binding an older harness entry lacks drops
     // the line, not the landing.
     Promise.resolve().then(() => RunAPI.Connections()).then(put("connections")).catch(() => put("connections")(null));
+    Promise.resolve().then(() => DestinationsAPI.List()).then(put("destinations")).catch(() => put("destinations")(null));
     return () => { live = false; };
   }, []);
 
@@ -294,6 +304,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
     connections: st.connections ? connectionsStatus(st.connections) : null,
+    destinations: st.destinations ? destinationsStatus(st.destinations) : null,
     home: st.home ? homeStatus(st.home) : null,
   };
 

@@ -86,6 +86,19 @@ type RunOutputsView struct {
 
 var errUnknownRun = errors.New("this app did not run that, so it has no folder for it")
 
+// rememberLocal records that this computer's engine ran the run.
+func (r *RunAPI) rememberLocal(runID string) {
+	if runID == "" {
+		return
+	}
+	r.foldersMu.Lock()
+	defer r.foldersMu.Unlock()
+	if r.localRuns == nil {
+		r.localRuns = map[string]bool{}
+	}
+	r.localRuns[runID] = true
+}
+
 // rememberFolder records the folder of a run whose result Go produced.
 func (r *RunAPI) rememberFolder(runID, dir string) {
 	if runID == "" || dir == "" {
@@ -116,6 +129,7 @@ func (r *RunAPI) folderOf(runID string) (string, error) {
 func (r *RunAPI) resultView(res *run.Result) *RunResultView {
 	v := runResultView(res)
 	r.rememberFolder(v.RunID, v.OutDir)
+	r.rememberLocal(v.RunID)
 	return v
 }
 

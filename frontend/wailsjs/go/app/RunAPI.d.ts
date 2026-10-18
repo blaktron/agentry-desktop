@@ -152,7 +152,9 @@ export function ReplayHostedSession():Promise<void>;
 
 export function RestartNow():Promise<void>;
 
-export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>,arg16:Record<string, run.HostSignIn>):Promise<app.RunResultView>;
+export function RetryDelivery(arg1:string,arg2:string):Promise<app.RunDeliverablesView>;
+
+export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>,arg16:Record<string, run.HostSignIn>,arg17:Array<string>):Promise<app.RunResultView>;
 
 export function RunDeliverablePDF(arg1:string,arg2:string):Promise<string>;
 
@@ -210,7 +212,7 @@ export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Arra
 
 export function StartManagedEngine():Promise<app.PrereqView>;
 
-export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>,arg15:Record<string, run.HostSignIn>):Promise<app.SessionView>;
+export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>,arg15:Record<string, run.HostSignIn>,arg16:Array<string>):Promise<app.SessionView>;
 
 export function StartWindowsEngine():Promise<app.PrereqView>;
 

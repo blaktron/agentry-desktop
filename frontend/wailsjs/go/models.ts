@@ -3897,12 +3897,43 @@ export namespace app {
 	        this.deliverablesError = source["deliverablesError"];
 	    }
 	}
+	export class SendView {
+	    destination: string;
+	    host: string;
+	    onMyNetwork: boolean;
+	    delivered: number;
+	    refused: number;
+	    failed: number;
+	    result: boolean;
+	    error?: string;
+	    reason?: string;
+	    canRetry: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SendView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.destination = source["destination"];
+	        this.host = source["host"];
+	        this.onMyNetwork = source["onMyNetwork"];
+	        this.delivered = source["delivered"];
+	        this.refused = source["refused"];
+	        this.failed = source["failed"];
+	        this.result = source["result"];
+	        this.error = source["error"];
+	        this.reason = source["reason"];
+	        this.canRetry = source["canRetry"];
+	    }
+	}
 	export class RunDeliverablesView {
 	    files: DeliverableView[];
 	    withheld: number;
 	    truncated: boolean;
 	    on: boolean;
 	    folder?: string;
+	    sent: SendView[];
 	
 	    static createFrom(source: any = {}) {
 	        return new RunDeliverablesView(source);
@@ -3915,6 +3946,7 @@ export namespace app {
 	        this.truncated = source["truncated"];
 	        this.on = source["on"];
 	        this.folder = source["folder"];
+	        this.sent = this.convertValues(source["sent"], SendView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4398,6 +4430,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	export class SessionView {
 	    ref: string;
 	
@@ -5531,6 +5564,89 @@ export namespace cliinstall {
 	        this.resolves = source["resolves"];
 	        this.resolvesTo = source["resolvesTo"];
 	    }
+	}
+
+}
+
+export namespace destinations {
+	
+	export class Input {
+	    name: string;
+	    url: string;
+	    onMyNetwork: boolean;
+	    secret: string;
+	    authorization: string;
+	    clearAuthorization: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Input(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.url = source["url"];
+	        this.onMyNetwork = source["onMyNetwork"];
+	        this.secret = source["secret"];
+	        this.authorization = source["authorization"];
+	        this.clearAuthorization = source["clearAuthorization"];
+	    }
+	}
+	export class View {
+	    name: string;
+	    kind: string;
+	    where: string;
+	    onMyNetwork: boolean;
+	    hasSecret: boolean;
+	    hasAuthorization: boolean;
+	    defaultFor: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new View(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.where = source["where"];
+	        this.onMyNetwork = source["onMyNetwork"];
+	        this.hasSecret = source["hasSecret"];
+	        this.hasAuthorization = source["hasAuthorization"];
+	        this.defaultFor = source["defaultFor"];
+	    }
+	}
+	export class Status {
+	    destinations: View[];
+	    keychainOff: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.destinations = this.convertValues(source["destinations"], View);
+	        this.keychainOff = source["keychainOff"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
@@ -7364,6 +7480,8 @@ export namespace schedules {
 	    allowUnscanned?: boolean;
 	    allowVulnerableMcp?: boolean;
 	    signedOut?: boolean;
+	    deliverTo?: string;
+	    destinations?: string[];
 	    when: When;
 	
 	    static createFrom(source: any = {}) {
@@ -7387,6 +7505,8 @@ export namespace schedules {
 	        this.allowUnscanned = source["allowUnscanned"];
 	        this.allowVulnerableMcp = source["allowVulnerableMcp"];
 	        this.signedOut = source["signedOut"];
+	        this.deliverTo = source["deliverTo"];
+	        this.destinations = source["destinations"];
 	        this.when = this.convertValues(source["when"], When);
 	    }
 	

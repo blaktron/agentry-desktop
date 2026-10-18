@@ -38,6 +38,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/deliver"
 
 	"github.com/blaktron/agentry-desktop/internal/deliverables"
+	"github.com/blaktron/agentry-desktop/internal/destinations"
 	"github.com/blaktron/agentry-desktop/internal/runhistory"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -100,6 +101,28 @@ type DeliverableView struct {
 	CopiedTo string `json:"copiedTo,omitempty"`
 }
 
+// SendView is one saved destination a run's result went, or was meant to go, to:
+// how many of its files arrived and what stopped the others. It carries no
+// address beyond the host and no credential.
+type SendView struct {
+	Destination string `json:"destination"`
+	Host        string `json:"host"`
+	OnMyNetwork bool   `json:"onMyNetwork"`
+	// Delivered, Refused and Failed count the files by their latest outcome;
+	// Result says the run's result alone was sent (a run that left no file).
+	Delivered int  `json:"delivered"`
+	Refused   int  `json:"refused"`
+	Failed    int  `json:"failed"`
+	Result    bool `json:"result"`
+	// Error is the closed word of the first failure ("" when none failed),
+	// Reason the same for the first file left out.
+	Error  string `json:"error,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// CanRetry says something failed and the destination is still saved, with a
+	// signing secret, so Retry can send again.
+	CanRetry bool `json:"canRetry"`
+}
+
 // RunDeliverablesView is a run's deliverables, listed first on its result.
 type RunDeliverablesView struct {
 	Files []DeliverableView `json:"files"`
@@ -111,6 +134,9 @@ type RunDeliverablesView struct {
 	// none can be named.
 	On     bool   `json:"on"`
 	Folder string `json:"folder,omitempty"`
+	// Sent is where the run's result went beside the folder, one entry for
+	// each saved destination it was given.
+	Sent []SendView `json:"sent"`
 }
 
 // describe is f as the page draws it, after its bytes were hashed against the
@@ -150,6 +176,13 @@ func (r *RunAPI) RunDeliverables(runID string) (*RunDeliverablesView, error) {
 	root, _, on, _ := deliverablesFolder()
 	rec := deliverables.ReadRecord(dir)
 	v := &RunDeliverablesView{Files: []DeliverableView{}, Withheld: rec.Withheld, Truncated: rec.Truncated, On: on, Folder: root}
+	// A run In Agentry comes down from a sandbox the agent wrote in, and its
+	// folder's delivery lines are the agent's word: where a run was sent is
+	// shown only for a run this computer ran, whose record the engine wrote.
+	v.Sent = []SendView{}
+	if r.runIsLocal(runID) {
+		v.Sent = sendViews(rec)
+	}
 	for _, f := range rec.Files {
 		d, ok := describe(dir, root, rec, f)
 		if !ok {
@@ -477,4 +510,42 @@ func collectDownloaded(dir string) {
 	if _, err := deliverables.Collect(dir, root); err != nil {
 		slog.Warn("deliverables: a run's files were not copied to the Deliverables folder", "err", err)
 	}
+}
+
+// sendViews groups the record's sends by destination, in the order they first
+// appear, and says for each whether a retry is on offer.
+func sendViews(rec deliverables.Record) []SendView {
+	out := []SendView{}
+	at := map[string]int{}
+	for _, s := range rec.Sends {
+		i, ok := at[s.Destination]
+		if !ok {
+			i = len(out)
+			at[s.Destination] = i
+			out = append(out, SendView{Destination: s.Destination, Host: s.Host, OnMyNetwork: s.OnMyNetwork})
+		}
+		v := &out[i]
+		switch s.Status {
+		case "delivered":
+			v.Delivered++
+			if s.Object == "result" {
+				v.Result = true
+			}
+		case "refused":
+			v.Refused++
+			if v.Reason == "" {
+				v.Reason = s.Error
+			}
+		default:
+			v.Failed++
+			if v.Error == "" {
+				v.Error = s.Error
+			}
+		}
+	}
+	sendable := destinations.Sendable()
+	for i := range out {
+		out[i].CanRetry = out[i].Failed > 0 && sendable[out[i].Destination]
+	}
+	return out
 }
