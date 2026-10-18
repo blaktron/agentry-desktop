@@ -296,7 +296,17 @@ g.go = { app: {
     // The files the run was for, as Go lists them once each matches the
     // run's record.
     RunDeliverables: async () => {
-      if (!hash.startsWith("runpage-deliverables")) return { files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry" };
+      // A run sent to two saved destinations, one of which failed.
+      if (hash === "runpage-sent") {
+        return {
+          files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry",
+          sent: [
+            { destination: "n8n", host: "hooks.example.com:443", onMyNetwork: false, delivered: 0, refused: 0, failed: 1, result: false, error: "status", reason: "", canRetry: true },
+            { destination: "lan", host: "192.168.1.20:5678", onMyNetwork: true, delivered: 1, refused: 0, failed: 0, result: true, error: "", reason: "", canRetry: false },
+          ],
+        };
+      }
+      if (!hash.startsWith("runpage-deliverables")) return { files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry", sent: [] };
       const off = hash === "runpage-deliverables-off";
       const copy = (n: string) => (off ? "" : `/home/chris/Documents/Agentry/pr-triage/2026-10-17 0930 Weekly digest${n}`);
       const f = (over: Record<string, unknown>) => ({ path: "reports/x.md", name: "x.md", title: "", type: "md", bytes: 2048, marked: true, canOpen: true, viewKind: "markdown", notOpened: "", copiedTo: "", ...over });
@@ -308,9 +318,10 @@ g.go = { app: {
           f({ path: "reports/page.html", name: "page.html", title: "A page", type: "html", bytes: 900, canOpen: false, viewKind: "", notOpened: "type" }),
           f({ path: "reports/fake.pdf", name: "fake.pdf", title: "Looks like a PDF", type: "pdf", bytes: 300, canOpen: false, viewKind: "", notOpened: "contents" }),
         ],
-        withheld: 1, truncated: false, on: !off, folder: "/home/chris/Documents/Agentry",
+        withheld: 1, truncated: false, on: !off, folder: "/home/chris/Documents/Agentry", sent: [],
       };
     },
+    RetryDelivery: async () => ({ files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry", sent: [{ destination: "n8n", host: "hooks.example.com:443", onMyNetwork: false, delivered: 1, refused: 0, failed: 0, result: true, error: "", reason: "", canRetry: false }] }),
     OpenRunDeliverable: async (id: string, path: string) => { document.body.dataset.opened = `${id}:${path}`; },
     ShowRunDeliverable: async (id: string, path: string) => { document.body.dataset.shown = `${id}:${path}`; },
     RunDeliverableText: async () => ({ kind: "markdown", text: "# Summary of the week\n\nThree pull requests merged.\n" }),

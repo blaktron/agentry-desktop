@@ -175,7 +175,14 @@ func (r *RunAPI) RunDeliverables(runID string) (*RunDeliverablesView, error) {
 	}
 	root, _, on, _ := deliverablesFolder()
 	rec := deliverables.ReadRecord(dir)
-	v := &RunDeliverablesView{Files: []DeliverableView{}, Withheld: rec.Withheld, Truncated: rec.Truncated, On: on, Folder: root, Sent: sendViews(rec)}
+	v := &RunDeliverablesView{Files: []DeliverableView{}, Withheld: rec.Withheld, Truncated: rec.Truncated, On: on, Folder: root}
+	// A run In Agentry comes down from a sandbox the agent wrote in, and its
+	// folder's delivery lines are the agent's word: where a run was sent is
+	// shown only for a run this computer ran, whose record the engine wrote.
+	v.Sent = []SendView{}
+	if r.runIsLocal(runID) {
+		v.Sent = sendViews(rec)
+	}
 	for _, f := range rec.Files {
 		d, ok := describe(dir, root, rec, f)
 		if !ok {
@@ -536,8 +543,9 @@ func sendViews(rec deliverables.Record) []SendView {
 			}
 		}
 	}
+	sendable := destinations.Sendable()
 	for i := range out {
-		out[i].CanRetry = out[i].Failed > 0 && destinations.CanSend(out[i].Destination)
+		out[i].CanRetry = out[i].Failed > 0 && sendable[out[i].Destination]
 	}
 	return out
 }

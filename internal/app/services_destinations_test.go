@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -74,6 +75,7 @@ func TestSettingsDestinationsSaveListAndRemoveNeverReturnACredential(t *testing.
 func sendRun(t *testing.T, envStatus string, ledger ...receipt.Delivery) (*RunAPI, string) {
 	t.Helper()
 	r, dir := deliverableRun(t, map[string][]byte{"reports/a.md": []byte("a")})
+	r.rememberLocal("run-1")
 	var env map[string]any
 	b, _ := os.ReadFile(filepath.Join(dir, "result.json"))
 	_ = json.Unmarshal(b, &env)
@@ -192,5 +194,59 @@ func TestRetryDeliverySendsOnlyToADestinationThatFailedTheRun(t *testing.T) {
 	r, _ = sendRun(t, "failed", failed)
 	if _, err := r.RetryDelivery("run-1", "n8n"); err == nil || len(asked) != 0 {
 		t.Errorf("a removed destination: %v %v", err, asked)
+	}
+}
+
+// TestWhereARunWasSentIsShownOnlyForARunThisComputerRan: a folder a run In
+// Agentry brought down was written by a sandbox an agent shared, so its delivery
+// lines are the agent's word: no Sent section and no Retry for it, whatever the
+// lines say and whatever destinations are saved.
+func TestWhereARunWasSentIsShownOnlyForARunThisComputerRan(t *testing.T) {
+	failed := receipt.Delivery{Destination: "n8n", Kind: "webhook", Host: "hooks.example.com:443", Object: "reports/a.md", SHA256: sum([]byte("a")), Status: "failed", Error: "status"}
+	r, _ := sendRun(t, "failed", failed)
+	saveN8n(t)
+	r.localRuns = nil // a run this app's engine did not run
+	v, err := r.RunDeliverables("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Sent) != 0 {
+		t.Errorf("a folder this computer did not run lists sends: %+v", v.Sent)
+	}
+	asked := false
+	old := redeliver
+	t.Cleanup(func() { redeliver = old })
+	redeliver = func(context.Context, string, []string, io.Writer) ([]receipt.Delivery, error) {
+		asked = true
+		return nil, nil
+	}
+	if _, err := r.RetryDelivery("run-1", "n8n"); err == nil || asked {
+		t.Errorf("a retry of a folder this computer did not run: %v (asked %v)", err, asked)
+	}
+}
+
+// TestARecordCannotMakeAnotherDestinationRetryable: the lines of a run this
+// computer ran still name only destinations that are valid names, in a closed
+// set of reasons, within a bound.
+func TestARecordCannotMakeAnotherDestinationRetryable(t *testing.T) {
+	var lines []receipt.Delivery
+	lines = append(lines, receipt.Delivery{Destination: "n8n", Kind: "webhook", Host: "h:443", Object: "reports/a.md", Status: "failed", Error: "a reason the receiver wrote"})
+	lines = append(lines, receipt.Delivery{Destination: "../../etc", Kind: "webhook", Host: "h:443", Object: "reports/a.md", Status: "failed", Error: "status"})
+	for i := 0; i < 3000; i++ {
+		lines = append(lines, receipt.Delivery{Destination: fmt.Sprintf("d%d", i), Kind: "webhook", Host: "h:443", Object: "reports/a.md", Status: "delivered"})
+	}
+	r, _ := sendRun(t, "failed", lines...)
+	saveN8n(t)
+	v, _ := r.RunDeliverables("run-1")
+	if len(v.Sent) > 64 {
+		t.Errorf("%d destinations from one record", len(v.Sent))
+	}
+	for _, s := range v.Sent {
+		if s.Destination == "../../etc" {
+			t.Errorf("a name that is no destination's was listed: %+v", s)
+		}
+		if s.Destination == "n8n" && s.Error != "step" {
+			t.Errorf("a reason the record wrote reached the page: %q", s.Error)
+		}
 	}
 }

@@ -11,6 +11,8 @@ test("a closed word is said in a person's words and an unknown one never as text
   assert.equal(reasonWords("something the receiver wrote"), "it did not arrive");
   assert.equal(reasonWords(""), "");
   assert.equal(reasonWords(undefined), "");
+  // A word that is a property of every object is not a reason.
+  for (const w of ["constructor", "toString", "__proto__", "hasOwnProperty"]) assert.equal(reasonWords(w), "it did not arrive");
 });
 
 test("a send says what arrived and what did not", () => {

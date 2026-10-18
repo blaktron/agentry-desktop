@@ -90,7 +90,7 @@ export function RunResultView({
         </section>
       )}
 
-      {deliverables && deliverables.sent.length > 0 && (
+      {deliverables && (deliverables.sent?.length ?? 0) > 0 && (
         <SentTo runId={runId} sent={deliverables.sent} onChanged={setDeliverables} />
       )}
 

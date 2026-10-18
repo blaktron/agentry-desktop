@@ -42,7 +42,7 @@ const REASONS: Record<string, string> = {
 /** A closed word from the receipt in a person's words; a word nobody knows is said plainly, never as the receiver's text. */
 export function reasonWords(code: string | undefined): string {
   if (!code) return "";
-  return REASONS[code] ?? "it did not arrive";
+  return Object.hasOwn(REASONS, code) ? REASONS[code] : "it did not arrive";
 }
 
 function files(n: number): string {

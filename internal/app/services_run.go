@@ -128,6 +128,8 @@ type RunAPI struct {
 	// is the file-manager seam a test substitutes.
 	foldersMu sync.Mutex
 	folders   map[string]string
+	// localRuns are the runs this computer's engine ran, by run id.
+	localRuns map[string]bool
 	// downloading holds the runs In Agentry whose Download output is under
 	// way, so a second click is refused (services_history.go).
 	downloading sync.Map

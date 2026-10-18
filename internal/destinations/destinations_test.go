@@ -160,3 +160,66 @@ func TestTheKeychainBeingOffRefusesASave(t *testing.T) {
 		t.Error("the status does not say the keychain is off")
 	}
 }
+
+// TestAnAuthorizationValueStaysWithTheReceiverItWasSavedFor: the same host and
+// port under a weaker scheme, or under a wider rule for an address, is another
+// receiver, and the saved value does not go to it.
+func TestAnAuthorizationValueStaysWithTheReceiverItWasSavedFor(t *testing.T) {
+	env(t)
+	for name, c := range map[string]struct{ first, second Input }{
+		"a scheme downgrade": {
+			Input{Name: "a", URL: "https://hooks.example.com/a", Secret: "s", Authorization: "Bearer A"},
+			Input{Name: "a", URL: "http://hooks.example.com:443/a", OnMyNetwork: true},
+		},
+		"a wider rule": {
+			Input{Name: "a", URL: "https://hooks.example.com/a", Secret: "s", Authorization: "Bearer A"},
+			Input{Name: "a", URL: "https://hooks.example.com/a", OnMyNetwork: true},
+		},
+		"another port": {
+			Input{Name: "a", URL: "https://nas.lan:8443/a", OnMyNetwork: true, Secret: "s", Authorization: "Bearer A"},
+			Input{Name: "a", URL: "https://nas.lan:9443/a", OnMyNetwork: true},
+		},
+	} {
+		keyring.MockInit()
+		_ = Remove("a")
+		if err := Save(c.first); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if err := Save(c.second); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if _, a, _ := destination.Secrets("a"); a != "" {
+			t.Errorf("%s: the saved value went to the other receiver", name)
+		}
+	}
+}
+
+// TestAFailedSaveOfASavedDestinationLeavesItsCredentialsAsTheyWere: a change
+// that cannot be written to the file puts the keychain back.
+func TestAFailedSaveOfASavedDestinationLeavesItsCredentialsAsTheyWere(t *testing.T) {
+	dir := env(t)
+	if err := Save(Input{Name: "a", URL: "https://hooks.example.com/a", Secret: "old", Authorization: "Bearer OLD"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Skip("cannot make the folder read-only here")
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if f, err := os.CreateTemp(dir, "probe"); err == nil {
+		_ = f.Close()
+		t.Skip("the folder is writable whatever its mode here")
+	}
+	if err := Save(Input{Name: "a", URL: "https://other.example.com/a", Secret: "new"}); err == nil {
+		t.Fatal("the save did not fail")
+	}
+	if s, a, _ := destination.Secrets("a"); s != "old" || a != "Bearer OLD" {
+		t.Errorf("the keychain after a failed save: %q %q", s, a)
+	}
+	// A new name leaves nothing.
+	if err := Save(Input{Name: "b", URL: "https://hooks.example.com/b", Secret: "s"}); err == nil {
+		t.Fatal("the save did not fail")
+	}
+	if destination.HasSecret("b") {
+		t.Error("a failed save of a new destination kept its secret")
+	}
+}

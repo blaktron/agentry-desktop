@@ -604,6 +604,9 @@ func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Ch
 		}
 		lines = append(lines, fmt.Sprintf("Its capabilities, as its page lists them (%s). Each scheduled run uses them with nobody there.", why))
 	}
+	if len(req.Destinations) > 0 {
+		lines = append(lines, fmt.Sprintf("Each scheduled run sends its result and files to %s once it succeeds, with nobody there.", strings.Join(req.Destinations, ", ")))
+	}
 	var accepting []string
 	if req.AllowUnsigned {
 		accepting = append(accepting, "a release with no attestation")

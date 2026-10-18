@@ -109,12 +109,21 @@ func Save(in Input) error {
 	if secret == "" && (!existed || !destination.HasSecret(in.Name)) {
 		return errors.New("a destination needs a signing secret")
 	}
-	auth := in.Authorization
-	if auth == "" && existed && !in.ClearAuthorization {
-		// A saved value stays with its host: another host never gets it.
-		if _, keep, kerr := destination.Secrets(in.Name); kerr == nil && sameHost(prev, d) {
-			auth = keep
+	// What was kept before, for a change that fails half way.
+	var oldSecret, oldAuth string
+	if existed {
+		var kerr error
+		if oldSecret, oldAuth, kerr = destination.Secrets(in.Name); kerr != nil {
+			return kerr
 		}
+	}
+	auth := in.Authorization
+	if auth == "" && existed && !in.ClearAuthorization && sameReceiver(prev, d) {
+		// A saved value stays with the receiver it was saved for: the same
+		// scheme, host and port under the same rule for an address. Another
+		// receiver, or the same one over a weaker scheme or a wider rule,
+		// never gets it.
+		auth = oldAuth
 	}
 	if !destination.ValidSecretValues(secret, auth) {
 		return errors.New("a credential holds a control character or is not valid text")
@@ -122,22 +131,30 @@ func Save(in Input) error {
 	if err := s.Upsert(d); err != nil {
 		return err
 	}
+	undo := func() {
+		if !existed {
+			_ = destination.DeleteSecrets(in.Name)
+			return
+		}
+		_ = destination.SaveSecrets(in.Name, oldSecret, oldAuth)
+	}
 	if err := destination.SaveSecrets(in.Name, secret, auth); err != nil {
+		undo()
 		return err
 	}
 	if err := s.Save(); err != nil {
-		if !existed {
-			_ = destination.DeleteSecrets(in.Name)
-		}
+		undo()
 		return err
 	}
 	return nil
 }
 
-func sameHost(a, b destination.Destination) bool {
+// sameReceiver says two destinations reach the same host and port by the same
+// scheme under the same rule for an address.
+func sameReceiver(a, b destination.Destination) bool {
 	ta, err1 := send.CheckURL(a.URL, a.OnMyNetwork)
 	tb, err2 := send.CheckURL(b.URL, b.OnMyNetwork)
-	return err1 == nil && err2 == nil && ta.HostPort == tb.HostPort
+	return err1 == nil && err2 == nil && ta.HostPort == tb.HostPort && ta.URL.Scheme == tb.URL.Scheme && a.OnMyNetwork == b.OnMyNetwork
 }
 
 // Remove deletes a destination, its credentials and its place in every default
@@ -186,6 +203,22 @@ func DefaultFor(ref string) []string {
 // Names are the destinations a run of a QuickAgent may be given: saved and with
 // a signing secret, each once. A name that is not one refuses.
 func Resolve(names []string) ([]destination.Resolved, error) { return destination.Resolve(names) }
+
+// Sendable are the saved destinations that hold a signing secret, by name: the
+// ones a delivery can be made to. The store is read once.
+func Sendable() map[string]bool {
+	out := map[string]bool{}
+	s, err := destination.Load()
+	if err != nil {
+		return out
+	}
+	for _, d := range s.Destinations {
+		if destination.HasSecret(d.Name) {
+			out[d.Name] = true
+		}
+	}
+	return out
+}
 
 // CanSend says a destination is saved and holds a signing secret, so a
 // delivery to it can be made.

@@ -10,6 +10,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/deliverables"
 	"github.com/blaktron/agentry-desktop/internal/destinations"
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/runhistory"
 )
 
 // retryTimeout bounds a retried delivery: the step, with the runner image built
@@ -80,6 +81,9 @@ func (r *RunAPI) RetryDelivery(runID, destination string) (*RunDeliverablesView,
 	if err != nil {
 		return nil, err
 	}
+	if !r.runIsLocal(runID) {
+		return nil, errors.New("a run In Agentry is sent from Agentry's own runs, not from this computer")
+	}
 	rec := deliverables.ReadRecord(dir)
 	failed := false
 	for _, s := range rec.Sends {
@@ -93,10 +97,37 @@ func (r *RunAPI) RetryDelivery(runID, destination string) (*RunDeliverablesView,
 	if !destinations.CanSend(destination) {
 		return nil, errors.New("that destination is no longer saved with a signing secret: add it again in Settings → Destinations")
 	}
+	// The run lock, as every job that builds an image or starts a container
+	// holds it: no delivery beside a live run, and one at a time.
+	if err := r.acquire(jobSetup, "the delivery of a run's result"); err != nil {
+		return nil, err
+	}
+	defer r.release()
 	ctx, cancel := context.WithTimeout(r.app.ctxOrBackground(), retryTimeout)
 	defer cancel()
 	if _, err := redeliver(ctx, dir, []string{destination}, r.eventWriter(eventRunLog)); err != nil {
 		return nil, err
 	}
 	return r.RunDeliverables(runID)
+}
+
+// runIsLocal says this computer ran the run: its result came from the engine
+// here (resultView), or its history entry, written by this app, says it ran
+// here, or it is a fire of a schedule on this computer (the CLI's record).
+// Everything in a folder a run In Agentry brought down was written by its
+// sandbox, which an agent shared.
+func (r *RunAPI) runIsLocal(runID string) bool {
+	r.foldersMu.Lock()
+	local := r.localRuns[runID]
+	r.foldersMu.Unlock()
+	if local {
+		return true
+	}
+	if historyOn() {
+		if e, ok, err := runhistory.Find(runID); err == nil && ok {
+			return e.Where == runhistory.WhereHere
+		}
+	}
+	_, _, ok := scheduledEntry(runID)
+	return ok
 }

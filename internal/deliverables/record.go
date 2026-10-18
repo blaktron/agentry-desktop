@@ -15,8 +15,12 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/destination"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
 	"github.com/blaktron/agentry-desktop/internal/runfile"
 )
@@ -151,12 +155,17 @@ func ReadRecord(runDir string) Record {
 	// retry's after them, so the last line for a destination and an object
 	// is the outcome now.
 	index := map[string]int{}
+	names := map[string]bool{}
 	for _, d := range sends {
 		if !validSend(d) {
 			continue
 		}
 		k := d.Destination + "\x00" + d.Object
-		s := Send{Destination: d.Destination, Host: d.Host, Object: d.Object, Status: d.Status, Error: d.Error, OnMyNetwork: d.OnMyNetwork}
+		if _, seen := index[k]; !seen && (len(rec.Sends) >= maxSends || (!names[d.Destination] && len(names) >= destination.MaxDestinations)) {
+			continue
+		}
+		names[d.Destination] = true
+		s := Send{Destination: d.Destination, Host: d.Host, Object: d.Object, Status: d.Status, Error: closedError(d.Error), OnMyNetwork: d.OnMyNetwork}
 		if i, ok := index[k]; ok {
 			rec.Sends[i] = s
 			continue
@@ -203,7 +212,7 @@ func tidyTitle(t string) string {
 // port, and an object that is a report's path or "result". Anything else is the
 // envelope's word about nothing the app holds.
 func validSend(d Delivery) bool {
-	if d.Destination == "" || len(d.Destination) > 40 || len(d.Host) > 300 {
+	if !destination.ValidName(d.Destination) || len(d.Host) > 300 {
 		return false
 	}
 	for _, r := range d.Destination + d.Host + d.Object {
@@ -217,4 +226,19 @@ func validSend(d Delivery) bool {
 		return false
 	}
 	return d.Object == "result" || (strings.HasPrefix(d.Object, "reports/") && path.Clean(d.Object) == d.Object)
+}
+
+// maxSends bounds the sends the app reads from one record.
+const maxSends = 2000
+
+// closedError is a record's reason when it is one of the receipt's closed
+// words, and "step" otherwise: the record's own text is never shown.
+func closedError(e string) string {
+	if e == "" {
+		return ""
+	}
+	if slices.Contains(receipt.DeliveryErrors, e) {
+		return e
+	}
+	return receipt.DeliveryErrStep
 }
