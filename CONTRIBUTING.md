@@ -41,6 +41,7 @@ version `go.mod` names, Node 22 and npm, the Wails CLI at the version
 | `make frontend` | the frontend type check, `vite build` and the frontend unit tests |
 | `make copy` | the copy check over the text the app ships |
 | `make bindings` | regenerate the TypeScript bindings after changing a bound Go method or type |
+| `make workflows-check` | no workflow job that a fork's pull request can start runs on a self-hosted runner without the fork guard (needs python3 with PyYAML) |
 
 `frontend/wailsjs/` is generated: never edit it by hand, run `make
 bindings`. A pull request that changes a bound method carries the

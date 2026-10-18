@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy script-tests frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
+.PHONY: dev build check lint test copy script-tests frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -93,6 +93,14 @@ frontend:
 
 check: frontend lint test copy script-tests
 	$(GO) build ./...
+
+## workflows-check: no job a fork's pull request can start runs on a
+## self-hosted runner without the fork guard, and the check's own tests pass.
+## Needs python3 with PyYAML; deliberately not part of `check`, which
+## needs no Python. CI runs it as its own step in the `check` job.
+workflows-check:
+	python3 scripts/ci/workflow_guard.py
+	python3 -m unittest discover -s scripts/ci
 
 # --- packaging -------------------------------------------------------------
 # Package names follow the shape the download manifest matches — product,

@@ -51,6 +51,7 @@ that resolves them against sibling checkouts.
 | `make copy` | the copy check over the text the app ships (`scripts/copy-check.sh`) |
 | `make frontend` | frontend type check, `vite build` and the frontend unit tests |
 | `make bindings` | regenerate the TypeScript bindings after changing a bound Go method or type |
+| `make workflows-check` | no workflow job that a fork's pull request can start runs on a self-hosted runner without the fork guard (python3 with PyYAML) |
 | `make package-darwin` | universal macOS `.app`, as a zip and a `.dmg` |
 | `make package-windows` | Windows amd64 exe, zip and per-user installer (cross-compiled) |
 | `make package-linux` | Linux amd64 binary, `.deb` and `.rpm` (built in a container) |
