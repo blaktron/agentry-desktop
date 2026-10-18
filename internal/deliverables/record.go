@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 
@@ -48,6 +49,7 @@ type Delivery struct {
 	Object string `json:"object"`
 	SHA256 string `json:"sha256"`
 	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
 }
 
 // Record is the envelope's deliverables and the copies made of them.
@@ -131,7 +133,7 @@ func validFile(f File) bool {
 		return false
 	}
 	p := f.Path
-	if p == "" || strings.ContainsAny(p, "\\\x00") || path.Clean(p) != p || !filepath.IsLocal(filepath.FromSlash(p)) {
+	if p == "" || strings.ContainsAny(p, "\\\x00") || (runtime.GOOS == "windows" && strings.Contains(p, ":")) || path.Clean(p) != p || !filepath.IsLocal(filepath.FromSlash(p)) {
 		return false
 	}
 	if !strings.HasPrefix(p, "reports/") || strings.HasPrefix(p, "reports/browser/") {

@@ -134,7 +134,7 @@ func describe(dir, root string, rec deliverables.Record, f deliverables.File) (D
 	default:
 		v.NotOpened = "contents" // a macro project, a control or an embedded object
 	}
-	if p, ok := deliverables.FindCopy(root, rec, f); ok {
+	if p, ok := deliverables.FindCopy(dir, root, rec, f); ok {
 		v.CopiedTo = filepath.Dir(p)
 	}
 	return v, true
@@ -224,7 +224,7 @@ func (r *RunAPI) OpenRunDeliverable(runID, rel string) error {
 		return notOpened(f, c)
 	}
 	root, _, _, _ := deliverablesFolder()
-	target, ok := deliverables.FindCopy(root, rec, f)
+	target, ok := deliverables.FindCopy(dir, root, rec, f)
 	if !ok {
 		base, err := r.copyRoot()
 		if err != nil {
@@ -258,12 +258,12 @@ func (r *RunAPI) OpenRunDeliverable(runID, rel string) error {
 // Deliverables folder when that holds the same bytes, else the run folder.
 // The file manager is only asked to show, never to open, a file.
 func (r *RunAPI) ShowRunDeliverable(runID, rel string) error {
-	_, rec, f, _, err := r.deliverableOf(runID, rel)
+	dir, rec, f, _, err := r.deliverableOf(runID, rel)
 	if err != nil {
 		return err
 	}
 	root, _, _, _ := deliverablesFolder()
-	if p, ok := deliverables.FindCopy(root, rec, f); ok {
+	if p, ok := deliverables.FindCopy(dir, root, rec, f); ok {
 		reveal := r.revealFile
 		if reveal == nil {
 			reveal = revealFileInFileManager
@@ -314,9 +314,12 @@ func (r *RunAPI) RunDeliverableText(runID, rel string) (*DeliverableTextView, er
 	if kind != "markdown" && kind != "text" {
 		return nil, fmt.Errorf("%s is not shown as text here", filepath.Base(rel))
 	}
+	if f.Bytes > maxViewBytes {
+		return nil, fmt.Errorf("%s is %s, too large to show here: Open it instead", filepath.Base(rel), "over 2 MiB")
+	}
 	b, err := deliverables.ReadChecked(dir, f, maxViewBytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s is too large to show here, or changed: Open it instead: %w", filepath.Base(rel), err)
+		return nil, fmt.Errorf("%s is not shown: %w", filepath.Base(rel), err)
 	}
 	text := string(b)
 	if !utf8.ValidString(text) {
@@ -332,7 +335,10 @@ func (r *RunAPI) RunDeliverablePDF(runID, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if c.TypeErr != nil || f.Ext() != "pdf" {
+	if f.Ext() != "pdf" {
+		return "", fmt.Errorf("%s is not a PDF", filepath.Base(rel))
+	}
+	if c.TypeErr != nil {
 		return "", notOpened(f, c)
 	}
 	b, err := deliverables.ReadChecked(dir, f, maxPDFBytes)

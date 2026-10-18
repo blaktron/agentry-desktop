@@ -592,3 +592,13 @@ func TestAChatIsGivenTheDeliverablesFolderToo(t *testing.T) {
 		t.Fatalf("a chat with the switch off was given %q", asked[1])
 	}
 }
+
+func TestTheViewersSayWhyTheyRefuse(t *testing.T) {
+	r, _ := deliverableRun(t, map[string][]byte{"reports/a.md": []byte("# A\n"), "reports/big.txt": bytes.Repeat([]byte("a"), maxViewBytes+1)})
+	if _, err := r.RunDeliverablePDF("run-1", "reports/a.md"); err == nil || !strings.Contains(err.Error(), "is not a PDF") {
+		t.Fatalf("a Markdown file to the PDF viewer: %v", err)
+	}
+	if _, err := r.RunDeliverableText("run-1", "reports/big.txt"); err == nil || !strings.Contains(err.Error(), "too large to show here") {
+		t.Fatalf("a text file over the viewer's limit: %v", err)
+	}
+}

@@ -58,6 +58,7 @@ export function RunResultView({
   useEffect(() => {
     if (!runId) return;
     let live = true;
+    setDeliverables(null);
     RunAPI.RunOutputs(runId)
       .then((v) => live && setOutputs(v))
       .catch((e) => live && setOutputsErr(String(e)));

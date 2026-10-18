@@ -42,6 +42,11 @@ func Check(runDir string, f File) (Checked, error) {
 	if err != nil || n != size {
 		return Checked{}, ErrUnreadable
 	}
+	// The envelope names a size as well as a digest: one that is not the
+	// file's is not the file it recorded.
+	if f.Bytes != size {
+		return Checked{}, ErrChanged
+	}
 	if hex.EncodeToString(h.Sum(nil)) != f.SHA256 {
 		return Checked{}, ErrChanged
 	}

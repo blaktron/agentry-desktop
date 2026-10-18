@@ -645,10 +645,10 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A deliverable is a file the run was for: a report, a document, a table. When a run ends, Agentry Desktop copies
                 its deliverables into a folder named for the QuickAgent and the time, inside this one, and Home&apos;s
-                Deliverables card and the run&apos;s result list them first. The run&apos;s own folder keeps everything and is
-                never changed. The folder is chosen here, through the file dialog; until you do, it is an Agentry folder inside
-                your Documents folder. A copy is marked as a download, so Windows and macOS treat it with the care they give a
-                file from the internet. It applies from the next run; a run In Agentry is copied when its output comes down.
+                Deliverables card and the run&apos;s result list them first. The run&apos;s own folder keeps everything: Its
+                receipts note what was copied, and nothing else in it changes. The folder is chosen here, through the file dialog; until you do, it is an Agentry
+                folder inside your Documents folder. On Windows and macOS a copy is marked as a download, so
+                the system treats it with the care it gives a file from the internet; Linux has no such mark. It applies from the next run; a run In Agentry is copied when its output comes down.
               </p>
             </Card>
           </PartSection>
