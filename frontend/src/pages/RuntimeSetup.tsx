@@ -1020,7 +1020,11 @@ function ManagedOffer({ managed, busy, onInstall }: { managed: app.PrereqView["m
       </p>
       <ul className="muted small">
         <li>{managed.versions} ({managed.licences}), about {managed.downloadMb ?? 75} MB, each file checked against the sum this app pins.</li>
-        <li>Installed under <span className="mono">{managed.dir}</span>; the app starts it when it opens and stops it when it quits. Remove it from here any time.</li>
+        <li>
+          Installed under <span className="mono">{managed.dir}</span>
+          {managed.vmDir && <>, its virtual machine&apos;s disk under <span className="mono">{managed.vmDir}</span></>}; the app starts it
+          when it opens and stops it when it quits. Remove takes both away, from here, any time.
+        </li>
         <li>No Homebrew, no administrator password, and your own docker context is left as it is.</li>
       </ul>
       <div className="row" style={{ justifyContent: "flex-end" }}>
