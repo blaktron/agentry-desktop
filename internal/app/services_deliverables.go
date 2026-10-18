@@ -106,6 +106,8 @@ type DeliverableView struct {
 // address beyond the host and no credential.
 type SendView struct {
 	Destination string `json:"destination"`
+	// Kind is "webhook" or "s3".
+	Kind        string `json:"kind"`
 	Host        string `json:"host"`
 	OnMyNetwork bool   `json:"onMyNetwork"`
 	// Delivered, Refused and Failed count the files by their latest outcome;
@@ -118,8 +120,8 @@ type SendView struct {
 	// Reason the same for the first file left out.
 	Error  string `json:"error,omitempty"`
 	Reason string `json:"reason,omitempty"`
-	// CanRetry says something failed and the destination is still saved, with a
-	// signing secret, so Retry can send again.
+	// CanRetry says something failed and the destination is still saved, with the
+	// credentials a send needs, so Retry can send again.
 	CanRetry bool `json:"canRetry"`
 }
 
@@ -522,7 +524,7 @@ func sendViews(rec deliverables.Record) []SendView {
 		if !ok {
 			i = len(out)
 			at[s.Destination] = i
-			out = append(out, SendView{Destination: s.Destination, Host: s.Host, OnMyNetwork: s.OnMyNetwork})
+			out = append(out, SendView{Destination: s.Destination, Kind: s.Kind, Host: s.Host, OnMyNetwork: s.OnMyNetwork})
 		}
 		v := &out[i]
 		switch s.Status {

@@ -301,8 +301,9 @@ g.go = { app: {
         return {
           files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry",
           sent: [
-            { destination: "n8n", host: "hooks.example.com:443", onMyNetwork: false, delivered: 0, refused: 0, failed: 1, result: false, error: "status", reason: "", canRetry: true },
-            { destination: "lan", host: "192.168.1.20:5678", onMyNetwork: true, delivered: 1, refused: 0, failed: 0, result: true, error: "", reason: "", canRetry: false },
+            { destination: "n8n", kind: "webhook", host: "hooks.example.com:443", onMyNetwork: false, delivered: 0, refused: 0, failed: 1, result: false, error: "status", reason: "", canRetry: true },
+            { destination: "archive", kind: "s3", host: "my-reports.s3.eu-west-1.amazonaws.com:443", onMyNetwork: false, delivered: 2, refused: 1, failed: 0, result: false, error: "", reason: "too-large", canRetry: false },
+            { destination: "lan", kind: "webhook", host: "192.168.1.20:5678", onMyNetwork: true, delivered: 1, refused: 0, failed: 0, result: true, error: "", reason: "", canRetry: false },
           ],
         };
       }

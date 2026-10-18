@@ -3899,6 +3899,7 @@ export namespace app {
 	}
 	export class SendView {
 	    destination: string;
+	    kind: string;
 	    host: string;
 	    onMyNetwork: boolean;
 	    delivered: number;
@@ -3916,6 +3917,7 @@ export namespace app {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.destination = source["destination"];
+	        this.kind = source["kind"];
 	        this.host = source["host"];
 	        this.onMyNetwork = source["onMyNetwork"];
 	        this.delivered = source["delivered"];
@@ -5572,9 +5574,15 @@ export namespace destinations {
 	
 	export class Input {
 	    name: string;
+	    kind: string;
 	    url: string;
 	    onMyNetwork: boolean;
+	    bucket: string;
+	    prefix: string;
+	    region: string;
+	    endpoint: string;
 	    secret: string;
+	    accessKeyId: string;
 	    authorization: string;
 	    clearAuthorization: boolean;
 	
@@ -5585,9 +5593,15 @@ export namespace destinations {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
+	        this.kind = source["kind"];
 	        this.url = source["url"];
 	        this.onMyNetwork = source["onMyNetwork"];
+	        this.bucket = source["bucket"];
+	        this.prefix = source["prefix"];
+	        this.region = source["region"];
+	        this.endpoint = source["endpoint"];
 	        this.secret = source["secret"];
+	        this.accessKeyId = source["accessKeyId"];
 	        this.authorization = source["authorization"];
 	        this.clearAuthorization = source["clearAuthorization"];
 	    }
@@ -5597,8 +5611,14 @@ export namespace destinations {
 	    kind: string;
 	    where: string;
 	    onMyNetwork: boolean;
+	    bucket?: string;
+	    prefix?: string;
+	    region?: string;
+	    endpoint?: string;
 	    hasSecret: boolean;
+	    hasAccessKey: boolean;
 	    hasAuthorization: boolean;
+	    canSend: boolean;
 	    defaultFor: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -5611,8 +5631,14 @@ export namespace destinations {
 	        this.kind = source["kind"];
 	        this.where = source["where"];
 	        this.onMyNetwork = source["onMyNetwork"];
+	        this.bucket = source["bucket"];
+	        this.prefix = source["prefix"];
+	        this.region = source["region"];
+	        this.endpoint = source["endpoint"];
 	        this.hasSecret = source["hasSecret"];
+	        this.hasAccessKey = source["hasAccessKey"];
 	        this.hasAuthorization = source["hasAuthorization"];
+	        this.canSend = source["canSend"];
 	        this.defaultFor = source["defaultFor"];
 	    }
 	}

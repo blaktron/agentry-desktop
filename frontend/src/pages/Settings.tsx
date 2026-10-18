@@ -108,7 +108,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "destinations", title: "Destinations",
-    sentence: "The webhooks a run may send its result and deliverables to, each with its signing secret kept in the system keychain.",
+    sentence: "The webhooks and S3 buckets a run may send its result and deliverables to, each with its credentials kept in the system keychain.",
     parts: [{ id: "destinations", label: "Destinations" }],
   },
   {
