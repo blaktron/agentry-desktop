@@ -27,6 +27,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
 	"github.com/blaktron/agentry-desktop/internal/cliinstall"
+	"github.com/blaktron/agentry-desktop/internal/destinations"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
@@ -461,7 +462,42 @@ func (s *ScheduleAPI) Check(req schedules.Request) (*schedules.Check, error) {
 	}
 	ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
 	defer cancel()
+	if err := s.setDelivery(ctx, c, &req); err != nil {
+		return nil, err
+	}
 	return c.Check(ctx, req)
+}
+
+// setDelivery sets where a schedule's fires send, as the person's settings and
+// choices have it, never as the page names it. The folder is the Deliverables
+// folder in effect, when the switch is on; the page cannot name another. The
+// destinations are the saved ones the setup chose, each held to the CLI's
+// rule. A command that does not take the flags (older than MinDeliverCLI)
+// makes no schedule that needs them: the folder, which nobody chose by hand,
+// is left off with a note in the log, and a destination somebody did choose
+// refuses.
+func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *schedules.Request) error {
+	req.DeliverTo = deliverFolder()
+	for _, n := range req.Destinations {
+		if !destinations.CanSend(n) {
+			return fmt.Errorf("the destination %q is not saved with a signing secret: set it up in Settings → Destinations", n)
+		}
+	}
+	if req.DeliverTo == "" && len(req.Destinations) == 0 {
+		return nil
+	}
+	line, err := c.Version(ctx)
+	if err != nil {
+		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if why := schedules.OlderThan(line, schedules.MinDeliverCLI, "a schedule that delivers"); why != "" {
+		if len(req.Destinations) > 0 {
+			return errors.New(why)
+		}
+		log.Printf("agentry-desktop: schedule %s: the agentry command is too old to keep where its runs deliver, so the Deliverables folder is not passed: %s", req.Ref, why)
+		req.DeliverTo = ""
+	}
+	return nil
 }
 
 // ScheduleMadeView is a schedule just made.
@@ -488,6 +524,10 @@ func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.Host
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+	if err := s.setDelivery(ctx, c, &req); err != nil {
+		cancel()
+		return nil, err
+	}
 	ck, err := c.Check(ctx, req)
 	cancel()
 	if err != nil {

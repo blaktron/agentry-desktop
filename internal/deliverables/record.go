@@ -50,6 +50,24 @@ type Delivery struct {
 	SHA256 string `json:"sha256"`
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
+	// Kind is "folder" (or none, in a record from before destinations) for a
+	// copy and "webhook" for a send; the rest belong to a send.
+	Kind        string `json:"kind,omitempty"`
+	Destination string `json:"destination,omitempty"`
+	Host        string `json:"host,omitempty"`
+	OnMyNetwork bool   `json:"onMyNetwork,omitempty"`
+}
+
+// Send is where a file, or a run's result alone (Object "result"), last
+// went to a saved destination, and how that ended: the latest of the record's
+// lines for the destination and the object, since a retry is a later line.
+type Send struct {
+	Destination string
+	Host        string
+	Object      string
+	Status      string
+	Error       string
+	OnMyNetwork bool
 }
 
 // Record is the envelope's deliverables and the copies made of them.
@@ -59,6 +77,8 @@ type Record struct {
 	Files      []File
 	Truncated  bool
 	Deliveries []Delivery
+	// Sends are the sends to saved destinations, the latest outcome of each.
+	Sends []Send
 	// Withheld counts entries the envelope lists that are not well formed (a
 	// path outside reports/, a link-like or climbing path, a digest that is
 	// not a SHA-256) and so are not offered.
@@ -69,7 +89,7 @@ type Record struct {
 // folder's result.json. A missing, linked, oversized or unreadable envelope
 // lists nothing. The list is never nil.
 func ReadRecord(runDir string) Record {
-	rec := Record{Files: []File{}, Deliveries: []Delivery{}}
+	rec := Record{Files: []File{}, Deliveries: []Delivery{}, Sends: []Send{}}
 	b, ok := runfile.Read(runDir, "result.json", maxEnvelopeBytes)
 	if !ok {
 		return rec
@@ -116,11 +136,33 @@ func ReadRecord(runDir string) Record {
 			}
 		}
 	}
+	var sends []Delivery
 	for _, d := range all {
+		if d.Kind == "webhook" {
+			sends = append(sends, d)
+			continue
+		}
 		if d.Status == "delivered" {
 			d.SHA256 = strings.ToLower(d.SHA256)
 			rec.Deliveries = append(rec.Deliveries, d)
 		}
+	}
+	// The ledger holds every line the run's own envelope block does, and a
+	// retry's after them, so the last line for a destination and an object
+	// is the outcome now.
+	index := map[string]int{}
+	for _, d := range sends {
+		if !validSend(d) {
+			continue
+		}
+		k := d.Destination + "\x00" + d.Object
+		s := Send{Destination: d.Destination, Host: d.Host, Object: d.Object, Status: d.Status, Error: d.Error, OnMyNetwork: d.OnMyNetwork}
+		if i, ok := index[k]; ok {
+			rec.Sends[i] = s
+			continue
+		}
+		index[k] = len(rec.Sends)
+		rec.Sends = append(rec.Sends, s)
 	}
 	return rec
 }
@@ -155,4 +197,24 @@ func tidyTitle(t string) string {
 		t = string(r[:maxTitleRunes])
 	}
 	return t
+}
+
+// validSend is a send the app can name: a saved destination's name, a host and
+// port, and an object that is a report's path or "result". Anything else is the
+// envelope's word about nothing the app holds.
+func validSend(d Delivery) bool {
+	if d.Destination == "" || len(d.Destination) > 40 || len(d.Host) > 300 {
+		return false
+	}
+	for _, r := range d.Destination + d.Host + d.Object {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	switch d.Status {
+	case "delivered", "refused", "failed":
+	default:
+		return false
+	}
+	return d.Object == "result" || (strings.HasPrefix(d.Object, "reports/") && path.Clean(d.Object) == d.Object)
 }

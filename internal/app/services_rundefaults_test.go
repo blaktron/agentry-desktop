@@ -80,7 +80,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 	// saved folder passes the picked-path gate in a session that never
 	// picked it.
 	passedTheGate("the gates, output", r.runGates("acme/x@1.0.0", nil, saved, false, false, false))
-	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil, false, nil, nil)
+	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 	passedTheGate("StartSession", err)
 	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil, false, false, nil)
 	passedTheGate("StartHostedRun", err)
@@ -235,12 +235,12 @@ func TestEachRunGetsItsOwnFolderInsideTheSavedOne(t *testing.T) {
 			got = append(got, req)
 			return &run.Result{}, nil
 		}}
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err != nil {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	picked := t.TempDir()
 	app.markPicked(picked)
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, picked, nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err != nil {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, picked, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 || !got[0].OutDirIsRoot || got[1].OutDirIsRoot {
@@ -313,7 +313,7 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 		return &fakeChat{f: &fakeEngine{}, id: req.RunID, events: events}, nil
 	}
 	chat := func() error {
-		_, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil)
+		_, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil, nil)
 		if err == nil {
 			_, err = r.EndSession(false)
 		}

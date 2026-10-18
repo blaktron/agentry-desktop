@@ -232,6 +232,14 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// ctxOrBackground is the window's context, or a background one before it exists.
+func (a *App) ctxOrBackground() context.Context {
+	if a != nil && a.ctx != nil {
+		return a.ctx
+	}
+	return context.Background()
+}
+
 // AppVersion returns the build-stamped version.
 func (a *App) AppVersion() string {
 	return version.Version

@@ -19,8 +19,9 @@ import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
 import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as VoiceAPI from "../../wailsjs/go/app/VoiceAPI";
 import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
+import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/app/App";
-import { knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
+import { destinations, knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
@@ -41,6 +42,7 @@ import { SiteQuestion } from "./SiteQuestion";
 import { isSiteQuestion, siteBlockers } from "../browser";
 import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostForm, type TargetHost } from "../hosts";
 import { HostQuestion } from "./HostQuestion";
+import { SendTo } from "./SendTo";
 import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 
@@ -106,6 +108,14 @@ export default function RunPanel({
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
   const [sourceChecks, setSourceChecks] = useState<Record<string, { answer: string; key: SourceKey }>>({});
+  // The saved destinations (Settings → Destinations), and the ones this run, or
+  // each fire of this schedule, sends its result to. The QuickAgent's default
+  // set preselects them until the person chooses; choosing is theirs, so a
+  // default read late never overwrites a choice made.
+  const [savedDestinations, setSavedDestinations] = useState<destinations.View[]>([]);
+  const [sendTo, setSendTo] = useState<string[]>([]);
+  const [sendToTouched, setSendToTouched] = useState(false);
+  const [makeSendDefault, setMakeSendDefault] = useState(false);
   // A target host's sign-in typed for this run, by question id, with the
   // keychain account it was typed for: sent with the
   // run for its host link alone, and not kept with the setup's answers
@@ -697,6 +707,28 @@ export default function RunPanel({
     return intakeToSend(intakeValues, profile?.intake ?? [], inAgentry);
   }
 
+  useEffect(() => {
+    let live = true;
+    DestinationsAPI.List().then((s) => live && setSavedDestinations(s.destinations)).catch(() => live && setSavedDestinations([]));
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    if (sendToTouched || savedDestinations.length === 0) return;
+    let live = true;
+    DestinationsAPI.DefaultFor(agentRef)
+      .then((names) => live && setSendTo(names.filter((n) => savedDestinations.some((d) => d.name === n && d.hasSecret))))
+      .catch(() => {});
+    return () => { live = false; };
+  }, [agentRef, savedDestinations, sendToTouched]);
+  // The destinations a run here is given: the ones the setup chose that are
+  // still saved with a signing secret.
+  const sendNames = (): string[] => sendTo.filter((n) => savedDestinations.some((d) => d.name === n && d.hasSecret));
+  // The choice kept as the QuickAgent's default, when the box says so; a
+  // failure to keep it never stops the run.
+  const keepSendDefault = () => {
+    if (!makeSendDefault) return Promise.resolve();
+    return DestinationsAPI.SetDefault(`${ns}/${name}`, sendNames()).then(() => undefined).catch(() => undefined);
+  };
   // The answers as the run's own calls take them.
   function limits(): { timeout: number; turns: number } {
     return {
@@ -715,7 +747,7 @@ export default function RunPanel({
       registry, ref: agentRef, outDir: outDir.trim(), task: task.trim(), files: inputs, knowledge: attached,
       intake: intakeAnswers(), voice: writeInVoice, timeoutSeconds: timeout, maxTurns: turns,
       allowUnsigned: unsigned && acceptUnsigned, allowUnscanned: unscanned && acceptUnscanned, allowVulnerableMcp: vuln.send,
-      signedOut: when.signedOut && !!availability?.signedOut.available, when: spec,
+      signedOut: when.signedOut && !!availability?.signedOut.available, destinations: sendNames(), when: spec,
     });
   }
   // The check runs again, after a pause in typing, whenever the schedule
@@ -761,6 +793,7 @@ export default function RunPanel({
     setRunErr(null);
     try {
       const made = await ScheduleAPI.Add(req, hostSignIns());
+      await keepSendDefault();
       window.dispatchEvent(new CustomEvent(SCHEDULED_EVENT, { detail: made.id }));
       onClose();
     } catch (e) {
@@ -817,11 +850,12 @@ export default function RunPanel({
   // shows in that dialog, with Back to the setup.
   function startLocalSession() {
     const { turns } = limits();
+    void keepSendDefault();
     try {
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns()),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames()),
       );
       onClose();
     } catch (e) {
@@ -967,10 +1001,11 @@ export default function RunPanel({
       // The run's flow follows it from here: this setup closes once Go
       // reports the run has begun, and stays, with Go's words, if it never
       // does (the consent declined, another job running, a gate refused).
+      await keepSendDefault();
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns()),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames()),
       );
       onClose();
     } catch (e) {
@@ -1687,6 +1722,13 @@ export default function RunPanel({
                 )}
               </div>
               </>)}
+              {!inAgentry && !sessionInAgentry && (
+                <SendTo
+                  saved={savedDestinations} chosen={sendTo} disabled={running}
+                  onChange={(names) => { setSendToTouched(true); setSendTo(names); }}
+                  makeDefault={makeSendDefault} onMakeDefault={setMakeSendDefault}
+                />
+              )}
               {!inAgentry && (
             <>
               {/* The ceilings have the policy's defaults and the keep toggle its

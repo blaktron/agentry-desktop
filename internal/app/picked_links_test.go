@@ -108,19 +108,19 @@ func TestTheBindingsRefuseALinkOutOfAPickedFolder(t *testing.T) {
 	linkDir := filepath.Join(picked, "link")
 	for name, call := range map[string]func() error{
 		"RunAgent inputs": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"RunAgent outDir": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"StartSession inputs": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"StartSession outDir": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"BuildAPI.Save":     func() error { return b.Save(linkDir, build.Model{}) },

@@ -434,7 +434,7 @@ func TestARunAndAChatAreGivenTheDeliverablesFolderWhileTheSwitchIsOn(t *testing.
 	}
 	runIt := func() {
 		t.Helper()
-		if _, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err != nil {
+		if _, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -572,7 +572,7 @@ func TestAChatIsGivenTheDeliverablesFolderToo(t *testing.T) {
 	}
 	chat := func() {
 		t.Helper()
-		if _, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil); err != nil {
+		if _, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := r.EndSession(false); err != nil {

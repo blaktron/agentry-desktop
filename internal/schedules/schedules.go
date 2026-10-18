@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/destination"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
 	"github.com/blaktron/agentry-desktop/internal/cliinstall"
@@ -40,6 +41,10 @@ var MinCLI = [3]int{0, 6, 86}
 // target host and pins its key: a QuickAgent that asks for a server is
 // scheduled only through it.
 var MinTargetHostsCLI = [3]int{0, 6, 111}
+
+// MinDeliverCLI is the oldest agentry whose schedule add keeps where its fires
+// deliver (--deliver-to, --destination).
+var MinDeliverCLI = [3]int{0, 6, 139}
 
 // ErrNoCLI says why scheduling on this computer is not offered here.
 var ErrNoCLI = errors.New("scheduling a run on this computer needs the agentry command, which was not found")
@@ -304,7 +309,13 @@ type Request struct {
 	AllowUnscanned     bool `json:"allowUnscanned,omitempty"`
 	AllowVulnerableMCP bool `json:"allowVulnerableMcp,omitempty"`
 	SignedOut          bool `json:"signedOut,omitempty"`
-	When               When `json:"when"`
+	// DeliverTo is the absolute folder each fire copies its deliverables to
+	// (`--deliver-to`), Destinations the saved destinations each fire sends its
+	// result to (`--destination`, by name). Either needs an agentry that
+	// takes the flags (MinDeliverCLI).
+	DeliverTo    string   `json:"deliverTo,omitempty"`
+	Destinations []string `json:"destinations,omitempty"`
+	When         When     `json:"when"`
 }
 
 // refPattern is ns/name@version.
@@ -371,6 +382,18 @@ func (r Request) AddArgs() ([]string, error) {
 	}
 	if r.SignedOut {
 		args = append(args, "--signed-out")
+	}
+	if r.DeliverTo != "" {
+		if !filepath.IsAbs(r.DeliverTo) {
+			return nil, fmt.Errorf("the delivery folder %q is not an absolute path", r.DeliverTo)
+		}
+		args = append(args, "--deliver-to", r.DeliverTo)
+	}
+	for _, d := range r.Destinations {
+		if !destination.ValidName(d) {
+			return nil, fmt.Errorf("%q is not a destination's name", d)
+		}
+		args = append(args, "--destination", d)
 	}
 	return args, nil
 }

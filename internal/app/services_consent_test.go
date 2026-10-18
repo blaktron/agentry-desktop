@@ -39,7 +39,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		"InstallEngine":    func() error { _, err := r.InstallEngine(); return err },
 		"AddToDockerGroup": func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"InstallAPI.Confirm unscanned": func() error {
@@ -65,7 +65,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	}
 	// A consent-free run raises no dialog: nothing to confirm.
 	before := len(asked)
-	_, _ = r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
+	_, _ = r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
 	if len(asked) != before {
 		t.Fatalf("a run with no consent flags raised a dialog: %v", asked[before:])
 	}
@@ -76,11 +76,11 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	before = len(asked)
 	for name, call := range map[string]func() error{
 		"RunAgent": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"StartSession": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false, nil, nil, nil)
 			return err
 		},
 	} {
@@ -105,15 +105,15 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 	typed := filepath.Join(t.TempDir(), "typed")
 	for name, call := range map[string]func() error{
 		"RunAgent inputs": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{typed}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{typed}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"RunAgent outDir": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"StartSession outDir": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil, false, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
 		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },
@@ -169,7 +169,7 @@ func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
 	if err := app.keyFiles.require("the key file", keyPath); err != nil {
 		t.Fatalf("a picked key is refused as a key: %v", err)
 	}
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{keyPath}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err == nil || !strings.Contains(err.Error(), "file dialog") {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{keyPath}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("a picked key was taken as an input: %v", err)
 	}
 	input := filepath.Join(t.TempDir(), "notes.txt")

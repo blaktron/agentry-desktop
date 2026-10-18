@@ -397,3 +397,33 @@ func TestAnEmptyRunnerHomeHasNoSchedules(t *testing.T) {
 		t.Fatal("an empty home has a schedule")
 	}
 }
+
+// TestAddArgsCarryWhereFiresDeliver: the Deliverables folder and the saved
+// destinations the setup chose are the command's --deliver-to and --destination,
+// and a name that could be an option, or a relative folder, is refused.
+func TestAddArgsCarryWhereFiresDeliver(t *testing.T) {
+	r := Request{Ref: "acme/digest@1.2.0", OutDir: "/home/p/reports", MaxTurns: -1, When: When{Kind: "daily", Time: "09:00"},
+		DeliverTo: "/home/p/Documents/Agentry", Destinations: []string{"n8n", "lan"}}
+	got, err := r.AddArgs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j := strings.Join(got, " "); !strings.Contains(j, "--deliver-to /home/p/Documents/Agentry --destination n8n --destination lan") {
+		t.Errorf("args %q", got)
+	}
+	r.DeliverTo, r.Destinations = "", nil
+	got, _ = r.AddArgs()
+	if j := strings.Join(got, " "); strings.Contains(j, "--deliver-to") || strings.Contains(j, "--destination") {
+		t.Errorf("a schedule with no delivery passes %q", got)
+	}
+	for _, bad := range []Request{
+		{Ref: r.Ref, OutDir: r.OutDir, MaxTurns: -1, When: r.When, DeliverTo: "docs"},
+		{Ref: r.Ref, OutDir: r.OutDir, MaxTurns: -1, When: r.When, Destinations: []string{"x --yes"}},
+		{Ref: r.Ref, OutDir: r.OutDir, MaxTurns: -1, When: r.When, Destinations: []string{"--registry"}},
+		{Ref: r.Ref, OutDir: r.OutDir, MaxTurns: -1, When: r.When, Destinations: []string{"N8N"}},
+	} {
+		if _, err := bad.AddArgs(); err == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+}
