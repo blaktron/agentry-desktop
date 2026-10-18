@@ -109,15 +109,37 @@ func pinned() record {
 // <colima home>/<profile>/docker.sock.
 const Profile = "default"
 
-// maxSocketPath is what macOS lets a Unix socket path be.
+// maxSocketPath is the size of a Unix socket address's path on macOS,
+// its terminating NUL included: a path must be shorter than this.
 const maxSocketPath = 104
+
+// limaInstance is the Lima instance Colima runs its default profile as.
+const limaInstance = "colima"
+
+// limaSSHSocket is the longest socket Lima opens in an instance's
+// directory: ssh's control socket, while ssh is connecting, carries a
+// 16-character suffix. Lima refuses to create an instance whose directory
+// would put this path at or over the limit, so it is what the limit is
+// measured on.
+const limaSSHSocket = "ssh.sock.1234567890123456"
+
+// vmDirName is the directory the VM's state lives in: Colima's home
+// (colima/, with the Docker API's socket) and Lima's (lima/, with the VM's
+// disk and sockets). It is kept out of the engine directory, whose path
+// under Application Support is too long for those sockets, as a directory
+// of its own in the home directory.
+const vmDirName = ".agentry-vm"
 
 // Engine is the managed engine at one directory.
 type Engine struct {
 	// Dir is the engine directory: bin/ (colima, limactl, docker),
-	// share/lima/, colima/ (Colima's home, with Lima's under it) and
+	// libexec/ and share/ (Lima's), cache/ (Colima's), docker-config/ and
 	// installed.json.
 	Dir string
+	// VMDir holds the VM's state: colima/ (Colima's home) and lima/
+	// (Lima's). Its base name is always vmDirName; empty is that name
+	// under Dir.
+	VMDir string
 	// Client fetches the assets; nil is http.DefaultClient with a timeout.
 	Client *http.Client
 	// Command builds the commands run (colima start, stop, status, delete);
@@ -130,13 +152,18 @@ type Engine struct {
 }
 
 // Default is the engine under the app's own directory,
-// ~/Library/Application Support/agentry-desktop/engine on macOS.
+// ~/Library/Application Support/agentry-desktop/engine on macOS, with the
+// VM's state at ~/.agentry-vm, a path short enough for its sockets.
 func Default() (*Engine, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("the application support directory: %w", err)
 	}
-	return &Engine{Dir: filepath.Join(base, "agentry-desktop", "engine")}, nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("the home directory: %w", err)
+	}
+	return &Engine{Dir: filepath.Join(base, "agentry-desktop", "engine"), VMDir: filepath.Join(home, vmDirName)}, nil
 }
 
 // Supported says whether this build can manage an engine at all: macOS,
@@ -151,8 +178,26 @@ func Supported() bool {
 
 // Paths under the engine directory.
 func (e *Engine) binDir() string     { return filepath.Join(e.Dir, "bin") }
-func (e *Engine) colimaHome() string { return filepath.Join(e.Dir, "colima") }
+func (e *Engine) colimaHome() string { return filepath.Join(e.vmDir(), "colima") }
+func (e *Engine) limaHome() string   { return filepath.Join(e.vmDir(), "lima") }
 func (e *Engine) colima() string     { return filepath.Join(e.binDir(), "colima") }
+
+// VMDirPath is where the VM keeps its state: its disk, Colima's and Lima's
+// homes.
+func (e *Engine) VMDirPath() string { return e.vmDir() }
+
+// vmDir is VMDir, or vmDirName under Dir.
+func (e *Engine) vmDir() string {
+	if e.VMDir != "" {
+		return e.VMDir
+	}
+	return filepath.Join(e.Dir, vmDirName)
+}
+
+// limaSocket is the longest socket path Lima opens for the engine's VM.
+func (e *Engine) limaSocket() string {
+	return filepath.Join(e.limaHome(), limaInstance, limaSSHSocket)
+}
 
 // Docker is the docker CLI the engine is driven with.
 func (e *Engine) Docker() string { return filepath.Join(e.binDir(), "docker") }
@@ -206,11 +251,14 @@ func (e *Engine) readRecord() (record, error) {
 	return rec, nil
 }
 
-// CheckSocketPath refuses an engine directory whose socket path macOS
-// could not bind, naming it, before anything is downloaded.
+// CheckSocketPath refuses an engine whose sockets macOS could not bind,
+// naming the path, before anything is downloaded: the Docker API's socket
+// under Colima's home and the longest of Lima's under its own.
 func (e *Engine) CheckSocketPath() error {
-	if n := len(e.Socket()); n > maxSocketPath {
-		return fmt.Errorf("the engine's socket path %s is %d bytes, over the %d macOS allows; the app cannot run an engine under this home directory", e.Socket(), n, maxSocketPath)
+	for _, p := range []string{e.Socket(), e.limaSocket()} {
+		if n := len(p); n >= maxSocketPath {
+			return fmt.Errorf("the engine's socket path %s is %d bytes, and macOS allows %d at most; the app cannot run an engine under this home directory", p, n, maxSocketPath-1)
+		}
 	}
 	return nil
 }
@@ -440,9 +488,12 @@ func (e *Engine) env() []string {
 	}
 	// Colima's cache (the VM's image, a few hundred MB) under the engine
 	// directory too, so Remove leaves nothing in the person's caches; an
-	// update keeps it, a fresh install fetches it again.
+	// update keeps it, a fresh install fetches it again. Lima's home is
+	// named beside Colima's rather than left under it as _lima, which
+	// would lengthen its sockets' paths.
 	return append(out,
 		"COLIMA_HOME="+e.colimaHome(),
+		"LIMA_HOME="+e.limaHome(),
 		"COLIMA_CACHE_HOME="+filepath.Join(e.Dir, "cache"),
 		"DOCKER_CONFIG="+e.DockerConfigDir(),
 		"PATH="+e.binDir()+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -474,6 +525,9 @@ const startWait = 60 * time.Second
 func (e *Engine) Start(ctx context.Context) error {
 	if !e.Installed() {
 		return errors.New("the engine is not installed")
+	}
+	if err := e.CheckSocketPath(); err != nil {
+		return fmt.Errorf("start Agentry's engine: %w", err)
 	}
 	// Colima honours COLIMA_HOME only once the directory exists; the
 	// install made it and the docker configuration, and a start remakes
@@ -527,15 +581,18 @@ func (e *Engine) Running(ctx context.Context) bool {
 	return cmd.Run() == nil
 }
 
-// Remove deletes the VM with its data and then the whole engine directory,
-// so nothing of the engine is left but the app. When the VM's deletion
-// fails the directory still goes, and the error says so: a host agent of
-// the VM may be left running until the Mac restarts.
+// Remove deletes the VM with its data, then the VM directory and the whole
+// engine directory, so nothing of the engine is left but the app. When the
+// VM's deletion fails the directories still go, and the error says so: a
+// host agent of the VM may be left running until the Mac restarts.
 func (e *Engine) Remove(ctx context.Context) error {
-	// Only ever the engine directory the app named: never a home, a root
-	// or nothing.
+	// Only ever the directories the app named: never a home, a root or
+	// nothing.
 	if d := filepath.Clean(e.Dir); d == "" || d == "." || d == string(filepath.Separator) || filepath.Base(d) != "engine" {
 		return fmt.Errorf("refusing to remove %q: not an engine directory", e.Dir)
+	}
+	if d := filepath.Clean(e.vmDir()); filepath.Base(d) != vmDirName {
+		return fmt.Errorf("refusing to remove %q: not the engine's VM directory", e.vmDir())
 	}
 	var deleteErr error
 	if e.Installed() {
@@ -545,11 +602,14 @@ func (e *Engine) Remove(ctx context.Context) error {
 			e.logf("%v (removing the directory anyway)", deleteErr)
 		}
 	}
+	if err := os.RemoveAll(e.vmDir()); err != nil {
+		return fmt.Errorf("remove Agentry's engine's virtual machine directory: %w", err)
+	}
 	if err := os.RemoveAll(e.Dir); err != nil {
 		return fmt.Errorf("remove Agentry's engine's directory: %w", err)
 	}
 	if deleteErr != nil {
-		return fmt.Errorf("%w; the engine's directory was removed, and a process of its virtual machine may be left until this Mac restarts", deleteErr)
+		return fmt.Errorf("%w; the engine's directories were removed, and a process of its virtual machine may be left until this Mac restarts", deleteErr)
 	}
 	return nil
 }

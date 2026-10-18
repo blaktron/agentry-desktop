@@ -171,7 +171,7 @@ g.go = { app: {
     PrereqStatus: async () => ({
       dockerOk: dockerState === "", state: dockerState || "ready", os: dockerState === "managedOffer" ? "darwin" : dockerState === "windowsOffer" ? "windows" : "linux", distro: dockerState === "managedOffer" || dockerState === "windowsOffer" ? "" : dockerState === "installable" || dockerState === "socketOff" ? "fedora" : "ubuntu",
       managed: dockerState === "managedOffer"
-        ? { supported: true, installed: false, current: false, running: false, dir: "/Users/me/Library/Application Support/agentry-desktop/engine", socket: "/Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock", versions: "Colima 0.10.3, Lima 2.2.1 and the docker command 29.9.1", licences: "Colima (MIT), Lima (Apache-2.0) and the docker command (Apache-2.0)", downloadMb: 75 }
+        ? { supported: true, installed: false, current: false, running: false, dir: "/Users/me/Library/Application Support/agentry-desktop/engine", vmDir: "/Users/me/.agentry-vm", socket: "/Users/me/.agentry-vm/colima/default/docker.sock", versions: "Colima 0.10.3, Lima 2.2.1 and the docker command 29.9.1", licences: "Colima (MIT), Lima (Apache-2.0) and the docker command (Apache-2.0)", downloadMb: 75 }
         : { supported: false, installed: false, current: false, running: false },
       windows: dockerState === "windowsOffer"
         ? { supported: true, rancherInstalled: false, installedByApp: false, dockerDesktopInstalled: false, wsl: "missing", starting: false, version: "1.24.0", licence: "Apache-2.0", downloadMb: 640 }

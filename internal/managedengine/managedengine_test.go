@@ -51,23 +51,55 @@ func TestThePinnedTableIsCompleteForBothArchitectures(t *testing.T) {
 	}
 }
 
-// The socket path rule: a home under which the socket could not be bound
-// is refused by name, before anything is downloaded.
+// macEngine is the engine as Default lays it out on macOS for an account.
+func macEngine(account string) *Engine {
+	home := "/Users/" + account
+	return &Engine{Dir: home + "/Library/Application Support/agentry-desktop/engine", VMDir: home + "/" + vmDirName}
+}
+
+// The socket path rule: both of the engine's longest sockets, the Docker
+// API's under Colima's home and ssh's control socket under Lima's, are
+// held under what macOS can bind, and an engine where either is over is
+// refused by name, before anything is downloaded or started.
 func TestTheSocketPathIsHeldToTheLimit(t *testing.T) {
-	e := &Engine{Dir: "/Users/me/Library/Application Support/agentry-desktop/engine"}
+	e := macEngine("me")
 	if err := e.CheckSocketPath(); err != nil {
 		t.Errorf("a usual home refused: %v", err)
 	}
-	if got := e.Socket(); got != "/Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock" {
+	if got := e.Socket(); got != "/Users/me/.agentry-vm/colima/default/docker.sock" {
 		t.Errorf("socket = %s", got)
 	}
-	long := &Engine{Dir: "/Users/" + strings.Repeat("n", 60) + "/Library/Application Support/agentry-desktop/engine"}
-	err := long.CheckSocketPath()
-	if err == nil || !strings.Contains(err.Error(), "docker.sock") || !strings.Contains(err.Error(), "104") {
-		t.Errorf("an over-long home: %v", err)
+	if got := e.limaSocket(); got != "/Users/me/.agentry-vm/lima/colima/ssh.sock.1234567890123456" {
+		t.Errorf("Lima's socket = %s", got)
 	}
-	if err := long.Install(context.Background()); err == nil || !strings.Contains(err.Error(), "104") {
+	// A long account name still fits.
+	if err := macEngine(strings.Repeat("n", 40)).CheckSocketPath(); err != nil {
+		t.Errorf("a 40-character account refused: %v", err)
+	}
+	// Lima's home under the engine directory, under Application Support,
+	// is over the limit for every account: refused, naming Lima's socket.
+	nested := &Engine{Dir: "/Users/me/Library/Application Support/agentry-desktop/engine"}
+	err := nested.CheckSocketPath()
+	if err == nil || !strings.Contains(err.Error(), "ssh.sock") || !strings.Contains(err.Error(), "103") {
+		t.Errorf("Lima's sockets under Application Support: %v", err)
+	}
+	// Exactly at the limit is over it: the path and its NUL must fit.
+	at := &Engine{Dir: "/e/engine", VMDir: "/" + strings.Repeat("v", maxSocketPath-len("/x/lima/colima/"+limaSSHSocket)) + "/x/" + vmDirName}
+	if n := len(at.limaSocket()); n < maxSocketPath {
+		t.Fatalf("the test's path is %d bytes, want at least %d", n, maxSocketPath)
+	}
+	if err := at.CheckSocketPath(); err == nil {
+		t.Errorf("a %d-byte socket path accepted", len(at.limaSocket()))
+	}
+	long := macEngine(strings.Repeat("n", 60))
+	if err := long.CheckSocketPath(); err == nil {
+		t.Error("a 60-character account accepted")
+	}
+	if err := long.Install(context.Background()); err == nil || !strings.Contains(err.Error(), "103") {
 		t.Errorf("Install did not refuse the over-long home first: %v", err)
+	}
+	if err := long.Start(context.Background()); err == nil {
+		t.Error("Start did not refuse the over-long home")
 	}
 }
 
@@ -121,10 +153,11 @@ func testPublisher(t *testing.T, tamper string) (*Engine, func()) {
 // directory lives under /var/folders there, which is too long.
 func shortTempDir(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS != "darwin" {
-		return t.TempDir()
+	base := os.TempDir()
+	if runtime.GOOS == "darwin" {
+		base = "/tmp"
 	}
-	dir, err := os.MkdirTemp("/tmp", "agentry-me-")
+	dir, err := os.MkdirTemp(base, "agentry-me-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +230,7 @@ func TestInstallPutsTheBinariesInPlace(t *testing.T) {
 			t.Errorf("%s landed: %v", p, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(e.Dir, "colima")); err != nil {
+	if _, err := os.Stat(filepath.Join(e.Dir, vmDirName, "colima")); err != nil {
 		t.Errorf("colima's home was not made: %v", err)
 	}
 	if b, err := os.ReadFile(filepath.Join(e.DockerConfigDir(), "config.json")); err != nil || strings.TrimSpace(string(b)) != "{}" {
@@ -244,12 +277,13 @@ func TestATamperedDownloadIsRefused(t *testing.T) {
 }
 
 // The commands: colima is run from the engine's own bin with COLIMA_HOME
-// under the engine directory and that bin first on PATH, the person's
-// docker variables kept out; start waits for the socket, stop and remove
-// run their commands, and Remove leaves nothing.
+// and LIMA_HOME under the VM directory and that bin first on PATH, the
+// person's docker variables kept out; start waits for the socket, stop and
+// remove run their commands, and Remove leaves nothing.
 func TestTheEngineIsDrivenUnderItsOwnHome(t *testing.T) {
 	e, done := testPublisher(t, "")
 	defer done()
+	e.VMDir = filepath.Join(shortTempDir(t), vmDirName)
 	if err := e.Install(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -274,12 +308,13 @@ func TestTheEngineIsDrivenUnderItsOwnHome(t *testing.T) {
 	t.Setenv("DOCKER_HOST", "unix:///somewhere/else.sock")
 	t.Setenv("DOCKER_CONFIG", "/elsewhere/.docker")
 	t.Setenv("COLIMA_HOME", "/elsewhere")
+	t.Setenv("LIMA_HOME", "/elsewhere/lima")
 	// The environment is built by env(); capture it through a command.
 	cmd := e.command(context.Background(), "status")
 	for _, kv := range cmd.Env {
 		envs = append(envs, strings.SplitN(kv, "=", 2))
 	}
-	var sawHome, sawPath, sawConfig bool
+	var sawHome, sawLima, sawPath, sawConfig bool
 	for _, kv := range envs {
 		switch kv[0] {
 		case "DOCKER_CONFIG":
@@ -289,8 +324,13 @@ func TestTheEngineIsDrivenUnderItsOwnHome(t *testing.T) {
 			}
 		case "COLIMA_HOME":
 			sawHome = true
-			if kv[1] != filepath.Join(e.Dir, "colima") {
+			if kv[1] != filepath.Join(e.VMDir, "colima") {
 				t.Errorf("COLIMA_HOME = %s", kv[1])
+			}
+		case "LIMA_HOME":
+			sawLima = true
+			if kv[1] != filepath.Join(e.VMDir, "lima") {
+				t.Errorf("LIMA_HOME = %s", kv[1])
 			}
 		case "PATH":
 			sawPath = true
@@ -301,12 +341,12 @@ func TestTheEngineIsDrivenUnderItsOwnHome(t *testing.T) {
 			if kv[1] != filepath.Join(e.Dir, "cache") {
 				t.Errorf("COLIMA_CACHE_HOME = %s", kv[1])
 			}
-		case "DOCKER_HOST", "DOCKER_CONTEXT", "LIMA_HOME":
+		case "DOCKER_HOST", "DOCKER_CONTEXT":
 			t.Errorf("%s reached the engine's command", kv[0])
 		}
 	}
-	if !sawHome || !sawPath || !sawConfig {
-		t.Error("COLIMA_HOME, DOCKER_CONFIG or PATH missing from the command's environment")
+	if !sawHome || !sawLima || !sawPath || !sawConfig {
+		t.Error("COLIMA_HOME, LIMA_HOME, DOCKER_CONFIG or PATH missing from the command's environment")
 	}
 	if cmd.Path != "true" && filepath.Base(cmd.Path) != "true" {
 		t.Errorf("the stand-in was not used: %s", cmd.Path)
@@ -332,6 +372,9 @@ func TestTheEngineIsDrivenUnderItsOwnHome(t *testing.T) {
 	}
 	if _, err := os.Stat(e.Dir); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the engine directory was kept: %v", err)
+	}
+	if _, err := os.Stat(e.VMDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the VM directory was kept: %v", err)
 	}
 	want := []string{"colima stop default", "colima status default", "colima delete default --force --data"}
 	if len(calls) != 4 || calls[1] != want[0] || calls[2] != want[1] || calls[3] != want[2] {
@@ -359,7 +402,36 @@ func TestDefaultIsUnderTheAppsOwnDirectory(t *testing.T) {
 	if !strings.HasSuffix(e.Dir, filepath.Join("agentry-desktop", "engine")) {
 		t.Errorf("Default dir = %s", e.Dir)
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.VMDir != filepath.Join(home, ".agentry-vm") {
+		t.Errorf("Default VM dir = %s", e.VMDir)
+	}
 	if Supported() != (runtime.GOOS == "darwin") {
 		t.Errorf("Supported() = %v on %s", Supported(), runtime.GOOS)
+	}
+}
+
+// Remove deletes only directories the engine names as its own: the engine
+// directory and the VM directory, each by its base name.
+func TestRemoveRefusesDirectoriesNotTheEngines(t *testing.T) {
+	root := t.TempDir()
+	keep := filepath.Join(root, "person")
+	if err := os.MkdirAll(keep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []*Engine{
+		{Dir: keep, VMDir: filepath.Join(root, vmDirName)},
+		{Dir: filepath.Join(root, "engine"), VMDir: keep},
+		{Dir: filepath.Join(root, "engine"), VMDir: root},
+	} {
+		if err := e.Remove(context.Background()); err == nil || !strings.Contains(err.Error(), "refusing") {
+			t.Errorf("Remove(%s, %s) = %v, want a refusal", e.Dir, e.VMDir, err)
+		}
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Errorf("a refused Remove touched %s: %v", keep, err)
 	}
 }

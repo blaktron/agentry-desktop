@@ -33,10 +33,12 @@ type Managed struct {
 	// engine: its socket path would be too long for macOS to bind. The
 	// card says it instead of offering the click.
 	SocketPathError string `json:"socketPathError,omitempty"`
-	// Dir is where it lives, Socket where it serves the Docker API, Versions
-	// the three it is made of, Licences their licences, DownloadMB about
-	// what the install fetches.
+	// Dir is where it is installed, VMDir where its virtual machine keeps
+	// its disk, Socket where it serves the Docker API, Versions the three
+	// it is made of, Licences their licences, DownloadMB about what the
+	// install fetches.
 	Dir        string `json:"dir,omitempty"`
+	VMDir      string `json:"vmDir,omitempty"`
 	Socket     string `json:"socket,omitempty"`
 	Versions   string `json:"versions,omitempty"`
 	Licences   string `json:"licences,omitempty"`
@@ -103,7 +105,7 @@ func managedStory(ctx context.Context) Managed {
 	if e == nil {
 		return Managed{}
 	}
-	m := Managed{Supported: true, Dir: e.Dir, Socket: e.Socket(), Versions: ManagedVersions(), Licences: managedengine.Licences, DownloadMB: managedengine.DownloadMB, Starting: managedStarting.Load()}
+	m := Managed{Supported: true, Dir: e.Dir, VMDir: e.VMDirPath(), Socket: e.Socket(), Versions: ManagedVersions(), Licences: managedengine.Licences, DownloadMB: managedengine.DownloadMB, Starting: managedStarting.Load()}
 	if err := e.CheckSocketPath(); err != nil {
 		m.SocketPathError = err.Error()
 	}

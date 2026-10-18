@@ -7055,6 +7055,7 @@ export namespace run {
 	    starting: boolean;
 	    socketPathError?: string;
 	    dir?: string;
+	    vmDir?: string;
 	    socket?: string;
 	    versions?: string;
 	    licences?: string;
@@ -7073,6 +7074,7 @@ export namespace run {
 	        this.starting = source["starting"];
 	        this.socketPathError = source["socketPathError"];
 	        this.dir = source["dir"];
+	        this.vmDir = source["vmDir"];
 	        this.socket = source["socket"];
 	        this.versions = source["versions"];
 	        this.licences = source["licences"];

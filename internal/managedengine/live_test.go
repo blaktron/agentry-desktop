@@ -22,9 +22,13 @@ import (
 //
 //	AGENTRY_LIVE_MANAGED_ENGINE=1 go test ./internal/managedengine -run TestLiveManagedEngineOnThisMac -v -timeout 20m
 //
-// AGENTRY_LIVE_MANAGED_ENGINE_DIR names the engine directory to use (under
-// the home directory, which the VM shares); the default is a short path
-// under the home directory, removed at the end.
+// By default it runs where the app runs the engine (the application
+// support directory, the VM's state in ~/.agentry-vm), so the paths the
+// app uses are the ones proved, and it refuses to start where either is
+// already there: the person's own engine is never removed by a test.
+// AGENTRY_LIVE_MANAGED_ENGINE_DIR names another engine directory instead
+// (under the home directory, which the VM shares), with the VM's state
+// under it; everything it makes is removed at the end.
 func TestLiveManagedEngineOnThisMac(t *testing.T) {
 	if os.Getenv("AGENTRY_LIVE_MANAGED_ENGINE") == "" {
 		t.Skip("set AGENTRY_LIVE_MANAGED_ENGINE=1 to fetch the engine and boot its VM on this Mac")
@@ -36,11 +40,20 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := os.Getenv("AGENTRY_LIVE_MANAGED_ENGINE_DIR")
-	if dir == "" {
-		dir = filepath.Join(home, ".agentry-engine-live-test", "engine")
+	e, err := Default()
+	if err != nil {
+		t.Fatal(err)
 	}
-	e := &Engine{Dir: dir, Ping: dockerx.PingSocket, Log: os.Stderr}
+	if dir := os.Getenv("AGENTRY_LIVE_MANAGED_ENGINE_DIR"); dir != "" {
+		e = &Engine{Dir: dir}
+	}
+	for _, d := range []string{e.Dir, e.vmDir()} {
+		if _, err := os.Stat(d); err == nil {
+			t.Fatalf("%s is already there; remove the app's engine first, or name another directory with AGENTRY_LIVE_MANAGED_ENGINE_DIR", d)
+		}
+	}
+	e.Ping, e.Log = dockerx.PingSocket, os.Stderr
+	t.Logf("engine directory %s, VM directory %s", e.Dir, e.vmDir())
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
@@ -124,8 +137,10 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 	if err := e.Remove(ctx); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
-	if _, err := os.Stat(e.Dir); !os.IsNotExist(err) {
-		t.Errorf("the engine directory is still there: %v", err)
+	for _, d := range []string{e.Dir, e.vmDir()} {
+		if _, err := os.Stat(d); !os.IsNotExist(err) {
+			t.Errorf("%s is still there: %v", d, err)
+		}
 	}
 	_ = os.Remove(filepath.Dir(e.Dir))
 	// Nothing of Colima's landed in the person's own caches or homes.
@@ -134,7 +149,7 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 	}
 	// Nothing of Lima's host agents is left running for this engine.
 	out, _ := exec.Command("pgrep", "-fl", "limactl").Output()
-	if strings.Contains(string(out), e.Dir) {
+	if strings.Contains(string(out), e.Dir) || strings.Contains(string(out), e.vmDir()) {
 		t.Errorf("a Lima host agent of this engine outlived Remove:\n%s", out)
 	}
 }
