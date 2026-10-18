@@ -30,6 +30,7 @@ func freshConfig(t *testing.T) {
 	t.Helper()
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	t.Setenv(policy.HomeEnv, t.TempDir())
+	isolateDeliverables(t)
 }
 
 // setRemember turns Remember recent runs on or off in the test's settings.

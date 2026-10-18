@@ -22,6 +22,10 @@ export function ChooseDefaultOutputDir() {
   return window['go']['app']['SettingsAPI']['ChooseDefaultOutputDir']();
 }
 
+export function ChooseDeliverablesDir() {
+  return window['go']['app']['SettingsAPI']['ChooseDeliverablesDir']();
+}
+
 export function ChooseReportLogo(arg1) {
   return window['go']['app']['SettingsAPI']['ChooseReportLogo'](arg1);
 }
@@ -106,6 +110,10 @@ export function SetDefault(arg1) {
   return window['go']['app']['SettingsAPI']['SetDefault'](arg1);
 }
 
+export function SetDeliverables(arg1) {
+  return window['go']['app']['SettingsAPI']['SetDeliverables'](arg1);
+}
+
 export function SetDisplayName(arg1, arg2) {
   return window['go']['app']['SettingsAPI']['SetDisplayName'](arg1, arg2);
 }
@@ -136,6 +144,10 @@ export function SignInViaBrowser(arg1) {
 
 export function SignOut(arg1) {
   return window['go']['app']['SettingsAPI']['SignOut'](arg1);
+}
+
+export function UseDefaultDeliverablesDir() {
+  return window['go']['app']['SettingsAPI']['UseDefaultDeliverablesDir']();
 }
 
 export function Whoami(arg1) {

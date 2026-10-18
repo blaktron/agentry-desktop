@@ -392,6 +392,11 @@ type Request struct {
 	// output mount is read-write, and one run must not read or change what another
 	// left. A folder picked for one run is used as it is.
 	OutDirIsRoot bool
+	// DeliverTo is the absolute folder the run copies its deliverables into
+	// once it has succeeded, as `agentry run --deliver-to` does: the files it
+	// was for, each after its digest is checked, under a QuickAgent and date
+	// folder, the run's own folder left as it is. "" delivers nothing.
+	DeliverTo string
 	// KeepProfile overrides the completion choice (nil = stored profile,
 	// else the policy default).
 	KeepProfile *bool
@@ -849,6 +854,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			RunRoot:          installDir,
 			RunnerHome:       home,
 			OutDir:           outDir,
+			DeliverTo:        req.DeliverTo,
 			Task:             task,
 			InputPaths:       req.InputPaths,
 			Knowledge:        knowledgePacks,

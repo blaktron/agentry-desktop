@@ -44,7 +44,11 @@ function bytesOf(b64: string): Uint8Array {
   return out;
 }
 
-export function PdfViewer({ runId, path, name }: { runId: string; path: string; name: string }) {
+/** The bytes of one PDF, base64, as Go hands them on: the PDF export's record
+ *  by default (RunAPI.RunPDF), a deliverable's with RunAPI.RunDeliverablePDF. */
+export type PdfSource = (runId: string, path: string) => Promise<string>;
+
+export function PdfViewer({ runId, path, name, load = RunAPI.RunPDF }: { runId: string; path: string; name: string; load?: PdfSource }) {
   const pagesRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +62,7 @@ export function PdfViewer({ runId, path, name }: { runId: string; path: string; 
     setError(null);
     (async () => {
       try {
-        const data = bytesOf(await RunAPI.RunPDF(runId, path));
+        const data = bytesOf(await load(runId, path));
         task = pdfjs.getDocument({ data, enableXfa: false, useSystemFonts: false, stopAtErrors: false });
         const d = await task.promise;
         if (!gone) setDoc(d);
@@ -70,7 +74,7 @@ export function PdfViewer({ runId, path, name }: { runId: string; path: string; 
       gone = true;
       void task?.destroy();
     };
-  }, [runId, path]);
+  }, [runId, path, load]);
 
   // A slot per page at this zoom; a page's canvas is drawn only while its
   // slot is near the view, and let go when it is not.

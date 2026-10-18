@@ -34,13 +34,13 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "recent-runs,installed,profile,run-defaults" || v.Newer {
+	if got := order(v); got != "deliverables,recent-runs,installed,profile,run-defaults" || v.Newer {
 		t.Fatalf("Layout() = %s newer=%v", got, v.Newer)
 	}
 	if v, err = h.SetShown("profile", false); err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "recent-runs,installed,profile(hidden),run-defaults" {
+	if got := order(v); got != "deliverables,recent-runs,installed,profile(hidden),run-defaults" {
 		t.Fatalf("SetShown answered %s", got)
 	}
 	if _, err := h.SetShown("pinned", false); err == nil {
@@ -49,7 +49,7 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	if v, err = h.Reset(); err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "recent-runs,installed,profile,run-defaults" {
+	if got := order(v); got != "deliverables,recent-runs,installed,profile,run-defaults" {
 		t.Fatalf("Reset answered %s", got)
 	}
 }
@@ -186,10 +186,10 @@ func TestHomeBindingPinsTheScheduledCard(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := v.Cards[len(v.Cards)-1]
-	if len(v.Cards) != 5 || last.Kind != settings.HomeScheduled || last.Size != settings.HomeLarge || v.MaxPins != settings.MaxPins {
+	if len(v.Cards) != 6 || last.Kind != settings.HomeScheduled || last.Size != settings.HomeLarge || v.MaxPins != settings.MaxPins {
 		t.Fatalf("PinScheduled() = %+v", v)
 	}
-	if v, err = h.UnpinScheduled(); err != nil || len(v.Cards) != 4 {
+	if v, err = h.UnpinScheduled(); err != nil || len(v.Cards) != 5 {
 		t.Fatalf("UnpinScheduled() = %+v, %v", v, err)
 	}
 }

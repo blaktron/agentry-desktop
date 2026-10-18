@@ -21,6 +21,8 @@ import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
 import { localUseLine } from "../usage";
 import { PdfViewer } from "../PdfViewer";
 import { pdfActions } from "../reportPdf";
+import { withheldLine } from "../deliverables";
+import { DeliverableItem } from "./Deliverables";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, decode, unsafeExec, ask, children,
@@ -49,13 +51,22 @@ export function RunResultView({
   const [outputs, setOutputs] = useState<app.RunOutputsView | null>(null);
   const [outputsErr, setOutputsErr] = useState<string | null>(null);
   const [folderErr, setFolderErr] = useState<string | null>(null);
+  // The files the run was for, which Go lists after checking each against the
+  // run's record: first on the result.
+  const [deliverables, setDeliverables] = useState<app.RunDeliverablesView | null>(null);
 
   useEffect(() => {
     if (!runId) return;
     let live = true;
+    setDeliverables(null);
     RunAPI.RunOutputs(runId)
       .then((v) => live && setOutputs(v))
       .catch((e) => live && setOutputsErr(String(e)));
+    // A run with none, or one this app cannot list, shows no section: its
+    // files are still in the list below.
+    RunAPI.RunDeliverables(runId)
+      .then((v) => live && setDeliverables(v))
+      .catch(() => live && setDeliverables(null));
     return () => {
       live = false;
     };
@@ -66,6 +77,18 @@ export function RunResultView({
     <div className="run-result-view">
       <h3 className={`run-outcome run-outcome-${tone}`}>{headline}</h3>
       {error && <ErrorBox error={error} />}
+
+      {deliverables && (deliverables.files.length > 0 || deliverables.withheld > 0) && (
+        <section aria-labelledby="run-result-deliverables" data-deliverables-section>
+          <h4 id="run-result-deliverables">Deliverables</h4>
+          <p className="muted small">The files this run was for.</p>
+          {(deliverables.files ?? []).map((f) => (
+            <DeliverableItem key={f.path} runId={runId} file={f} on={deliverables.on} />
+          ))}
+          {deliverables.withheld > 0 && <p className="muted small" data-deliverables-withheld>{withheldLine(deliverables.withheld)}</p>}
+          {deliverables.truncated && <p className="muted small">The run listed more files than are shown here.</p>}
+        </section>
+      )}
 
       <section aria-labelledby="run-result-message">
         <h4 id="run-result-message">The result</h4>
