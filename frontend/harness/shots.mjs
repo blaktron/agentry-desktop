@@ -883,6 +883,10 @@ const states = [
     click: '[data-preview="settings"] input[data-remember-runs]', expectSection: "run-defaults", expectText: "Off: no run is remembered." },
   { name: "settings-builtin-no-limit-off", url: "/pages.html?settings=run-defaults", note: "the switch turned off: drafts, builds, reviews and voices on this computer keep the max turns and their floors", locator: '[data-preview="settings"] #settings-part-budgets',
     click: '[data-preview="settings"] input[data-builtin-no-limit]', expectSection: "run-defaults", expectText: "No time or turn limit for the built-in agents", expectNone: '[data-preview="settings"] input[data-builtin-no-limit]:checked' },
+  { name: "settings-malware-check-off", url: "/pages.html?settings=run-defaults", note: "Run defaults → Malware check: off by default; a run checks only the programs of a QuickAgent that runs commands", locator: '[data-preview="settings"] #settings-part-malware',
+    expectSection: "run-defaults", expectText: ["Check every file a run is given for malware", "Off. A run checks only the programs among its files, and only when the QuickAgent runs commands that could start them.", "Runs In Agentry are always checked"], expectNone: '[data-preview="settings"] input[data-malware-check]:checked' },
+  { name: "settings-malware-check-on", url: "/pages.html?settings=run-defaults", note: "the switch turned on: every file is checked, as In Agentry", locator: '[data-preview="settings"] #settings-part-malware',
+    click: '[data-preview="settings"] input[data-malware-check]', expectSection: "run-defaults", expectText: "On. Every file you give a run", expectChecked: '[data-preview="settings"] input[data-malware-check]' },
   // Unsafe Mode: the switch off and on in Run defaults,
   // the pull under way, and the red edge over a page and over a dialog.
   // `window` shoots the window, not the locator, since the edge is the window's;

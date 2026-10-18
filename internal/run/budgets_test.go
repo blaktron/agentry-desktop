@@ -83,3 +83,39 @@ func TestSetBudgetsRefusesWhatTheCLIWouldNotRunWith(t *testing.T) {
 		})
 	}
 }
+
+// Run defaults' Malware check writes the runner policy's malwareCheck,
+// which the CLI reads, keeping what else the policy holds; a policy
+// without the key, and no policy at all, read as off.
+func TestSetMalwareCheckWritesThePolicyTheCLIReads(t *testing.T) {
+	isolateRunEnv(t)
+	path, err := policy.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SetBudgets(1800, 40); err != nil {
+		t.Fatal(err)
+	}
+	pol, _, err := policy.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pol.MalwareCheckOn() {
+		t.Fatal("a fresh policy has the malware check on")
+	}
+	for _, on := range []bool{true, false} {
+		if err := SetMalwareCheck(on); err != nil {
+			t.Fatal(err)
+		}
+		pol, _, err := policy.Load(path)
+		if err != nil {
+			t.Fatalf("the CLI cannot load the policy the desktop wrote: %v", err)
+		}
+		if pol.MalwareCheckOn() != on || pol.MalwareCheck == nil {
+			t.Fatalf("malwareCheck read back as %v, want %v", pol.MalwareCheck, on)
+		}
+		if pol.Budgets.TimeoutSeconds != 1800 || pol.Budgets.MaxTurns != 40 {
+			t.Fatalf("the switch moved the budgets: %+v", pol.Budgets)
+		}
+	}
+}

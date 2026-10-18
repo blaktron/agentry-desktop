@@ -350,7 +350,7 @@ const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7, deliverables: location.hash !== "#home-deliverables-off", deliverablesDir: "/home/chris/Documents/Agentry", deliverablesDefault: true, deliverablesError: "" };
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, malwareCheck: location.hash === "#malware-check-on", rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7, deliverables: location.hash !== "#home-deliverables-off", deliverablesDir: "/home/chris/Documents/Agentry", deliverablesDefault: true, deliverablesError: "" };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
 const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
@@ -917,6 +917,7 @@ g.go = { app: {
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
     SetBuiltinNoLimit: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoLimit: on }),
+    SetMalwareCheck: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, malwareCheck: on }),
     // Remember recent runs: off forgets them all.
     SetDeliverables: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, deliverables: on }),
     ChooseDeliverablesDir: async () => (runDefaultsView = { ...runDefaultsView, deliverablesDir: "/home/chris/Projects/outputs", deliverablesDefault: false }),
