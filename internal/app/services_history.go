@@ -705,7 +705,19 @@ func (r *RunAPI) HostedRecord(reg, runID string) (*HostedRecordView, error) {
 	if h.ID != runID {
 		return nil, fmt.Errorf("the registry answered the run %s as %q", runID, h.ID)
 	}
-	return r.hostedRecordView(h), nil
+	return r.collectedRecordView(h), nil
+}
+
+// collectedRecordView is hostedRecordView for a run page being opened: a
+// run whose output is on this computer and was not copied to the Deliverables
+// folder yet (it ended while the app was closed, or the switch was off then)
+// is copied now, once, and the view then lists it.
+func (r *RunAPI) collectedRecordView(h *hostedrun.Run) *HostedRecordView {
+	v := r.hostedRecordView(h)
+	if v.Kept && v.Run != nil && v.Run.OutDir != "" {
+		collectDownloaded(v.Run.OutDir)
+	}
+	return v
 }
 
 // hostedRecordView is a run In Agentry for the run page: the registry's
@@ -814,7 +826,7 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 	}
 	r.rememberFolder(h.ID, dir)
 	recordHosted(reg, h, dir)
-	return r.hostedRecordView(h), nil
+	return r.collectedRecordView(h), nil
 }
 
 // SetRememberRuns turns Remember recent runs on or off. Off clears the

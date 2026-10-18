@@ -112,7 +112,11 @@ export function ListModels(arg1:string,arg2:string,arg3:string):Promise<app.Cata
 
 export function ModelSignIns():Promise<Array<run.ModelSignIn>>;
 
+export function OpenDeliverablesFolder():Promise<void>;
+
 export function OpenHostedConnect(arg1:string,arg2:string):Promise<void>;
+
+export function OpenRunDeliverable(arg1:string,arg2:string):Promise<void>;
 
 export function OpenRunPDF(arg1:string,arg2:string):Promise<void>;
 
@@ -121,6 +125,8 @@ export function PasteRedirect(arg1:string):Promise<void>;
 export function PrereqStatus():Promise<app.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<app.ProfileStatusView>;
+
+export function RecentDeliverables(arg1:number):Promise<app.RecentDeliverablesView>;
 
 export function RecentHosts():Promise<Array<string>>;
 
@@ -147,6 +153,12 @@ export function ReplayHostedSession():Promise<void>;
 export function RestartNow():Promise<void>;
 
 export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>,arg16:Record<string, run.HostSignIn>):Promise<app.RunResultView>;
+
+export function RunDeliverablePDF(arg1:string,arg2:string):Promise<string>;
+
+export function RunDeliverableText(arg1:string,arg2:string):Promise<app.DeliverableTextView>;
+
+export function RunDeliverables(arg1:string):Promise<app.RunDeliverablesView>;
 
 export function RunOutputs(arg1:string):Promise<app.RunOutputsView>;
 
@@ -175,6 +187,8 @@ export function SetHostedSecret(arg1:string,arg2:string,arg3:string,arg4:boolean
 export function SetUnsafeMode(arg1:boolean):Promise<app.RunDefaultsView>;
 
 export function SetupStatus():Promise<app.SetupStatusView>;
+
+export function ShowRunDeliverable(arg1:string,arg2:string):Promise<void>;
 
 export function ShowRunFolder(arg1:string):Promise<void>;
 

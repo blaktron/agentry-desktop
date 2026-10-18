@@ -6,10 +6,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// noFollowOpenFlags: Windows has no O_NOFOLLOW; readRunFile's per-part Lstat
-// and its same-file check after the open refuse a link or a junction.
-const noFollowOpenFlags = 0
-
 // openWithSystemViewer asks Windows to open a PDF copy OpenRunPDF wrote with
 // the program the person has for PDFs: ShellExecute's "open" verb on a file
 // whose name copyName made plain and which ends in .pdf.

@@ -138,6 +138,16 @@ type Settings struct {
 	// page. A POINTER because the default is on: absent means on. Read it
 	// through RememberRunsEnabled. Turning it off clears the history.
 	RememberRuns *bool `yaml:"rememberRuns,omitempty" json:"rememberRuns,omitempty"`
+	// Deliverables is Settings → Run defaults → Deliverables: while it is on,
+	// every QuickAgent run and chat on this computer copies the files it was
+	// for into DeliverablesDir, and a run In Agentry that is brought down
+	// does the same. A POINTER because the default is on: absent means on.
+	// Read it through DeliverablesEnabled.
+	Deliverables *bool `yaml:"deliverables,omitempty" json:"deliverables,omitempty"`
+	// DeliverablesDir is the folder the deliverables go to, chosen through
+	// the native picker on that page and nowhere else, "" for the default
+	// (an Agentry folder inside the Documents folder).
+	DeliverablesDir string `yaml:"deliverablesDir,omitempty" json:"deliverablesDir,omitempty"`
 
 	// Home is the Home page's cards, in order (home.go). Absent means the
 	// defaults. Read it through HomeLayoutNow; it is written only by the
@@ -221,6 +231,12 @@ func (s Settings) UpdateCheckEnabled() bool {
 // computer. Unset means yes.
 func (s Settings) RememberRunsEnabled() bool {
 	return s.RememberRuns == nil || *s.RememberRuns
+}
+
+// DeliverablesEnabled says whether runs copy their deliverables out to the
+// Deliverables folder. Unset means yes.
+func (s Settings) DeliverablesEnabled() bool {
+	return s.Deliverables == nil || *s.Deliverables
 }
 
 // Path returns the settings file path.

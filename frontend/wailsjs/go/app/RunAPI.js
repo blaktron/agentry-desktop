@@ -218,8 +218,16 @@ export function ModelSignIns() {
   return window['go']['app']['RunAPI']['ModelSignIns']();
 }
 
+export function OpenDeliverablesFolder() {
+  return window['go']['app']['RunAPI']['OpenDeliverablesFolder']();
+}
+
 export function OpenHostedConnect(arg1, arg2) {
   return window['go']['app']['RunAPI']['OpenHostedConnect'](arg1, arg2);
+}
+
+export function OpenRunDeliverable(arg1, arg2) {
+  return window['go']['app']['RunAPI']['OpenRunDeliverable'](arg1, arg2);
 }
 
 export function OpenRunPDF(arg1, arg2) {
@@ -236,6 +244,10 @@ export function PrereqStatus() {
 
 export function ProfileStatus(arg1, arg2) {
   return window['go']['app']['RunAPI']['ProfileStatus'](arg1, arg2);
+}
+
+export function RecentDeliverables(arg1) {
+  return window['go']['app']['RunAPI']['RecentDeliverables'](arg1);
 }
 
 export function RecentHosts() {
@@ -288,6 +300,18 @@ export function RestartNow() {
 
 export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) {
   return window['go']['app']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
+}
+
+export function RunDeliverablePDF(arg1, arg2) {
+  return window['go']['app']['RunAPI']['RunDeliverablePDF'](arg1, arg2);
+}
+
+export function RunDeliverableText(arg1, arg2) {
+  return window['go']['app']['RunAPI']['RunDeliverableText'](arg1, arg2);
+}
+
+export function RunDeliverables(arg1) {
+  return window['go']['app']['RunAPI']['RunDeliverables'](arg1);
 }
 
 export function RunOutputs(arg1) {
@@ -344,6 +368,10 @@ export function SetUnsafeMode(arg1) {
 
 export function SetupStatus() {
   return window['go']['app']['RunAPI']['SetupStatus']();
+}
+
+export function ShowRunDeliverable(arg1, arg2) {
+  return window['go']['app']['RunAPI']['ShowRunDeliverable'](arg1, arg2);
 }
 
 export function ShowRunFolder(arg1) {

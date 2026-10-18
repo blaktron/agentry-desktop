@@ -37,6 +37,13 @@
 // The run page, opened from Home's Recent runs:
 //   #runpage-local          a run on this computer the history keeps: how it
 //                           ended (the history's), the result, the files
+//   #runpage-deliverables   the same, and the files the run was for listed first:
+//                           a PDF and a Markdown file copied to the Deliverables
+//                           folder, a spreadsheet, a page whose type no click
+//                           opens, a file whose contents are not its type's,
+//                           and one the run's record names that is withheld
+//   #runpage-deliverables-off the same with the switch off: the line says the
+//                           files are in the run folder only
 //   #runpage-hostile        the same, its result and files carrying raw HTML,
 //                           a script, an image and a right-to-left override
 //   #runpage-gone           its folder has gone: said, Remove from Recent runs
@@ -203,6 +210,9 @@ const rpRow = (over: Record<string, unknown> = {}) => ({
 });
 function recordedRun() {
   switch (hash) {
+    case "runpage-deliverables":
+    case "runpage-deliverables-off":
+      return { run: rpRow(), folder: RP_DIR, folderState: "present", resultJson: result.resultJson };
     case "runpage-gone":
       return { run: rpRow({ outcome: "error", exitCode: 3, tone: "bad" }), folder: RP_DIR, folderState: "gone", folderError: "the run's folder is no longer there: it was deleted or moved" };
     case "runpage-draft-error":
@@ -283,6 +293,27 @@ g.go = { app: {
     ForgetRun: async () => undefined,
     RunOutputs: async () => outputs,
     ShowRunFolder: async () => undefined,
+    // The files the run was for, as Go lists them once each matches the
+    // run's record.
+    RunDeliverables: async () => {
+      if (!hash.startsWith("runpage-deliverables")) return { files: [], withheld: 0, truncated: false, on: true, folder: "/home/chris/Documents/Agentry" };
+      const off = hash === "runpage-deliverables-off";
+      const copy = (n: string) => (off ? "" : `/home/chris/Documents/Agentry/pr-triage/2026-10-17 0930 Weekly digest${n}`);
+      const f = (over: Record<string, unknown>) => ({ path: "reports/x.md", name: "x.md", title: "", type: "md", bytes: 2048, marked: true, canOpen: true, viewKind: "markdown", notOpened: "", copiedTo: "", ...over });
+      return {
+        files: [
+          f({ path: "reports/weekly-digest.pdf", name: "weekly-digest.pdf", title: "Weekly digest", type: "pdf", bytes: 183_422, viewKind: "pdf", copiedTo: copy("") }),
+          f({ path: "reports/summary.md", name: "summary.md", title: "Summary of the week", copiedTo: copy("") }),
+          f({ path: "reports/numbers.xlsx", name: "numbers.xlsx", title: "Numbers", type: "xlsx", bytes: 24_100, viewKind: "", copiedTo: copy("") }),
+          f({ path: "reports/page.html", name: "page.html", title: "A page", type: "html", bytes: 900, canOpen: false, viewKind: "", notOpened: "type" }),
+          f({ path: "reports/fake.pdf", name: "fake.pdf", title: "Looks like a PDF", type: "pdf", bytes: 300, canOpen: false, viewKind: "", notOpened: "contents" }),
+        ],
+        withheld: 1, truncated: false, on: !off, folder: "/home/chris/Documents/Agentry",
+      };
+    },
+    OpenRunDeliverable: async (id: string, path: string) => { document.body.dataset.opened = `${id}:${path}`; },
+    ShowRunDeliverable: async (id: string, path: string) => { document.body.dataset.shown = `${id}:${path}`; },
+    RunDeliverableText: async () => ({ kind: "markdown", text: "# Summary of the week\n\nThree pull requests merged.\n" }),
     // The run page's reads: the history's entry, and a
     // run In Agentry read live; Download output answers as Go does once the
     // output is down.

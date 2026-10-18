@@ -137,8 +137,11 @@ type RunAPI struct {
 	// the copies OpenRunPDF made, removed at quit.
 	openFile func(path string) error
 	saveFile func(name string) (string, error)
-	pdfMu    sync.Mutex
-	pdfDir   string
+	// revealFile shows a deliverable's copy in the file manager
+	// (services_deliverables.go); nil is the OS's.
+	revealFile func(path string) error
+	pdfMu      sync.Mutex
+	pdfDir     string
 	// openBrowser opens a consent address (services_connections.go); nil
 	// is the system browser. A test substitutes its own.
 	openBrowser func(url string) error
@@ -247,6 +250,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		ReportTheme:            r.reportThemeFor(ctx, reg, logw),
 		OutDir:                 outDir,
 		OutDirIsRoot:           isSavedOutputDir(outDir),
+		DeliverTo:              deliverFolder(),
 		KeepProfile:            keepProfile,
 		MaxTurns:               maxTurns,
 		ChatIdleTimeoutSeconds: idle,
@@ -1087,6 +1091,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		ReportTheme:        r.reportThemeFor(ctx, reg, logw),
 		OutDir:             outDir,
 		OutDirIsRoot:       isSavedOutputDir(outDir),
+		DeliverTo:          deliverFolder(),
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,
