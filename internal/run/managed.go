@@ -105,7 +105,7 @@ func managedStory(ctx context.Context) Managed {
 	if e == nil {
 		return Managed{}
 	}
-	m := Managed{Supported: true, Dir: e.Dir, VMDir: e.VMDirPath(), Socket: e.Socket(), Versions: ManagedVersions(), Licences: managedengine.Licences, DownloadMB: managedengine.DownloadMB, Starting: managedStarting.Load()}
+	m := Managed{Supported: true, Dir: e.Dir, VMDir: e.VMDir, Socket: e.Socket(), Versions: ManagedVersions(), Licences: managedengine.Licences, DownloadMB: managedengine.DownloadMB, Starting: managedStarting.Load()}
 	if err := e.CheckSocketPath(); err != nil {
 		m.SocketPathError = err.Error()
 	}

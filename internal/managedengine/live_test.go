@@ -48,7 +48,7 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 		e = &Engine{Dir: dir}
 	}
 	for _, d := range []string{e.Dir, e.vmDir()} {
-		if _, err := os.Stat(d); err == nil {
+		if _, err := os.Lstat(d); err == nil {
 			t.Fatalf("%s is already there; remove the app's engine first, or name another directory with AGENTRY_LIVE_MANAGED_ENGINE_DIR", d)
 		}
 	}
@@ -76,6 +76,14 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 	t.Logf("started and answering in %s at %s", time.Since(start).Round(time.Second), e.Socket())
+	// Lima's home is the one the engine names, not Colima's default under
+	// its own home.
+	if _, err := os.Stat(filepath.Join(e.limaHome(), limaInstance)); err != nil {
+		t.Errorf("Lima's instance is not under %s: %v", e.limaHome(), err)
+	}
+	if _, err := os.Stat(filepath.Join(e.colimaHome(), "_lima")); err == nil {
+		t.Errorf("Lima's home landed under Colima's, %s", filepath.Join(e.colimaHome(), "_lima"))
+	}
 	if !e.Running(ctx) {
 		t.Error("Running false after the start")
 	}

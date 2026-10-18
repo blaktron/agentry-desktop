@@ -130,6 +130,11 @@ const limaSSHSocket = "ssh.sock.1234567890123456"
 // of its own in the home directory.
 const vmDirName = ".agentry-vm"
 
+// vmMarker is the file the app writes in the VM directory when it makes
+// it. A directory of that name without it is not the app's: the engine
+// neither runs in it nor removes it.
+const vmMarker = "agentry-engine"
+
 // Engine is the managed engine at one directory.
 type Engine struct {
 	// Dir is the engine directory: bin/ (colima, limactl, docker),
@@ -137,8 +142,8 @@ type Engine struct {
 	// installed.json.
 	Dir string
 	// VMDir holds the VM's state: colima/ (Colima's home) and lima/
-	// (Lima's). Its base name is always vmDirName; empty is that name
-	// under Dir.
+	// (Lima's). Remove deletes it only when its base name is vmDirName;
+	// empty is that name under Dir.
 	VMDir string
 	// Client fetches the assets; nil is http.DefaultClient with a timeout.
 	Client *http.Client
@@ -182,16 +187,65 @@ func (e *Engine) colimaHome() string { return filepath.Join(e.vmDir(), "colima")
 func (e *Engine) limaHome() string   { return filepath.Join(e.vmDir(), "lima") }
 func (e *Engine) colima() string     { return filepath.Join(e.binDir(), "colima") }
 
-// VMDirPath is where the VM keeps its state: its disk, Colima's and Lima's
-// homes.
-func (e *Engine) VMDirPath() string { return e.vmDir() }
-
 // vmDir is VMDir, or vmDirName under Dir.
 func (e *Engine) vmDir() string {
 	if e.VMDir != "" {
 		return e.VMDir
 	}
 	return filepath.Join(e.Dir, vmDirName)
+}
+
+// vmDirState says whether the VM directory is absent, the app's (it holds
+// the marker) or someone else's (anything else at that path, a symbolic
+// link included).
+func (e *Engine) vmDirState() (absent, ours bool, err error) {
+	fi, err := os.Lstat(e.vmDir())
+	if errors.Is(err, os.ErrNotExist) {
+		return true, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if !fi.IsDir() {
+		return false, false, nil
+	}
+	m, err := os.Lstat(filepath.Join(e.vmDir(), vmMarker))
+	return false, err == nil && m.Mode().IsRegular(), nil
+}
+
+// checkVMDir refuses a VM directory the app did not make, naming it, and
+// says whether there is none yet.
+func (e *Engine) checkVMDir() (absent bool, err error) {
+	absent, ours, err := e.vmDirState()
+	if err != nil {
+		return false, fmt.Errorf("the engine's VM directory: %w", err)
+	}
+	if !absent && !ours {
+		return false, fmt.Errorf("%s is there and was not made by this app; move it away and try again", e.vmDir())
+	}
+	return absent, nil
+}
+
+// prepareVMDir makes the VM directory with its marker, or checks that the
+// one there is the app's, and keeps it the person's alone (0700): it holds
+// the VM's disk and its ssh keys.
+func (e *Engine) prepareVMDir() error {
+	absent, err := e.checkVMDir()
+	if err != nil {
+		return err
+	}
+	if absent {
+		if err := os.MkdirAll(e.vmDir(), 0o700); err != nil {
+			return fmt.Errorf("the engine's VM directory: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(e.vmDir(), vmMarker), []byte("Agentry's engine keeps its virtual machine here. Remove it from the app.\n"), 0o600); err != nil {
+			return fmt.Errorf("the engine's VM directory: %w", err)
+		}
+	}
+	if err := os.Chmod(e.vmDir(), 0o700); err != nil {
+		return fmt.Errorf("the engine's VM directory: %w", err)
+	}
+	return nil
 }
 
 // limaSocket is the longest socket path Lima opens for the engine's VM.
@@ -270,6 +324,9 @@ func (e *Engine) Install(ctx context.Context) error {
 	if err := e.CheckSocketPath(); err != nil {
 		return err
 	}
+	if _, err := e.checkVMDir(); err != nil {
+		return err
+	}
 	list, err := Assets()
 	if err != nil {
 		return err
@@ -332,6 +389,9 @@ func (e *Engine) Install(ctx context.Context) error {
 		}
 	}
 	// Colima honours COLIMA_HOME only once the directory exists.
+	if err := e.prepareVMDir(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(e.colimaHome(), 0o700); err != nil {
 		return fmt.Errorf("colima's home: %w", err)
 	}
@@ -489,8 +549,8 @@ func (e *Engine) env() []string {
 	// Colima's cache (the VM's image, a few hundred MB) under the engine
 	// directory too, so Remove leaves nothing in the person's caches; an
 	// update keeps it, a fresh install fetches it again. Lima's home is
-	// named beside Colima's rather than left under it as _lima, which
-	// would lengthen its sockets' paths.
+	// named beside Colima's, since under it (as _lima) its sockets' paths
+	// would be longer.
 	return append(out,
 		"COLIMA_HOME="+e.colimaHome(),
 		"LIMA_HOME="+e.limaHome(),
@@ -532,6 +592,9 @@ func (e *Engine) Start(ctx context.Context) error {
 	// Colima honours COLIMA_HOME only once the directory exists; the
 	// install made it and the docker configuration, and a start remakes
 	// them should they have gone.
+	if err := e.prepareVMDir(); err != nil {
+		return fmt.Errorf("start Agentry's engine: %w", err)
+	}
 	if err := os.MkdirAll(e.colimaHome(), 0o700); err != nil {
 		return fmt.Errorf("start Agentry's engine: its home: %w", err)
 	}
@@ -584,26 +647,36 @@ func (e *Engine) Running(ctx context.Context) bool {
 // Remove deletes the VM with its data, then the VM directory and the whole
 // engine directory, so nothing of the engine is left but the app. When the
 // VM's deletion fails the directories still go, and the error says so: a
-// host agent of the VM may be left running until the Mac restarts.
+// host agent of the VM may be left running until the Mac restarts. A VM
+// directory the app did not make is left as it is, and nothing is run in it.
 func (e *Engine) Remove(ctx context.Context) error {
-	// Only ever the directories the app named: never a home, a root or
-	// nothing.
+	// Only directories under the names the app gives them, never an empty
+	// path or the root.
 	if d := filepath.Clean(e.Dir); d == "" || d == "." || d == string(filepath.Separator) || filepath.Base(d) != "engine" {
 		return fmt.Errorf("refusing to remove %q: not an engine directory", e.Dir)
 	}
 	if d := filepath.Clean(e.vmDir()); filepath.Base(d) != vmDirName {
 		return fmt.Errorf("refusing to remove %q: not the engine's VM directory", e.vmDir())
 	}
+	absent, ours, err := e.vmDirState()
+	if err != nil {
+		return fmt.Errorf("the engine's VM directory: %w", err)
+	}
+	if !absent && !ours {
+		e.logf("Leaving %s: this app did not make it.", e.vmDir())
+	}
 	var deleteErr error
-	if e.Installed() {
+	if e.Installed() && ours {
 		e.logf("Removing Agentry's engine and its data…")
 		if err := e.command(ctx, "delete", Profile, "--force", "--data").Run(); err != nil {
 			deleteErr = fmt.Errorf("delete Agentry's engine's virtual machine: %w", err)
 			e.logf("%v (removing the directory anyway)", deleteErr)
 		}
 	}
-	if err := os.RemoveAll(e.vmDir()); err != nil {
-		return fmt.Errorf("remove Agentry's engine's virtual machine directory: %w", err)
+	if ours {
+		if err := os.RemoveAll(e.vmDir()); err != nil {
+			return fmt.Errorf("remove Agentry's engine's virtual machine directory: %w", err)
+		}
 	}
 	if err := os.RemoveAll(e.Dir); err != nil {
 		return fmt.Errorf("remove Agentry's engine's directory: %w", err)

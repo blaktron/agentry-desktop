@@ -72,9 +72,12 @@ func TestTheSocketPathIsHeldToTheLimit(t *testing.T) {
 	if got := e.limaSocket(); got != "/Users/me/.agentry-vm/lima/colima/ssh.sock.1234567890123456" {
 		t.Errorf("Lima's socket = %s", got)
 	}
-	// A long account name still fits.
-	if err := macEngine(strings.Repeat("n", 40)).CheckSocketPath(); err != nil {
-		t.Errorf("a 40-character account refused: %v", err)
+	// The longest account name that fits, and one more.
+	if err := macEngine(strings.Repeat("n", 46)).CheckSocketPath(); err != nil {
+		t.Errorf("a 46-character account refused: %v", err)
+	}
+	if err := macEngine(strings.Repeat("n", 47)).CheckSocketPath(); err == nil {
+		t.Error("a 47-character account accepted")
 	}
 	// Lima's home under the engine directory, under Application Support,
 	// is over the limit for every account: refused, naming Lima's socket.
@@ -83,13 +86,16 @@ func TestTheSocketPathIsHeldToTheLimit(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "ssh.sock") || !strings.Contains(err.Error(), "103") {
 		t.Errorf("Lima's sockets under Application Support: %v", err)
 	}
-	// Exactly at the limit is over it: the path and its NUL must fit.
-	at := &Engine{Dir: "/e/engine", VMDir: "/" + strings.Repeat("v", maxSocketPath-len("/x/lima/colima/"+limaSSHSocket)) + "/x/" + vmDirName}
-	if n := len(at.limaSocket()); n < maxSocketPath {
-		t.Fatalf("the test's path is %d bytes, want at least %d", n, maxSocketPath)
-	}
-	if err := at.CheckSocketPath(); err == nil {
-		t.Errorf("a %d-byte socket path accepted", len(at.limaSocket()))
+	// One byte under the limit fits; at the limit the path and its NUL
+	// do not.
+	for n, ok := range map[int]bool{maxSocketPath - 1: true, maxSocketPath: false} {
+		at := &Engine{Dir: "/e/engine", VMDir: "/" + strings.Repeat("v", n-len("//"+vmDirName+"/lima/"+limaInstance+"/"+limaSSHSocket)) + "/" + vmDirName}
+		if got := len(at.limaSocket()); got != n {
+			t.Fatalf("the test's path is %d bytes, want %d", got, n)
+		}
+		if err := at.CheckSocketPath(); (err == nil) != ok {
+			t.Errorf("a %d-byte socket path: %v", n, err)
+		}
 	}
 	long := macEngine(strings.Repeat("n", 60))
 	if err := long.CheckSocketPath(); err == nil {
@@ -433,5 +439,77 @@ func TestRemoveRefusesDirectoriesNotTheEngines(t *testing.T) {
 	}
 	if _, err := os.Stat(keep); err != nil {
 		t.Errorf("a refused Remove touched %s: %v", keep, err)
+	}
+}
+
+// The VM directory is the app's only when it made it: the install writes
+// its marker and keeps it 0700, and a directory of that name the person
+// made, or a symbolic link there, is never run in or removed.
+func TestTheVMDirectoryIsTheAppsOnlyWhenItMadeIt(t *testing.T) {
+	e, done := testPublisher(t, "")
+	defer done()
+	e.VMDir = filepath.Join(shortTempDir(t), vmDirName)
+	if err := e.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(e.VMDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Errorf("the VM directory is %o, want 700", fi.Mode().Perm())
+	}
+	if _, err := os.Stat(filepath.Join(e.VMDir, vmMarker)); err != nil {
+		t.Errorf("no marker: %v", err)
+	}
+
+	for _, plant := range []func(t *testing.T, path string){
+		func(t *testing.T, path string) {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(path, "theirs.txt"), []byte("x"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		func(t *testing.T, path string) {
+			target := filepath.Join(filepath.Dir(path), "elsewhere")
+			if err := os.MkdirAll(target, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(target, vmMarker), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		other, doneOther := testPublisher(t, "")
+		other.VMDir = filepath.Join(shortTempDir(t), vmDirName)
+		plant(t, other.VMDir)
+		if err := other.Install(context.Background()); err == nil || !strings.Contains(err.Error(), "not made by this app") {
+			t.Errorf("Install over a VM directory not the app's: %v", err)
+		}
+		if _, err := os.Stat(other.Dir); err == nil {
+			if entries, _ := os.ReadDir(other.Dir); len(entries) > 0 {
+				t.Errorf("Install refused late: %d entries landed", len(entries))
+			}
+		}
+		var calls []string
+		other.Command = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			calls = append(calls, strings.Join(args, " "))
+			return exec.CommandContext(ctx, "true")
+		}
+		if err := other.Remove(context.Background()); err != nil {
+			t.Errorf("Remove: %v", err)
+		}
+		if _, err := os.Lstat(other.VMDir); err != nil {
+			t.Errorf("Remove took a VM directory not the app's: %v", err)
+		}
+		if len(calls) != 0 {
+			t.Errorf("Remove ran %q in a VM directory not the app's", calls)
+		}
+		doneOther()
 	}
 }
