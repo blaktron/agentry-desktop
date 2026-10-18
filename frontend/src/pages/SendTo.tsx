@@ -1,12 +1,12 @@
 // Send deliverables to: the saved destinations a run on this computer (or each
 // fire of a schedule on it) sends its result and deliverables to once it
 // succeeds, chosen in the run setup. The list is Settings → Destinations',
-// kept by the CLI; a destination with no signing secret is shown and cannot be
+// kept by the CLI; a destination without the credentials its kind needs is shown and cannot be
 // chosen. The QuickAgent's default set preselects its destinations, and the
 // choice can be kept as that default. Nothing here is a credential or an
 // address beyond its host.
 import { Button } from "../ui";
-import { chosenLine, defaultLine, destinationLabel } from "../destinations";
+import { cannotChooseWhy, chosenLine, defaultLine, destinationLabel } from "../destinations";
 import type { destinations } from "../../wailsjs/go/models";
 
 export function SendTo({ saved, chosen, onChange, makeDefault, onMakeDefault, disabled, onOpenSettings }: {
@@ -24,7 +24,7 @@ export function SendTo({ saved, chosen, onChange, makeDefault, onMakeDefault, di
       <h4 id="send-to-heading">Send deliverables to</h4>
       {saved.length === 0 ? (
         <p className="muted small">
-          No destinations saved. A destination is a webhook that receives the run&apos;s result and files once it succeeds.
+          No destinations saved. A destination is a webhook or an S3 bucket that receives the run&apos;s result and files once it succeeds.
           {onOpenSettings && <> <Button variant="link" onClick={onOpenSettings}>Add one in Settings</Button></>}
         </p>
       ) : (
@@ -32,12 +32,12 @@ export function SendTo({ saved, chosen, onChange, makeDefault, onMakeDefault, di
           {saved.map((d) => (
             <label key={d.name} className="check-row" data-send-to-option={d.name}>
               <input
-                type="checkbox" checked={chosen.includes(d.name)} disabled={disabled || !d.hasSecret}
+                type="checkbox" checked={chosen.includes(d.name)} disabled={disabled || !d.canSend}
                 onChange={(e) => toggle(d.name, e.target.checked)}
               />
               <span>
                 {destinationLabel(d)}
-                {!d.hasSecret && <span className="muted small"> — no signing secret kept, so it cannot be chosen</span>}
+                {!d.canSend && <span className="muted small"> — {cannotChooseWhy(d)}</span>}
               </span>
             </label>
           ))}

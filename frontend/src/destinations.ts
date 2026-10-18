@@ -7,6 +7,8 @@
 
 export type SendFacts = {
   destination: string;
+  /** "webhook" or "s3"; none reads as a webhook. */
+  kind?: string;
   host: string;
   onMyNetwork: boolean;
   delivered: number;
@@ -39,9 +41,23 @@ const REASONS: Record<string, string> = {
   "outside-reports": "the file is not in the run's reports folder",
 };
 
+// What a bucket's delivery says differently: its credentials are a key pair, the
+// service answers rather than a receiver, and a file has its own, larger cap.
+const BUCKET_REASONS: Record<string, string> = {
+  destination: "the saved bucket or its endpoint no longer passes the rule for an address",
+  credential: "the access key id or secret access key is missing or cannot be used",
+  unreachable: "the service did not answer",
+  tls: "the service's certificate was not accepted",
+  timeout: "the service did not answer in time",
+  redirect: "the service answered with a redirect, which is never followed",
+  status: "the service refused it or answered with an error",
+  "too-large": "it is over the 64 MiB a bucket takes, so it was not sent",
+};
+
 /** A closed word from the receipt in a person's words; a word nobody knows is said plainly, never as the receiver's text. */
-export function reasonWords(code: string | undefined): string {
+export function reasonWords(code: string | undefined, kind?: string): string {
   if (!code) return "";
+  if (kind === "s3" && Object.hasOwn(BUCKET_REASONS, code)) return BUCKET_REASONS[code];
   return Object.hasOwn(REASONS, code) ? REASONS[code] : "it did not arrive";
 }
 
@@ -53,8 +69,11 @@ function files(n: number): string {
 export function sendLine(s: SendFacts): string {
   const parts: string[] = [];
   if (s.delivered > 0) parts.push(s.result && s.delivered === 1 ? "The result was sent." : `${files(s.delivered)} sent.`);
-  if (s.refused > 0) parts.push(`${files(s.refused)} listed without content: ${reasonWords(s.reason)}.`);
-  if (s.failed > 0) parts.push(`${files(s.failed)} not sent: ${reasonWords(s.error)}.`);
+  if (s.refused > 0) {
+    // A webhook still lists a file it left out, with its checksum; a bucket gets nothing of it.
+    parts.push(s.kind === "s3" ? `${files(s.refused)} not sent: ${reasonWords(s.reason, s.kind)}.` : `${files(s.refused)} listed without content: ${reasonWords(s.reason, s.kind)}.`);
+  }
+  if (s.failed > 0) parts.push(`${files(s.failed)} not sent: ${reasonWords(s.error, s.kind)}.`);
   return parts.join(" ") || "Nothing was sent.";
 }
 
@@ -87,10 +106,20 @@ export function newSecret(random: (bytes: Uint8Array) => Uint8Array = (b) => cry
   return `whsec_${b64}`;
 }
 
-export type DestinationFacts = { hasSecret: boolean; hasAuthorization: boolean; defaultFor?: string[] };
+export type DestinationFacts = { kind?: string; hasSecret: boolean; hasAccessKey?: boolean; hasAuthorization: boolean; defaultFor?: string[] };
+
+/** What a saved destination is, in a phrase: "webhook to https://…" or "bucket my-reports/agentry at https://…". */
+export function kindPhrase(d: { kind?: string; where: string }): string {
+  return d.kind === "s3" ? `bucket ${d.where.replace(/^s3:\/\//, "")}` : `webhook to ${d.where}`;
+}
 
 /** The credentials line of a saved destination: whether each is kept, never what it is. */
 export function credentialsLine(d: DestinationFacts): string {
+  if (d.kind === "s3") {
+    if (d.hasSecret && d.hasAccessKey) return "An access key id and a secret access key are kept in your system keychain.";
+    if (!d.hasSecret && !d.hasAccessKey) return "No access key is kept, so a run cannot send to it: edit it and set one.";
+    return `Only the ${d.hasAccessKey ? "access key id" : "secret access key"} is kept, so a run cannot send to it: edit it and set both.`;
+  }
   const secret = d.hasSecret ? "A signing secret is kept in your system keychain" : "No signing secret is kept, so a run cannot send to it: edit it and set one";
   const auth = d.hasAuthorization ? "; an Authorization value is kept too." : ".";
   return secret + auth;
@@ -116,4 +145,25 @@ export function problemSentence(p: string): string {
   if (t === "") return "";
   const s = t.charAt(0).toUpperCase() + t.slice(1);
   return /[.!?]$/.test(s) ? s : s + ".";
+}
+
+/** The note beside a destination a run cannot be sent to. */
+export function cannotChooseWhy(d: { kind?: string }): string {
+  return d.kind === "s3" ? "no access key kept, so it cannot be chosen" : "no signing secret kept, so it cannot be chosen";
+}
+
+export type BucketFacts = { bucket: string; prefix: string; region: string; endpoint: string; onMyNetwork: boolean };
+
+/** Where a bucket's objects go, as the form shows it: bucket/prefix/<run id>/<file>. */
+export function objectPath(b: Pick<BucketFacts, "bucket" | "prefix">): string {
+  const bucket = b.bucket.trim() || "<bucket>";
+  const prefix = b.prefix.trim().replace(/^\/+|\/+$/g, "");
+  return `${bucket}/${prefix ? prefix + "/" : ""}<run id>/<file>`;
+}
+
+/** The line under the key fields of an edit: whether the saved pair stays. Go decides (KeepsKeyPair). */
+export function keyPairLine(keeps: boolean, hasPair: boolean): string {
+  if (!hasPair) return "No pair is kept: type both.";
+  if (keeps) return "The saved pair is kept in your system keychain. Type either half to replace it.";
+  return "This is another service than the one the saved pair was made for, so the pair is not kept: type the access key id and the secret access key again.";
 }

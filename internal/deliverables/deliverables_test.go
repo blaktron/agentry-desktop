@@ -379,3 +379,36 @@ func TestTheRecordKeepsTheLatestWordOfEachSendAndNeverMixesItWithTheCopies(t *te
 		t.Error("the folder copy is gone from the record")
 	}
 }
+
+// TestABucketSendIsASendNamedByItsObject: a bucket's line names the object
+// written, bucket/key, which is no report's path, and is a send like a
+// webhook's; a line with no object is not offered.
+func TestABucketSendIsASendNamedByItsObject(t *testing.T) {
+	dir := t.TempDir()
+	sha := strings.Repeat("b", 64)
+	if err := os.WriteFile(filepath.Join(dir, "result.json"), []byte(`{"agentry":"run/v1","status":"ok","ref":"acme/w@1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "receipts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Join([]string{
+		`{"destination":"archive","kind":"s3","host":"my-reports.s3.eu-west-1.amazonaws.com:443","object":"my-reports/agentry/ab12cd34/a.md","sha256":"` + sha + `","status":"failed","error":"status"}`,
+		`{"destination":"archive","kind":"s3","host":"my-reports.s3.eu-west-1.amazonaws.com:443","object":"my-reports/agentry/ab12cd34/b.md","sha256":"` + sha + `","status":"delivered"}`,
+		`{"destination":"archive","kind":"s3","host":"h:443","object":"","status":"delivered"}`,
+		`{"destination":"archive","kind":"s3","host":"h:443","object":"` + strings.Repeat("x", 2000) + `","status":"delivered"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "receipts", "deliveries.ndjson"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec := ReadRecord(dir)
+	if len(rec.Sends) != 2 || len(rec.Deliveries) != 0 {
+		t.Fatalf("sends %+v copies %+v", rec.Sends, rec.Deliveries)
+	}
+	if s := rec.Sends[0]; s.Kind != "s3" || s.Status != "failed" || s.Error != "status" || s.Object != "my-reports/agentry/ab12cd34/a.md" {
+		t.Errorf("first: %+v", s)
+	}
+	if s := rec.Sends[1]; s.Status != "delivered" {
+		t.Errorf("second: %+v", s)
+	}
+}

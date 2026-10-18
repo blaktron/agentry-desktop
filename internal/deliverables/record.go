@@ -55,7 +55,7 @@ type Delivery struct {
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
 	// Kind is "folder" (or none, in a record from before destinations) for a
-	// copy and "webhook" for a send; the rest belong to a send.
+	// copy, and "webhook" or "s3" for a send; the rest belong to a send.
 	Kind        string `json:"kind,omitempty"`
 	Destination string `json:"destination,omitempty"`
 	Host        string `json:"host,omitempty"`
@@ -67,6 +67,8 @@ type Delivery struct {
 // lines for the destination and the object, since a retry is a later line.
 type Send struct {
 	Destination string
+	// Kind is "webhook" or "s3".
+	Kind        string
 	Host        string
 	Object      string
 	Status      string
@@ -142,7 +144,7 @@ func ReadRecord(runDir string) Record {
 	}
 	var sends []Delivery
 	for _, d := range all {
-		if d.Kind == "webhook" {
+		if d.Kind == "webhook" || d.Kind == "s3" {
 			sends = append(sends, d)
 			continue
 		}
@@ -165,7 +167,7 @@ func ReadRecord(runDir string) Record {
 			continue
 		}
 		names[d.Destination] = true
-		s := Send{Destination: d.Destination, Host: d.Host, Object: d.Object, Status: d.Status, Error: closedError(d.Error), OnMyNetwork: d.OnMyNetwork}
+		s := Send{Destination: d.Destination, Kind: d.Kind, Host: d.Host, Object: d.Object, Status: d.Status, Error: closedError(d.Error), OnMyNetwork: d.OnMyNetwork}
 		if i, ok := index[k]; ok {
 			rec.Sends[i] = s
 			continue
@@ -209,8 +211,9 @@ func tidyTitle(t string) string {
 }
 
 // validSend is a send the app can name: a saved destination's name, a host and
-// port, and an object that is a report's path or "result". Anything else is the
-// envelope's word about nothing the app holds.
+// port, and an object that is a report's path or "result", or for a bucket the
+// object written, bucket/key. Anything else is the envelope's word about
+// nothing the app holds.
 func validSend(d Delivery) bool {
 	if !destination.ValidName(d.Destination) || len(d.Host) > 300 {
 		return false
@@ -225,8 +228,15 @@ func validSend(d Delivery) bool {
 	default:
 		return false
 	}
+	if d.Kind == "s3" {
+		return d.Object != "" && len(d.Object) <= maxObjectBytes
+	}
 	return d.Object == "result" || (strings.HasPrefix(d.Object, "reports/") && path.Clean(d.Object) == d.Object)
 }
+
+// maxObjectBytes bounds a bucket object's name: a key is at most 1,024 bytes,
+// after a bucket's name and a slash.
+const maxObjectBytes = 1024 + 64
 
 // maxSends bounds the sends the app reads from one record.
 const maxSends = 2000

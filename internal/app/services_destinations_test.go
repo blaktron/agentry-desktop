@@ -250,3 +250,101 @@ func TestARecordCannotMakeAnotherDestinationRetryable(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsDestinationsSaveABucketAndNeverReturnItsKeyPair(t *testing.T) {
+	destinationsEnv(t)
+	d := &DestinationsAPI{app: &App{}}
+	st, err := d.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: " my-reports ", Prefix: "/agentry/", Region: "eu-west-1", AccessKeyID: "AKIAPAGEKEYID", Secret: "PAGESECRETACCESSKEY"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(st)
+	for _, bad := range []string{"PAGE", "AKIA"} {
+		if strings.Contains(string(b), bad) {
+			t.Errorf("a view carries %q: %s", bad, b)
+		}
+	}
+	if len(st.Destinations) != 1 || st.Destinations[0].Kind != "s3" || !st.Destinations[0].CanSend || st.Destinations[0].Bucket != "my-reports" || st.Destinations[0].Prefix != "agentry" {
+		t.Fatalf("view: %+v", st.Destinations)
+	}
+	r, err := destination.Resolve([]string{"archive"})
+	if err != nil || r[0].AccessKeyID != "AKIAPAGEKEYID" || r[0].Secret != "PAGESECRETACCESSKEY" {
+		t.Fatalf("%+v %v", r, err)
+	}
+	if got := d.CheckBucket("my-reports", "", "eu-west-1", "https://10.0.0.5:9000", false); got == "" {
+		t.Error("a private endpoint was accepted without the tick")
+	}
+	if got := d.CheckBucket("my-reports", "", "", "https://10.0.0.5:9000", true); got != "" {
+		t.Errorf("a private endpoint on my network was refused: %s", got)
+	}
+	if _, err := d.SetDefault("acme/weekly", []string{"archive"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestARunResultListsABucketSendAndOffersRetryOnlyWithItsWholeKeyPair: a bucket's
+// line names the object written, and a retry goes to the CLI's own step for it.
+func TestARunResultListsABucketSendAndOffersRetryOnlyWithItsWholeKeyPair(t *testing.T) {
+	failed := receipt.Delivery{Destination: "archive", Kind: "s3", Host: "my-reports.s3.eu-west-1.amazonaws.com:443", Object: "my-reports/agentry/ab12cd34/a.md", SHA256: sum([]byte("a")), Status: "failed", Error: "status"}
+	r, dir := sendRun(t, "failed", failed)
+	keyring.MockInit()
+	d := &DestinationsAPI{app: &App{}}
+	if _, err := d.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: "my-reports", Prefix: "agentry", Region: "eu-west-1", AccessKeyID: "AKIAPAGEKEYID", Secret: "PAGESECRET"}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := r.RunDeliverables("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := bucketSend(v, "archive"); b.Kind != "s3" || b.Failed != 1 || b.Error != "status" || !b.CanRetry {
+		t.Fatalf("sent: %+v", v.Sent)
+	}
+	var asked []string
+	old := redeliver
+	t.Cleanup(func() { redeliver = old })
+	redeliver = func(_ context.Context, runDir string, names []string, _ io.Writer) ([]receipt.Delivery, error) {
+		asked = names
+		ok := failed
+		ok.Status, ok.Error = "delivered", ""
+		line, _ := json.Marshal(ok)
+		f, err := os.OpenFile(filepath.Join(runDir, "receipts", "deliveries.ndjson"), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+		if err != nil {
+			return nil, err
+		}
+		_, _ = f.Write(append(line, '\n'))
+		_ = f.Close()
+		return []receipt.Delivery{ok}, nil
+	}
+	if v, err = r.RetryDelivery("run-1", "archive"); err != nil || len(asked) != 1 || asked[0] != "archive" || bucketSend(v, "archive").Delivered != 1 {
+		t.Fatalf("retry: %v %v %+v", err, asked, v)
+	}
+	// With half of the key pair gone there is nothing to retry with.
+	_ = os.Remove(filepath.Join(dir, "receipts", "deliveries.ndjson"))
+	r2, _ := sendRun(t, "failed", failed)
+	if _, err := d.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: "my-reports", Prefix: "agentry", Region: "eu-west-1", AccessKeyID: "AKIAPAGEKEYID", Secret: "PAGESECRET"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := destination.DeleteSecrets("archive"); err != nil {
+		t.Fatal(err)
+	}
+	if err := destination.SaveS3Credentials("archive", "AKIAPAGEKEYID", ""); err != nil {
+		t.Fatal(err)
+	}
+	asked = nil
+	if v, _ := r2.RunDeliverables("run-1"); bucketSend(v, "archive").CanRetry {
+		t.Errorf("a bucket with half its key pair offers a retry: %+v", v.Sent)
+	}
+	if _, err := r2.RetryDelivery("run-1", "archive"); err == nil || len(asked) != 0 {
+		t.Errorf("a retry with half a key pair: %v %v", err, asked)
+	}
+}
+
+// bucketSend is the view of the sends to one destination, empty when there is none.
+func bucketSend(v *RunDeliverablesView, name string) SendView {
+	for _, s := range v.Sent {
+		if s.Destination == name {
+			return s
+		}
+	}
+	return SendView{}
+}

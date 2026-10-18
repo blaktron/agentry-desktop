@@ -1,0 +1,13 @@
+# Every path needs a maintainer's review before merge. The paths with a
+# higher bar, the install path, the self-update path and its keys, and the
+# credential handling (CONTRIBUTING.md, "The rules that matter"), are listed
+# explicitly so the ownership is visible, not implied by the wildcard.
+*                                @blaktron
+/internal/install/               @blaktron
+/internal/selfupdate/            @blaktron
+/internal/selfupdate/keys.json   @blaktron
+/internal/settings/              @blaktron
+/internal/run/                   @blaktron
+/build/                          @blaktron
+/.gitleaks.toml                  @blaktron
+/.github/                        @blaktron

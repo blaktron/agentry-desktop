@@ -716,13 +716,13 @@ export default function RunPanel({
     if (sendToTouched || savedDestinations.length === 0) return;
     let live = true;
     DestinationsAPI.DefaultFor(agentRef)
-      .then((names) => live && setSendTo(names.filter((n) => savedDestinations.some((d) => d.name === n && d.hasSecret))))
+      .then((names) => live && setSendTo(names.filter((n) => savedDestinations.some((d) => d.name === n && d.canSend))))
       .catch(() => {});
     return () => { live = false; };
   }, [agentRef, savedDestinations, sendToTouched]);
   // The destinations a run here is given: the ones the setup chose that are
-  // still saved with a signing secret.
-  const sendNames = (): string[] => sendTo.filter((n) => savedDestinations.some((d) => d.name === n && d.hasSecret));
+  // still saved with its credentials.
+  const sendNames = (): string[] => sendTo.filter((n) => savedDestinations.some((d) => d.name === n && d.canSend));
   // The choice kept as the QuickAgent's default, when the box says so; a
   // failure to keep it never stops the run.
   const keepSendDefault = () => {

@@ -480,7 +480,7 @@ func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *sc
 	req.DeliverTo = deliverFolder()
 	for _, n := range req.Destinations {
 		if !destinations.CanSend(n) {
-			return fmt.Errorf("the destination %q is not saved with a signing secret: set it up in Settings → Destinations", n)
+			return fmt.Errorf("the destination %q is not saved with its credentials: set it up in Settings → Destinations", n)
 		}
 	}
 	if req.DeliverTo == "" && len(req.Destinations) == 0 {
@@ -489,6 +489,13 @@ func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *sc
 	line, err := c.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if len(req.Destinations) > 0 && destinations.AnyBucket() {
+		// An older command refuses the whole destinations file once it holds a
+		// bucket, so a fire that names any destination would not deliver.
+		if why := schedules.OlderThan(line, schedules.MinBucketCLI, "a schedule that sends to a destination while a bucket is saved"); why != "" {
+			return errors.New(why)
+		}
 	}
 	if why := schedules.OlderThan(line, schedules.MinDeliverCLI, "a schedule that delivers"); why != "" {
 		if len(req.Destinations) > 0 {

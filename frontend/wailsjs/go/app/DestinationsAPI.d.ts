@@ -4,7 +4,11 @@ import {destinations} from '../models';
 
 export function Check(arg1:string,arg2:boolean):Promise<string>;
 
+export function CheckBucket(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<string>;
+
 export function DefaultFor(arg1:string):Promise<Array<string>>;
+
+export function KeepsKeyPair(arg1:destinations.Input):Promise<boolean>;
 
 export function List():Promise<destinations.Status>;
 
