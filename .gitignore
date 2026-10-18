@@ -17,3 +17,4 @@ build/windows/installer/tmp/
 .env.*
 # The design harness writes its screenshots here (node harness/shots.mjs).
 frontend/harness/shots/
+__pycache__/
