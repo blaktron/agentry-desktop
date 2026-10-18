@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,6 +15,8 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/blaktron/agentry-desktop/internal/runfile"
 )
 
 // PDF reports in the run result. A run's export_pdf records each PDF it made
@@ -110,44 +111,11 @@ func validRunPath(rel string) bool {
 // readRunFile reads a file of the run folder by its "/"-separated path, at
 // most limit bytes, the way listOutputs walks it: every part before the
 // file a real directory and the file a regular one, a link anywhere
-// refused. listOutputs never walks a linked folder, so a path a page names
-// through one (outputs/docs, a link the run left to ~/Documents) must not
-// reach a file the listing would never show. The open goes through an
-// os.Root on the run folder as well, so a part swapped for a link after
-// the checks still cannot lead out of it; the file is opened without
-// following a link where the OS allows it and checked to be the one Lstat
-// saw.
+// refused (runfile.Read). listOutputs never walks a linked folder, so a
+// path a page names through one (outputs/docs, a link the run left to
+// ~/Documents) must not reach a file the listing would never show.
 func readRunFile(dir, rel string, limit int64) ([]byte, bool) {
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return nil, false
-	}
-	defer func() { _ = root.Close() }()
-	parts := strings.Split(rel, "/")
-	for i := 1; i < len(parts); i++ {
-		fi, err := root.Lstat(filepath.FromSlash(strings.Join(parts[:i], "/")))
-		if err != nil || !fi.IsDir() {
-			return nil, false // a link, a junction or a file where a folder was
-		}
-	}
-	name := filepath.FromSlash(rel)
-	before, err := root.Lstat(name)
-	if err != nil || !before.Mode().IsRegular() || before.Size() > limit {
-		return nil, false
-	}
-	f, err := root.OpenFile(name, os.O_RDONLY|noFollowOpenFlags, 0)
-	if err != nil {
-		return nil, false
-	}
-	defer func() { _ = f.Close() }()
-	if after, err := f.Stat(); err != nil || !os.SameFile(before, after) {
-		return nil, false
-	}
-	b, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil || int64(len(b)) > limit {
-		return nil, false
-	}
-	return b, true
+	return runfile.Read(dir, rel, limit)
 }
 
 func sha256Hex(b []byte) string {
@@ -237,18 +205,10 @@ func (r *RunAPI) OpenRunPDF(runID, rel string) error {
 	if err != nil {
 		return err
 	}
-	r.pdfMu.Lock()
-	if r.pdfDir == "" {
-		sweepStalePDFCopies(os.TempDir(), time.Now().Add(-24*time.Hour))
-		d, err := os.MkdirTemp("", "agentry-pdf-")
-		if err != nil {
-			r.pdfMu.Unlock()
-			return fmt.Errorf("make a folder for the PDF's copy: %w", err)
-		}
-		r.pdfDir = d
+	dir, err := r.copyRoot()
+	if err != nil {
+		return err
 	}
-	dir := r.pdfDir
-	r.pdfMu.Unlock()
 	sub, err := os.MkdirTemp(dir, "open-")
 	if err != nil {
 		return fmt.Errorf("make a folder for the PDF's copy: %w", err)

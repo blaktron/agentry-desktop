@@ -25,6 +25,7 @@ import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
+import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
@@ -48,7 +49,7 @@ export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "themes" | "design-editor" | "design-preview"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
+  | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients"
   | "home-cards" | "pins" | "reset-home";
 type Part = { id: SettingsPart; label: string };
@@ -83,10 +84,10 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, which runs are remembered, and the container engine runs on this computer use, with Agentry's images on it.",
+    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, where the files a run was for are copied, which runs are remembered, and the container engine runs on this computer use, with Agentry's images on it.",
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
-      { id: "output", label: "Output folder" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
+      { id: "output", label: "Output folder" }, { id: "deliverables", label: "Deliverables" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
       { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
     ],
   },
@@ -121,6 +122,8 @@ export const SETTINGS_FOR = {
   homeProfile: { section: "profile" },
   homeSignIn: { section: "registry", part: "registries" },
   homeRunDefaults: { section: "run-defaults" },
+  // Home's Deliverables card
+  homeDeliverables: { section: "run-defaults", part: "deliverables" },
   // Home's Recent runs card
   homeRunHistory: { section: "run-defaults", part: "history" },
   // Home's own Home settings link, and the line when every card is hidden
@@ -617,6 +620,35 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               <p className="muted small" style={{ marginBottom: 0 }}>
                 Chosen here, through the file dialog. The run setup fills it in and you can pick another for one run.
                 Each run writes into a folder of its own inside it. A run never reads from it unless you add it as an input.
+              </p>
+            </Card>
+          </PartSection>
+          <PartSection id="deliverables" title="Deliverables">
+            <Card>
+              <label className="check-row" style={{ margin: 0 }}>
+                <input type="checkbox" role="switch" checked={defaults.deliverables} disabled={busy} data-deliverables-switch
+                  onChange={(e) => void act(() => SettingsAPI.SetDeliverables(e.target.checked))} />
+                <span><strong>Copy each run&apos;s deliverables to a folder</strong></span>
+              </label>
+              <p className="small" data-deliverables-state>{deliverablesLine(defaults)}</p>
+              <div className="row">
+                <span className="grow mono selectable" data-deliverables-folder>
+                  {defaults.deliverablesDir || <span className="muted">No folder: choose one.</span>}
+                </span>
+                <Button disabled={busy} data-choose-deliverables onClick={() => act(SettingsAPI.ChooseDeliverablesDir)}>
+                  {defaults.deliverablesDefault ? "Choose…" : "Choose another…"}
+                </Button>
+                {!defaults.deliverablesDefault && (
+                  <Button disabled={busy} data-default-deliverables onClick={() => act(SettingsAPI.UseDefaultDeliverablesDir)}>Use the default</Button>
+                )}
+              </div>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                A deliverable is a file the run was for: a report, a document, a table. When a run ends, Agentry Desktop copies
+                its deliverables into a folder named for the QuickAgent and the time, inside this one, and Home&apos;s
+                Deliverables card and the run&apos;s result list them first. The run&apos;s own folder keeps everything: Its
+                receipts note what was copied, and nothing else in it changes. The folder is chosen here, through the file dialog; until you do, it is an Agentry
+                folder inside your Documents folder. On Windows and macOS a copy is marked as a download, so
+                the system treats it with the care it gives a file from the internet; Linux has no such mark. It applies from the next run; a run In Agentry is copied when its output comes down.
               </p>
             </Card>
           </PartSection>

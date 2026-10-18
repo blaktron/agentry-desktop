@@ -27,6 +27,8 @@ const (
 	HomeInstalled   = "installed"
 	HomeProfile     = "profile"
 	HomeRunDefaults = "run-defaults"
+	// HomeDeliverables lists the most recent deliverables across runs.
+	HomeDeliverables = "deliverables"
 	// HomePinned is a card of pinned QuickAgents, one of several.
 	HomePinned = "pinned"
 	// HomeScheduled is the Scheduled page's mini calendar: at most one,
@@ -36,9 +38,11 @@ const (
 	HomeScheduled = "scheduled"
 )
 
-// homeDefaults are the default cards, in their order. Each is one card of
-// its kind, shown or hidden by kind.
-var homeDefaults = []string{HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults}
+// homeDefaults are the default cards, in their order: the Deliverables card
+// first, because the files a run was for are what a person comes back to.
+// Each is one card of its kind, shown or hidden by kind. The page's list is
+// HOME_DEFAULTS in frontend/src/homeCards.ts: the two change together.
+var homeDefaults = []string{HomeDeliverables, HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults}
 
 // HomeLayout is the stored layout. Rest keeps the keys this app does not
 // know.
@@ -136,7 +140,23 @@ func homeOf(s Settings) (HomeLayout, homeState) {
 	}
 	l := *s.Home
 	l.Version = HomeVersion
+	l.Cards = withDeliverables(l.Cards)
 	return l, homeOK
+}
+
+// withDeliverables is cards with the Deliverables card added at the end when
+// a stored layout holds none, a Home arranged before the card existed. It is
+// added after every other card, so the person's order never moves, and once
+// the layout is saved with it the card is the person's to hide: hiding keeps
+// its entry, so it is never added a second time. A Home with no stored
+// layout has it first, in the defaults.
+func withDeliverables(cards []HomeCard) []HomeCard {
+	for _, c := range cards {
+		if c.Kind == HomeDeliverables {
+			return cards
+		}
+	}
+	return append(slices.Clone(cards), HomeCard{Kind: HomeDeliverables})
 }
 
 func homeLayoutState() (HomeLayout, homeState, error) {

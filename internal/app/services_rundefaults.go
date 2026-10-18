@@ -42,6 +42,15 @@ type RunDefaultsView struct {
 	// when it cannot be read.
 	RememberRuns    bool `json:"rememberRuns"`
 	RunHistoryCount int  `json:"runHistoryCount"`
+	// Deliverables is the Deliverables switch (desktop.yaml's deliverables),
+	// on unless turned off: while it is on, a run copies the files it was for
+	// into DeliverablesDir. DeliverablesDir is the folder in effect, "" when
+	// the default cannot be named (DeliverablesError says why);
+	// DeliverablesDefault says the person has chosen none.
+	Deliverables        bool   `json:"deliverables"`
+	DeliverablesDir     string `json:"deliverablesDir,omitempty"`
+	DeliverablesDefault bool   `json:"deliverablesDefault"`
+	DeliverablesError   string `json:"deliverablesError,omitempty"`
 }
 
 // RunDefaults reads the defaults. With no policy yet the budgets are
@@ -186,10 +195,66 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	if where != settings.RunWhereAgentry {
 		where = settings.RunWhereHere
 	}
-	return &RunDefaultsView{
+	dDir, dDefault, dOn, dErr := deliverablesFolder()
+	v := &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
 		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(),
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
-	}, nil
+		Deliverables: dOn, DeliverablesDir: dDir, DeliverablesDefault: dDefault,
+	}
+	if dErr != nil && dDir == "" {
+		v.DeliverablesError = dErr.Error()
+	}
+	return v, nil
+}
+
+// SetDeliverables turns the Deliverables switch on or off. Off, no run copies
+// its files out and the Home card says so; a run's own folder is unchanged
+// either way. It applies from the next run.
+func (s *SettingsAPI) SetDeliverables(on bool) (*RunDefaultsView, error) {
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.Deliverables = &on
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	return runDefaultsView()
+}
+
+// ChooseDeliverablesDir opens the native picker for the Deliverables folder
+// and saves what it returned. The binding takes no path, so the folder is the
+// picker's and never the page's. A cancelled picker changes nothing.
+func (s *SettingsAPI) ChooseDeliverablesDir() (*RunDefaultsView, error) {
+	dir, err := s.app.pickDirectoryUnmarked("Choose the Deliverables folder")
+	if err != nil {
+		return nil, err
+	}
+	if dir != "" {
+		st, err := settings.Load()
+		if err != nil {
+			return nil, err
+		}
+		st.DeliverablesDir = dir
+		if err := settings.Save(st); err != nil {
+			return nil, err
+		}
+	}
+	return runDefaultsView()
+}
+
+// UseDefaultDeliverablesDir forgets the chosen folder: deliverables go to the
+// Agentry folder in Documents again. Nothing in either folder is touched.
+func (s *SettingsAPI) UseDefaultDeliverablesDir() (*RunDefaultsView, error) {
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.DeliverablesDir = ""
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	return runDefaultsView()
 }

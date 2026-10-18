@@ -13,6 +13,8 @@ export function ChooseCodingAgentProjectDir():Promise<app.CodingAgentsView>;
 
 export function ChooseDefaultOutputDir():Promise<app.RunDefaultsView>;
 
+export function ChooseDeliverablesDir():Promise<app.RunDefaultsView>;
+
 export function ChooseReportLogo(arg1:string):Promise<app.ReportDesignView>;
 
 export function ClearDefaultOutputDir():Promise<app.RunDefaultsView>;
@@ -55,6 +57,8 @@ export function SetChatIdleTimeout(arg1:number):Promise<app.RunDefaultsView>;
 
 export function SetDefault(arg1:string):Promise<app.SettingsView>;
 
+export function SetDeliverables(arg1:boolean):Promise<app.RunDefaultsView>;
+
 export function SetDisplayName(arg1:string,arg2:string):Promise<app.UserView>;
 
 export function SetInstallIntoCodingAgent(arg1:boolean):Promise<app.CodingAgentsView>;
@@ -70,5 +74,7 @@ export function SignIn(arg1:string,arg2:string):Promise<app.SignInResult>;
 export function SignInViaBrowser(arg1:string):Promise<app.SignInResult>;
 
 export function SignOut(arg1:string):Promise<app.SettingsView>;
+
+export function UseDefaultDeliverablesDir():Promise<app.RunDefaultsView>;
 
 export function Whoami(arg1:string):Promise<app.UserView>;

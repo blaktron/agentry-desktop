@@ -15,6 +15,7 @@ import { ProfileCard } from "./home/ProfileCard";
 import { RunDefaultsCard } from "./home/RunDefaultsCard";
 import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
+import { DeliverablesCard } from "./home/DeliverablesCard";
 import { ScheduledCard } from "./home/ScheduledCard";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
@@ -50,6 +51,8 @@ export type HomeOpen = {
   // Recent runs: a row's run page, and Run defaults' Recent runs part.
   run: (row: app.RecentRunView) => void;
   runHistory: () => void;
+  // Deliverables: Run defaults' Deliverables part.
+  deliverables: () => void;
   // A pin's Run for a QuickAgent from a registry: its page, with the run
   // setup open (a folder install's opens here, as the Library's does).
   runAgent: (registry: string, ns: string, name: string) => void;
@@ -59,6 +62,8 @@ export type HomeOpen = {
   scheduled: () => void;
 };
 
+// How many files the Deliverables card lists.
+const DELIVERABLE_ROWS = 5;
 // How many rows Recent runs shows.
 const RECENT_ROWS = 5;
 // How many recent runs are read: enough to find each pin's latest run
@@ -89,6 +94,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const [profile, setProfile] = useState<Got<app.ProfileView>>(pending);
   const [defaults, setDefaults] = useState<Got<app.RunDefaultsView>>(pending);
   const [recent, setRecent] = useState<Got<app.RecentRunsView>>(pending);
+  const [deliverables, setDeliverables] = useState<Got<app.RecentDeliverablesView>>(pending);
   const [scheduled, setScheduled] = useState<Got<app.ScheduledCardView>>(pending);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
@@ -113,6 +119,18 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     RunAPI.RecentRuns(registry, RUNS_READ).then(...settle(() => live)(setRecent));
     return () => { live = false; };
   }, [registry, signedIn]);
+
+  // The Deliverables card: the runs this computer remembers and each one's
+  // envelope, read when Home opens and only while the layout holds the card.
+  // It reads, and starts nothing.
+  const wantsDeliverables = !layout.value || layout.value.newer || layout.value.unreadable
+    || layout.value.cards.some((c) => c.kind === "deliverables" && !c.hidden);
+  useEffect(() => {
+    if (!wantsDeliverables) return;
+    let live = true;
+    RunAPI.RecentDeliverables(DELIVERABLE_ROWS).then(...settle(() => live)(setDeliverables));
+    return () => { live = false; };
+  }, [wantsDeliverables]);
 
   useEffect(() => {
     if (!signedIn) { setProfile(pending); return; }
@@ -146,6 +164,9 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   // A plain object, not createFrom.
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
+    deliverables: () => (
+      <DeliverablesCard view={deliverables.value} error={deliverables.error} now={new Date()} onOpenSettings={open.deliverables} />
+    ),
     "recent-runs": () => (
       <RecentRunsCard view={recentView} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
     ),

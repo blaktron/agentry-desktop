@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
@@ -30,6 +31,10 @@ func TestMain(m *testing.M) {
 	// is the one self-hosted registry. A build from source defaults to a
 	// registry on this machine, which takes that place itself.
 	settings.DefaultRegistryURL = "https://secureagentry.net"
+	// No test meets the Documents folder of the person running it: a
+	// Deliverables folder none chose is a scratch one.
+	docs := filepath.Join(dir, "documents", "Agentry")
+	defaultDeliverablesRoot = func() (string, error) { return docs, nil }
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)

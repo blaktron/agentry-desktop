@@ -350,7 +350,7 @@ const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7 };
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7, deliverables: location.hash !== "#home-deliverables-off", deliverablesDir: "/home/chris/Documents/Agentry", deliverablesDefault: true, deliverablesError: "" };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
 const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
@@ -430,6 +430,26 @@ const hostedRuns = [
   { id: "0199b2c4-0000-7c31-9a55-2f0f7f0b1d43", kind: "knowledge", where: "agentry", registry: REG_DEFAULT, startedAt: ago(2), outcome: "running", state: "running", tone: "warn", kept: false, source: "hosted" },
 ];
 const byTime = (a: { endedAt?: string; startedAt: string }, b: { endedAt?: string; startedAt: string }) => ((b.endedAt || b.startedAt) > (a.endedAt || a.startedAt) ? 1 : -1);
+// Home's Deliverables card: #home-deliverables-empty has none yet,
+// #home-deliverables-off has the switch off, #home-deliverables-hostile has
+// titles and names carrying markup and a right-to-left override; otherwise
+// the newest five across runs, one a type no click opens.
+const dFile = (over: Record<string, unknown>) => ({ path: "reports/x.md", name: "x.md", title: "", type: "md", bytes: 2048, marked: true, canOpen: true, viewKind: "markdown", notOpened: "", copiedTo: "/home/chris/Documents/Agentry/pr-triage/2026-10-17 0930 Weekly digest", runId: "0192a3b4", ref: "acme/pr-triage@0.4.1", where: "here", endedAt: ago(30), ...over });
+function recentDeliverablesView() {
+  const on = location.hash !== "#home-deliverables-off";
+  const base = { remember: location.hash !== "#home-runs-off", on, folder: "/home/chris/Documents/Agentry", scanned: 3 };
+  if (location.hash === "#home-deliverables-empty") return { ...base, files: [] };
+  if (location.hash === "#home-deliverables-off") return { ...base, files: [] };
+  if (location.hash === "#home-deliverables-hostile") {
+    return { ...base, files: [dFile({ path: "reports/<img src=x onerror=alert(1)>.md", name: "<img src=x onerror=alert(1)>.md", title: "Q3 \u202egnp.exe <script>alert(1)</script>" })] };
+  }
+  return { ...base, files: [
+    dFile({ path: "reports/weekly-digest.pdf", name: "weekly-digest.pdf", title: "Weekly digest", type: "pdf", bytes: 183_422, viewKind: "pdf" }),
+    dFile({ path: "reports/summary.md", name: "summary.md", title: "Summary of the week", runId: "9a8b7c6d", endedAt: ago(120), copiedTo: "" }),
+    dFile({ path: "reports/numbers.xlsx", name: "numbers.xlsx", title: "Numbers", type: "xlsx", bytes: 24_100, viewKind: "", runId: "9a8b7c6d", endedAt: ago(120) }),
+    dFile({ path: "reports/page.html", name: "page.html", title: "A page", type: "html", bytes: 900, canOpen: false, viewKind: "", notOpened: "type", copiedTo: "", runId: "0192a3b3", endedAt: ago(300) }),
+  ] };
+}
 function recentRunsView(signedOut: boolean, limit = 5) {
   if (location.hash === "#home-runs-empty") return { runs: [], remember: true, signedIn: !signedOut };
   if (location.hash === "#home-runs-off") return { runs: signedOut ? [] : hostedRuns, remember: false, signedIn: !signedOut };
@@ -485,7 +505,7 @@ function engineFound(state: string) {
   return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] as string[] };
 }
 
-let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
+let homeCards: any[] = [{ kind: "deliverables", hidden: allHidden }, { kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
@@ -898,6 +918,9 @@ g.go = { app: {
     RunDefaults: async () => runDefaultsView,
     SetBuiltinNoLimit: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoLimit: on }),
     // Remember recent runs: off forgets them all.
+    SetDeliverables: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, deliverables: on }),
+    ChooseDeliverablesDir: async () => (runDefaultsView = { ...runDefaultsView, deliverablesDir: "/home/chris/Projects/outputs", deliverablesDefault: false }),
+    UseDefaultDeliverablesDir: async () => (runDefaultsView = { ...runDefaultsView, deliverablesDir: "/home/chris/Documents/Agentry", deliverablesDefault: true }),
     SetRememberRuns: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, rememberRuns: on, runHistoryCount: on ? runDefaultsView.runHistoryCount : 0 }),
     ClearRunHistory: async () => (runDefaultsView = { ...runDefaultsView, runHistoryCount: 0 }),
     SetRunBudgets: async (t: number, m: number) => (runDefaultsView = { ...runDefaultsView, timeoutSeconds: t, maxTurns: m }),
@@ -934,6 +957,11 @@ g.go = { app: {
     // the history alone; otherwise this computer's runs and built-in jobs
     // merged with the account's runs In Agentry.
     RecentRuns: async (reg: string, limit?: number) => recentRunsView(reg !== REG_DEFAULT, limit),
+    RecentDeliverables: async () => recentDeliverablesView(),
+    OpenRunDeliverable: async (id: string, path: string) => { document.body.dataset.opened = `${id}:${path}`; },
+    ShowRunDeliverable: async (id: string, path: string) => { document.body.dataset.shown = `${id}:${path}`; },
+    OpenDeliverablesFolder: async () => { document.body.dataset.folderOpened = "1"; },
+    RunDeliverableText: async () => ({ kind: "markdown", text: "# Summary of the week\n\nThree pull requests merged.\n" }),
     // Run on a folder installed QuickAgent in the Library opens RunPanel
     // over the page; it asks for its own tool surface and the key profile
     // as it mounts, and without them the preview went blank.
@@ -1318,7 +1346,7 @@ function HomePreview() {
       banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
-        runHistory: mark("run-history"), settings: mark("home-settings"), scheduled: mark("scheduled"),
+        runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"),
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },
@@ -1374,7 +1402,7 @@ if (landedDraft) {
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
   // The Scheduled card reads the CLI's store and runs nothing.
-  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", ...(homeScheduled ? ["HomeCard"] : [])]);
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", "RecentDeliverables", ...(homeScheduled ? ["HomeCard"] : [])]);
   for (const api of Object.values(g.go.app) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {
       if (reads.has(k)) continue;
