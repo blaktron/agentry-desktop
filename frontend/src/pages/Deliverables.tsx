@@ -11,9 +11,11 @@
 //   - Show in folder shows the file in the file manager and opens nothing.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import type { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { PdfViewer } from "../PdfViewer";
 import { actions, copiedLine, heading, typeLabel, type DeliverableFacts } from "../deliverables";
+import { sendLine, sendStatus, type SendFacts } from "../destinations";
 import { RevealText, plainName } from "../reveal";
 import { Button, ErrorBox, fmtBytes } from "../ui";
 
@@ -96,5 +98,60 @@ export function DeliverableItem({ runId, file, on, compact = false, context }: {
       <ErrorBox error={err} />
       {viewing && <Viewer runId={runId} file={file} />}
     </div>
+  );
+}
+
+/** Where a run's result went beside the folder: each saved destination it was
+ * given, how many files arrived and what stopped the others, with Retry on one
+ * that failed. Go reads the run's record and does the retry (RunAPI.RetryDelivery,
+ * the CLI's own delivery step); this draws a row. A retry sends the run's whole
+ * result and files again to that one destination, and the row after it is the
+ * record's latest word. */
+export function SentTo({ runId, sent, onChanged }: {
+  runId: string;
+  sent: SendFacts[];
+  /** The deliverables as they stand after a retry. */
+  onChanged: (v: app.RunDeliverablesView) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  if (sent.length === 0) return null;
+  async function retry(destination: string) {
+    setBusy(destination);
+    setErr(null);
+    try {
+      onChanged(await RunAPI.RetryDelivery(runId, destination));
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <section aria-labelledby="run-result-sent" data-sent-section>
+      <h4 id="run-result-sent">Sent to</h4>
+      <p className="muted small">The destinations you chose for this run. A delivery that fails never changes how the run ended.</p>
+      {sent.map((s) => (
+        <div key={s.destination} className="run-file" data-sent={s.destination} data-sent-status={sendStatus(s)}>
+          <div className="run-file-head">
+            <span>
+              <strong className="mono"><RevealText text={s.destination} /></strong>{" "}
+              <span className="muted small mono"><RevealText text={s.host} /></span>
+              {s.onMyNetwork && <span className="badge" title="Saved with On my network">on my network</span>}
+            </span>
+            <span className="row nowrap">
+              <span className="badge">{sendStatus(s) === "sent" ? "Sent" : sendStatus(s) === "partly" ? "Partly sent" : "Not sent"}</span>
+              {s.canRetry && (
+                <Button disabled={busy !== null} onClick={() => void retry(s.destination)} aria-label={`Retry sending to ${s.destination}`} data-retry-delivery={s.destination}>
+                  {busy === s.destination ? "Sending…" : "Retry"}
+                </Button>
+              )}
+            </span>
+          </div>
+          <div className="run-file-body"><p className="small" style={{ margin: 0 }}>{sendLine(s)}</p></div>
+        </div>
+      ))}
+      <ErrorBox error={err} />
+    </section>
   );
 }

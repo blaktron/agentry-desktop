@@ -15,6 +15,10 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
+	"github.com/zalando/go-keyring"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
+	"github.com/blaktron/agentry-desktop/internal/destinations"
 )
 
 // scheduleFake is the agentry command, answering by subcommand, and the
@@ -416,5 +420,67 @@ func TestScheduleAddOfATargetHostNeedsANewEnoughAgentry(t *testing.T) {
 	f.version = "agentry version 0.6.111 default registry: https://secureagentry.net"
 	if _, err := s.Add(scheduleReq(out), given); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestAScheduleDeliversToTheDeliverablesFolderAndTheChosenDestinations: the
+// folder is the app's own setting, never the page's, and a destination the
+// setup chose is held to the CLI's rule and to a command that takes it.
+func TestAScheduleDeliversToTheDeliverablesFolderAndTheChosenDestinations(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.139 default"}
+	s := newScheduleAPI(t, f, true)
+	keyring.MockInit()
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	if _, err := (&DestinationsAPI{app: s.app}).Save(destinations.Input{Name: "n8n", URL: "https://hooks.example.com/x", Secret: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	s.app.markPicked(out)
+	req := scheduleReq(out)
+	req.DeliverTo = "/etc"
+	req.Destinations = []string{"n8n"}
+	if _, err := s.Add(req, nil); err != nil {
+		t.Fatal(err)
+	}
+	adds := f.adds()
+	if len(adds) != 1 {
+		t.Fatalf("adds %q", adds)
+	}
+	root, _ := defaultDeliverablesRoot()
+	j := strings.Join(adds[0], " ")
+	if !strings.Contains(j, "--deliver-to "+root) || strings.Contains(j, "/etc") || !strings.Contains(j, "--destination n8n") {
+		t.Errorf("add: %s", j)
+	}
+	// A destination that is not saved refuses before the command runs.
+	f.calls = nil
+	req.Destinations = []string{"nope"}
+	if _, err := s.Add(req, nil); err == nil || len(f.adds()) != 0 {
+		t.Errorf("an unsaved destination: %v %q", err, f.adds())
+	}
+}
+
+// TestAScheduleNeedsAnAgentryThatKeepsWhereItsFiresDeliver: an older command is
+// refused for a destination somebody chose, and passed no folder otherwise.
+func TestAScheduleNeedsAnAgentryThatKeepsWhereItsFiresDeliver(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.138 default"}
+	s := newScheduleAPI(t, f, true)
+	keyring.MockInit()
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	if _, err := (&DestinationsAPI{app: s.app}).Save(destinations.Input{Name: "n8n", URL: "https://hooks.example.com/x", Secret: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	s.app.markPicked(out)
+	req := scheduleReq(out)
+	req.Destinations = []string{"n8n"}
+	if _, err := s.Add(req, nil); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.139") {
+		t.Fatalf("an old command with a destination: %v", err)
+	}
+	req.Destinations = nil
+	if _, err := s.Add(req, nil); err != nil {
+		t.Fatal(err)
+	}
+	if adds := f.adds(); len(adds) != 1 || strings.Contains(strings.Join(adds[0], " "), "--deliver-to") {
+		t.Errorf("an old command was passed the folder: %q", adds)
 	}
 }

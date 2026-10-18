@@ -74,7 +74,7 @@ func TestLiveSearchTools(t *testing.T) {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	res, err := r.RunAgent(reg, ref, task, []string{input}, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
+	res, err := r.RunAgent(reg, ref, task, []string{input}, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("the run: %v", err)
 	}

@@ -13,19 +13,20 @@ import (
 // Services is the App and every API the window binds, wired to one another.
 // It is not bound itself: Bind lists what the frontend may call.
 type Services struct {
-	app        *App
-	settings   *SettingsAPI
-	browse     *BrowseAPI
-	install    *InstallAPI
-	validate   *ValidateAPI
-	run        *RunAPI
-	build      *BuildAPI
-	knowledge  *KnowledgeAPI
-	voice      *VoiceAPI
-	home       *HomeAPI
-	publisher  *PublisherAPI
-	selfUpdate *SelfUpdateAPI
-	schedule   *ScheduleAPI
+	app          *App
+	settings     *SettingsAPI
+	browse       *BrowseAPI
+	install      *InstallAPI
+	validate     *ValidateAPI
+	run          *RunAPI
+	build        *BuildAPI
+	knowledge    *KnowledgeAPI
+	voice        *VoiceAPI
+	home         *HomeAPI
+	publisher    *PublisherAPI
+	selfUpdate   *SelfUpdateAPI
+	schedule     *ScheduleAPI
+	destinations *DestinationsAPI
 }
 
 // New builds the App and its APIs.
@@ -33,19 +34,20 @@ func New() *Services {
 	app := NewApp()
 	run := &RunAPI{app: app}
 	return &Services{
-		app:        app,
-		settings:   &SettingsAPI{app: app},
-		browse:     &BrowseAPI{app: app},
-		install:    &InstallAPI{app: app, engine: install.NewEngine()},
-		validate:   &ValidateAPI{app: app},
-		run:        run,
-		build:      &BuildAPI{app: app, run: run},
-		knowledge:  &KnowledgeAPI{app: app, run: run},
-		voice:      &VoiceAPI{app: app, run: run},
-		home:       &HomeAPI{},
-		publisher:  &PublisherAPI{app: app},
-		selfUpdate: newSelfUpdateAPI(app),
-		schedule:   &ScheduleAPI{app: app, run: run},
+		app:          app,
+		settings:     &SettingsAPI{app: app},
+		browse:       &BrowseAPI{app: app},
+		install:      &InstallAPI{app: app, engine: install.NewEngine()},
+		validate:     &ValidateAPI{app: app},
+		run:          run,
+		build:        &BuildAPI{app: app, run: run},
+		knowledge:    &KnowledgeAPI{app: app, run: run},
+		voice:        &VoiceAPI{app: app, run: run},
+		home:         &HomeAPI{},
+		publisher:    &PublisherAPI{app: app},
+		selfUpdate:   newSelfUpdateAPI(app),
+		schedule:     &ScheduleAPI{app: app, run: run},
+		destinations: &DestinationsAPI{app: app},
 	}
 }
 
@@ -110,5 +112,6 @@ func (s *Services) Bind() []interface{} {
 		s.publisher,
 		s.selfUpdate,
 		s.schedule,
+		s.destinations,
 	}
 }

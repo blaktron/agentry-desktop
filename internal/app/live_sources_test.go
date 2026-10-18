@@ -151,7 +151,7 @@ func TestLiveSources(t *testing.T) {
 			t.Fatal(err)
 		}
 		app.markPicked(out)
-		res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"codebase": repo}, false, false, nil, false, typed, nil)
+		res, err := r.RunAgent("https://secureagentry.net", ref, "", nil, out, nil, 0, -1, true, map[string]string{"codebase": repo}, false, false, nil, false, typed, nil, nil)
 		if res != nil {
 			t.Logf("%s: status %s, exit %d, %s", name, res.Status, res.ExitCode, res.Error)
 		}
