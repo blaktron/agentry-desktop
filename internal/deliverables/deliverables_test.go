@@ -278,6 +278,9 @@ func TestViewKinds(t *testing.T) {
 }
 
 func TestUserDirsDocuments(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows asks the system for the Documents folder; this is the Linux rule")
+	}
 	home := "/home/ada"
 	dir := t.TempDir()
 	cases := []struct {
@@ -323,6 +326,7 @@ func TestDefaultRootIsAnAgentryFolderInDocuments(t *testing.T) {
 	if err != nil {
 		t.Skipf("this machine names no Documents folder: %v", err)
 	}
+	t.Logf("the default Deliverables folder is %s", root)
 	if filepath.Base(root) != FolderName || !filepath.IsAbs(root) {
 		t.Fatalf("DefaultRoot = %q", root)
 	}

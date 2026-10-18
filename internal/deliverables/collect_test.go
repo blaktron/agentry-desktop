@@ -205,7 +205,11 @@ func TestFindCopyDoesNotFollowALinkInsideTheFolder(t *testing.T) {
 
 func TestOpenCopyMakesAFreshCopyUnderAPlainName(t *testing.T) {
 	r := newRun(t)
-	f := r.put("reports/Q3 report: final?.pdf", pdfBytes())
+	name := "reports/Q3 report: final?.pdf"
+	if runtime.GOOS == "windows" {
+		name = "reports/Q3 report - final.pdf" // Windows cannot make the other name
+	}
+	f := r.put(name, pdfBytes())
 	r.envelope(nil)
 	temp := t.TempDir()
 	p, err := OpenCopy(r.dir, temp, "weekly", f)
