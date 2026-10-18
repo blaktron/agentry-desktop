@@ -24,8 +24,8 @@ var redeliver = run.Redeliver
 // DestinationsAPI is Settings → Destinations: the places a run's result may be
 // sent, the CLI's own (its destinations.yaml and the system keychain), so a
 // run, a schedule's fire and the command line all read what is saved here. A
-// signing secret and an Authorization value go in with Save and never come
-// back: no view carries one.
+// signing secret, an Authorization value, or a bucket's access key id and
+// secret access key go in with Save and never come back: no view carries one.
 type DestinationsAPI struct{ app *App }
 
 // List is the saved destinations.
@@ -35,6 +35,20 @@ func (d *DestinationsAPI) List() (*destinations.Status, error) { return destinat
 // when it can; the page asks as the person types.
 func (d *DestinationsAPI) Check(url string, onMyNetwork bool) string {
 	return destinations.Check(strings.TrimSpace(url), onMyNetwork)
+}
+
+// CheckBucket says why a bucket's fields cannot be a destination, in the CLI's
+// words, or "" when they can; the page asks as the person types.
+func (d *DestinationsAPI) CheckBucket(bucket, prefix, region, endpoint string, onMyNetwork bool) string {
+	return destinations.CheckBucket(destinations.Input{Bucket: bucket, Prefix: prefix, Region: region, Endpoint: endpoint, OnMyNetwork: onMyNetwork})
+}
+
+// KeepsKeyPair says saving a bucket as the input names it would keep the key
+// pair saved for it, so the page can say when another service needs the pair
+// typed again. The input carries no credential the answer depends on.
+func (d *DestinationsAPI) KeepsKeyPair(in destinations.Input) bool {
+	in.Name, in.Bucket = strings.TrimSpace(in.Name), strings.TrimSpace(in.Bucket)
+	return destinations.KeepsKeyPair(in)
 }
 
 // Save keeps a destination, refused where the CLI would refuse it, and seals
@@ -95,7 +109,7 @@ func (r *RunAPI) RetryDelivery(runID, destination string) (*RunDeliverablesView,
 		return nil, fmt.Errorf("this run has no failed delivery to %q to try again", destination)
 	}
 	if !destinations.CanSend(destination) {
-		return nil, errors.New("that destination is no longer saved with a signing secret: add it again in Settings → Destinations")
+		return nil, errors.New("that destination is no longer saved with its credentials: add it again in Settings → Destinations")
 	}
 	// The run lock, as every job that builds an image or starts a container
 	// holds it: no delivery beside a live run, and one at a time.

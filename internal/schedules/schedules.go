@@ -46,6 +46,10 @@ var MinTargetHostsCLI = [3]int{0, 6, 111}
 // deliver (--deliver-to, --destination).
 var MinDeliverCLI = [3]int{0, 6, 139}
 
+// MinBucketCLI is the oldest agentry that sends to a bucket: an older one
+// refuses a destinations file that holds one, as a whole.
+var MinBucketCLI = [3]int{0, 6, 140}
+
 // ErrNoCLI says why scheduling on this computer is not offered here.
 var ErrNoCLI = errors.New("scheduling a run on this computer needs the agentry command, which was not found")
 

@@ -6,8 +6,16 @@ export function Check(arg1, arg2) {
   return window['go']['app']['DestinationsAPI']['Check'](arg1, arg2);
 }
 
+export function CheckBucket(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['DestinationsAPI']['CheckBucket'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function DefaultFor(arg1) {
   return window['go']['app']['DestinationsAPI']['DefaultFor'](arg1);
+}
+
+export function KeepsKeyPair(arg1) {
+  return window['go']['app']['DestinationsAPI']['KeepsKeyPair'](arg1);
 }
 
 export function List() {

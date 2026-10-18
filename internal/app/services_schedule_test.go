@@ -484,3 +484,40 @@ func TestAScheduleNeedsAnAgentryThatKeepsWhereItsFiresDeliver(t *testing.T) {
 		t.Errorf("an old command was passed the folder: %q", adds)
 	}
 }
+
+// TestAScheduleThatSendsToABucketNeedsAnAgentryThatKnowsBuckets: an older command
+// refuses a destinations file holding a bucket as a whole, so no schedule is made
+// for a bucket with one, and a webhook still is.
+func TestAScheduleThatSendsToABucketNeedsAnAgentryThatKnowsBuckets(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.139 default"}
+	s := newScheduleAPI(t, f, true)
+	keyring.MockInit()
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	api := &DestinationsAPI{app: s.app}
+	if _, err := api.Save(destinations.Input{Name: "n8n", URL: "https://hooks.example.com/x", Secret: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := api.Save(destinations.Input{Name: "archive", Kind: "s3", Bucket: "my-reports", Region: "eu-west-1", AccessKeyID: "AKIAKEYID1234", Secret: "SECRET"}); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	s.app.markPicked(out)
+	req := scheduleReq(out)
+	req.Destinations = []string{"archive"}
+	if _, err := s.Add(req, nil); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.140") || len(f.adds()) != 0 {
+		t.Fatalf("an old command with a bucket: %v %q", err, f.adds())
+	}
+	req.Destinations = []string{"n8n"}
+	if _, err := s.Add(req, nil); err != nil {
+		t.Fatalf("a webhook with the same command: %v", err)
+	}
+	f.version = "agentry version 0.6.140-dev.2 default"
+	f.calls = nil
+	req.Destinations = []string{"archive"}
+	if _, err := s.Add(req, nil); err != nil {
+		t.Fatalf("a bucket with a command that knows it: %v", err)
+	}
+	if adds := f.adds(); len(adds) != 1 || !strings.Contains(strings.Join(adds[0], " "), "--destination archive") {
+		t.Errorf("adds %q", adds)
+	}
+}
