@@ -63,6 +63,8 @@ export function SetDisplayName(arg1:string,arg2:string):Promise<app.UserView>;
 
 export function SetInstallIntoCodingAgent(arg1:boolean):Promise<app.CodingAgentsView>;
 
+export function SetMalwareCheck(arg1:boolean):Promise<app.RunDefaultsView>;
+
 export function SetRememberRuns(arg1:boolean):Promise<app.RunDefaultsView>;
 
 export function SetRunBudgets(arg1:number,arg2:number):Promise<app.RunDefaultsView>;

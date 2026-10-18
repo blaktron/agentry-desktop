@@ -29,7 +29,7 @@ export function hybridKeySentence(k: app.HybridKeyView): string {
     case "unread":
       return "A key is in the keychain, but the runner policy does not read it from there. Save it again to fix that.";
     default:
-      return "No key saved. Runs on this computer do not look files up on Hybrid Analysis; ClamAV still checks every file.";
+      return "No key saved. Runs on this computer do not look files up on Hybrid Analysis; ClamAV still checks what the malware check covers.";
   }
 }
 
@@ -83,11 +83,13 @@ export function HybridAnalysisKeyCard() {
       </p>
       <p className="muted small">
         Your own CrowdStrike Hybrid Analysis API key. Before a run on this computer starts, the fingerprints of the
-        files you give it that could carry malware (programs, scripts, PDF, RTF, older and macro Office files, disk
-        images and shortcuts, inside archives too) are looked up. A file Hybrid Analysis calls malicious stops the run;
-        one it calls suspicious is noted in the run&apos;s receipt. Without a key nothing is looked up, and ClamAV still
-        checks every file. The key is kept in this computer&apos;s keychain next to your model key: not in a file, and
-        never shown here.
+        files the malware check covers (Run defaults → Malware check) are looked up: with the check on, the files you
+        give it that could carry malware (programs, scripts, PDF, RTF, older and macro Office files, disk images and
+        shortcuts, inside archives too); with it off, only the programs of a QuickAgent that runs commands. A file
+        Hybrid Analysis calls malicious stops a run whose QuickAgent runs commands, and is handed unopened to one that
+        runs none; one it calls suspicious is noted in the run&apos;s receipt. Without a key nothing is looked up, and
+        ClamAV still checks what the malware check covers. The key is kept in this computer&apos;s keychain next to your
+        model key: not in a file, and never shown here.
       </p>
       {status && <p className="small" role="status">{hybridKeySentence(status)}</p>}
       {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}

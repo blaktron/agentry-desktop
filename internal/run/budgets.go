@@ -35,3 +35,21 @@ func SetBudgets(timeoutSeconds, maxTurns int) error {
 	pol.Budgets.MaxTurns = maxTurns
 	return policy.Save(path, pol)
 }
+
+// SetMalwareCheck turns the malware check of this computer's runs on or
+// off in the runner policy (malwareCheck), so the agentry CLI checks the
+// same way. Off, a run checks only the executables among its inputs, and
+// only when the QuickAgent declares commands; a run In Agentry is checked
+// whatever this says.
+func SetMalwareCheck(on bool) error {
+	path, err := policy.DefaultPath()
+	if err != nil {
+		return err
+	}
+	pol, _, err := policy.EnsureDefault(path)
+	if err != nil {
+		return fmt.Errorf("operator policy: %w", err)
+	}
+	pol.MalwareCheck = &on
+	return policy.Save(path, pol)
+}

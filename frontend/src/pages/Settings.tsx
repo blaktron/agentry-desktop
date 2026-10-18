@@ -51,7 +51,7 @@ export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "themes" | "design-editor" | "design-preview"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
+  | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations"
   | "home-cards" | "pins" | "reset-home";
 type Part = { id: SettingsPart; label: string };
@@ -90,7 +90,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
       { id: "output", label: "Output folder" }, { id: "deliverables", label: "Deliverables" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
-      { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
+      { id: "malware", label: "Malware check" }, { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
     ],
   },
   {
@@ -680,6 +680,27 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               {defaults.rememberRuns && defaults.runHistoryCount !== 0 && (
                 <Button disabled={busy} data-clear-run-history onClick={() => act(SettingsAPI.ClearRunHistory)}>Clear run history</Button>
               )}
+            </Card>
+          </PartSection>
+          <PartSection id="malware" title="Malware check">
+            <Card>
+              <label className="check-row" style={{ margin: 0 }}>
+                <input type="checkbox" role="switch" checked={defaults.malwareCheck} disabled={busy} data-malware-check
+                  onChange={(e) => void act(() => SettingsAPI.SetMalwareCheck(e.target.checked))} />
+                <span><strong>Check every file a run is given for malware</strong></span>
+              </label>
+              <p className="muted small" style={{ marginBottom: 0 }} data-malware-check-state>
+                {defaults.malwareCheck
+                  ? "On. Every file you give a run, and a repository's programs, PDFs and Office files, is checked with ClamAV, and with Hybrid Analysis when you have saved its key, as In Agentry."
+                  : "Off. A run checks only the programs among its files, and only when the QuickAgent runs commands that could start them."}
+              </p>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                Either way, every file a run is given has no permission to execute, and malware stops a run only when the
+                QuickAgent runs commands. A QuickAgent that runs none, such as one that reviews a codebase, is given the
+                flagged file unopened, and the receipt names it. Runs In Agentry are always checked. This is the runner
+                policy&apos;s, so the <span className="mono">agentry</span> CLI checks the same way, and it applies from
+                the next run.
+              </p>
             </Card>
           </PartSection>
           <PartSection id="unsafe" title="Unsafe Mode">

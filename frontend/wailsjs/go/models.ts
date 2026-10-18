@@ -3867,6 +3867,7 @@ export namespace app {
 	    unsafeMode: boolean;
 	    unsafeImage?: string;
 	    builtinNoLimit: boolean;
+	    malwareCheck: boolean;
 	    rememberRuns: boolean;
 	    runHistoryCount: number;
 	    deliverables: boolean;
@@ -3889,6 +3890,7 @@ export namespace app {
 	        this.unsafeMode = source["unsafeMode"];
 	        this.unsafeImage = source["unsafeImage"];
 	        this.builtinNoLimit = source["builtinNoLimit"];
+	        this.malwareCheck = source["malwareCheck"];
 	        this.rememberRuns = source["rememberRuns"];
 	        this.runHistoryCount = source["runHistoryCount"];
 	        this.deliverables = source["deliverables"];

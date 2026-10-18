@@ -37,6 +37,10 @@ type RunDefaultsView struct {
 	// agents' runs on this computer have no timeout and no turn cap the app
 	// shows while it is on.
 	BuiltinNoLimit bool `json:"builtinNoLimit"`
+	// MalwareCheck is the runner policy's malwareCheck: on, every input of
+	// a run on this computer is checked, as In Agentry; off (the default),
+	// only the executables of a run whose QuickAgent declares commands.
+	MalwareCheck bool `json:"malwareCheck"`
 	// RememberRuns is Remember recent runs (desktop.yaml's rememberRuns), on
 	// unless turned off; RunHistoryCount how many runs the history keeps, -1
 	// when it cannot be read.
@@ -61,6 +65,15 @@ func (s *SettingsAPI) RunDefaults() (*RunDefaultsView, error) { return runDefaul
 // policy (run.SetBudgets), refused where the CLI would refuse them.
 func (s *SettingsAPI) SetRunBudgets(timeoutSeconds, maxTurns int) (*RunDefaultsView, error) {
 	if err := run.SetBudgets(timeoutSeconds, maxTurns); err != nil {
+		return nil, err
+	}
+	return runDefaultsView()
+}
+
+// SetMalwareCheck turns the malware check of this computer's runs on or
+// off (run.SetMalwareCheck). It applies from the next run.
+func (s *SettingsAPI) SetMalwareCheck(on bool) (*RunDefaultsView, error) {
+	if err := run.SetMalwareCheck(on); err != nil {
 		return nil, err
 	}
 	return runDefaultsView()
@@ -199,7 +212,7 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	v := &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
-		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(),
+		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(), MalwareCheck: pol.MalwareCheckOn(),
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 		Deliverables: dOn, DeliverablesDir: dDir, DeliverablesDefault: dDefault,
 	}

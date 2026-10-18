@@ -122,6 +122,10 @@ export function SetInstallIntoCodingAgent(arg1) {
   return window['go']['app']['SettingsAPI']['SetInstallIntoCodingAgent'](arg1);
 }
 
+export function SetMalwareCheck(arg1) {
+  return window['go']['app']['SettingsAPI']['SetMalwareCheck'](arg1);
+}
+
 export function SetRememberRuns(arg1) {
   return window['go']['app']['SettingsAPI']['SetRememberRuns'](arg1);
 }
