@@ -94,9 +94,9 @@ func Sweep(ctx context.Context, runID string) error {
 
 // runNetworks are the networks a run can make: the engine's names for them
 // (agentry-cli pkg/runner/engine: networkName, proxyEgressNetwork, webNetwork,
-// relayNetworks, browserNetwork), which are the run network, the model proxy's
-// egress network under a sandboxed runtime, the web tools' network, the relays'
-// pair and the browser's own; then every other network carrying the run's
+// relayNetworks, browserNetwork, renderNetwork), which are the run network,
+// the model proxy's egress network under a sandboxed runtime, the web tools'
+// network, the relays' pair, the browser's own and the page renderer's; then every other network carrying the run's
 // label, which finds those a step names itself, such as an input source's. The
 // names are the engine's own and not exported, so they are restated here as
 // engine.SweepAbandoned restates them, held to the engine by
@@ -104,7 +104,7 @@ func Sweep(ctx context.Context, runID string) error {
 // when docker cannot list.
 func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]string, error) {
 	p := "agentry-" + runID
-	names := []string{p + "-net", p + "-egress", p + "-web", p + "-relays", p + "-relays-out", p + "-browser"}
+	names := []string{p + "-net", p + "-egress", p + "-web", p + "-relays", p + "-relays-out", p + "-browser", p + "-render"}
 	labelled, err := d.NetworksByLabel(ctx, label)
 	if err != nil {
 		return names, err
