@@ -28,6 +28,12 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// notices is the third-party notices file the Licences page in Settings
+// shows; the packages ship the same file beside the app.
+//
+//go:embed THIRD_PARTY_NOTICES
+var notices string
+
 func main() {
 	// Opened from Finder, the app has launchd's PATH, which holds no docker;
 	// relaunched by a self-update on Windows, it has the first launch's:
@@ -59,7 +65,7 @@ func main() {
 	if len(os.Args) > 1 && (os.Args[1] == clipath.AddFlag || os.Args[1] == clipath.RemoveFlag) {
 		os.Exit(clipath.Main(os.Stderr, os.Args[1]))
 	}
-	services := app.New()
+	services := app.New(notices)
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",
