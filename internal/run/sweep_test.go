@@ -51,6 +51,7 @@ func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 		"NetworkRemove agentry-ab12cd34-relays",
 		"NetworkRemove agentry-ab12cd34-relays-out",
 		"NetworkRemove agentry-ab12cd34-browser",
+		"NetworkRemove agentry-ab12cd34-render",
 		"NetworkRemove agentry-ab12cd34-src-code",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -87,7 +88,7 @@ func TestSweepRemovesTheNamedNetworksWhenTheListFails(t *testing.T) {
 			removed = append(removed, c.Arg)
 		}
 	}
-	want := "agentry-ab12cd34-net agentry-ab12cd34-egress agentry-ab12cd34-web agentry-ab12cd34-relays agentry-ab12cd34-relays-out agentry-ab12cd34-browser"
+	want := "agentry-ab12cd34-net agentry-ab12cd34-egress agentry-ab12cd34-web agentry-ab12cd34-relays agentry-ab12cd34-relays-out agentry-ab12cd34-browser agentry-ab12cd34-render"
 	if strings.Join(removed, " ") != want {
 		t.Fatalf("removed %v; want %s", removed, want)
 	}
@@ -161,14 +162,15 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// its label. "-src-" is an input source's network, named by the source's id as
 	// well as the run's, so no name from a run id alone finds it: runNetworks
 	// finds it, and any other the engine labels with the run, by the run's label.
-	// "-browser" is the browser's own network, named above; "-docker" is the
+	// "-browser" is the browser's own network and "-render" the page
+	// renderer's, both named above; "-docker" is the
 	// volume of the docker filter's container on Docker Desktop, labelled with the
 	// run and so removed with the session's by label.
 	// "-dlv" is a delivery's network, named by an id of the delivery's own and not
 	// the run's (a delivery runs after the run's record is gone, and a later one
 	// for a finished run's folder has no run): it is removed by the step and, from
 	// its containers' owner labels, by engine.SweepAbandoned.
-	want := []string{"-browser", "-dlv", "-docker", "-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
+	want := []string{"-browser", "-dlv", "-docker", "-egress", "-net", "-relays", "-relays-out", "-render", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
@@ -177,8 +179,8 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// model list's: named as a run's "-net" (and "-egress"), under a run id no run
 	// record holds, so a list killed midway is removed by engine.SweepAbandoned,
 	// which the engine runs before each run, from its containers' owner labels;
-	// the browser's own; and a delivery's.
-	if creates != 8 {
-		t.Fatalf("the engine makes a network in %d places, and the sweep knows 8: revisit runNetworks before taking this agentry-cli", creates)
+	// the browser's own; the page renderer's; and a delivery's.
+	if creates != 9 {
+		t.Fatalf("the engine makes a network in %d places, and the sweep knows 9: revisit runNetworks before taking this agentry-cli", creates)
 	}
 }
