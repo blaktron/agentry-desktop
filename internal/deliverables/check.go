@@ -36,16 +36,16 @@ func Check(runDir string, f File) (Checked, error) {
 		return Checked{}, ErrUnreadable
 	}
 	defer func() { _ = file.Close() }()
+	// The envelope names a size as well as a digest: a file of another size
+	// is not the file it recorded, and is not read to find that out.
+	if f.Bytes != size {
+		return Checked{}, ErrChanged
+	}
 	h := sha256.New()
 	head := make([]byte, 0, HeadBytes)
 	n, err := io.Copy(io.MultiWriter(h, &capture{buf: &head}), io.LimitReader(file, size+1))
 	if err != nil || n != size {
 		return Checked{}, ErrUnreadable
-	}
-	// The envelope names a size as well as a digest: one that is not the
-	// file's is not the file it recorded.
-	if f.Bytes != size {
-		return Checked{}, ErrChanged
 	}
 	if hex.EncodeToString(h.Sum(nil)) != f.SHA256 {
 		return Checked{}, ErrChanged

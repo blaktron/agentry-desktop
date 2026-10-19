@@ -100,6 +100,15 @@
   --shadow-raised: 0 1px 2px rgb(35 27 18 / 0.06), 0 6px 16px -8px rgb(35 27 18 / 0.14);
   --shadow-overlay: 0 12px 32px -12px rgb(35 27 18 / 0.28);
 
+  /* The file icons' kinds (fileIcons.tsx): each reads against the page in
+     its theme with the band's label in the page colour. */
+  --file-pdf: #b91c1c;
+  --file-html: #1d4ed8;
+  --file-document: #1e5fa8;
+  --file-spreadsheet: #116f34;
+  --file-presentation: #9f4707;
+  --file-image: #6b4fbb;
+
   color-scheme: light dark;
 }
 
@@ -140,6 +149,12 @@
     /* Black here, not the ink colour: in dark the ink IS the ground. */
     --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 16px -8px rgb(0 0 0 / 0.6);
     --shadow-overlay: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+    --file-pdf: #f87171;
+    --file-html: #8fb0ff;
+    --file-document: #7cb8f7;
+    --file-spreadsheet: #4ade80;
+    --file-presentation: #fbbf24;
+    --file-image: #c4b5fd;
     /* Not overridden on purpose, as on the site: --color-ok-strong,
        --color-danger-strong, --color-solid-fg, the radius scale, the font
        stacks. */
@@ -1101,6 +1116,49 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-way-status { margin: 0; color: var(--color-lead); }
 .build-way-body { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
 .build-way-body .link { text-align: left; }
+
+/* Home's Deliverables card: one icon per file, the QuickAgent and the day
+   stacked under it. The grid wraps, a cell may shrink to nothing, and a long or
+   unbroken name is cut at two lines, so the card never scrolls sideways. */
+.deliverable-icons { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.deliverable-icons > li { min-width: 0; }
+.deliverable-cell { position: relative; min-width: 0; }
+/* The cell whose menu is open paints over the cells after it. */
+.deliverable-cell.is-menu-open { z-index: 30; }
+.deliverable-icon {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; min-width: 0;
+  padding: 8px 4px 6px; border: 1px solid transparent; border-radius: var(--radius-md, 8px);
+  background: transparent; color: var(--color-fg); font: inherit; text-align: center; cursor: pointer;
+}
+.deliverable-icon:hover { background: var(--color-accent-soft); }
+.deliverable-icon:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.deliverable-agent {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  max-width: 100%; margin-top: 4px; font-size: 12px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere;
+}
+.deliverable-date { max-width: 100%; font-size: 11px; line-height: 1.25; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deliverable-menu {
+  position: absolute; z-index: 20; left: 50%; transform: translateX(-50%); width: max-content; min-width: 100%; top: calc(100% - 4px); padding: 4px;
+  background: var(--color-raised); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md, 8px); box-shadow: var(--shadow-overlay);
+}
+.deliverable-menu [role="menuitem"] { width: 100%; border: 0; background: transparent; color: var(--color-fg); font: inherit; font-size: 12px; text-align: left; white-space: nowrap; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.deliverable-menu [role="menuitem"]:hover, .deliverable-menu [role="menuitem"]:focus-visible { background: var(--color-accent-soft); outline: 1px solid var(--color-accent); }
+
+.file-icon { display: block; flex: none; --fi: var(--color-muted); }
+.file-icon-pdf { --fi: var(--file-pdf); }
+.file-icon-html { --fi: var(--file-html); }
+.file-icon-document { --fi: var(--file-document); }
+.file-icon-spreadsheet { --fi: var(--file-spreadsheet); }
+.file-icon-presentation { --fi: var(--file-presentation); }
+.file-icon-image { --fi: var(--file-image); }
+.file-icon-page { fill: var(--color-raised); stroke: var(--color-border-strong); stroke-width: 1.5; stroke-linejoin: round; }
+.file-icon-fold { fill: none; stroke: var(--color-border-strong); stroke-width: 1.5; stroke-linejoin: round; }
+.file-icon-band { fill: var(--fi); }
+.file-icon-label { fill: var(--color-bg); font: 700 8px var(--font-sans); letter-spacing: 0.02em; }
+.file-icon-stroke { fill: none; stroke: var(--fi); stroke-width: 2; stroke-linecap: round; opacity: 0.7; }
+.file-icon-accent { fill: var(--fi); opacity: 0.85; }
+.file-icon-reveal circle { fill: var(--color-bg); stroke: var(--color-muted); stroke-width: 1.5; }
+.file-icon-reveal path { fill: var(--color-muted); }
 
 /* Home: the start pages' grid, a
    card per cell, every card Large and as tall as its row. */
