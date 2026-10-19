@@ -45,12 +45,13 @@ that resolves them against sibling checkouts.
 |---|---|
 | `make dev` | live-reload development shell (`wails dev`) |
 | `make build` | production build for the host platform into `build/bin/` |
-| `make check` | frontend type check and bundle, lint, Go tests, the copy check, the third-party notices check and `go build ./...` |
+| `make check` | frontend type check and bundle, lint, Go tests, the copy check, the font check, the third-party notices check and `go build ./...` |
 | `make test` | `go test ./...` |
 | `make lint` | gofmt, `go vet`, golangci-lint (when installed) and a scripts check |
 | `make copy` | the copy check over the text the app ships (`scripts/copy-check.sh`) |
 | `make frontend` | frontend type check, `vite build` and the frontend unit tests |
 | `make bindings` | regenerate the TypeScript bindings after changing a bound Go method or type |
+| `make fonts-check` | fail when an embedded font file is not byte-identical to the upstream file recorded for it in its `PROVENANCE.json` |
 | `make notices`, `make notices-check` | regenerate `THIRD_PARTY_NOTICES` (the licence texts of the npm packages in the bundle, the Go modules, the fonts, the logos and Microsoft WebView2) after a dependency, font or logo changes; fail while the committed file is stale |
 | `make workflows-check` | no workflow job that a fork's pull request can start runs on a self-hosted runner without the fork guard (python3 with PyYAML) |
 | `make package-darwin` | universal macOS `.app`, as a zip and a `.dmg` |

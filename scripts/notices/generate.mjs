@@ -267,8 +267,8 @@ function fontSection() {
     fail(`frontend/src/reportFonts/licenses holds ${JSON.stringify(have)} but this script names ${JSON.stringify(want)}: update REPORT_FONT_LICENCES`);
   }
   const entries = [
-    { name: "IBM Plex Sans", version: "", text: readClean(path.join(frontend, "src", "fonts", "OFL.txt")), notices: [] },
-    { name: "IBM Plex Mono", version: "", text: readClean(path.join(frontend, "src", "fonts", "OFL.txt")), notices: [] },
+    { name: "IBM Plex Sans", version: "", text: readClean(path.join(frontend, "src", "fonts", "ibmplexsans.OFL.txt")), notices: [] },
+    { name: "IBM Plex Mono", version: "", text: readClean(path.join(frontend, "src", "fonts", "ibmplexmono.OFL.txt")), notices: [] },
     ...Object.entries(REPORT_FONT_LICENCES).map(([f, fam]) => ({
       name: fam,
       version: "",
@@ -276,14 +276,14 @@ function fontSection() {
       notices: [],
     })),
   ];
-  // The same family is named once per licence text: IBM Plex Sans and Mono in
-  // the interface share a text, and the report copies have their own.
+  // The same family is named once per licence text: the interface's IBM Plex
+  // licences and the report copies of them are the same text, so they share
+  // an entry.
   const out = [
     "The app's interface uses IBM Plex Sans and IBM Plex Mono, and the Report design page",
     "previews a report's fonts with the families below. Every font is licensed under the",
     "SIL Open Font License, Version 1.1, whose text is given with each copyright",
-    "notice. The fonts are embedded as WOFF2 files that hold only the Latin character",
-    "ranges of the original fonts.",
+    "notice. The fonts are embedded as the unmodified font files their authors publish.",
     "",
   ];
   const keyed = new Map();

@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy script-tests frontend notices notices-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
+.PHONY: dev build check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -91,7 +91,7 @@ script-tests:
 frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build && npm test
 
-check: frontend lint test copy script-tests notices-check
+check: frontend lint test copy script-tests fonts-check notices-check
 	$(GO) build ./...
 
 # THIRD_PARTY_NOTICES: the licence texts of the npm packages compiled into
@@ -109,6 +109,13 @@ notices:
 
 notices-check:
 	node scripts/notices/generate.mjs --check
+
+# Every embedded font is the unmodified file its upstream publishes: the
+# SHA-256 of each under frontend/src/fonts and frontend/src/reportFonts must
+# equal the one in that directory's PROVENANCE.json (scripts/fonts/check.mjs;
+# add --upstream to fetch the sources and compare them too).
+fonts-check:
+	node scripts/fonts/check.mjs
 
 ## workflows-check: no job a fork's pull request can start runs on a
 ## self-hosted runner without the fork guard, and the check's own tests pass.
