@@ -27,10 +27,12 @@ type Services struct {
 	selfUpdate   *SelfUpdateAPI
 	schedule     *ScheduleAPI
 	destinations *DestinationsAPI
+	notices      *NoticesAPI
 }
 
-// New builds the App and its APIs.
-func New() *Services {
+// New builds the App and its APIs. notices is the third-party notices text
+// the Licences page shows.
+func New(notices string) *Services {
 	app := NewApp()
 	run := &RunAPI{app: app}
 	return &Services{
@@ -48,6 +50,7 @@ func New() *Services {
 		selfUpdate:   newSelfUpdateAPI(app),
 		schedule:     &ScheduleAPI{app: app, run: run},
 		destinations: &DestinationsAPI{app: app},
+		notices:      &NoticesAPI{text: notices},
 	}
 }
 
@@ -113,5 +116,6 @@ func (s *Services) Bind() []interface{} {
 		s.selfUpdate,
 		s.schedule,
 		s.destinations,
+		s.notices,
 	}
 }

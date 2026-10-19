@@ -32,6 +32,10 @@
 #      signature (listed in its CodeResources), so a notarized bundle's
 #      ticket covers it. Without --cli the bundle must carry no CLI.
 #
+#   8. the bundle carries the third-party notices as
+#      Contents/Resources/THIRD_PARTY_NOTICES.txt, byte-identical to the
+#      repository's THIRD_PARTY_NOTICES and sealed by the bundle's signature.
+#
 # The image is detached whatever happens — on the way out, and on an
 # interrupt or a cancelled CI job — because a leaked mount on a persistent
 # runner is attached at a mktemp path nothing will ever detach again. A stale
@@ -161,4 +165,12 @@ else
   clinote="carries ${got_v%% default registry*} ($cli_auth)"
 fi
 
-echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), $clinote"
+# 8. The third-party notices.
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+notices="$mnt/$appname/Contents/Resources/THIRD_PARTY_NOTICES.txt"
+[ -f "$notices" ] || fail "the bundle on the image has no Contents/Resources/THIRD_PARTY_NOTICES.txt"
+cmp -s "$notices" "$root_dir/THIRD_PARTY_NOTICES" || fail "the THIRD_PARTY_NOTICES.txt on the image differs from $root_dir/THIRD_PARTY_NOTICES"
+grep -q '<key>Resources/THIRD_PARTY_NOTICES.txt</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
+  fail "the bundle's signature does not seal Contents/Resources/THIRD_PARTY_NOTICES.txt"
+
+echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), third-party notices sealed, $clinote"

@@ -1315,6 +1315,17 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .settings-back { margin: 0 0 8px; }
 .settings-part { scroll-margin-top: 12px; }
 
+/* Settings → Licences: a block per section of the notices file; the text
+   scrolls inside the block, not the page. */
+.notices-section { border-top: 1px solid var(--color-border); padding: 8px 0; }
+.notices-section:first-of-type { border-top: none; }
+.notices-section > summary { cursor: pointer; }
+.notices-text {
+  max-height: 28rem; overflow: auto; margin: 8px 0 0; padding: 10px 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45;
+  border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg);
+}
+
 /* Settings → Profile's subscription facts: the
    label column fits its labels and wraps past 12rem, as the recaps do. */
 .profile-facts { display: grid; grid-template-columns: fit-content(12rem) minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 12px; }

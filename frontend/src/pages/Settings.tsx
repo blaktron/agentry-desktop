@@ -29,6 +29,7 @@ import { homeStatus } from "../homeCards";
 import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
+import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
 // Settings as five cards: the landing is a card per section, each card the
@@ -43,7 +44,7 @@ import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from
 //
 // Report design comes second, after Profile, as on the site: the account's
 // report design and its editor.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home";
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home" | "licences";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -53,7 +54,7 @@ export type SettingsPart =
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations"
-  | "home-cards" | "pins" | "reset-home";
+  | "home-cards" | "pins" | "reset-home" | "licences";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -115,6 +116,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     id: "home", title: "Home",
     sentence: "Which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
     parts: [{ id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
+  },
+  {
+    id: "licences", title: "Licences",
+    sentence: "The licences of the open-source software, fonts and logos inside Agentry Desktop.",
+    parts: [],
   },
 ];
 
@@ -242,6 +248,7 @@ export default function Settings({
       {section === "connections" && <ConnectionsSettings />}
       {section === "destinations" && <DestinationsSettings />}
       {section === "home" && <HomeSettings />}
+      {section === "licences" && <LicencesSettings />}
     </div>
   );
 }
@@ -306,6 +313,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     connections: st.connections ? connectionsStatus(st.connections) : null,
     destinations: st.destinations ? destinationsStatus(st.destinations) : null,
     home: st.home ? homeStatus(st.home) : null,
+    licences: null,
   };
 
   return (

@@ -8,7 +8,9 @@ Unicode true
 ## the app's self-update reinstalls the same way, silently). It writes a
 ## Start Menu shortcut and an Apps & features entry, and offers to launch the
 ## app on its last page. It asks nothing about Docker, sign-in, models or
-## agents: those are the app's first-run wizard's questions.
+## agents: those are the app's first-run wizard's questions. Its one page
+## of terms is the licence page (LICENSE.txt, next to this script), which an
+## interactive install must accept; a silent install shows no pages.
 ##
 ## Installing over an existing installation replaces only the files under
 ## $INSTDIR. Configuration lives outside it (%USERPROFILE%\.config\agentry,
@@ -73,7 +75,12 @@ Function .onInstSuccess
 FunctionEnd
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
-# No EULA page: the licence is the repository's; the installer asks only installer-shaped questions.
+# The licence page: Agentry Desktop's MIT licence and the terms of Microsoft's
+# Edge WebView2 Runtime, whose bootstrapper this installer carries. Installing
+# needs the box ticked. A silent install (/S) shows no page, so a person
+# accepts here the first time; the app's self-update then reinstalls silently.
+!define MUI_LICENSEPAGE_CHECKBOX
+!insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
@@ -133,6 +140,11 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+
+    # The third-party notices, beside the application (THIRD_PARTY_NOTICES at
+    # the repository root; the same text is inside the application, under
+    # Settings, Licences).
+    File "/oname=THIRD_PARTY_NOTICES.txt" "..\..\..\THIRD_PARTY_NOTICES"
 
     # The agentry CLI, when the build carries it: a release puts the signed
     # CLI release go.mod pins into build/cli; a PR build has none and

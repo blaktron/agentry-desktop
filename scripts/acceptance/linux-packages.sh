@@ -17,7 +17,8 @@
 #   1. the previous package installs from a clean image with its declared
 #      dependencies and nothing else named by hand, and the real package
 #      installs over it as an upgrade the package manager orders as one;
-#   2. the package owns exactly the binary, the desktop entry and the icons,
+#   2. the package owns exactly the binary, the desktop entry, the icons and
+#      the third-party notices (byte-identical to THIRD_PARTY_NOTICES),
 #      nothing under /home or /root, and carries no maintainer script or
 #      trigger (read from the package's control archive, not inferred);
 #   3. the installed binary is byte-identical to <binary>, the one the bare
@@ -56,6 +57,7 @@ rm -rf "$stage"; mkdir -p "$stage"
 trap 'rm -rf "$stage"' EXIT
 cp "$deb" "$stage/pkg.deb"; cp "$rpm" "$stage/pkg.rpm"; cp "$bin" "$stage/agentry-desktop.bin"
 cp "$prev_deb" "$stage/previous.deb"; cp "$prev_rpm" "$stage/previous.rpm"
+cp THIRD_PARTY_NOTICES "$stage/THIRD_PARTY_NOTICES"
 # The agentry CLI the packages carry when the build has one (build/cli):
 # /usr/bin/agentry must be it.
 [ ! -f build/cli/agentry ] || cp build/cli/agentry "$stage/agentry.cli"
@@ -111,6 +113,7 @@ esac
 [ -f /usr/share/applications/agentry-desktop.desktop ] || fail "no desktop entry"
 desktop-file-validate /usr/share/applications/agentry-desktop.desktop || fail "the desktop entry does not validate"
 [ -f /usr/share/icons/hicolor/512x512/apps/agentry-desktop.png ] || fail "no 512px icon"
+cmp /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES /pkg/THIRD_PARTY_NOTICES || fail "the package's third-party notices are missing or differ from THIRD_PARTY_NOTICES"
 if printf '%s\n' "$files" | grep -E '^/(home|root)(/|$)'; then fail "the package owns something under a home directory"; fi
 if printf '%s\n' "$files" | grep -v -E '^/usr$|^/usr/(bin|share)(/|$)'; then fail "the package owns something outside /usr/bin and /usr/share"; fi
 [ -z "$scripts" ] || fail "the package carries maintainer scripts or triggers: $scripts"
@@ -174,6 +177,7 @@ case "$fam" in
 esac
 [ ! -e "$bin" ] || fail "$bin survived the removal"
 [ ! -e /usr/share/applications/agentry-desktop.desktop ] || fail "the desktop entry survived the removal"
+[ ! -e /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES ] || fail "the third-party notices survived the removal"
 [ ! -e /usr/bin/agentry ] || fail "/usr/bin/agentry survived the removal"
 after=$(snapshot)
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after") >&2; fail "removing changed the home"; }
@@ -191,6 +195,10 @@ run() { docker run --rm --security-opt label=disable -v "$PWD/$stage:/pkg:ro" "$
 deb_family() {
   run "$1" bash -ec '
     export DEBIAN_FRONTEND=noninteractive
+    # The slim Debian and the minimal Ubuntu images tell dpkg to leave out
+    # /usr/share/doc, where the package installs the third-party notices; a
+    # real system keeps them.
+    rm -f /etc/dpkg/dpkg.cfg.d/docker /etc/dpkg/dpkg.cfg.d/excludes
     apt-get update -qq >/dev/null
     apt-get install -y -qq --no-install-recommends /pkg/previous.deb xvfb xauth dbus binutils desktop-file-utils >/dev/null 2>/tmp/apt.err || { cat /tmp/apt.err >&2; exit 1; }
     bash /pkg/common.sh deb '"$2"'

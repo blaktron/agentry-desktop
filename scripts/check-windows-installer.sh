@@ -14,17 +14,24 @@
 #      NSIS's spelling of RequestExecutionLevel user — and no elevated one
 #      (a grep over the file: it cannot tell the stub's manifest from a
 #      payload's, which is why the elevated forms are refused too);
-#   3. it installs exactly two files, the application and its uninstaller
-#      (everything else is NSIS plumbing under $PLUGINSDIR, the WebView2
-#      bootstrapper included) — three with --cli FILE:
-#      bin/agentry.exe too, byte-identical to FILE, the CLI a build put in
-#      build/cli; without --cli an installer carrying a CLI is refused, since
-#      nothing then says which CLI it is;
+#   3. it installs exactly three files, the application, the third-party
+#      notices (THIRD_PARTY_NOTICES.txt, byte-identical to the repository's
+#      THIRD_PARTY_NOTICES) and its uninstaller (everything else is NSIS
+#      plumbing under $PLUGINSDIR, the WebView2 bootstrapper included) —
+#      four with --cli FILE: bin/agentry.exe too, byte-identical to FILE, the
+#      CLI a build put in build/cli; without --cli an installer carrying a CLI
+#      is refused, since nothing then says which CLI it is;
 #   4. the application it carries is byte-identical to the binary the zip
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
 #      profile, the settings section is off by default, and the application
-#      section cannot be unticked.
+#      section cannot be unticked;
+#   6. the script shows the licence page before the install pages, with the
+#      box to accept, from build/windows/installer/LICENSE.txt, and that
+#      file holds the MIT licence, the Microsoft Edge WebView2 Runtime terms
+#      and the pointer to THIRD_PARTY_NOTICES.txt. The page text is
+#      compressed inside the installer where 7z does not list it, so it is
+#      checked in the script the installer is built from.
 #
 # It says nothing about signatures: a release that signs the installer reads
 # its signatures back itself.
@@ -78,20 +85,26 @@ fi
 # a command's output goes to a grep that reads it all (grep … >/dev/null).
 entries=$(7z l -slt "$setup" | awk '/^----------$/{on=1; next} on && /^Path = /{sub(/^Path = /, ""); print}' | tr '\\' '/')
 listing=$(printf '%s\n' "$entries" | grep -v '^\$PLUGINSDIR' || true)
-expected=$'agentry-desktop.exe\nuninstall.exe'
+expected=$'THIRD_PARTY_NOTICES.txt\nagentry-desktop.exe\nuninstall.exe'
 [ -z "$cli" ] || expected+=$'\nbin/agentry.exe'
 if [ "$(printf '%s\n' "$listing" | sort)" != "$(printf '%s\n' "$expected" | sort)" ]; then
   printf 'installed files:\n%s\n' "$listing" >&2
   if [ -n "$cli" ]; then
-    fail "the installer does not install exactly agentry-desktop.exe, bin/agentry.exe and uninstall.exe"
+    fail "the installer does not install exactly agentry-desktop.exe, THIRD_PARTY_NOTICES.txt, bin/agentry.exe and uninstall.exe"
   fi
-  fail "the installer does not install exactly agentry-desktop.exe and uninstall.exe (one that carries the CLI is checked with --cli)"
+  fail "the installer does not install exactly agentry-desktop.exe, THIRD_PARTY_NOTICES.txt and uninstall.exe (one that carries the CLI is checked with --cli)"
 fi
 grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' <<<"$entries" || fail "the WebView2 bootstrapper is not in the installer"
 
 # 4. The same binary as the zip.
 if ! 7z e -so "$setup" agentry-desktop.exe 2>/dev/null | cmp -s - "$exe"; then
   fail "the agentry-desktop.exe inside the installer differs from $exe"
+fi
+
+# 4a. The notices it installs are the repository's file, and the zip beside
+# the installer carries the same text.
+if ! 7z e -so "$setup" THIRD_PARTY_NOTICES.txt 2>/dev/null | cmp -s - "$root_dir/THIRD_PARTY_NOTICES"; then
+  fail "the THIRD_PARTY_NOTICES.txt inside the installer differs from $root_dir/THIRD_PARTY_NOTICES"
 fi
 
 # 4b. The CLI it carries is the one build/cli held, byte for byte, and the
@@ -129,6 +142,43 @@ settings_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-my-settings' "$nsi" |
 [ -n "$images_at" ] && [ -n "$settings_at" ] || fail "the images or the settings step does not run the app (no ExecWait)"
 [ "$images_at" -lt "$settings_at" ] || fail "the images step runs after the settings step, which deletes the policy that names them"
 
-carries="agentry-desktop.exe + uninstall.exe"
-[ -z "$cli" ] || carries="agentry-desktop.exe + bin/agentry.exe ($(basename "$cli")) + uninstall.exe"
-echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR"
+# 6. The licence page. NSIS reads LICENSE.txt at compile time and stores it
+# in the installer's compressed header, so the built file is checked through
+# the script that includes it: the page must come before the directory and
+# install pages, must ask for a ticked box, and must name the file below.
+licence="$(dirname "$nsi")/LICENSE.txt"
+[ -f "$licence" ] || fail "$licence does not exist"
+grep -q -E '^!define MUI_LICENSEPAGE_CHECKBOX' "$nsi" || fail "the licence page in $nsi does not ask for a ticked box (MUI_LICENSEPAGE_CHECKBOX)"
+licence_at=$(grep -n -E '^!insertmacro MUI_PAGE_LICENSE "LICENSE\.txt"' "$nsi" | head -1 | cut -d: -f1 || true)
+directory_at=$(grep -n -E '^!insertmacro MUI_PAGE_DIRECTORY' "$nsi" | head -1 | cut -d: -f1 || true)
+instfiles_at=$(grep -n -E '^!insertmacro MUI_PAGE_INSTFILES' "$nsi" | head -1 | cut -d: -f1 || true)
+[ -n "$licence_at" ] || fail "$nsi does not show LICENSE.txt on a licence page (MUI_PAGE_LICENSE)"
+[ -n "$directory_at" ] && [ -n "$instfiles_at" ] || fail "$nsi has no directory or install page"
+[ "$licence_at" -lt "$directory_at" ] && [ "$licence_at" -lt "$instfiles_at" ] || fail "the licence page comes after an install page in $nsi"
+licence_text=$(tr -d '\r' < "$licence")
+# The phrases are matched across line breaks.
+licence_flat=$(tr -d '\r' < "$licence" | tr '\n' ' ' | tr -s ' ')
+for needle in \
+  'Copyright (c) 2026 Chris Dupres' \
+  'Permission is hereby granted, free of charge' \
+  'Microsoft Edge WebView2 Runtime' \
+  'Microsoft Software License Terms' \
+  'https://developer.microsoft.com/microsoft-edge/webview2' \
+  'Installing the Runtime means you accept Microsoft' \
+  'not made, endorsed or sponsored by Microsoft' \
+  'THIRD_PARTY_NOTICES.txt'; do
+  grep -q -F -- "$needle" <<<"$licence_flat" || fail "$licence does not carry: $needle"
+done
+# The page is plain ASCII with CRLF line ends, which every NSIS licence page
+# renders; a byte outside ASCII would be read in the installer's ANSI code page.
+if LC_ALL=C grep -q -P '[^\x00-\x7F]' "$licence"; then
+  fail "$licence has a byte outside ASCII"
+fi
+[ "$(grep -c -v $'\r$' "$licence" || true)" = 0 ] || fail "$licence has a line without a CRLF ending"
+# The root LICENSE is the text of part 1.
+root_mit=$(tr -d '\r' < "$root_dir/LICENSE")
+grep -q -F -- "$root_mit" <<<"$licence_text" || fail "the MIT licence in $licence differs from $root_dir/LICENSE"
+
+carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + uninstall.exe"
+[ -z "$cli" ] || carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + bin/agentry.exe ($(basename "$cli")) + uninstall.exe"
+echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR, licence page before the install pages"

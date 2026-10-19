@@ -1,0 +1,107 @@
+AGENTRY DESKTOP LICENCE
+
+Please read this page. Agentry Desktop is licensed to you under the MIT
+Licence in part 1. On Windows it also needs the Microsoft Edge WebView2
+Runtime, which is Microsoft's software and comes with Microsoft's terms,
+set out in part 2. Part 3 says where the licences of everything else are.
+
+You must accept these terms to install Agentry Desktop.
+
+
+------------------------------------------------------------------------
+1. AGENTRY DESKTOP: MIT LICENCE
+------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 Chris Dupres
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+------------------------------------------------------------------------
+2. MICROSOFT EDGE WEBVIEW2 RUNTIME
+------------------------------------------------------------------------
+
+Agentry Desktop draws its window with the Microsoft Edge WebView2 Runtime.
+The Runtime is Microsoft's software, not Agentry's. This installer carries
+Microsoft's WebView2 Runtime Bootstrapper, unchanged, and runs it only if
+your computer does not already have the Runtime. The Bootstrapper downloads
+the Runtime from Microsoft.
+
+The Runtime is licensed to you by Microsoft under the Microsoft Software
+License Terms for the Microsoft Edge WebView2 Runtime. Microsoft shows
+those terms when you choose a download at:
+
+  https://developer.microsoft.com/microsoft-edge/webview2
+
+Installing the Runtime means you accept Microsoft's terms. By accepting this
+page you agree to them, and to the following, which apply to you in
+relation to Microsoft:
+
+  a) The Runtime is licensed to you, not sold. Microsoft keeps all rights
+     in it that its terms do not give you.
+
+  b) You will not reverse engineer, decompile or disassemble the Runtime,
+     work around its technical limits, remove or change Microsoft's
+     notices in it, use it against the law or to create or spread
+     malware, or share, publish, distribute, lease or transfer it or
+     Microsoft's terms to anyone else.
+
+  c) The Runtime may collect information about you and your use of it and
+     send that information to Microsoft, as described in the Microsoft
+     Privacy Statement at https://aka.ms/privacy and at
+     https://learn.microsoft.com/microsoft-edge/webview2/concepts/data-privacy
+     Your use of the Runtime is your consent to this.
+
+  d) You will follow the export laws and regulations that apply to the
+     Runtime, including the limits on destinations, end users and end use
+     (https://aka.ms/exporting).
+
+  e) Microsoft provides the Runtime "as is", with all faults, and you bear
+     the risk of using it. Microsoft gives no warranties or
+     conditions, and to the extent the law allows, excludes all implied
+     warranties, including those of merchantability, fitness for a
+     particular purpose and non-infringement.
+
+  f) Microsoft provides no support for the Runtime or for Agentry Desktop.
+     To the extent the law allows, you can recover from Microsoft
+     and its suppliers only direct damages up to US $5.00, and no other
+     damages, including consequential, lost-profit, special, indirect or
+     incidental damages.
+
+  g) Microsoft is a beneficiary of this part and may enforce it.
+
+If Microsoft's terms and this part differ, Microsoft's terms govern the
+Runtime. Nothing in this part changes any right you have under law that
+cannot be waived.
+
+Agentry Desktop is not made, endorsed or sponsored by Microsoft, and
+Microsoft's name appears here only to identify its software. Agentry's
+authors, not Microsoft, are responsible for Agentry Desktop.
+
+
+------------------------------------------------------------------------
+3. OTHER COMPONENTS
+------------------------------------------------------------------------
+
+Agentry Desktop includes other open-source software. Its licences are in
+THIRD_PARTY_NOTICES.txt, which this installer places in the install folder
+beside the application, and which the application shows under Settings,
+Licences.

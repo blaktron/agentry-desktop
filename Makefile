@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy script-tests frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
+.PHONY: dev build check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -91,8 +91,31 @@ script-tests:
 frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build && npm test
 
-check: frontend lint test copy script-tests
+check: frontend lint test copy script-tests fonts-check notices-check
 	$(GO) build ./...
+
+# THIRD_PARTY_NOTICES: the licence texts of the npm packages compiled into
+# the bundle, the Go modules compiled into the app, the fonts, the provider
+# logos and Microsoft WebView2, generated from the lockfile, go.sum, the
+# module cache and the licence files under frontend/src (see
+# scripts/notices/generate.mjs). main.go embeds it for Settings -> Licences,
+# and every package carries it (the targets below). `make notices` rewrites
+# it after a dependency, a font or a logo changes; `make notices-check`,
+# part of `make check`, fails while the committed file differs from what
+# the tree generates. Needs the frontend's node_modules and the Go module
+# cache, and builds the bundle once more with source maps (a minute or two).
+notices:
+	node scripts/notices/generate.mjs
+
+notices-check:
+	node scripts/notices/generate.mjs --check
+
+# Every embedded font is the unmodified file its upstream publishes: the
+# SHA-256 of each under frontend/src/fonts and frontend/src/reportFonts must
+# equal the one in that directory's PROVENANCE.json (scripts/fonts/check.mjs;
+# add --upstream to fetch the sources and compare them too).
+fonts-check:
+	node scripts/fonts/check.mjs
 
 ## workflows-check: no job a fork's pull request can start runs on a
 ## self-hosted runner without the fork guard, and the check's own tests pass.
@@ -136,13 +159,15 @@ DARWIN_APP := build/bin/agentry-desktop.app
 
 build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
+	install -d $(DARWIN_APP)/Contents/Resources
+	install -m 0644 THIRD_PARTY_NOTICES $(DARWIN_APP)/Contents/Resources/THIRD_PARTY_NOTICES.txt
 ifneq ($(wildcard build/cli/agentry-darwin),)
 	install -d $(DARWIN_APP)/Contents/Resources/bin
 	install -m 0755 build/cli/agentry-darwin $(DARWIN_APP)/Contents/Resources/bin/agentry
 	codesign --force --sign - --identifier net.secureagentry.cli $(DARWIN_APP)/Contents/Resources/bin/agentry
+endif
 	codesign --force --sign - $(DARWIN_APP)
 	codesign --verify --deep --strict $(DARWIN_APP)
-endif
 
 wrap-darwin:
 	rm -f build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
@@ -209,7 +234,8 @@ ifneq ($(strip $(SIGN_CMD)),)
 endif
 
 finish-windows:
-	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
+	cp THIRD_PARTY_NOTICES build/bin/THIRD_PARTY_NOTICES.txt
+	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe THIRD_PARTY_NOTICES.txt
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
 	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
