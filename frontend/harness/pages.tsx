@@ -432,22 +432,41 @@ const hostedRuns = [
 const byTime = (a: { endedAt?: string; startedAt: string }, b: { endedAt?: string; startedAt: string }) => ((b.endedAt || b.startedAt) > (a.endedAt || a.startedAt) ? 1 : -1);
 // Home's Deliverables card: #home-deliverables-empty has none yet,
 // #home-deliverables-off has the switch off, #home-deliverables-hostile has
-// titles and names carrying markup and a right-to-left override; otherwise
-// the newest five across runs, one a type no click opens.
+// names and a QuickAgent carrying markup, a right-to-left override and an
+// unbroken run of letters, #home-deliverables-kinds draws one icon of every
+// kind and two a click only shows in their folder, #home-deliverables-many has
+// more files than the card draws; otherwise five runs of which three left
+// files, two PDFs and a page, which is three icons.
 const dFile = (over: Record<string, unknown>) => ({ path: "reports/x.md", name: "x.md", title: "", type: "md", bytes: 2048, marked: true, canOpen: true, viewKind: "markdown", notOpened: "", copiedTo: "/home/chris/Documents/Agentry/pr-triage/2026-10-17 0930 Weekly digest", runId: "0192a3b4", ref: "acme/pr-triage@0.4.1", where: "here", endedAt: ago(30), ...over });
+const pdfFile = (over: Record<string, unknown>) => dFile({ path: "reports/weekly-digest.pdf", name: "weekly-digest.pdf", type: "pdf", viewKind: "pdf", ...over });
 function recentDeliverablesView() {
   const on = location.hash !== "#home-deliverables-off";
   const base = { remember: location.hash !== "#home-runs-off", on, folder: "/home/chris/Documents/Agentry", scanned: 3 };
   if (location.hash === "#home-deliverables-empty") return { ...base, files: [] };
   if (location.hash === "#home-deliverables-off") return { ...base, files: [] };
   if (location.hash === "#home-deliverables-hostile") {
-    return { ...base, files: [dFile({ path: "reports/<img src=x onerror=alert(1)>.md", name: "<img src=x onerror=alert(1)>.md", title: "Q3 \u202egnp.exe <script>alert(1)</script>" })] };
+    return { ...base, files: [
+      dFile({ path: "reports/<img src=x onerror=alert(1)>.md", name: "<img src=x onerror=alert(1)>.md", ref: "acme/Q3 \u202egnp.exe <img src=x onerror=alert(1)>@1.0.0" }),
+      pdfFile({ runId: "0192a3b3", ref: "acme/" + "W".repeat(90) + "@1.0.0", name: "x".repeat(160) + ".pdf", path: "reports/long.pdf" }),
+      pdfFile({ runId: "0192a3b2", ref: "acme/a-very-long-agent-name-that-wraps-over-two-lines-and-then-is-cut@1.0.0", path: "reports/two.pdf", name: "two.pdf" }),
+    ] };
+  }
+  if (location.hash === "#home-deliverables-kinds") {
+    const kinds: [string, string, Record<string, unknown>][] = [
+      ["a.pdf", "pdf", { viewKind: "pdf" }], ["a.html", "html", {}], ["a.docx", "docx", {}], ["a.xlsx", "xlsx", {}], ["a.pptx", "pptx", {}],
+      ["a.png", "png", {}], ["a.txt", "txt", {}], ["a.md", "md", {}],
+      ["setup.exe", "exe", { canOpen: false, notOpened: "type" }], ["macro.docm", "docm", { canOpen: false, notOpened: "type" }],
+      ["fake.pdf", "pdf", { canOpen: false, notOpened: "contents" }],
+    ];
+    return { ...base, files: kinds.map(([name, type, over], i) => dFile({ path: `reports/${name}`, name, type, viewKind: "", runId: `kind${i}`, endedAt: ago(30 + i * 60), ...over })) };
+  }
+  if (location.hash === "#home-deliverables-many") {
+    return { ...base, files: Array.from({ length: 12 }, (_, i) => pdfFile({ path: `reports/r${i}.pdf`, name: `r${i}.pdf`, runId: `many${i}`, ref: `acme/agent-${i}@1.0.0`, endedAt: ago(30 + i * 1500) })) };
   }
   return { ...base, files: [
-    dFile({ path: "reports/weekly-digest.pdf", name: "weekly-digest.pdf", title: "Weekly digest", type: "pdf", bytes: 183_422, viewKind: "pdf" }),
-    dFile({ path: "reports/summary.md", name: "summary.md", title: "Summary of the week", runId: "9a8b7c6d", endedAt: ago(120), copiedTo: "" }),
-    dFile({ path: "reports/numbers.xlsx", name: "numbers.xlsx", title: "Numbers", type: "xlsx", bytes: 24_100, viewKind: "", runId: "9a8b7c6d", endedAt: ago(120) }),
-    dFile({ path: "reports/page.html", name: "page.html", title: "A page", type: "html", bytes: 900, canOpen: false, viewKind: "", notOpened: "type", copiedTo: "", runId: "0192a3b3", endedAt: ago(300) }),
+    pdfFile({ endedAt: ago(30) }),
+    dFile({ path: "reports/page.html", name: "page.html", type: "html", viewKind: "", runId: "0192a3b3", ref: "acme/site-checker@1.2.0", endedAt: ago(300) }),
+    pdfFile({ path: "reports/summary.pdf", name: "summary.pdf", runId: "9a8b7c6d", ref: "demo1/incident-summarizer@1.2.0", endedAt: ago(60 * 26) }),
   ] };
 }
 function recentRunsView(signedOut: boolean, limit = 5) {

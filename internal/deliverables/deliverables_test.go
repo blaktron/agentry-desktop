@@ -213,18 +213,29 @@ func TestCheckSaysWhatOneClickMayOpen(t *testing.T) {
 		{"reports/a.docx", zipOf(t, "[Content_Types].xml", "word/document.xml"), true},
 		{"reports/a.xlsx", zipOf(t, "[Content_Types].xml", "xl/workbook.xml"), true},
 		{"reports/a.pptx", zipOf(t, "[Content_Types].xml", "ppt/presentation.xml"), true},
+		{"reports/a.html", []byte("<!doctype html><title>x</title><p>hi</p>"), true},
+		{"reports/a.HTM", []byte("<html><body>hi</body></html>"), true},
 		// A file named for a type that is not what its bytes are.
 		{"reports/fake.pdf", []byte("MZ\x90\x00 an executable"), false},
 		{"reports/fake.png", pdfBytes(), false},
 		{"reports/fake.docx", []byte("just text"), false},
 		{"reports/fake.txt", nul, false},
 		{"reports/fake.json", []byte("<html></html>"), false},
+		// A page that is a program, a picture or a UTF-16 text opens nothing.
+		{"reports/prog.html", []byte("MZ\x90\x00 an executable"), false},
+		{"reports/elf.htm", []byte("\x7fELF\x02\x01\x01\x00"), false},
+		{"reports/utf16.html", []byte("<\x00h\x00t\x00m\x00l\x00>\x00"), false},
+		{"reports/bad.html", []byte("<p>ok</p>\xff\xfe broken"), false},
 		// An Office file that carries code or a control.
 		{"reports/macro.docx", zipOf(t, "[Content_Types].xml", "word/vbaProject.bin"), false},
 		{"reports/embed.xlsx", zipOf(t, "[Content_Types].xml", "xl/embeddings/oleObject1.bin"), false},
 		{"reports/nocontent.pptx", zipOf(t, "ppt/presentation.xml"), false},
 		// Types on no list.
-		{"reports/page.html", []byte("<html></html>"), false},
+		{"reports/pic.svg", []byte("<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>"), false},
+		{"reports/page.xhtml", []byte("<html></html>"), false},
+		{"reports/page.html.exe", []byte("<html></html>"), false},
+		{"reports/x.hta", []byte("<html></html>"), false},
+		{"reports/x.exe", []byte("MZ"), false},
 		{"reports/Run.desktop", []byte("[Desktop Entry]\nExec=sh"), false},
 		{"reports/x.lnk", []byte("L\x00\x00\x00"), false},
 		{"reports/x.command", []byte("#!/bin/sh\n"), false},
@@ -263,13 +274,13 @@ func TestEveryTypeOnTheListHasACheck(t *testing.T) {
 			t.Errorf("%s: arbitrary bytes passed its check", ext)
 		}
 	}
-	if CanOpen("") || CanOpen("html") || CanOpen("exe") {
+	if CanOpen("") || CanOpen("svg") || CanOpen("exe") || CanOpen("hta") || CanOpen("xhtml") {
 		t.Fatal("a type that is on no list is opened")
 	}
 }
 
 func TestViewKinds(t *testing.T) {
-	want := map[string]string{"pdf": "pdf", "md": "markdown", "txt": "text", "csv": "text", "json": "text", "png": "", "docx": "", "html": ""}
+	want := map[string]string{"pdf": "pdf", "md": "markdown", "txt": "text", "csv": "text", "json": "text", "png": "", "docx": "", "html": "", "htm": ""}
 	for ext, k := range want {
 		if got := ViewKind(ext); got != k {
 			t.Errorf("ViewKind(%s) = %q, want %q", ext, got, k)

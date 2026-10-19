@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -128,6 +129,8 @@ func TestOpenRunDeliverableOpensOnlyTheListedTypes(t *testing.T) {
 		"reports/ok.pdf":      []byte("%PDF-1.7\nx\n%%EOF\n"),
 		"reports/ok.docx":     officeZip(t, "[Content_Types].xml", "word/document.xml"),
 		"reports/page.html":   []byte("<html><script>alert(1)</script></html>"),
+		"reports/prog.html":   []byte("MZ\x90\x00 this is a program"),
+		"reports/prog.exe":    []byte("MZ\x90\x00 this is a program"),
 		"reports/Run.desktop": []byte("[Desktop Entry]\nExec=sh"),
 		"reports/x.lnk":       []byte("L\x00\x00\x00"),
 		"reports/x.command":   []byte("#!/bin/sh\necho hi\n"),
@@ -138,8 +141,8 @@ func TestOpenRunDeliverableOpensOnlyTheListedTypes(t *testing.T) {
 	r, _ := deliverableRun(t, files)
 	got := opened(r)
 	for rel, want := range map[string]bool{
-		"reports/ok.pdf": true, "reports/ok.docx": true,
-		"reports/page.html": false, "reports/Run.desktop": false, "reports/x.lnk": false, "reports/x.command": false,
+		"reports/ok.pdf": true, "reports/ok.docx": true, "reports/page.html": true,
+		"reports/prog.html": false, "reports/prog.exe": false, "reports/Run.desktop": false, "reports/x.lnk": false, "reports/x.command": false,
 		"reports/macro.docm": false, "reports/fake.pdf": false, "reports/macro.docx": false,
 	} {
 		before := len(*got)
@@ -166,7 +169,7 @@ func TestOpenRunDeliverableOpensOnlyTheListedTypes(t *testing.T) {
 	for _, f := range v.Files {
 		notes[f.Path] = f.NotOpened
 	}
-	if notes["reports/page.html"] != "type" || notes["reports/fake.pdf"] != "contents" || notes["reports/ok.pdf"] != "" {
+	if notes["reports/page.html"] != "" || notes["reports/prog.html"] != "contents" || notes["reports/prog.exe"] != "type" || notes["reports/fake.pdf"] != "contents" || notes["reports/ok.pdf"] != "" {
 		t.Fatalf("NotOpened: %v", notes)
 	}
 }
@@ -304,9 +307,9 @@ func TestShowRunDeliverableShowsTheCopyElseTheRunFolder(t *testing.T) {
 		t.Fatalf("with a copy: revealed %v, folder %v", revealed, folder)
 	}
 	// A type no click opens can still be shown.
-	r2, _ := deliverableRun(t, map[string][]byte{"reports/page.html": []byte("<html></html>")})
+	r2, _ := deliverableRun(t, map[string][]byte{"reports/page.exe": []byte("MZ")})
 	r2.openFolder = func(string) error { return nil }
-	if err := r2.ShowRunDeliverable("run-1", "reports/page.html"); err != nil {
+	if err := r2.ShowRunDeliverable("run-1", "reports/page.exe"); err != nil {
 		t.Fatalf("Show in folder for a type that is not opened: %v", err)
 	}
 }
@@ -419,6 +422,85 @@ func TestTheHomeCardReadsTheHistoryAndEachEnvelopeNeverTheDeliverablesFolder(t *
 	v, _ = r.RecentDeliverables(5)
 	if v.Remember || len(v.Files) != 0 {
 		t.Fatalf("with the history off: %+v", v)
+	}
+}
+
+// The card draws at most twelve icons, the newest first, however many a
+// caller asks for, and five runs of which three left files are three icons.
+func TestTheHomeCardListsAtMostTwelveFilesNewestFirst(t *testing.T) {
+	freshConfig(t)
+	now := time.Now().UTC()
+	mk := func(id string, ended time.Time, files map[string][]byte) {
+		dir := t.TempDir()
+		var list []map[string]any
+		for rel, body := range files {
+			writeRunFile(t, filepath.Join(dir, filepath.FromSlash(rel)), string(body))
+			list = append(list, map[string]any{"path": rel, "title": rel, "sha256": sum(body), "bytes": len(body), "marked": true})
+		}
+		b, _ := json.Marshal(map[string]any{"agentry": "run/v1", "status": "ok", "deliverables": map[string]any{"files": list}})
+		writeRunFile(t, filepath.Join(dir, "result.json"), string(b))
+		if err := runhistory.Add(runhistory.Entry{ID: id, Kind: runhistory.KindRun, Where: runhistory.WhereHere, Ref: "acme/" + id + "@1.0.0", Outcome: "ok", EndedAt: ended, Folder: dir}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Five runs, three of which left a file: two PDFs and a page.
+	mk("bbbb0001", now.Add(-5*time.Hour), map[string][]byte{"reports/a.pdf": []byte("%PDF-1.7\n")})
+	mk("bbbb0002", now.Add(-4*time.Hour), nil)
+	mk("bbbb0003", now.Add(-3*time.Hour), map[string][]byte{"reports/b.html": []byte("<p>b</p>")})
+	mk("bbbb0004", now.Add(-2*time.Hour), nil)
+	mk("bbbb0005", now.Add(-1*time.Hour), map[string][]byte{"reports/c.pdf": []byte("%PDF-1.7\n")})
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	v, err := r.RecentDeliverables(12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range v.Files {
+		got = append(got, f.Name)
+	}
+	if want := "c.pdf b.html a.pdf"; strings.Join(got, " ") != want {
+		t.Fatalf("five runs, three with files: %v, want %s", got, want)
+	}
+	if !v.Files[1].CanOpen || v.Files[1].ViewKind != "" {
+		t.Fatalf("the page is a click that opens it in the system's app: %+v", v.Files[1])
+	}
+	for i := 0; i < 14; i++ {
+		mk(fmt.Sprintf("cccc%04d", i), now.Add(time.Duration(i)*time.Minute), map[string][]byte{"reports/n.md": []byte("n")})
+	}
+	if v, _ = r.RecentDeliverables(50); len(v.Files) != 12 {
+		t.Fatalf("a card of %d files, want at most 12", len(v.Files))
+	}
+	if v.Files[0].RunID != "cccc0013" {
+		t.Fatalf("newest first: %s", v.Files[0].RunID)
+	}
+}
+
+// One read of the card examines a bounded number of bytes: files past the
+// budget are neither hashed nor listed, so an envelope naming many large
+// files cannot keep Home busy.
+func TestTheHomeCardExaminesABoundedNumberOfBytes(t *testing.T) {
+	freshConfig(t)
+	old := deliverableHashBudget
+	deliverableHashBudget = 100
+	t.Cleanup(func() { deliverableHashBudget = old })
+	now := time.Now().UTC()
+	for i, size := range []int{60, 60, 60} {
+		dir := t.TempDir()
+		body := bytes.Repeat([]byte("a"), size)
+		writeRunFile(t, filepath.Join(dir, "reports", "n.md"), string(body))
+		b, _ := json.Marshal(map[string]any{"agentry": "run/v1", "status": "ok", "deliverables": map[string]any{"files": []map[string]any{{"path": "reports/n.md", "sha256": sum(body), "bytes": size, "marked": true}}}})
+		writeRunFile(t, filepath.Join(dir, "result.json"), string(b))
+		if err := runhistory.Add(runhistory.Entry{ID: fmt.Sprintf("dddd%04d", i), Kind: runhistory.KindRun, Where: runhistory.WhereHere, Ref: "acme/x@1.0.0", Outcome: "ok", EndedAt: now.Add(-time.Duration(i) * time.Minute), Folder: dir}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	v, err := r.RecentDeliverables(12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Files) != 1 {
+		t.Fatalf("a budget of 100 bytes listed %d files of 60 bytes, want 1", len(v.Files))
 	}
 }
 

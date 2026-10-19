@@ -1,7 +1,7 @@
-// The files a run was for, drawn the same on a run's result and on Home's
-// Deliverables card. Go lists them (RunAPI.RunDeliverables,
-// RecentDeliverables), each only after its bytes hash to the run's record,
-// and does every action: this draws a row and its three buttons.
+// The files a run was for, drawn on a run's result. Go lists them
+// (RunAPI.RunDeliverables), each only after its bytes hash to the run's
+// record, and does every action: this draws a row and its three buttons.
+// Home's Deliverables card draws the same files as icons.
 //
 //   - Open hands the type's own program a copy Go checked (a type on a short
 //     list, its bytes what the type says); a type that is on no list has no
@@ -47,15 +47,11 @@ function Viewer({ runId, file }: { runId: string; file: DeliverableFile }) {
   );
 }
 
-export function DeliverableItem({ runId, file, on, compact = false, context }: {
+export function DeliverableItem({ runId, file, on }: {
   runId: string;
   file: DeliverableFile;
   /** The Deliverables switch, for the line that says where the file is. */
   on: boolean;
-  /** A row of Home's card: link-style buttons, no copy line. */
-  compact?: boolean;
-  /** What a card row adds under the title (the QuickAgent and when). */
-  context?: React.ReactNode;
 }) {
   const [viewing, setViewing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -63,38 +59,31 @@ export function DeliverableItem({ runId, file, on, compact = false, context }: {
   const name = plainName(file.name);
   const run = (f: () => Promise<void>) => { setErr(null); f().catch((e) => setErr(String(e))); };
   const btn = (label: string, onClick: () => void, extra: Record<string, string | boolean> = {}, primary = false) =>
-    compact
-      ? <button type="button" className="link build-way-part" onClick={onClick} {...extra}>{label}</button>
-      : <Button variant={primary ? "primary" : "default"} onClick={onClick} {...extra}>{label}</Button>;
+    <Button variant={primary ? "primary" : "default"} onClick={onClick} {...extra}>{label}</Button>;
   const buttons = (
-    <span className={compact ? "pinned-actions small" : "row nowrap"}>
+    <span className="row nowrap">
       {a.open && btn("Open", () => run(() => RunAPI.OpenRunDeliverable(runId, file.path)), { "aria-label": `Open ${name}` }, true)}
       {a.view && btn(viewing ? "Hide" : "View", () => setViewing((v) => !v), { "aria-expanded": viewing, "aria-label": `${viewing ? "Hide" : "View"} ${name}` })}
       {btn("Show in folder", () => run(() => RunAPI.ShowRunDeliverable(runId, file.path)), { "aria-label": `Show ${name} in its folder` })}
     </span>
   );
   return (
-    <div className={compact ? "deliverable-row" : "run-file"} data-deliverable={file.path} data-deliverable-open={a.open ? "" : undefined}>
-      <div className={compact ? undefined : "run-file-head"}>
+    <div className="run-file" data-deliverable={file.path} data-deliverable-open={a.open ? "" : undefined}>
+      <div className="run-file-head">
         <span>
           <strong><RevealText text={heading(file)} /></strong>{" "}
           <span className="muted small mono"><RevealText text={file.name} /></span>
         </span>
-        {!compact && <span className="row nowrap">
+        <span className="row nowrap">
           <span className="badge">{typeLabel(file.type)}</span>
           <span className="muted small">{fmtBytes(file.bytes)}</span>
           {buttons}
-        </span>}
+        </span>
       </div>
-      {compact && <div className="muted small">{typeLabel(file.type)} · {fmtBytes(file.bytes)}{context ? <> · {context}</> : null}</div>}
-      {compact && buttons}
-      {!compact && (
-        <div className="run-file-body">
-          <p className="muted small" data-deliverable-copy>{copiedLine(file, on)}</p>
-          {a.note && <p className="small" data-deliverable-note>{a.note}</p>}
-        </div>
-      )}
-      {compact && a.note && <p className="muted small" data-deliverable-note>{a.note}</p>}
+      <div className="run-file-body">
+        <p className="muted small" data-deliverable-copy>{copiedLine(file, on)}</p>
+        {a.note && <p className="small" data-deliverable-note>{a.note}</p>}
+      </div>
       <ErrorBox error={err} />
       {viewing && <Viewer runId={runId} file={file} />}
     </div>

@@ -406,20 +406,42 @@ const states = [
     click: '[data-preview="home"] [data-run-row="0192a3b4"] button', expectSelector: 'body[data-open="run:local/0192a3b4"]' },
   { name: "page-home-runs-hosted", url: "/pages.html", note: "a run In Agentry's row opens the run page from the registry", locator: '[data-preview="home"]',
     click: '[data-preview="home"] [data-run-row="0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42"] button', expectSelector: 'body[data-open="run:hosted/0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42"]' },
-  { name: "page-home-deliverables", url: "/pages.html", note: "Home's Deliverables card, first: the newest files runs were for with Open, View and Show in folder, a type no click opens labelled, and the folder button", locator: '[data-preview="home"] [data-home-card="deliverables"]',
-    expectText: ["Deliverables", "Weekly digest", "Summary of the week", "Numbers", "Open Deliverables folder", "acme/pr-triage", "A .html file can be acted on by your system, so it is not opened from here."],
-    expectOrder: [['[data-preview="home"] [data-home-card] .build-way-title', ["Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults"]]] },
-  { name: "page-home-deliverables-open", url: "/pages.html", note: "Open on a row asks Go to open that run's file", locator: '[data-preview="home"]',
-    click: '[data-preview="home"] [data-deliverable="reports/weekly-digest.pdf"] button:has-text("Open")', expectSelector: 'body[data-opened="0192a3b4:reports/weekly-digest.pdf"]' },
-  { name: "page-home-deliverables-show", url: "/pages.html", note: "Show in folder on a row asks Go to show it", locator: '[data-preview="home"]',
-    click: '[data-preview="home"] [data-deliverable="reports/summary.md"] button:has-text("Show in folder")', expectSelector: 'body[data-shown="9a8b7c6d:reports/summary.md"]' },
-  { name: "page-home-deliverables-view", url: "/pages.html", note: "View on a Markdown row draws it in the card, rendered", locator: '[data-preview="home"] [data-home-card="deliverables"]',
-    click: '[data-preview="home"] [data-deliverable="reports/summary.md"] button:has-text("View")', expectText: ["Three pull requests merged."] },
-  { name: "page-home-deliverables-folder", url: "/pages.html", note: "Open Deliverables folder asks Go to show the folder", locator: '[data-preview="home"]',
+  { name: "page-home-deliverables", url: "/pages.html", note: "Home's Deliverables card, first: five runs ran and three left files (two PDFs and a page), so three icons, each with the QuickAgent and the day under it, no file name and no button but Open folder", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    expectText: ["Deliverables", "pr-triage", "site-checker", "incident-summarizer", "Open folder"], expectNoText: ["weekly-digest", "page.html", "summary.pdf", "View", "Show in folder", "Open Deliverables folder", "On this computer"],
+    expectCount: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable]', 3], expectNoHScroll: '[data-preview="home"] [data-home-card="deliverables"], [data-preview="home"] [data-home-card="deliverables"] *',
+    expectOrder: [['[data-preview="home"] [data-home-card] .build-way-title', ["Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults"]]]  },
+  { name: "page-home-deliverables-names", url: "/pages.html", note: "each icon's accessible name says the file, the agent and the day, and its tooltip is the file name alone", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    expectSelector: ['[data-preview="home"] [data-home-card="deliverables"] button[data-deliverable="reports/weekly-digest.pdf"][title="weekly-digest.pdf"][aria-label^="weekly-digest.pdf, from pr-triage, "]', '[data-preview="home"] [data-home-card="deliverables"] button[data-deliverable="reports/page.html"][data-deliverable-kind="html"][data-deliverable-open][aria-label$="Opens in your system\'s app."]'] },
+  { name: "page-home-deliverables-open", url: "/pages.html", note: "a click on a PDF asks Go to open that run's file", locator: '[data-preview="home"]',
+    click: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/weekly-digest.pdf"]', expectSelector: 'body[data-opened="0192a3b4:reports/weekly-digest.pdf"]' },
+  { name: "page-home-deliverables-open-html", url: "/pages.html", note: "a click on a web page asks Go to open it too, and nothing is shown in a folder", locator: '[data-preview="home"]',
+    click: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/page.html"]', expectSelector: 'body[data-opened="0192a3b3:reports/page.html"]', expectNone: 'body[data-shown]' },
+  { name: "page-home-deliverables-menu", url: "/pages.html", note: "a right-click on an icon offers Show in folder and opens nothing", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    contextClick: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/summary.pdf"]', expectText: ["Show in folder"],
+    expectSelector: '[data-preview="home"] [data-home-card="deliverables"] [role="menu"] [role="menuitem"]', expectNone: 'body[data-opened]' },
+  { name: "page-home-deliverables-menu-shown", url: "/pages.html", note: "Show in folder from the menu asks Go to show the file", locator: '[data-preview="home"]',
+    contextClick: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/summary.pdf"]', thenClick: '[data-preview="home"] [data-home-card="deliverables"] [role="menuitem"]', expectSelector: 'body[data-shown="9a8b7c6d:reports/summary.pdf"]' },
+  { name: "page-home-deliverables-menu-first-row", url: "/pages.html#home-deliverables-many", note: "the menu of an icon in the first row is on top of the row below: Show in folder can be clicked, and the focus goes back to the icon", width: 900, locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    contextClick: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/r0.pdf"]',
+    thenClick: '[data-preview="home"] [data-home-card="deliverables"] [role="menuitem"]', expectSelector: 'body[data-shown="many0:reports/r0.pdf"]',
+    expectFocused: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/r0.pdf"]' },
+  { name: "page-home-deliverables-keyboard", url: "/pages.html", note: "Shift+F10 on a focused icon offers Show in folder, the first item focused", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    focusPress: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/summary.pdf"]', "Shift+F10"], expectSelector: '[data-preview="home"] [data-home-card="deliverables"] [role="menu"]', expectFocused: '[data-preview="home"] [data-home-card="deliverables"] [role="menuitem"]' },
+  { name: "page-home-deliverables-menukey", url: "/pages.html", note: "the context-menu key does the same", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    focusPress: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/summary.pdf"]', "ContextMenu"], expectSelector: '[data-preview="home"] [data-home-card="deliverables"] [role="menu"]', expectFocused: '[data-preview="home"] [data-home-card="deliverables"] [role="menuitem"]' },
+  { name: "page-home-deliverables-kinds", url: "/pages.html#home-deliverables-kinds", note: "one icon of every kind (PDF, web page, document, spreadsheet, presentation, image, text, Markdown), and the plain icon with a folder for an executable, a macro document and a PDF that is not one", locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    expectCount: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable]', 11], expectSelector: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="pdf"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="html"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="document"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="spreadsheet"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="presentation"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="image"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="text"]', '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable-kind="other"]'],
+    expectNoHScroll: '[data-preview="home"] [data-home-card="deliverables"], [data-preview="home"] [data-home-card="deliverables"] *' },
+  { name: "page-home-deliverables-reveal", url: "/pages.html#home-deliverables-kinds", note: "a click on an executable only shows it in its folder: Go is never asked to open it", locator: '[data-preview="home"]',
+    click: '[data-preview="home"] [data-home-card="deliverables"] [data-deliverable="reports/setup.exe"]', expectSelector: 'body[data-shown="kind8:reports/setup.exe"]', expectNone: 'body[data-opened]' },
+  { name: "page-home-deliverables-many", url: "/pages.html#home-deliverables-many", note: "twelve files, a wrapping grid", locator: '[data-preview="home"] [data-home-card="deliverables"]', expectCount: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable]', 12], expectNoHScroll: '[data-preview="home"] [data-home-card="deliverables"], [data-preview="home"] [data-home-card="deliverables"] *' },
+  { name: "page-home-deliverables-narrow", url: "/pages.html#home-deliverables-many", note: "the narrowest window: the grid wraps and nothing scrolls sideways", width: 900, locator: '[data-preview="home"] [data-home-card="deliverables"]', expectCount: ['[data-preview="home"] [data-home-card="deliverables"] [data-deliverable]', 12], expectNoHScroll: '[data-preview="home"] [data-home-card="deliverables"], [data-preview="home"] [data-home-card="deliverables"] *' },
+  { name: "page-home-deliverables-folder", url: "/pages.html", note: "Open folder asks Go to show the folder", locator: '[data-preview="home"]',
     click: '[data-preview="home"] [data-open-deliverables-folder]', expectSelector: 'body[data-folder-opened="1"]' },
   { name: "page-home-deliverables-empty", url: "/pages.html#home-deliverables-empty", note: "no deliverable yet: the card says what will show there", locator: '[data-preview="home"] [data-home-card="deliverables"]', expectText: "Nothing yet. The files a run was for are listed here, newest first.", expectNoText: ["Reading deliverables"] },
-  { name: "page-home-deliverables-off", url: "/pages.html#home-deliverables-off", note: "the switch is off: the card says where it is, and offers no folder button", locator: '[data-preview="home"] [data-home-card="deliverables"]', expectText: "Deliverables are off.", expectNoText: ["Open Deliverables folder"] },
-  { name: "page-home-deliverables-hostile", url: "/pages.html#home-deliverables-hostile", note: "a title and a name carrying markup and a right-to-left override: drawn as text, the override revealed", locator: '[data-preview="home"] [data-home-card="deliverables"]', expectText: ["<script>alert(1)</script>", "U+202E"] },
+  { name: "page-home-deliverables-off", url: "/pages.html#home-deliverables-off", note: "the switch is off: the card says where it is, and offers no folder button", locator: '[data-preview="home"] [data-home-card="deliverables"]', expectText: "Deliverables are off.", expectNoText: ["Open folder"] },
+  { name: "page-home-deliverables-hostile", url: "/pages.html#home-deliverables-hostile", note: "a QuickAgent name carrying markup and a right-to-left override, a name of 160 characters and an unbroken agent name: drawn as text, the override revealed, the layout held", width: 900, locator: '[data-preview="home"] [data-home-card="deliverables"]',
+    expectText: ["<img src=x onerror=alert(1)>", "U+202E"], expectSelector: '[data-preview="home"] [data-home-card="deliverables"] [aria-label*="from Q3 _gnp.exe"]', expectNone: '[data-preview="home"] [data-home-card="deliverables"] script, [data-preview="home"] [data-home-card="deliverables"] img, [data-preview="home"] [data-home-card="deliverables"] [aria-label*="\\202e"]', expectNoHScroll: '[data-preview="home"] [data-home-card="deliverables"], [data-preview="home"] [data-home-card="deliverables"] *' },
   { name: "page-home-runs-empty", url: "/pages.html#home-runs-empty", note: "no run yet: the card says what will show there", locator: '[data-preview="home"] [data-home-card="recent-runs"]', expectText: "No runs yet." },
   { name: "page-home-runs-off", url: "/pages.html?active=anon#home-runs-off", note: "Remember recent runs off, signed out: nothing is kept, and the card says where the switch is", locator: '[data-preview="home"] [data-home-card="recent-runs"]', expectText: "Remember recent runs is off in Run defaults." },
   { name: "page-home-runs-card", url: "/pages.html", note: "a press on the Recent runs card outside a row opens Run defaults' Recent runs", locator: '[data-preview="home"]', click: '[data-preview="home"] [data-home-card="recent-runs"] .build-way-title', expectSelector: 'body[data-open="run-history"]' },
@@ -1010,6 +1032,9 @@ try {
       // A window shot is taken at a window's size: the Unsafe Mode edge is
       // the window's, and the default viewport is as tall as a long panel.
       if (state.window) await page.setViewportSize({ width: 1180, height: 760 });
+      // width: a narrower window than the default, for a layout check at
+      // the narrowest width a page is meant to hold.
+      if (state.width) await page.setViewportSize({ width: state.width, height: 900 });
       await page.goto(base + state.url, { waitUntil: "networkidle" });
       // The panel fills itself from the mocked bindings and the scripted
       // log; a beat is enough for both.
@@ -1028,6 +1053,23 @@ try {
       for (const sel of [state.click ?? []].flat()) {
         await page.locator(sel).first().click();
         await page.waitForTimeout(400);
+      }
+      // contextClick: a right-click, as a person opens a context menu;
+      // focusPress: [selector, key], the element focused and the key
+      // pressed, as a keyboard user reaches the same menu.
+      if (state.contextClick) {
+        await page.locator(state.contextClick).first().click({ button: "right" });
+        await page.waitForTimeout(300);
+      }
+      if (state.focusPress) {
+        await page.locator(state.focusPress[0]).first().focus();
+        await page.keyboard.press(state.focusPress[1]);
+        await page.waitForTimeout(300);
+      }
+      // thenClick: a click made after those, on what they opened.
+      for (const sel of [state.thenClick ?? []].flat()) {
+        await page.locator(sel).first().click();
+        await page.waitForTimeout(300);
       }
       // type: text typed into an element once the clicks are done, as a
       // person types it, then wait: a pause for the page's own timers (the
@@ -1115,6 +1157,24 @@ try {
           const got = (await page.locator(sel).allInnerTexts()).map((t) => t.trim());
           if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${state.name}: ${sel} reads ${got.join(" | ")}, not ${want.join(" | ")}`);
         }
+      }
+      if (state.expectCount) {
+        const [sel, want] = state.expectCount;
+        const n = await page.locator(sel).count();
+        if (n !== want) throw new Error(`${state.name}: ${n} element(s) match ${sel}, not ${want}`);
+      }
+      if (state.expectNoHScroll) {
+        // The page and the card draw no horizontal scroll: nothing is wider
+        // than the box that holds it.
+        const wide = await page.evaluate((sel) => {
+          const els = [document.documentElement, ...document.querySelectorAll(sel)];
+          return els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => `${el.tagName}.${el.className}`);
+        }, state.expectNoHScroll);
+        if (wide.length) throw new Error(`${state.name}: wider than its box: ${wide.join(", ")}`);
+      }
+      if (state.expectFocused) {
+        const ok = await page.evaluate((sel) => document.activeElement?.matches(sel) ?? false, state.expectFocused);
+        if (!ok) throw new Error(`${state.name}: the focus is not on ${state.expectFocused}`);
       }
       if (state.expectMinWidth) {
         // A layout check, not only a picture: every matching element keeps
