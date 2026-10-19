@@ -25,7 +25,13 @@
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
 #      profile, the settings section is off by default, and the application
-#      section cannot be unticked.
+#      section cannot be unticked;
+#   6. the script shows the licence page before the install pages, with the
+#      box to accept, from build/windows/installer/LICENSE.txt, and that
+#      file holds the MIT licence, the Microsoft Edge WebView2 Runtime terms
+#      and the pointer to THIRD_PARTY_NOTICES.txt. The page text is
+#      compressed inside the installer where 7z does not list it, so it is
+#      checked in the script the installer is built from.
 #
 # It says nothing about signatures: a release that signs the installer reads
 # its signatures back itself.
@@ -136,6 +142,43 @@ settings_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-my-settings' "$nsi" |
 [ -n "$images_at" ] && [ -n "$settings_at" ] || fail "the images or the settings step does not run the app (no ExecWait)"
 [ "$images_at" -lt "$settings_at" ] || fail "the images step runs after the settings step, which deletes the policy that names them"
 
+# 6. The licence page. NSIS reads LICENSE.txt at compile time and stores it
+# in the installer's compressed header, so the built file is checked through
+# the script that includes it: the page must come before the directory and
+# install pages, must ask for a ticked box, and must name the file below.
+licence="$(dirname "$nsi")/LICENSE.txt"
+[ -f "$licence" ] || fail "$licence does not exist"
+grep -q -E '^!define MUI_LICENSEPAGE_CHECKBOX' "$nsi" || fail "the licence page in $nsi does not ask for a ticked box (MUI_LICENSEPAGE_CHECKBOX)"
+licence_at=$(grep -n -E '^!insertmacro MUI_PAGE_LICENSE "LICENSE\.txt"' "$nsi" | head -1 | cut -d: -f1 || true)
+directory_at=$(grep -n -E '^!insertmacro MUI_PAGE_DIRECTORY' "$nsi" | head -1 | cut -d: -f1 || true)
+instfiles_at=$(grep -n -E '^!insertmacro MUI_PAGE_INSTFILES' "$nsi" | head -1 | cut -d: -f1 || true)
+[ -n "$licence_at" ] || fail "$nsi does not show LICENSE.txt on a licence page (MUI_PAGE_LICENSE)"
+[ -n "$directory_at" ] && [ -n "$instfiles_at" ] || fail "$nsi has no directory or install page"
+[ "$licence_at" -lt "$directory_at" ] && [ "$licence_at" -lt "$instfiles_at" ] || fail "the licence page comes after an install page in $nsi"
+licence_text=$(tr -d '\r' < "$licence")
+# The phrases are matched across line breaks.
+licence_flat=$(tr -d '\r' < "$licence" | tr '\n' ' ' | tr -s ' ')
+for needle in \
+  'Copyright (c) 2026 Chris Dupres' \
+  'Permission is hereby granted, free of charge' \
+  'Microsoft Edge WebView2 Runtime' \
+  'Microsoft Software License Terms' \
+  'https://developer.microsoft.com/microsoft-edge/webview2' \
+  'Installing the Runtime means you accept Microsoft' \
+  'not made, endorsed or sponsored by Microsoft' \
+  'THIRD_PARTY_NOTICES.txt'; do
+  grep -q -F -- "$needle" <<<"$licence_flat" || fail "$licence does not carry: $needle"
+done
+# The page is plain ASCII with CRLF line ends, which every NSIS licence page
+# renders; a byte outside ASCII would be read in the installer's ANSI code page.
+if LC_ALL=C grep -q -P '[^\x00-\x7F]' "$licence"; then
+  fail "$licence has a byte outside ASCII"
+fi
+[ "$(grep -c -v $'\r$' "$licence" || true)" = 0 ] || fail "$licence has a line without a CRLF ending"
+# The root LICENSE is the text of part 1.
+root_mit=$(tr -d '\r' < "$root_dir/LICENSE")
+grep -q -F -- "$root_mit" <<<"$licence_text" || fail "the MIT licence in $licence differs from $root_dir/LICENSE"
+
 carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + uninstall.exe"
 [ -z "$cli" ] || carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + bin/agentry.exe ($(basename "$cli")) + uninstall.exe"
-echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR"
+echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR, licence page before the install pages"
