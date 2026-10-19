@@ -204,7 +204,7 @@ func OpenCopy(runDir, tempRoot, agent string, f File) (string, error) {
 		return "", ErrCopy
 	}
 	// A document the system would open without its care for a download
-	// (Protected View) is not opened when the flag could not be written.
+	// (Protected View, a browser's warning) is not opened when the flag could not be written.
 	if ds[0].Error == receipt.DeliveryErrNotMarked && needsDownloadFlag(f.Ext()) {
 		return "", fmt.Errorf("%w (this file system cannot flag it as a download, so it is not opened)", ErrCopy)
 	}
@@ -212,11 +212,12 @@ func OpenCopy(runDir, tempRoot, agent string, f File) (string, error) {
 }
 
 // needsDownloadFlag says a type is opened by a program that treats a file
-// from outside the computer with more care: an Office document, or a table
-// whose formulas a spreadsheet would run.
+// from outside the computer with more care: an Office document, a table
+// whose formulas a spreadsheet would run, or a web page whose scripts a
+// browser would run with the rights of a local file.
 func needsDownloadFlag(ext string) bool {
 	switch ext {
-	case "docx", "xlsx", "pptx", "csv":
+	case "docx", "xlsx", "pptx", "csv", "html", "htm":
 		return true
 	}
 	return false

@@ -63,7 +63,7 @@ export type HomeOpen = {
 };
 
 // How many files the Deliverables card lists.
-const DELIVERABLE_ROWS = 5;
+const DELIVERABLE_ROWS = 12;
 // How many rows Recent runs shows.
 const RECENT_ROWS = 5;
 // How many recent runs are read: enough to find each pin's latest run

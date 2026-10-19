@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { actions, cardStatus, copiedLine, heading, settingsLine, typeLabel, withheldLine } from "../src/deliverables.ts";
+import { actions, agentOf, cardStatus, clickDoes, copiedLine, heading, iconDate, iconKind, iconName, settingsLine, typeLabel, withheldLine } from "../src/deliverables.ts";
 
 const file = (over: Record<string, unknown> = {}) => ({ name: "report.pdf", title: "", type: "pdf", bytes: 10, canOpen: true, viewKind: "pdf", notOpened: "", copiedTo: "", ...over });
 
 test("a type is named in a person's words, and an unknown one by its extension", () => {
   assert.equal(typeLabel("pdf"), "PDF");
   assert.equal(typeLabel("docx"), "Word document");
-  assert.equal(typeLabel("html"), ".html file");
+  assert.equal(typeLabel("html"), "Web page");
+  assert.equal(typeLabel("exe"), ".exe file");
   assert.equal(typeLabel(""), "File");
 });
 
@@ -29,11 +30,11 @@ test("a file a click opens offers Open, and View where the app can show it itsel
 });
 
 test("a type no click opens is Show in folder only, and says why", () => {
-  const html = actions(file({ type: "html", canOpen: false, viewKind: "", notOpened: "type" }));
-  assert.equal(html.open, false);
-  assert.equal(html.view, false);
-  assert.equal(html.show, true);
-  assert.match(html.note, /A \.html file can be acted on by your system, so it is not opened from here\. Show in folder finds it\./);
+  const exe = actions(file({ type: "exe", canOpen: false, viewKind: "", notOpened: "type" }));
+  assert.equal(exe.open, false);
+  assert.equal(exe.view, false);
+  assert.equal(exe.show, true);
+  assert.match(exe.note, /A \.exe file can be acted on by your system, so it is not opened from here\. Show in folder finds it\./);
   const bare = actions(file({ type: "", canOpen: false, viewKind: "", notOpened: "type" }));
   assert.match(bare.note, /^A file with no type/);
 });
@@ -75,4 +76,55 @@ test("Run defaults says what the switch does, and what is wrong when no folder c
   assert.match(settingsLine({ deliverables: true, deliverablesDefault: false, deliverablesDir: "/d" }), /the folder you chose/);
   assert.match(settingsLine({ deliverables: false, deliverablesDefault: true, deliverablesDir: "/d" }), /^Off\./);
   assert.match(settingsLine({ deliverables: true, deliverablesDefault: true, deliverablesError: "no home" }), /cannot name a Documents folder/);
+});
+
+const OPENS = { canOpen: true };
+
+test("an icon is drawn by what the file is, and a file no click opens gets the plain one", () => {
+  const kinds: Record<string, string> = {
+    pdf: "pdf", html: "html", htm: "html", docx: "document", md: "text", txt: "text", json: "text",
+    xlsx: "spreadsheet", csv: "spreadsheet", pptx: "presentation", png: "image", jpg: "image", jpeg: "image",
+  };
+  for (const [type, kind] of Object.entries(kinds)) assert.equal(iconKind({ type, ...OPENS }), kind, type);
+  // A type on no list, a macro document, an executable and a file that is not what its name says.
+  assert.equal(iconKind({ type: "exe", canOpen: false }), "other");
+  assert.equal(iconKind({ type: "docm", canOpen: false }), "other");
+  assert.equal(iconKind({ type: "pdf", canOpen: false }), "other");
+  assert.equal(iconKind({ type: "html", canOpen: false }), "other");
+  assert.equal(iconKind({ type: "", canOpen: false }), "other");
+  // The envelope's word for a type is no more than the extension, read as lower case.
+  assert.equal(iconKind({ type: "PDF", ...OPENS }), "pdf");
+});
+
+test("a click opens a file the app lists as openable and otherwise shows it in its folder", () => {
+  assert.equal(clickDoes({ canOpen: true }), "open");
+  assert.equal(clickDoes({ canOpen: false }), "show");
+});
+
+test("the agent under an icon is the QuickAgent's name, without its publisher or version", () => {
+  assert.equal(agentOf("acme/pr-triage@0.4.1"), "pr-triage");
+  assert.equal(agentOf("pr-triage"), "pr-triage");
+  assert.equal(agentOf("a/b/c@1"), "c");
+  assert.equal(agentOf(""), "QuickAgent");
+  assert.equal(agentOf(undefined), "QuickAgent");
+  assert.equal(agentOf("acme/@1.0.0"), "QuickAgent");
+});
+
+test("the date under an icon is the day the run ended", () => {
+  const now = new Date("2026-10-18T12:00:00Z");
+  assert.equal(iconDate("2026-10-17T09:30:00Z", now, "en-GB", "UTC"), "17 Oct");
+  assert.equal(iconDate("2025-12-31T23:30:00Z", now, "en-GB", "UTC"), "31 Dec 2025");
+  assert.equal(iconDate("", now, "en-GB", "UTC"), "");
+  assert.equal(iconDate("not a date", now, "en-GB", "UTC"), "");
+  assert.equal(iconDate(undefined, now, "en-GB", "UTC"), "");
+});
+
+test("an icon's name says the file, the agent and the date, and what a click does", () => {
+  const n = iconName({ name: "weekly.pdf", canOpen: true }, "pr-triage", "17 Oct");
+  assert.equal(n, "weekly.pdf, from pr-triage, 17 Oct. Opens in your system's app.");
+  const x = iconName({ name: "setup.exe", canOpen: false }, "pr-triage", "17 Oct");
+  assert.match(x, /^setup\.exe, from pr-triage, 17 Oct\. /);
+  assert.match(x, /shows it in its folder/i);
+  // No date: nothing stands in for it.
+  assert.equal(iconName({ name: "a.md", canOpen: true }, "x", ""), "a.md, from x. Opens in your system's app.");
 });

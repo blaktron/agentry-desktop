@@ -11,8 +11,8 @@ package app
 //   - a file is listed only after its bytes hash to the envelope's SHA-256,
 //     and every binding that hands bytes on or opens a file checks again,
 //     on the bytes it uses;
-//   - one click opens only the document types on internal/deliverables'
-//     list, each also checked by its first bytes, and never the run
+//   - one click opens only the document types (and web pages) on
+//     internal/deliverables' list, each also checked by its first bytes, and never the run
 //     folder's own file: it opens the copy in the Deliverables folder when
 //     that holds the very same bytes, else a fresh copy made for it in a
 //     folder of this app's, with the system's flag for a download.
@@ -410,12 +410,12 @@ type RecentDeliverablesView struct {
 // this many files.
 const (
 	deliverableRunsRead = 25
-	deliverableFilesMax = 5
+	deliverableFilesMax = 12
 )
 
 // RecentDeliverables is Home's Deliverables card: the most recent
 // deliverables across the runs the history keeps (and the runs schedules on
-// this computer fired), newest first, at most limit (1 to 5). It reads the
+// this computer fired), newest first, at most limit (1 to 12). It reads the
 // history and each run's envelope, never the Deliverables folder, so a file
 // someone put there is not listed; each file is listed only when its bytes
 // are the envelope's. It starts nothing.

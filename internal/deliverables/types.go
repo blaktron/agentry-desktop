@@ -12,10 +12,12 @@ import (
 )
 
 // What a click opens. A file an agent wrote can be one the system would run
-// (a shortcut, a script, an HTML page, a macro document), so one click opens
-// only a short list of document types, each also checked by its first bytes:
-// a file named .pdf that is something else opens nothing. Any other type is
-// only shown in its folder.
+// (a shortcut, a script, a macro document), so one click opens only a short
+// list of document types, each also checked by its first bytes: a file named
+// .pdf that is something else opens nothing. A web page opens in the system's
+// browser, from a copy that carries the system's download flag, so the browser
+// treats it as a file from the internet. Any other type is only shown in its
+// folder.
 //
 // The value is how the app can show the type itself, without handing it to
 // another program: "pdf" (the bundled viewer), "markdown" and "text"
@@ -24,6 +26,7 @@ import (
 var openable = map[string]string{
 	"pdf": "pdf", "md": "markdown", "txt": "text", "csv": "text", "json": "text",
 	"png": "", "jpg": "", "jpeg": "", "docx": "", "xlsx": "", "pptx": "",
+	"html": "", "htm": "",
 }
 
 // Ext is the lower-case extension of a path without its dot, "" for none.
@@ -38,7 +41,7 @@ func ViewKind(ext string) string { return openable[ext] }
 
 // Allowed lists the extensions a click opens, for a message.
 func Allowed() []string {
-	return []string{"pdf", "md", "txt", "csv", "json", "png", "jpg", "jpeg", "docx", "xlsx", "pptx"}
+	return []string{"pdf", "md", "txt", "csv", "json", "png", "jpg", "jpeg", "docx", "xlsx", "pptx", "html", "htm"}
 }
 
 // HeadBytes is how much of a file's start CheckType reads.
@@ -59,7 +62,7 @@ func CheckHead(ext string, head []byte) error {
 		ok = bytes.HasPrefix(head, []byte{0xFF, 0xD8, 0xFF})
 	case "docx", "xlsx", "pptx":
 		ok = bytes.HasPrefix(head, []byte("PK\x03\x04"))
-	case "md", "txt", "csv":
+	case "md", "txt", "csv", "html", "htm":
 		ok = looksLikeText(head)
 	case "json":
 		ok = looksLikeText(head) && startsLikeJSON(head)

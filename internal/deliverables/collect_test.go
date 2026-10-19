@@ -357,3 +357,18 @@ func TestACheckHoldsTheFileToTheSizeTheEnvelopeNames(t *testing.T) {
 		t.Fatalf("a wrong size: err = %v, want ErrChanged", err)
 	}
 }
+
+// A copy that could not be flagged as a download is not opened when the program
+// that opens it treats a flagged file with more care: Office, a table, a web page.
+func TestATypeThatNeedsTheDownloadFlagIsNamed(t *testing.T) {
+	for _, ext := range []string{"docx", "xlsx", "pptx", "csv", "html", "htm"} {
+		if !needsDownloadFlag(ext) {
+			t.Errorf("%s is opened without the download flag", ext)
+		}
+	}
+	for _, ext := range []string{"pdf", "png", "md", "txt", "json"} {
+		if needsDownloadFlag(ext) {
+			t.Errorf("%s needs the download flag", ext)
+		}
+	}
+}
