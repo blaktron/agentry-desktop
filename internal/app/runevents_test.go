@@ -27,6 +27,9 @@ func TestEventLines(t *testing.T) {
 		{"result", adapter.Event{Kind: adapter.EventToolResult, Tool: "fs_read", Text: "hello\nworld\n"}, []string{"Tool result (fs_read):", "    hello", "    world"}},
 		{"failure", adapter.Event{Kind: adapter.EventToolResult, Tool: "fs_read", Failed: true, Text: "no such file"}, []string{"Tool failed (fs_read):", "    no such file"}},
 		{"empty result", adapter.Event{Kind: adapter.EventToolResult, Tool: "write_report"}, []string{"Tool result (write_report): nothing returned"}},
+		// The person's own input is left out of the live event, not missing.
+		{"redacted result", adapter.Event{Kind: adapter.EventToolResult, Tool: "read_input", Redacted: true}, []string{"Tool result (read_input): redacted"}},
+		{"redacted result with text", adapter.Event{Kind: adapter.EventToolResult, Tool: "search_inputs", Text: "2 matches", Redacted: true}, []string{"Tool result (search_inputs):", "    2 matches"}},
 		// The engine masks; the log shows what it was handed.
 		{"masked value", adapter.Event{Kind: adapter.EventToolResult, Tool: "fs_read", Text: "token=[redacted]"}, []string{"Tool result (fs_read):", "    token=[redacted]"}},
 		// A result line that looks like one of the log's own stays under its heading.
