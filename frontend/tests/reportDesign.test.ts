@@ -136,9 +136,10 @@ test("what a save and a reset say", () => {
   assert.match(savedSentence(null), /no report design, and no logo: runs from this app use Plain/);
 });
 
-// The preview's web fonts (scripts/sync-report-fonts.sh): every file is
-// the one the provenance names, every family of the core's list has a
-// face here under its "Report " name, and each has its licence.
+// The preview's web fonts (src/reportFonts/, which scripts/fonts/check.mjs
+// holds to its provenance as well): every file is the one the provenance
+// names, every family of the core's list has a face here under its "Report "
+// name, and each has its licence.
 test("the preview's web fonts cover every family, each file as its provenance says, each with its licence", () => {
   const dir = new URL("../src/reportFonts/", import.meta.url);
   const prov = JSON.parse(readFileSync(new URL("PROVENANCE.json", dir), "utf8")) as { files: { family: string; file: string; sha256: string }[] };
