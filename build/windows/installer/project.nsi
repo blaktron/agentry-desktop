@@ -134,6 +134,11 @@ Section
 
     !insertmacro wails.files
 
+    # The third-party notices, beside the application (THIRD_PARTY_NOTICES at
+    # the repository root; the same text is inside the application, under
+    # Settings, Licences).
+    File "/oname=THIRD_PARTY_NOTICES.txt" "..\..\..\THIRD_PARTY_NOTICES"
+
     # The agentry CLI, when the build carries it: a release puts the signed
     # CLI release go.mod pins into build/cli; a PR build has none and
     # installs without it.
