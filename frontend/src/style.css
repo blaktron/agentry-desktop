@@ -1123,6 +1123,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .deliverable-icons { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
 .deliverable-icons > li { min-width: 0; }
 .deliverable-cell { position: relative; min-width: 0; }
+/* The cell whose menu is open paints over the cells after it. */
+.deliverable-cell.is-menu-open { z-index: 30; }
 .deliverable-icon {
   display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; min-width: 0;
   padding: 8px 4px 6px; border: 1px solid transparent; border-radius: var(--radius-md, 8px);

@@ -11,11 +11,11 @@ package app
 //   - a file is listed only after its bytes hash to the envelope's SHA-256,
 //     and every binding that hands bytes on or opens a file checks again,
 //     on the bytes it uses;
-//   - one click opens only the document types (and web pages) on
-//     internal/deliverables' list, each also checked by its first bytes, and never the run
-//     folder's own file: it opens the copy in the Deliverables folder when
-//     that holds the very same bytes, else a fresh copy made for it in a
-//     folder of this app's, with the system's flag for a download.
+//   - one click opens only the document types and web pages on
+//     internal/deliverables' list, each also checked by its first bytes, and
+//     never the run folder's own file: it opens the copy in the Deliverables
+//     folder when that holds the very same bytes, else a fresh copy made for
+//     it in a folder of this app's, with the system's flag for a download.
 //
 // The copy into the Deliverables folder is the engine's own (a local run
 // given Request.DeliverTo) or internal/deliverables.Collect (a run In
@@ -413,6 +413,11 @@ const (
 	deliverableFilesMax = 12
 )
 
+// deliverableHashBudget is how many bytes of files one read of the card
+// examines at most: each is hashed to the envelope's digest, and an envelope
+// may name hundreds of large files. A var so a test can set it small.
+var deliverableHashBudget int64 = 1 << 30
+
 // RecentDeliverables is Home's Deliverables card: the most recent
 // deliverables across the runs the history keeps (and the runs schedules on
 // this computer fired), newest first, at most limit (1 to 12). It reads the
@@ -451,8 +456,9 @@ func (r *RunAPI) RecentDeliverables(limit int) (*RecentDeliverablesView, error) 
 		}
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].EndedAt.After(entries[j].EndedAt) })
+	var examined int64
 	for _, e := range entries {
-		if v.Scanned >= deliverableRunsRead || len(v.Files) >= limit {
+		if v.Scanned >= deliverableRunsRead || len(v.Files) >= limit || examined > deliverableHashBudget {
 			break
 		}
 		v.Scanned++
@@ -463,6 +469,9 @@ func (r *RunAPI) RecentDeliverables(limit int) (*RecentDeliverablesView, error) 
 		rec := deliverables.ReadRecord(dir)
 		for _, f := range rec.Files {
 			if len(v.Files) >= limit {
+				break
+			}
+			if examined += f.Bytes; examined > deliverableHashBudget {
 				break
 			}
 			d, ok := describe(dir, root, rec, f)

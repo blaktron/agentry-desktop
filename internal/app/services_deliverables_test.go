@@ -475,6 +475,35 @@ func TestTheHomeCardListsAtMostTwelveFilesNewestFirst(t *testing.T) {
 	}
 }
 
+// One read of the card examines a bounded number of bytes: files past the
+// budget are neither hashed nor listed, so an envelope naming many large
+// files cannot keep Home busy.
+func TestTheHomeCardExaminesABoundedNumberOfBytes(t *testing.T) {
+	freshConfig(t)
+	old := deliverableHashBudget
+	deliverableHashBudget = 100
+	t.Cleanup(func() { deliverableHashBudget = old })
+	now := time.Now().UTC()
+	for i, size := range []int{60, 60, 60} {
+		dir := t.TempDir()
+		body := bytes.Repeat([]byte("a"), size)
+		writeRunFile(t, filepath.Join(dir, "reports", "n.md"), string(body))
+		b, _ := json.Marshal(map[string]any{"agentry": "run/v1", "status": "ok", "deliverables": map[string]any{"files": []map[string]any{{"path": "reports/n.md", "sha256": sum(body), "bytes": size, "marked": true}}}})
+		writeRunFile(t, filepath.Join(dir, "result.json"), string(b))
+		if err := runhistory.Add(runhistory.Entry{ID: fmt.Sprintf("dddd%04d", i), Kind: runhistory.KindRun, Where: runhistory.WhereHere, Ref: "acme/x@1.0.0", Outcome: "ok", EndedAt: now.Add(-time.Duration(i) * time.Minute), Folder: dir}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	v, err := r.RecentDeliverables(12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Files) != 1 {
+		t.Fatalf("a budget of 100 bytes listed %d files of 60 bytes, want 1", len(v.Files))
+	}
+}
+
 // Every QuickAgent run and chat on this computer is given the folder while
 // the switch is on, and none when it is off.
 func TestARunAndAChatAreGivenTheDeliverablesFolderWhileTheSwitchIsOn(t *testing.T) {

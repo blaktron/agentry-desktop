@@ -15,9 +15,9 @@ import (
 // (a shortcut, a script, a macro document), so one click opens only a short
 // list of document types, each also checked by its first bytes: a file named
 // .pdf that is something else opens nothing. A web page opens in the system's
-// browser, from a copy that carries the system's download flag, so the browser
-// treats it as a file from the internet. Any other type is only shown in its
-// folder.
+// browser, from a copy that carries the system's download flag where the
+// system has one, and is not opened when the flag could not be written. Any
+// other type is only shown in its folder.
 //
 // The value is how the app can show the type itself, without handing it to
 // another program: "pdf" (the bundled viewer), "markdown" and "text"

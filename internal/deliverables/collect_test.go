@@ -372,3 +372,44 @@ func TestATypeThatNeedsTheDownloadFlagIsNamed(t *testing.T) {
 		}
 	}
 }
+
+// A copy the system could not flag as a download is never opened, whichever
+// other line of the record names the same file as delivered.
+func TestFindCopySkipsAPathAnyLineSaysWasNotFlagged(t *testing.T) {
+	r := newRun(t)
+	f := r.put("reports/page.html", []byte("<p>x</p>"))
+	r.envelope(nil)
+	root := filepath.Join(t.TempDir(), "Agentry")
+	if _, err := Collect(r.dir, root); err != nil {
+		t.Fatal(err)
+	}
+	var copyPath string
+	for name := range snapshot(t, root) {
+		copyPath = filepath.Join(root, filepath.FromSlash(name))
+	}
+	unflagged := Delivery{Object: copyPath, SHA256: f.SHA256, Status: "delivered", Error: receipt.DeliveryErrNotMarked}
+	plain := Delivery{Object: copyPath, SHA256: f.SHA256, Status: "delivered"}
+	for _, ds := range [][]Delivery{{unflagged, plain}, {plain, unflagged}} {
+		rec := Record{Files: []File{f}, Deliveries: ds}
+		if p, ok := FindCopy(r.dir, root, rec, f); ok {
+			t.Fatalf("a copy that was not flagged was taken: %s", p)
+		}
+	}
+}
+
+// A file named only by its extension is copied under a name with none, which
+// the system would open as a program of its own choosing: it is not opened.
+func TestOpenCopyRefusesACopyWhoseTypeIsNotTheFiles(t *testing.T) {
+	r := newRun(t)
+	for _, name := range []string{"reports/.html", "reports/.pdf"} {
+		f := r.put(name, []byte("<p>x</p>"))
+		temp := t.TempDir()
+		if p, err := OpenCopy(r.dir, temp, "agent", f); err == nil {
+			t.Errorf("%s: a copy named %s was offered to open", name, p)
+		}
+	}
+	f := r.put("reports/ok.html", []byte("<p>x</p>"))
+	if p, err := OpenCopy(r.dir, t.TempDir(), "agent", f); err != nil || !strings.HasSuffix(p, ".html") {
+		t.Fatalf("a plain page: %q, %v", p, err)
+	}
+}

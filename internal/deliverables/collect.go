@@ -140,8 +140,16 @@ func FindCopy(runDir, root string, rec Record, f File) (string, bool) {
 	if root == "" || !filepath.IsAbs(root) {
 		return "", false
 	}
+	// A path any line of the record says could not be flagged is never taken,
+	// whatever else the record says of it.
+	unflagged := map[string]bool{}
 	for _, d := range rec.Deliveries {
-		if d.SHA256 != f.SHA256 || !filepath.IsAbs(d.Object) || d.Error == receipt.DeliveryErrNotMarked || Ext(d.Object) != f.Ext() {
+		if d.Error == receipt.DeliveryErrNotMarked {
+			unflagged[d.Object] = true
+		}
+	}
+	for _, d := range rec.Deliveries {
+		if d.SHA256 != f.SHA256 || !filepath.IsAbs(d.Object) || unflagged[d.Object] || Ext(d.Object) != f.Ext() {
 			continue
 		}
 		rel, err := filepath.Rel(root, d.Object)
@@ -187,8 +195,8 @@ var ErrCopy = errors.New("a copy to open could not be made")
 // OpenCopy makes a fresh copy of the deliverable f in tempRoot, a folder of
 // the app's own, for one click to open: made by the same code that collects
 // (the digest checked as it is copied, a plain name, the system's flag for a
-// download so Office opens it in Protected View), so a file is never opened
-// from the run folder itself. It answers the copy's path.
+// download: Windows' Mark-of-the-Web, macOS' quarantine), so a file is never
+// opened from the run folder itself. It answers the copy's path.
 func OpenCopy(runDir, tempRoot, agent string, f File) (string, error) {
 	ds := deliver.ToFolder(runDir, []receipt.Deliverable{{
 		Path: f.Path, Title: f.Title, SHA256: f.SHA256, Bytes: f.Bytes, Type: f.Ext(), Marked: f.Marked,
@@ -203,18 +211,23 @@ func OpenCopy(runDir, tempRoot, agent string, f File) (string, error) {
 	if !strings.HasPrefix(ds[0].Object, tempRoot) {
 		return "", ErrCopy
 	}
-	// A document the system would open without its care for a download
-	// (Protected View, a browser's warning) is not opened when the flag could not be written.
+	// The copy's name is made plain, which can drop all of a name that is only
+	// an extension; what is opened must be the type that was checked.
+	if Ext(ds[0].Object) != f.Ext() {
+		return "", fmt.Errorf("%w (its name has no type once made plain)", ErrCopy)
+	}
+	// A file whose program takes more care of a download than of a local file
+	// is not opened when the flag could not be written.
 	if ds[0].Error == receipt.DeliveryErrNotMarked && needsDownloadFlag(f.Ext()) {
 		return "", fmt.Errorf("%w (this file system cannot flag it as a download, so it is not opened)", ErrCopy)
 	}
 	return ds[0].Object, nil
 }
 
-// needsDownloadFlag says a type is opened by a program that treats a file
-// from outside the computer with more care: an Office document, a table
-// whose formulas a spreadsheet would run, or a web page whose scripts a
-// browser would run with the rights of a local file.
+// needsDownloadFlag says a type is opened by a program that takes more care
+// of a file flagged as a download: an Office document (Protected View), a
+// table whose formulas a spreadsheet would run, or a web page (the browser
+// and the system's own checks for a downloaded file).
 func needsDownloadFlag(ext string) bool {
 	switch ext {
 	case "docx", "xlsx", "pptx", "csv", "html", "htm":

@@ -69,6 +69,9 @@ function IconCell({ file, now, run }: {
   const icon = useRef<HTMLButtonElement>(null);
   const name = plainName(file.name);
   const agent = agentOf(file.ref);
+  // What a label says when it cannot hold a chip: invisible characters of the
+  // agent's name become "_", as a file's name does.
+  const agentLabel = plainName(agent);
   const date = iconDate(file.endedAt, now);
   const opens = clickDoes(file) === "open";
   useEffect(() => {
@@ -78,22 +81,22 @@ function IconCell({ file, now, run }: {
     cell.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     return () => document.removeEventListener("mousedown", away);
   }, [menu]);
-  const show = () => { setMenu(false); run(() => RunAPI.ShowRunDeliverable(file.runId, file.path)); };
+  const show = () => { setMenu(false); icon.current?.focus(); run(() => RunAPI.ShowRunDeliverable(file.runId, file.path)); };
   return (
-    <div className="deliverable-cell build-way-part" ref={cell}
+    <div className={`deliverable-cell build-way-part${menu ? " is-menu-open" : ""}`} ref={cell}
+      onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}
       onKeyDown={(e) => { if (e.key === "Escape" && menu) { e.stopPropagation(); setMenu(false); icon.current?.focus(); } }}
       onBlur={(e) => { if (menu && !e.currentTarget.contains(e.relatedTarget as Node | null)) setMenu(false); }}>
-      <button type="button" ref={icon} className="deliverable-icon" title={name} aria-label={iconName({ name, canOpen: opens }, agent, date)}
+      <button type="button" ref={icon} className="deliverable-icon" title={name} aria-label={iconName({ name, canOpen: opens }, agentLabel, date)}
         data-deliverable={file.path} data-deliverable-open={opens ? "" : undefined} data-deliverable-kind={iconKind(file)}
         onClick={() => run(() => (opens ? RunAPI.OpenRunDeliverable(file.runId, file.path) : RunAPI.ShowRunDeliverable(file.runId, file.path)))}
-        onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}
         onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); setMenu(true); } }}>
         <FileIcon kind={iconKind(file)} revealOnly={!opens} />
         <span className="deliverable-agent"><RevealText text={agent} /></span>
         {date && <span className="deliverable-date">{date}</span>}
       </button>
       {menu && (
-        <div className="deliverable-menu" role="menu">
+        <div className="deliverable-menu" role="menu" aria-label={`Actions for ${name}`}>
           <button type="button" role="menuitem" data-deliverable-show={file.path} aria-label={`Show ${name} in its folder`} onClick={show}>
             Show in folder
           </button>
