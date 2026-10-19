@@ -124,7 +124,9 @@ func (l *runEventLog) sayDropped() {
 }
 
 // eventLines is how one event reads in the run log: a tool call by its
-// tool, a tool's result with what it returned, the agent's message, and
+// tool, a tool's result with what it returned (or "redacted" when what it
+// returned was the person's own input, which the event leaves out), the
+// agent's message, and
 // what ended the run when the agent's side reported it. Usage, reasoning
 // and the harness's own bookkeeping are not lines: the progress above the
 // log shows the usage, and reasoning is never output.
@@ -139,6 +141,9 @@ func eventLines(ev adapter.Event) []string {
 			head = "Tool failed (" + logText(toolLabel(ev)) + "):"
 		}
 		if text == "" {
+			if ev.Redacted {
+				return []string{head + " redacted"}
+			}
 			return []string{head + " nothing returned"}
 		}
 		return append([]string{head}, indent(bodyLines(text, resultLines))...)
