@@ -117,7 +117,7 @@ func (s *SettingsAPI) MarkOnboarded() (*SettingsView, error) {
 	return settingsView()
 }
 
-// CodingAgentsView is Settings → Coding agents: the coding agents the
+// CodingAgentsView is Settings → Coding tools: the coding agents the
 // operator policy records as chosen (read, never probed — the page has Look
 // for that), and the export they imply with its folder and the switch.
 type CodingAgentsView struct {
@@ -1085,7 +1085,7 @@ func (i *InstallAPI) Cancel(planID string) {
 
 // InstallRunner is the one-click install: the release resolved, verified and
 // laid down in the runner home — the directory a run reads — with no target
-// or directory to choose. With Settings → Coding agents' "also install into
+// or directory to choose. With Settings → Coding tools' "also install into
 // <coding agent>" on, the same verified bytes are also written where the
 // coding agent reads — the Claude skill or AGENTS.md, whichever the policy
 // implies — as an export with its own record. The gates are the only
@@ -1153,7 +1153,7 @@ func (i *InstallAPI) exportPlanFor(runner *install.Plan) (*install.Plan, string)
 		return nil, ""
 	}
 	if x.NeedsDir {
-		return nil, "not installed into " + exportLabel(x.Target) + ": no project directory is chosen in Settings → Coding agents"
+		return nil, "not installed into " + exportLabel(x.Target) + ": no project directory is chosen in Settings → Coding tools"
 	}
 	export, err := i.engine.PrepareExport(runner.ID, x.Target, x.PlanDir())
 	if err != nil {

@@ -184,7 +184,7 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
   );
 }
 
-// CodingAgentsCard is Settings → Coding agents. The export line is what
+// CodingAgentsCard is Settings → Coding tools. The export line is what
 // Go decided (SettingsAPI.CodingAgents reads the same rule the runner
 // home's export/ follows), shown and not asked; the folder for AGENTS.md
 // is the native picker's, opened by Go; the switch stays off

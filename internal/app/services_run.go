@@ -188,6 +188,15 @@ type SessionEventView struct {
 	CostUSD      float64 `json:"costUsd,omitempty"`
 }
 
+// eventView flattens a session event for the chat view.
+func eventView(ev session.Event) SessionEventView {
+	return SessionEventView{
+		Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic,
+		StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
+		InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, TotalTokens: ev.TotalTokens, CostUSD: ev.CostUSD,
+	}
+}
+
 // StartSession starts an interactive run: the same install, consent-recorded
 // contract, images, profile and intake as RunAgent, then the engine's
 // session; events stream as runner:session-event until EndSession. The run
@@ -282,11 +291,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	}
 	go func() {
 		for ev := range s.Events() {
-			runtime.EventsEmit(r.app.ctx, eventSessionEvent, SessionEventView{
-				Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic,
-				StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
-				InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, TotalTokens: ev.TotalTokens, CostUSD: ev.CostUSD,
-			})
+			runtime.EventsEmit(r.app.ctx, eventSessionEvent, eventView(ev))
 		}
 	}()
 	return &SessionView{Ref: s.Ref()}, nil
@@ -514,7 +519,7 @@ func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 }
 
 // ForgetHarness removes harness.<name> from the operator policy — Settings →
-// Coding agents un-choosing one, so the export the policy implies can change
+// Coding tools un-choosing one, so the export the policy implies can change
 // — and reads the policy back. Nothing is executed. The policy write takes
 // the run lock like ChooseHarness's.
 func (r *RunAPI) ForgetHarness(name string) ([]HarnessView, error) {

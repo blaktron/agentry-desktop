@@ -129,6 +129,10 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     }
     case "stream_lost":
       return { ...next, lines: [...c.lines, { kind: "warn", text }] };
+    // The runner's own word in the chat: a persistent agent applying a
+    // change at its next turn.
+    case "notice":
+      return { ...next, lines: [...c.lines, { kind: "note", text }] };
     default:
       return next;
   }

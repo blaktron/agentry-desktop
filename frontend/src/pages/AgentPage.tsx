@@ -24,6 +24,7 @@ import { FORK_STAYS_PRIVATE } from "../publisher";
 import { PinButton, useHomeLayout } from "./home/PinButton";
 import { instructionsNote } from "../instructions";
 import { RevealText } from "../reveal";
+import { PERSISTENT_ONLY_SENTENCE, persistentOnly } from "../persistentAgents";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -88,7 +89,7 @@ export default function AgentPage({
   // The coding-agent export (the wizard) is the one-off behind a link;
   // the primary Install is one click into the runner home.
   const [wizardOpen, setWizardOpen] = useState(false);
-  // The link is named for the coding agent Settings → Coding agents holds
+  // The link is named for the coding agent Settings → Coding tools holds
   // and opens the wizard on the export it implies;
   // read once, since nothing on this page changes that setting.
   const [codingAgents, setCodingAgents] = useState<app.CodingAgentsView | null>(null);
@@ -106,7 +107,9 @@ export default function AgentPage({
   // The setup opened by Schedule a new run starts on Repeat; one opened by
   // Run later does not.
   const [asSchedule, setAsSchedule] = useState(false);
-  const runnable = !!detail?.latest;
+  // A release that runs only persistent is a built-in's: it is shown for
+  // reading, and no run of it is offered.
+  const runnable = !!detail?.latest && !persistentOnly(detail?.agent?.modes);
   useEffect(() => {
     if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); setAsSchedule(openSchedule); }
   }, [openRun, runnable, ranOnOpen, openSchedule]);
@@ -288,8 +291,10 @@ export default function AgentPage({
           {detail.latest
             ? (
               <>
-                <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
-                <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>
+                {runnable
+                  ? <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
+                  : <span className="small muted">{PERSISTENT_ONLY_SENTENCE}</span>}
+                {runnable && <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
                 {installButton}

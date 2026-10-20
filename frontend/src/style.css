@@ -1435,3 +1435,80 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 
 /* The agentry command on the first-run wizard's last step. */
 .agentry-command { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+
+/* ---------- persistent agents ---------- */
+
+/* A persistent agent's page owns the content area: no scroller of its own,
+   three panes in a grid that fills it. */
+.content.content-full { overflow: hidden; padding: 12px 16px; display: flex; flex-direction: column; }
+.agent-screen {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 4fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+}
+.agent-term {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.agent-term-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--color-border); font-family: var(--font-sans); }
+.agent-term-head h1 { font-size: 17px; margin: 0; }
+.agent-term-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; }
+.agent-term-scroll > div { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-term-person { color: var(--color-accent-hover); font-weight: 600; }
+.agent-term-agent { color: var(--color-fg); }
+.agent-term-agent.streaming { color: var(--color-lead); }
+.agent-term-agent p:first-child { margin-top: 0; }
+.agent-term-tool, .agent-term-note { color: var(--color-muted); font-size: 12px; }
+.agent-term-note { font-style: italic; }
+.agent-term-warn { color: var(--color-sev-high); font-size: 12px; }
+.agent-term-pending { margin: 0; padding: 6px 14px; color: var(--color-warm); font-size: 12px; border-top: 1px solid var(--color-border); }
+.agent-term-prompt { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
+.agent-term-prompt > span { color: var(--color-accent); font-weight: 700; padding-bottom: 8px; }
+.agent-term-prompt textarea { flex: 1; font-family: var(--font-mono); font-size: 13px; resize: vertical; min-height: 40px; }
+.agent-usage, .agent-roster {
+  grid-column: 2;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.agent-usage { grid-row: 1; }
+.agent-roster { grid-row: 2; overflow-y: auto; }
+.agent-usage h2, .agent-roster h2 { font-size: 13px; margin: 0 0 8px; }
+.agent-usage dl { margin: 0; }
+.agent-usage-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.agent-usage-row dt { color: var(--color-muted); }
+.agent-usage-row dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.agent-roster h3 { font-size: 12px; margin: 10px 0 4px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.agent-roster-entry { padding: 4px 0; overflow-wrap: anywhere; min-width: 0; }
+.agent-roster-entry .check-row { align-items: flex-start; }
+.agent-roster-entry.state-pending strong { color: var(--color-warm); }
+.agent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); vertical-align: middle; }
+.agent-dot.on { background: var(--color-ok); }
+.nav-agents { display: flex; flex-direction: column; }
+.nav-item.nav-agent { display: flex; align-items: center; gap: 8px; padding-left: 22px; }
+.nav-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.persistent-agent-card { margin-bottom: 12px; }
+.persistent-agent-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.persistent-server-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: start; margin: 8px 0; }
+.persistent-server-form > button { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 900px) {
+  .agent-screen { grid-template-columns: 1fr; grid-template-rows: 1fr auto auto; }
+  .agent-term { grid-row: 1; }
+  .agent-usage { grid-column: 1; grid-row: 2; }
+  .agent-roster { grid-column: 1; grid-row: 3; max-height: 30vh; }
+}

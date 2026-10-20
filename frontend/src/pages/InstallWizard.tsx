@@ -25,7 +25,7 @@ export default function InstallWizard({
   agentRef: string;
   onClose: () => void;
   // presetTarget and presetDir fill the first step: the agent page's
-  // one-off link opens it on the export Settings → Coding agents implies
+  // one-off link opens it on the export Settings → Coding tools implies
   // and its folder; the Library's Update passes the
   // record's own and, with startAtReview, goes straight to Prepare.
   presetTarget?: string;
