@@ -539,6 +539,7 @@ export namespace app {
 	    maxPacks: number;
 	    maxBytes: number;
 	    knowledgeNote?: string;
+	    shipEnabled: boolean;
 	    balance: number;
 	    balanceKnown: boolean;
 	    pool?: string;
@@ -571,6 +572,7 @@ export namespace app {
 	        this.maxPacks = source["maxPacks"];
 	        this.maxBytes = source["maxBytes"];
 	        this.knowledgeNote = source["knowledgeNote"];
+	        this.shipEnabled = source["shipEnabled"];
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
 	        this.pool = source["pool"];

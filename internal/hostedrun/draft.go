@@ -45,6 +45,10 @@ type DraftKnowledge struct {
 	Enabled  bool  `json:"enabled"`
 	MaxPacks int   `json:"maxPacks"`
 	MaxBytes int64 `json:"maxBytes"`
+	// Ship says a draft here takes `ship`, the packs among its knowledge
+	// that the QuickAgent ships with its release; false from a registry that
+	// does not.
+	Ship bool `json:"ship,omitempty"`
 }
 
 // Draft is a hosted draft's record (x-runs.yaml Draft): the terms it was
@@ -52,20 +56,24 @@ type DraftKnowledge struct {
 // settlement's parts. SearchCredits and AIReviewCredits are nil until it
 // settles.
 type Draft struct {
-	Hints            []string `json:"hints,omitempty"`
-	TokenCredits     int64    `json:"tokenCredits"`
-	MaxSearches      int      `json:"maxSearches"`
-	CreditsPerSearch int64    `json:"creditsPerSearch"`
-	MaxPages         int      `json:"maxPages"`
-	Searches         int      `json:"searches"`
-	Pages            int      `json:"pages"`
-	RegistryReads    int      `json:"registryReads"`
-	Descriptions     int      `json:"descriptions"`
-	Searched         int      `json:"searched"`
-	Scanned          int      `json:"scanned"`
-	Withheld         int      `json:"withheld"`
-	SearchCredits    *int64   `json:"searchCredits,omitempty"`
-	AIReviewCredits  *int64   `json:"aiReviewCredits,omitempty"`
+	Hints []string `json:"hints,omitempty"`
+	// Ships are the packs the draft ships with its QuickAgent, as the
+	// registry checked them at create: each pack's name and the stored pack
+	// it comes from.
+	Ships            []DraftShip `json:"ships,omitempty"`
+	TokenCredits     int64       `json:"tokenCredits"`
+	MaxSearches      int         `json:"maxSearches"`
+	CreditsPerSearch int64       `json:"creditsPerSearch"`
+	MaxPages         int         `json:"maxPages"`
+	Searches         int         `json:"searches"`
+	Pages            int         `json:"pages"`
+	RegistryReads    int         `json:"registryReads"`
+	Descriptions     int         `json:"descriptions"`
+	Searched         int         `json:"searched"`
+	Scanned          int         `json:"scanned"`
+	Withheld         int         `json:"withheld"`
+	SearchCredits    *int64      `json:"searchCredits,omitempty"`
+	AIReviewCredits  *int64      `json:"aiReviewCredits,omitempty"`
 	// Revises is the release a revision drafts the next version of, as the
 	// registry resolved it: its ref and archive digest. Nil for a draft from a
 	// description.
@@ -73,6 +81,21 @@ type Draft struct {
 	// Instructions and Problems are the person's two texts of a revision.
 	Instructions string `json:"instructions,omitempty"`
 	Problems     string `json:"problems,omitempty"`
+}
+
+// DraftShip is a pack a draft ships (x-runs.yaml Draft.ships).
+type DraftShip struct {
+	Name   string          `json:"name"`
+	Origin DraftShipOrigin `json:"origin"`
+}
+
+// DraftShipOrigin is the stored pack a shipped pack comes from: the
+// person's own (Kind "own"), or an organization's shared pack (Kind "org",
+// Org its handle).
+type DraftShipOrigin struct {
+	Kind   string `json:"kind"`
+	Org    string `json:"org,omitempty"`
+	PackID string `json:"packId"`
 }
 
 // Revises is a revision's release (x-runs.yaml DraftRevises).

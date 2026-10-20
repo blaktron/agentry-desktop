@@ -46,7 +46,7 @@ func TestNewSaveFolderIsUnderDownloadsAgentryOutWithNoRunDefault(t *testing.T) {
 		t.Fatalf("%s is not a new, empty folder", dir)
 	}
 	// Go chose it, so the session's Save writes into it.
-	if err := b.Save(dir, saveFolderModel()); err != nil {
+	if err := b.Save("https://r.example", dir, saveFolderModel()); err != nil {
 		t.Fatalf("Save into the folder Go made: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "agent.yaml")); err != nil {
@@ -126,10 +126,10 @@ func TestNewSaveFolderAdmitsOnlyTheFolderItMade(t *testing.T) {
 		t.Fatal(err)
 	}
 	other := filepath.Join(home, "Downloads", "agentry-out", "elsewhere")
-	if err := b.Save(other, saveFolderModel()); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if err := b.Save("https://r.example", other, saveFolderModel()); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("Save into a folder Go did not make: err = %v, want the picker refusal", err)
 	}
-	if err := b.Save(filepath.Join(home, "Downloads", "agentry-out"), saveFolderModel()); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if err := b.Save("https://r.example", filepath.Join(home, "Downloads", "agentry-out"), saveFolderModel()); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("Save into the output folder itself: err = %v, want the picker refusal", err)
 	}
 }

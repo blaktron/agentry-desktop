@@ -156,7 +156,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 			t.Fatalf("a pack was named, and this registry's drafts read none: %+v", avail)
 		}
 	}
-	start, err := b.DescribeInAgentry(reg, description, hints, packs)
+	start, err := b.DescribeInAgentry(reg, description, hints, packs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 
 	dir := t.TempDir()
 	app.markPicked(dir)
-	if err := b.Save(dir, *d.Model); err != nil {
+	if err := b.Save(reg, dir, *d.Model); err != nil {
 		t.Fatal(err)
 	}
 	res, err := b.Validate(dir)
@@ -214,7 +214,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		}
 		sdir := t.TempDir()
 		app.markPicked(sdir)
-		if err := b.Save(sdir, *m); err != nil {
+		if err := b.Save(reg, sdir, *m); err != nil {
 			t.Fatal(err)
 		}
 		pub, err := b.Submit(reg, sdir)
@@ -244,7 +244,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		if _, first, ok := draft.SplitDescribeAgain(text); !ok || first != description {
 			t.Fatalf("Describe again's description does not carry the first one: %q", first)
 		}
-		again, err := b.DescribeInAgentry(reg, text, d.Hints, nil)
+		again, err := b.DescribeInAgentry(reg, text, d.Hints, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +257,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		}
 		dir = t.TempDir()
 		app.markPicked(dir)
-		if err := b.Save(dir, *d.Model); err != nil {
+		if err := b.Save(reg, dir, *d.Model); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -289,7 +289,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		if c := m.Check(); c.First != nil {
 			t.Fatalf("the form's checks still name %s: %s", c.First.Section, c.First.Problem)
 		}
-		if err := b.Save(dir, m); err != nil {
+		if err := b.Save(reg, dir, m); err != nil {
 			t.Fatal(err)
 		}
 		pub, err := b.Submit(reg, dir)

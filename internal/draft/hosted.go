@@ -54,13 +54,14 @@ var draftJSONFields = map[string]bool{
 
 // ReadHosted reads a hosted draft's draft.json from the run folder its
 // output.tar was unpacked into, decodes it, and decodes its manifest into
-// the Build form's Model under namespace. It writes nothing.
-func ReadHosted(outDir, namespace string) (*Result, error) {
+// the Build form's Model under namespace, shipping the packs in ships and
+// no other. It writes nothing.
+func ReadHosted(outDir, namespace string, ships ...build.ShipSource) (*Result, error) {
 	raw, err := readDraftFile(filepath.Join(outDir, "draft.json"))
 	if err != nil {
 		return nil, err
 	}
-	d, model, notes, err := Decode(raw, namespace)
+	d, model, notes, err := Decode(raw, namespace, ships...)
 	if err != nil {
 		return nil, fmt.Errorf("the draft could not be opened in the form (its files are in %s): %w", outDir, err)
 	}

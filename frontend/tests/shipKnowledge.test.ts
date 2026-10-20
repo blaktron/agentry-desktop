@@ -82,7 +82,9 @@ test("a pack ticked after a draft carries the note that the instructions may not
 
 test("Describe it offers Read and ship for a pack of the person's own, on this computer", () => {
   assert.equal(readAndShipReason(opt("a"), "here"), null);
-  assert.match(readAndShipReason(opt("a"), "agentry") ?? "", /after the draft/);
+  assert.match(readAndShipReason(opt("a"), "agentry") ?? "", /does not ship a pack with a draft/);
+  assert.equal(readAndShipReason(opt("a"), "agentry", true), null);
+  assert.match(readAndShipReason(org("a"), "agentry", true) ?? "", /Knowledge section after the draft/);
   assert.match(readAndShipReason(undefined, "here") ?? "", /only a pack you keep can ship/);
   assert.match(readAndShipReason(org("a"), "here") ?? "", /acme's pack ships into a QuickAgent in its namespace/);
   assert.equal(readAndShipReason(opt("a", { ready: false }), "here"), "wait until AI Review has read it, then it can ship");

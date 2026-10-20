@@ -14,6 +14,7 @@ import (
 	"slices"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 )
 
@@ -69,14 +70,27 @@ func shipOptionsOf(l *knowledge.List) []build.ShipOption {
 // ships the pack as it stands now. A pack the form has no source for is the
 // folder's own files and is left as it is; a pack laid earlier that the form
 // no longer ships is taken out.
-func (b *BuildAPI) saveWorkspace(ctx context.Context, dir string, m *build.Model) error {
+func (b *BuildAPI) saveWorkspace(ctx context.Context, reg, dir string, m *build.Model) error {
 	if err := build.Save(dir, m); err != nil {
 		return err
 	}
-	return b.layShips(ctx, dir, m)
+	return b.layShips(ctx, reg, dir, m)
 }
 
-func (b *BuildAPI) layShips(ctx context.Context, dir string, m *build.Model) error {
+// shipperFor is the shipper in use: the test's, or one over the stores this
+// app reads.
+func (b *BuildAPI) shipperFor() build.Shipper {
+	if b.shipper != nil {
+		return b.shipper
+	}
+	env := knowledge.Default()
+	if b.run != nil {
+		env = b.run.knowledge()
+	}
+	return knowledge.Shipper{Env: env}
+}
+
+func (b *BuildAPI) layShips(ctx context.Context, reg, dir string, m *build.Model) error {
 	sources := map[string]build.ShipSource{}
 	for _, s := range m.Ships {
 		sources[s.Name] = s
@@ -87,22 +101,17 @@ func (b *BuildAPI) layShips(ctx context.Context, dir string, m *build.Model) err
 			names = append(names, n)
 		}
 	}
-	if b.shipper == nil {
-		if len(sources) > 0 {
-			return build.ErrNoShipper
-		}
-		return nil
-	}
+	sh := b.shipperFor()
 	for _, n := range names {
 		src, ok := sources[n]
 		if !ok {
 			continue
 		}
-		if _, err := b.shipper.Lay(ctx, dir, src); err != nil {
+		if _, err := sh.Lay(ctx, reg, dir, src); err != nil {
 			return fmt.Errorf("the knowledge pack %s could not be put in the folder: %w", n, err)
 		}
 	}
-	return b.shipper.Prune(dir, names)
+	return sh.Prune(dir, names)
 }
 
 // reconcileShips ties the packs a release shipped, which the form read as
@@ -129,16 +138,13 @@ func (b *BuildAPI) reconcileShips(ctx context.Context, reg string, m *build.Mode
 // ships, one native dialog each, in the words every client uses, and returns
 // the acknowledgement to send with the upload. A No on any pack returns nil
 // and sends nothing. A folder that ships nothing is not asked.
-func (b *BuildAPI) confirmShips(dir string, names []string, private bool) (*build.KnowledgeShipping, error) {
+func (b *BuildAPI) confirmShips(reg, dir string, names []string, private bool) (*build.KnowledgeShipping, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
-	var origins map[string]*build.PackOrigin
-	if b.shipper != nil {
-		var err error
-		if origins, err = b.shipper.Origins(dir); err != nil {
-			return nil, fmt.Errorf("read where the shipped packs came from: %w", err)
-		}
+	origins, err := b.shipperFor().Origins(dir, reg)
+	if err != nil {
+		return nil, fmt.Errorf("read where the shipped packs came from: %w", err)
 	}
 	for _, n := range names {
 		size, _, err := build.PackTreeSize(dir, n)
@@ -245,4 +251,28 @@ func shipConsent(ships []build.ShipSource) string {
 		names = append(names, s.Name)
 	}
 	return "You chose to ship " + joinNames(names) + " with the QuickAgent as well: it goes into the release, readable by everyone who can download it, when you submit the QuickAgent, and Submit asks you to confirm each pack then. "
+}
+
+// hostedShips are the packs a draft made In Agentry ships, as the registry's
+// record of the draft names them: each pack's name and the stored pack it
+// comes from, tied to the person's pack of that id for its size. A pack the
+// list does not hold any more is kept by what the record says, with no size;
+// a save then names it if it cannot be laid.
+func (b *BuildAPI) hostedShips(ctx context.Context, reg string, record []hostedrun.DraftShip) []build.ShipSource {
+	if len(record) == 0 {
+		return nil
+	}
+	var packs []knowledge.Pack
+	if l, err := b.packList(ctx, reg); err == nil {
+		packs = l.Packs
+	}
+	out := make([]build.ShipSource, 0, len(record))
+	for _, r := range record {
+		src := build.ShipSource{Name: r.Name, Kind: r.Origin.Kind, Org: r.Origin.Org, AgentryID: r.Origin.PackID}
+		if i := slices.IndexFunc(packs, func(p knowledge.Pack) bool { return p.AgentryID == r.Origin.PackID }); i >= 0 {
+			src.ID, src.Bytes, src.Pages = packs[i].ID, packs[i].Bytes, packs[i].Pages
+		}
+		out = append(out, src)
+	}
+	return out
 }

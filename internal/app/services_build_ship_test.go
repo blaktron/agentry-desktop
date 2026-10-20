@@ -39,7 +39,7 @@ func newFakeShipper() *fakeShipper {
 	return &fakeShipper{laid: map[string]build.ShipSource{}, origins: map[string]*build.PackOrigin{}}
 }
 
-func (f *fakeShipper) Lay(_ context.Context, dir string, src build.ShipSource) (*build.Laid, error) {
+func (f *fakeShipper) Lay(_ context.Context, _, dir string, src build.ShipSource) (*build.Laid, error) {
 	if src.Name == f.failOn {
 		return nil, errors.New("the store no longer holds it")
 	}
@@ -79,7 +79,7 @@ func (f *fakeShipper) Prune(dir string, keep []string) error {
 	return nil
 }
 
-func (f *fakeShipper) Origins(string) (map[string]*build.PackOrigin, error) {
+func (f *fakeShipper) Origins(string, string) (map[string]*build.PackOrigin, error) {
 	out := map[string]*build.PackOrigin{}
 	for k, v := range f.origins {
 		if v != nil {
@@ -115,7 +115,7 @@ func TestSaveLaysTheShippedPacksAndTakesOutThoseNoLongerShipped(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "knowledge", "by-hand"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Save(dir, m); err != nil {
+	if err := b.Save("https://r.example", dir, m); err != nil {
 		t.Fatal(err)
 	}
 	if sh.laid["glossary"].Bytes != 2048 || sh.laid["runbook"].Bytes != 100 || len(sh.laid) != 2 {
@@ -126,7 +126,7 @@ func TestSaveLaysTheShippedPacksAndTakesOutThoseNoLongerShipped(t *testing.T) {
 	}
 	// The form drops runbook: its folder goes, the hand-made one stays.
 	m.UntickShip("runbook")
-	if err := b.Save(dir, m); err != nil {
+	if err := b.Save("https://r.example", dir, m); err != nil {
 		t.Fatal(err)
 	}
 	for name, want := range map[string]bool{"glossary": true, "runbook": false, "by-hand": true} {
@@ -134,11 +134,10 @@ func TestSaveLaysTheShippedPacksAndTakesOutThoseNoLongerShipped(t *testing.T) {
 			t.Errorf("knowledge/%s present = %v, want %v", name, err == nil, want)
 		}
 	}
-	// Ships nothing and no shipper needed: a save is the plain one.
-	b.shipper = nil
+	// A QuickAgent that ships nothing saves as it always did.
 	plain := shipModel(t)
-	if err := b.Save(dir, plain); err != nil {
-		t.Fatalf("a QuickAgent that ships nothing needs no shipper: %v", err)
+	if err := b.Save("https://r.example", dir, plain); err != nil {
+		t.Fatalf("a QuickAgent that ships nothing: %v", err)
 	}
 }
 
@@ -147,13 +146,8 @@ func TestSaveNamesThePackThatCouldNotBeLaid(t *testing.T) {
 	sh := newFakeShipper()
 	sh.failOn = "runbook"
 	b.shipper = sh
-	err := b.Save(dir, shipModel(t, build.ShipSource{Name: "glossary", Kind: build.ShipOwn, Bytes: 1}, build.ShipSource{Name: "runbook", Kind: build.ShipOwn, Bytes: 1}))
+	err := b.Save("https://r.example", dir, shipModel(t, build.ShipSource{Name: "glossary", Kind: build.ShipOwn, Bytes: 1}, build.ShipSource{Name: "runbook", Kind: build.ShipOwn, Bytes: 1}))
 	if err == nil || !strings.Contains(err.Error(), "the knowledge pack runbook could not be put in the folder") {
-		t.Fatalf("%v", err)
-	}
-	// With no way to ship, a form that ships a pack cannot be saved.
-	b.shipper = nil
-	if err := b.Save(dir, shipModel(t, build.ShipSource{Name: "glossary", Kind: build.ShipOwn, Bytes: 1})); !errors.Is(err, build.ErrNoShipper) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -231,7 +225,7 @@ func shipFolder(t *testing.T, b *BuildAPI, dir string) {
 	if err := os.Remove(filepath.Join(dir, "agent.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Save(dir, m); err != nil {
+	if err := b.Save("https://r.example", dir, m); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -338,7 +332,7 @@ func TestSubmitOfAQuickAgentThatShipsNothingAsksNoPackQuestion(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "agent.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Save(dir, m); err != nil {
+	if err := b.Save("https://r.example", dir, m); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := b.Submit(reg.srvURL, dir); err != nil {
@@ -418,7 +412,7 @@ func TestEditKeepsThePreviousVersionsPacksAndNamesThoseGone(t *testing.T) {
 	b.shipper = newFakeShipper()
 	dir := t.TempDir()
 	b.app.markPicked(dir)
-	if err := b.Save(dir, *v.Model); err != nil {
+	if err := b.Save("https://r.example", dir, *v.Model); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))

@@ -124,7 +124,7 @@ func TestTheBindingsRefuseALinkOutOfAPickedFolder(t *testing.T) {
 			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
-		"BuildAPI.Save":     func() error { return b.Save(linkDir, build.Model{}) },
+		"BuildAPI.Save":     func() error { return b.Save("https://r.example", linkDir, build.Model{}) },
 		"BuildAPI.Submit":   func() error { _, err := b.Submit("https://r.example", linkDir); return err },
 		"BuildAPI.Install":  func() error { _, err := b.Install(linkDir); return err },
 		"BuildAPI.Validate": func() error { _, err := b.Validate(linkDir); return err },

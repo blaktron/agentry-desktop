@@ -52,7 +52,9 @@ type draftFake struct {
 	// knowledge says the status route's drafts read packs; packs are the
 	// account's packs in Agentry.
 	knowledge bool
-	packs     []map[string]any
+	// ships says the draft block takes `ship`.
+	ships bool
+	packs []map[string]any
 	// revise is the status route's caller.revise.allowed, absent when nil;
 	// mux takes a test's extra routes.
 	revise *bool
@@ -108,6 +110,9 @@ func newDraftFake(t *testing.T) *draftFake {
 			"creditsPerSearch": 1, "maxPages": 40, "aiReviewCredits": 1}
 		if f.knowledge {
 			draft["knowledge"] = map[string]any{"enabled": true, "maxPacks": 5, "maxBytes": 10 << 20}
+			if f.ships {
+				draft["knowledge"].(map[string]any)["ship"] = true
+			}
 		}
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"enabled": true, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
@@ -159,6 +164,18 @@ func newDraftFake(t *testing.T) *draftFake {
 			Task: desc, Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 41,
 			Caps: hostedrun.Caps{TimeoutSeconds: 1200, MaxTurns: 60}, CreatedAt: time.Now().UTC(),
 			Draft: &hostedrun.Draft{Hints: hints, TokenCredits: 30, MaxSearches: 10, CreditsPerSearch: 1, MaxPages: 40},
+		}
+		// The registry records the packs the draft ships, each with the stored
+		// pack it comes from.
+		if ids, ok := body["ship"].([]any); ok {
+			for _, id := range ids {
+				for _, p := range f.packs {
+					if p["id"] == id {
+						f.run.Draft.Ships = append(f.run.Draft.Ships, hostedrun.DraftShip{Name: p["name"].(string),
+							Origin: hostedrun.DraftShipOrigin{Kind: "own", PackID: id.(string)}})
+					}
+				}
+			}
 		}
 		if ref, _ := body["revises"].(string); ref != "" {
 			f.run.Task = "Revise " + ref + "."
@@ -376,7 +393,7 @@ func TestHostedDraftAvailabilityStatesTheHoldInTheSitesWords(t *testing.T) {
 func TestDescribeInAgentryDraftsFollowsAndDecodesTheDraftAsData(t *testing.T) {
 	f := newDraftFake(t)
 	b, ev, home := hostedDraftAPI(t, f)
-	start, err := b.DescribeInAgentry(f.url, "  Turn meeting notes into action items. ", []string{"The services or sites it works with: Slack", " ", "It runs on its own, from a task, with no conversation."}, nil)
+	start, err := b.DescribeInAgentry(f.url, "  Turn meeting notes into action items. ", []string{"The services or sites it works with: Slack", " ", "It runs on its own, from a task, with no conversation."}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +414,7 @@ func TestDescribeInAgentryDraftsFollowsAndDecodesTheDraftAsData(t *testing.T) {
 		}
 	}
 	// A second is refused here, before any request.
-	if _, err := b.DescribeInAgentry(f.url, "again", nil, nil); err == nil || !strings.Contains(err.Error(), "already in progress") {
+	if _, err := b.DescribeInAgentry(f.url, "again", nil, nil, nil); err == nil || !strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("second start: %v", err)
 	}
 
@@ -482,7 +499,7 @@ func TestADraftWhoseNamesCannotBeReadSaysSo(t *testing.T) {
 	f := newDraftFake(t)
 	f.agentsDown = true
 	b, ev, _ := hostedDraftAPI(t, f)
-	if _, err := b.DescribeInAgentry(f.url, "Turn meeting notes into action items under the Apache 2.0 licence.", nil, nil); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Turn meeting notes into action items under the Apache 2.0 licence.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, nil), 28)
@@ -498,7 +515,7 @@ func TestADraftWhoseNamesCannotBeReadSaysSo(t *testing.T) {
 func TestAHostileHostedDraftOpensNothing(t *testing.T) {
 	f := newDraftFake(t)
 	b, ev, _ := hostedDraftAPI(t, f)
-	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, func(d map[string]any) {
@@ -513,7 +530,7 @@ func TestAHostileHostedDraftOpensNothing(t *testing.T) {
 func TestAHostedDraftThatDidNotFinishDownloadsNothing(t *testing.T) {
 	f := newDraftFake(t)
 	b, ev, home := hostedDraftAPI(t, f)
-	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeRefused, "", 0)
@@ -538,7 +555,7 @@ func TestDescribeInAgentryRefusesInWordsAndBeforeAnyRequest(t *testing.T) {
 		"too long":    {strings.Repeat("a", hostedrun.MaxDraftDescriptionBytes+1), nil},
 		"a long hint": {"a", []string{strings.Repeat("h", hostedrun.MaxDraftHintBytes+1)}},
 	} {
-		if _, err := b.DescribeInAgentry(f.url, c.d, c.h, nil); err == nil {
+		if _, err := b.DescribeInAgentry(f.url, c.d, c.h, nil, nil); err == nil {
 			t.Errorf("%s: not refused", name)
 		}
 	}
@@ -550,13 +567,13 @@ func TestDescribeInAgentryRefusesInWordsAndBeforeAnyRequest(t *testing.T) {
 		w.WriteHeader(http.StatusPaymentRequired)
 		_, _ = w.Write([]byte(`{"type":"https://secureagentry.net/problems/credits-exhausted","title":"Not enough credits","detail":"This draft holds 41 credits and the account has 10.","balance":10,"hold":41,"resetsAt":"2026-10-11T00:00:00Z"}`))
 	}
-	v, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil)
+	v, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil)
 	if err != nil || v.Refusal != "credits-exhausted" || v.Balance != 10 || v.Hold != 41 || !strings.Contains(v.Detail, "41 credits") {
 		t.Fatalf("%+v %v", v, err)
 	}
 	// The refused start gave the slot back.
 	f.refuse = nil
-	if v, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil); err != nil || v.Draft == nil {
+	if v, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil); err != nil || v.Draft == nil {
 		t.Fatalf("%+v %v", v, err)
 	}
 }
@@ -564,7 +581,7 @@ func TestDescribeInAgentryRefusesInWordsAndBeforeAnyRequest(t *testing.T) {
 func TestAHostedDraftReattachesToTheBuildTabAndNeverToTheRunPanel(t *testing.T) {
 	f := newDraftFake(t)
 	b, _, _ := hostedDraftAPI(t, f)
-	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The run panel, reopened, has no run to follow: the draft is the
@@ -617,7 +634,7 @@ func TestDescribeAgainTextQuotesTheFormsDraftAsData(t *testing.T) {
 func TestARegistryThatRenamesTheDraftGetsNothingUnpacked(t *testing.T) {
 	f := newDraftFake(t)
 	b, ev, home := hostedDraftAPI(t, f)
-	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, nil), 20)
@@ -645,7 +662,7 @@ func TestADraftSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	if _, err := b.DescribeInAgentryStatus("http://dev.secureagentry.net"); err == nil {
 		t.Fatal("the status was read over plain http")
 	}
-	if _, err := b.DescribeInAgentry("http://dev.secureagentry.net", "Summarise notes.", nil, nil); err == nil {
+	if _, err := b.DescribeInAgentry("http://dev.secureagentry.net", "Summarise notes.", nil, nil, nil); err == nil {
 		t.Fatal("a draft was started over plain http")
 	}
 	if v, err := b.AttachHostedDraft("http://dev.secureagentry.net"); err != nil || v.Draft != nil {
@@ -678,7 +695,7 @@ func TestADraftInAgentryReadsPacksKeptInAgentry(t *testing.T) {
 	}
 
 	for name, want := range map[string]string{"elsewhere": "not kept in Agentry", "rescanned": "not ready in Agentry"} {
-		if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{name}); err == nil || !strings.Contains(err.Error(), want) {
+		if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{name}, nil); err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("drafting with %s: %v, want %q", name, err, want)
 		}
 	}
@@ -688,7 +705,7 @@ func TestADraftInAgentryReadsPacksKeptInAgentry(t *testing.T) {
 	if created != 0 {
 		t.Fatal("a refused pack still created a draft")
 	}
-	if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{"runbook", "runbook"}); err != nil {
+	if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{"runbook", "runbook"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -699,4 +716,67 @@ func TestADraftInAgentryReadsPacksKeptInAgentry(t *testing.T) {
 	}
 	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, nil), 5)
 	ev.final(t)
+}
+
+// A draft In Agentry ships the packs its person chose, among those it reads:
+// the create names their ids and the person's namespace, only where the
+// registry takes them, and the finished draft ships exactly the packs the
+// registry recorded, whatever else the draft lists.
+func TestADraftInAgentryShipsThePacksChosen(t *testing.T) {
+	const ready, other = "e1f8fcda-25b8-44df-9ebd-d27298fa5f0a", "4cb3f36e-213f-4423-bccb-055d505845e0"
+	f := newDraftFake(t)
+	f.knowledge, f.ships = true, true
+	f.scopes = append(f.scopes, "knowledge:read")
+	f.packs = []map[string]any{remotePack(ready, "runbook", "ready"), remotePack(other, "glossary", "ready")}
+	b, ev, _ := hostedDraftAPI(t, f)
+
+	if v, err := b.DescribeInAgentryStatus(f.url); err != nil || !v.ShipEnabled {
+		t.Fatalf("the offer: %+v %v", v, err)
+	}
+	f.mu.Lock()
+	f.ships = false
+	f.mu.Unlock()
+	if v, _ := b.DescribeInAgentryStatus(f.url); v.ShipEnabled {
+		t.Fatalf("a registry that takes no ships offered them: %+v", v)
+	}
+	// A ship the draft does not read is refused here, with nothing created.
+	if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{"runbook"}, []string{"glossary"}); err == nil || !strings.Contains(err.Error(), "not among the packs it reads") {
+		t.Fatalf("%v", err)
+	}
+	f.mu.Lock()
+	created := len(f.created)
+	f.mu.Unlock()
+	if created != 0 {
+		t.Fatal("a refused ship still created a draft")
+	}
+	if _, err := b.DescribeInAgentry(f.url, "Answer from the runbook.", nil, []string{"runbook", "glossary"}, []string{"runbook"}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	body := f.created[0]
+	f.mu.Unlock()
+	if ids, _ := body["ship"].([]any); len(ids) != 1 || ids[0] != ready || body["namespace"] != "chris" {
+		t.Fatalf("the create: ship %v, namespace %v", body["ship"], body["namespace"])
+	}
+	if ids, _ := body["knowledge"].([]any); len(ids) != 2 {
+		t.Fatalf("the create's knowledge = %v", body["knowledge"])
+	}
+	// The draft lists a pack nobody chose; the form ships what the registry recorded.
+	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, func(d map[string]any) {
+		var m map[string]any
+		_ = json.Unmarshal([]byte(draftFakeManifest), &m)
+		m["knowledge"] = map[string]any{"ships": []any{map[string]any{"name": "runbook"}, map[string]any{"name": "glossary"}}}
+		d["manifest"] = m
+	}), 5)
+	final := ev.final(t)
+	if final.Draft == nil || final.Draft.Model == nil {
+		t.Fatalf("no draft: %+v", final)
+	}
+	m := final.Draft.Model
+	if len(m.KnowledgeShips) != 1 || m.KnowledgeShips[0] != "runbook" || len(m.Ships) != 1 || m.Ships[0].AgentryID != ready || m.Ships[0].Kind != "own" || m.Ships[0].Bytes != 6903 {
+		t.Fatalf("ships %v %+v", m.KnowledgeShips, m.Ships)
+	}
+	if !strings.Contains(strings.Join(final.Draft.DecodeNotes, "\n"), "listed the knowledge pack glossary to ship, which you did not choose") {
+		t.Fatalf("notes %q", final.Draft.DecodeNotes)
+	}
 }

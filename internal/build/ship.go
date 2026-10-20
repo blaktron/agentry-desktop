@@ -3,7 +3,6 @@ package build
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -290,18 +289,19 @@ type Laid struct {
 type Shipper interface {
 	// Lay puts src's files under dir/knowledge/<name>/, replacing what was
 	// there, with the manifest.json the registry's rules read, and records
-	// where they came from. It refuses a pack the person may not ship.
-	Lay(ctx context.Context, dir string, src ShipSource) (*Laid, error)
+	// where they came from; reg is the registry the QuickAgent is published
+	// to, which the stores are reached through. It refuses a pack the person
+	// may not ship.
+	Lay(ctx context.Context, reg, dir string, src ShipSource) (*Laid, error)
 	// Prune removes the packs Lay put in dir that are not in keep, with
 	// their records. A folder under knowledge/ that Lay did not put there is
 	// left alone.
 	Prune(dir string, keep []string) error
-	// Origins is the record of where each pack Lay put in dir came from.
-	Origins(dir string) (map[string]*PackOrigin, error)
+	// Origins is the record of where each pack Lay put in dir came from,
+	// for a release published to reg: a pack whose files are no longer the
+	// ones laid claims none.
+	Origins(dir, reg string) (map[string]*PackOrigin, error)
 }
-
-// ErrNoShipper is the answer where no Shipper is set up.
-var ErrNoShipper = errors.New("shipping a knowledge pack is not available in this build")
 
 // PackTreeSize is the bytes and the number of files of the pack laid at
 // dir/knowledge/<name>/: the pack's wiki and sources, the files the registry

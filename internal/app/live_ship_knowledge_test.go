@@ -25,14 +25,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
 	"github.com/blaktron/agentry/pkg/apiclient"
 	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -44,7 +47,7 @@ type copyShipper struct {
 	pack    string
 }
 
-func (c copyShipper) Lay(_ context.Context, dir string, src build.ShipSource) (*build.Laid, error) {
+func (c copyShipper) Lay(_ context.Context, _, dir string, src build.ShipSource) (*build.Laid, error) {
 	dest := filepath.Join(dir, "knowledge", src.Name)
 	if err := os.RemoveAll(dest); err != nil {
 		return nil, err
@@ -54,8 +57,8 @@ func (c copyShipper) Lay(_ context.Context, dir string, src build.ShipSource) (*
 	}
 	return &build.Laid{}, nil
 }
-func (c copyShipper) Prune(string, []string) error                         { return nil }
-func (c copyShipper) Origins(string) (map[string]*build.PackOrigin, error) { return nil, nil }
+func (c copyShipper) Prune(string, []string) error                                 { return nil }
+func (c copyShipper) Origins(string, string) (map[string]*build.PackOrigin, error) { return nil, nil }
 
 func copyTree(from, to string) error {
 	return filepath.Walk(from, func(p string, info os.FileInfo, err error) error {
@@ -142,7 +145,7 @@ func TestLiveShipKnowledge(t *testing.T) {
 	if err := m.TickShip(build.ShipSource{Name: packName, Kind: build.ShipOwn}); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Save(dir, *m); err != nil {
+	if err := b.Save(reg, dir, *m); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	pub, err := b.Submit(reg, dir)
@@ -185,5 +188,156 @@ func TestLiveShipKnowledge(t *testing.T) {
 	}
 	if len(dialogs) != 2 || !strings.Contains(dialogs[1], packName+" (") || !strings.Contains(dialogs[1], "becomes public.") || !strings.Contains(dialogs[1], "version 0.1.0") {
 		t.Fatalf("make public dialogs %q", dialogs)
+	}
+}
+
+// The whole path with a real stored pack: a pack kept on this computer, copied
+// to the registry and waited on until it is ready, offered by ShipOptions,
+// laid by the real shipper at Save, confirmed and sent by Submit with the
+// origin the registry checks, and recorded on the version. The pack and the
+// QuickAgent are deleted at the end. Same variables as the check above,
+// without AGENTRY_LIVE_SHIP_PACK_REF.
+//
+//	go test -run TestLiveShipStoredPack -v ./internal/app
+func TestLiveShipStoredPack(t *testing.T) {
+	reg := strings.TrimRight(os.Getenv("AGENTRY_LIVE_SHIP_REGISTRY"), "/")
+	token := os.Getenv("AGENTRY_LIVE_SHIP_TOKEN")
+	ns := os.Getenv("AGENTRY_LIVE_SHIP_NAMESPACE")
+	if reg == "" || token == "" || ns == "" {
+		t.Skip("set AGENTRY_LIVE_SHIP_REGISTRY, _TOKEN and _NAMESPACE to run the live check of shipping a stored pack")
+	}
+	keyring.MockInit()
+	setUserHome(t, t.TempDir())
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	was := settings.DefaultRegistryURL
+	settings.DefaultRegistryURL = settings.Normalize(reg)
+	t.Cleanup(func() { settings.DefaultRegistryURL = was })
+	if _, err := settings.StoreToken(settings.Normalize(reg), token); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	home := t.TempDir()
+	env := knowledge.Env{Home: func() (string, error) { return home, nil }, Keys: &recordingKeys{m: map[string]string{}},
+		TokenFor: settings.TokenFor, HTTP: registry.HTTPClient}
+
+	var raw [4]byte
+	_, _ = rand.Read(raw[:])
+	suffix := hex.EncodeToString(raw[:])
+	packName, name := "ship-live-pack-"+suffix, "ship-live-"+suffix
+	files := map[string]string{
+		"sources/a.md":        "# Rota\nThe rota changes on Mondays.\n",
+		"wiki/topics/rota.md": "---\ntitle: Rota\ntype: topic\nsummary: When the rota changes\nsources: [doc:a.md]\nupdated: 2026-09-25\n---\n\nThe rota changes on Mondays [src: doc:a.md].\n",
+	}
+	pack := knowledgetest.Make(t, packName, files)
+	s, err := env.Store(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A token with knowledge:read and knowledge:write copies the pack to the
+	// registry and ships it with an origin the registry checks; one without
+	// them keeps the pack on this computer's own key and ships it as the
+	// person's own files.
+	var agentryID string
+	stored := true
+	if _, err := s.Keep(ctx, pack.Dir); err != nil {
+		if !strings.Contains(err.Error(), "Access denied") {
+			t.Fatalf("keep: %v", err)
+		}
+		t.Logf("the token carries no knowledge scopes (%v): the pack is kept on this computer only", err)
+		stored = false
+		local, lerr := env.Store("")
+		if lerr != nil {
+			t.Fatal(lerr)
+		}
+		if _, err := local.Keep(ctx, pack.Dir); err != nil {
+			t.Fatalf("keep on this computer: %v", err)
+		}
+	}
+	if stored {
+		if _, err := env.Upload(ctx, reg, packName); err != nil {
+			t.Fatalf("copy to Agentry: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		if agentryID != "" {
+			if err := env.DeleteFromAgentry(ctx, reg, agentryID); err != nil {
+				t.Logf("cleanup of the pack in Agentry: %v", err)
+			}
+		}
+	})
+	var opt *build.ShipOption
+	app := &App{ctx: ctx}
+	var dialogs []string
+	app.confirm = func(_ context.Context, title, message string) (bool, error) {
+		dialogs = append(dialogs, title+"\n"+message)
+		return true, nil
+	}
+	b := &BuildAPI{app: app, run: &RunAPI{app: app, knowledgeEnv: &env}}
+	for deadline := time.Now().Add(4 * time.Minute); stored && time.Now().Before(deadline); time.Sleep(3 * time.Second) {
+		opts, err := b.ShipOptions(reg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range opts {
+			if opts[i].Name == packName {
+				agentryID = opts[i].AgentryID
+				if opts[i].Ready && opts[i].Reason(ns) == "" {
+					opt = &opts[i]
+				}
+			}
+		}
+		if opt != nil {
+			break
+		}
+	}
+	if stored && opt == nil {
+		t.Fatal("the pack never became shippable")
+	}
+	if opt == nil {
+		opt = &build.ShipOption{ShipSource: build.ShipSource{Name: packName, Kind: build.ShipOwn}}
+	}
+	p := &PublisherAPI{app: app}
+	dir := t.TempDir()
+	app.markPicked(dir)
+	t.Cleanup(func() {
+		if _, err := p.Delete(reg, ns, name, name); err != nil {
+			t.Logf("cleanup: %v", err)
+		}
+	})
+	m := build.Default(ns)
+	m.Name, m.Summary, m.FSRead = name, "Ships a stored knowledge pack, for a live check; deleted when it ends.", "none"
+	if err := m.TickShip(opt.ShipSource); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Save(reg, dir, *m); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	pub, err := b.Submit(reg, dir)
+	if err != nil || pub == nil {
+		t.Fatalf("submit: %+v, %v (dialogs %q)", pub, err, dialogs)
+	}
+	t.Logf("submit: status %s, %s", pub.Status, pub.Detail)
+	if pub.Status != "published" && pub.Status != "needs_review" {
+		t.Fatalf("the version is %s: %s", pub.Status, pub.Detail)
+	}
+	client, err := registry.New(settings.Normalize(reg), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vr, err := client.GetVersionInfoWithResponse(ctx, ns, name, "0.1.0")
+	if err != nil || vr.JSON200 == nil {
+		t.Fatalf("version: %v %s", err, vr.Body)
+	}
+	rec := vr.JSON200.KnowledgeShipping
+	if rec == nil || string(rec.Via) != "client" || len(rec.Packs) != 1 || rec.Packs[0].Name != packName {
+		t.Fatalf("the version's record: %+v", rec)
+	}
+	o := rec.Packs[0].Origin
+	switch {
+	case stored && (o == nil || string(o.Kind) != "own" || o.PackId.String() != agentryID):
+		t.Fatalf("the pack's origin: %+v, want the copy in Agentry %s", o, agentryID)
+	case !stored && o != nil:
+		t.Fatalf("a pack kept only here claimed an origin: %+v", o)
 	}
 }

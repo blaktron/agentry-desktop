@@ -576,7 +576,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("save", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setNotice(`Saved to ${d}: agent.yaml, the instructions file, and on the first save README, LICENSE and .gitignore.`);
     });
@@ -585,7 +585,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("validate", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setResult(await BuildAPI.Validate(d));
     });
@@ -613,7 +613,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("submit", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setLog([]);
       setPubResult(null);
@@ -630,7 +630,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("review", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       await startReview(registry, d);
     });
@@ -642,7 +642,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("install", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setPubResult(null);
       setLocalInstall(null);

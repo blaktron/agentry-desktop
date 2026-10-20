@@ -103,11 +103,12 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   useEffect(() => {
     if (where) setPicked((p) => keepPickable(p, packs, where));
   }, [where, packs]);
-  // A pack that is no longer read is no longer shipped; nor are any when the
-  // draft is made In Agentry, which reads packs and does not ship them.
+  // A pack that is no longer read is no longer shipped; nor are any where the
+  // draft cannot ship them.
+  const canShip = where === "here" || (where === "agentry" && !!agentry?.shipEnabled);
   useEffect(() => {
-    setShipped((sh) => (where === "here" ? shipsOf(picked, sh) : []));
-  }, [picked, where]);
+    setShipped((sh) => (canShip ? shipsOf(picked, sh) : []));
+  }, [picked, canShip]);
   // A draft that landed, while this page showed or before it came back.
   useEffect(() => {
     const v = takeLandedDraft();
@@ -132,7 +133,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   function draft() {
     if (!where) return;
     setError(null);
-    startDraft(registry, where, text, hintLines(hints), offered.length > 0 ? picked : [], offered.length > 0 && where === "here" ? shipsOf(picked, shipped) : []);
+    startDraft(registry, where, text, hintLines(hints), offered.length > 0 ? picked : [], offered.length > 0 && canShip ? shipsOf(picked, shipped) : []);
   }
 
   return (
@@ -257,7 +258,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
                   {(why ?? note) && <span className="muted"> ({why ?? note})</span>}
                   {picked.includes(p.name) && (() => {
                     const opt = shipOptions.find((o) => o.name === p.name && o.kind === (p.shared ? "org" : "own") && (o.org ?? "") === (p.org ?? ""));
-                    const noShip = readAndShipReason(opt, where);
+                    const noShip = readAndShipReason(opt, where, !!agentry?.shipEnabled);
                     return (
                       <>
                         {" "}

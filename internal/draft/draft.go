@@ -105,11 +105,16 @@ func SearchSentence(s drafter.SearchState, pol *policy.Policy) string {
 // policy, and the person's keys read as the policy says. Without a Jev key
 // it refuses, saying where to add one, and nothing else happens: a pack not
 // scanned in Agentry is scanned with that key too.
-func Prepare(registry, description string, hints []string, packs *knowledge.DraftPacks) (*Plan, error) {
+//
+// ships are the packs, among those it reads, the person chose to ship with
+// the QuickAgent: the task tells the Drafter that every run of the
+// QuickAgent reads them at /knowledge/<name>, so it writes the instructions
+// to use them.
+func Prepare(registry, description string, hints []string, packs *knowledge.DraftPacks, ships ...string) (*Plan, error) {
 	var task string
 	var err error
 	if names := packs.Names(); len(names) > 0 {
-		task, err = drafter.TaskWithKnowledge(description, hints, names)
+		task, err = drafter.TaskWithShips(description, hints, names, ships)
 	} else {
 		task, err = drafter.Task(description, hints)
 	}
@@ -178,9 +183,11 @@ type Request struct {
 	Namespace string
 	// Ships are the packs the person chose to ship with the QuickAgent,
 	// each also among the packs the draft reads: the draft ships these and
-	// no other.
-	Ships []build.ShipSource
-	Log   io.Writer
+	// no other. ShipIns are the same packs opened whole, with the origin
+	// each claims, for the draft's package.
+	Ships   []build.ShipSource
+	ShipIns []drafter.ShipIn
+	Log     io.Writer
 	// Scanner builds the description's scanner from the Jev key; nil is
 	// the core's pkg/judge through drafter.CoreJev.
 	Scanner func(key string) (webscan.Scanner, error)
@@ -364,6 +371,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		},
 		OnUsage:   prog.Usage,
 		Knowledge: read,
+		Ships:     req.ShipIns,
 		Revision:  p.Revision,
 		// The embedded rule bundle, as the desktop's own Validate uses: the
 		// app has no rules checkout or --rules-update cache of its own.

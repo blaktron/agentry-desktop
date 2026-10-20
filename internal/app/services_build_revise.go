@@ -379,7 +379,7 @@ func (b *BuildAPI) PublishThisVersion(reg, dir, key string) (*build.PublishResul
 		return nil, fmt.Errorf("%s already holds an agent.yaml; choose an empty folder for the revision", dir)
 	}
 	m := cur.model
-	if err := b.saveWorkspace(b.app.ctx, dir, &m); err != nil {
+	if err := b.saveWorkspace(b.app.ctx, reg, dir, &m); err != nil {
 		return nil, err
 	}
 	return b.submit(reg, dir, cur.runID)

@@ -171,11 +171,11 @@ export function shipsOf(picked: string[], shipped: string[]): string[] {
 
 /** Why a pack the draft reads cannot also ship with it, or null. A draft is
  *  made for the person's own namespace, so only their own packs ship from
- *  here, and only from a draft made on this computer; an organization's pack
- *  and any pack of a draft made In Agentry are ticked in the Knowledge
- *  section once the draft is in the form. */
-export function readAndShipReason(o: ShipOption | undefined, where: "here" | "agentry"): string | null {
-  if (where === "agentry") return "tick it in the Knowledge section after the draft to ship it";
+ *  here; an organization's pack is ticked in the Knowledge section once the
+ *  draft is in the form. A draft made In Agentry ships only where the
+ *  registry takes the choice (shipEnabled). */
+export function readAndShipReason(o: ShipOption | undefined, where: "here" | "agentry", shipEnabled = false): string | null {
+  if (where === "agentry" && !shipEnabled) return "this registry does not ship a pack with a draft: tick it in the Knowledge section after the draft";
   if (!o) return "only a pack you keep can ship";
   if (o.kind === "org") return `${o.org ?? "its organization"}'s pack ships into a QuickAgent in its namespace: tick it in the Knowledge section after the draft`;
   return shipReason(o, "");

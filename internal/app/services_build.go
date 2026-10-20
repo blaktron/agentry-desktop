@@ -58,8 +58,8 @@ type BuildAPI struct {
 	// revised is the revision Edit with AI landed last, which Publish this
 	// version publishes.
 	revised revisedSlot
-	// shipper lays the knowledge packs a QuickAgent ships into its folder;
-	// nil is a build with no way to ship a pack.
+	// shipper lays the knowledge packs a QuickAgent ships into its folder; a
+	// test substitutes it, and nil is the one over this app's stores.
 	shipper build.Shipper
 	// lister is the Knowledge page's list a test substitutes; nil is the
 	// real one.
@@ -103,7 +103,7 @@ func (b *BuildAPI) Exists(dir string) (bool, error) {
 // Save writes the workspace (agent.yaml + entrypoint always; README,
 // LICENSE, .gitignore only when absent) and lays each knowledge pack the
 // form ships under knowledge/, read again from its store.
-func (b *BuildAPI) Save(dir string, m build.Model) error {
+func (b *BuildAPI) Save(reg, dir string, m build.Model) error {
 	if dir == "" {
 		return fmt.Errorf("pick a folder to save into")
 	}
@@ -112,7 +112,7 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 	if err := b.app.requirePicked("folder", dir); err != nil {
 		return err
 	}
-	return b.saveWorkspace(b.app.ctx, dir, &m)
+	return b.saveWorkspace(b.app.ctx, reg, dir, &m)
 }
 
 // Check renders the form's model without touching disk and runs the rules
@@ -198,7 +198,7 @@ func (b *BuildAPI) submit(reg, dir, draftRun string) (*build.PublishResult, erro
 	}
 	// Each pack it ships is confirmed on its own, after the submission is
 	// agreed, in the words for the visibility this version will have.
-	shipping, err := b.confirmShips(dir, ships, private)
+	shipping, err := b.confirmShips(url, dir, ships, private)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +453,15 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs,
 		return nil, err
 	}
 	defer k.Done()
-	p, err := draft.Prepare(reg, description, hints, k)
+	shipNames := make([]string, 0, len(chosen))
+	for _, c := range chosen {
+		shipNames = append(shipNames, c.Name)
+	}
+	shipIns, err := k.ShipIns(b.run.knowledge(), reg, shipNames)
+	if err != nil {
+		return nil, err
+	}
+	p, err := draft.Prepare(reg, description, hints, k, shipNames...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +483,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs,
 	var res *draft.Result
 	err = b.run.asRun(jobDraft, "a draft by the Drafter", draftRunRef, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
-		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Ships: chosen, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
+		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Ships: chosen, ShipIns: shipIns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
 			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})
 		if res != nil {
 			b.run.keepFolder(runID, res.OutDir)
