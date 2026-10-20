@@ -472,9 +472,27 @@ func (p *PublisherAPI) act(reg, ns, name string, act publisherAct, confirm strin
 		return nil, err
 	}
 
-	ans, err := sendOwnerAction(ctx, client, act, ns, name, confirm)
+	ans, err := sendOwnerAction(ctx, client, act, ns, name, confirm, false)
 	if err != nil {
 		return nil, errors.New(publisherUnreachable())
+	}
+	// A QuickAgent whose versions ship knowledge packs is made public only
+	// after the publisher confirms each pack, in the words every client
+	// uses: the registry answers with the packs and the versions that ship
+	// them, and the confirmation goes back with the same request.
+	if act == actPublic && ans.status == http.StatusConflict {
+		if slug, _ := registry.ProblemSlug(ans.problem, ans.body); slug == shippedKnowledgeSlug {
+			ok, err := p.confirmPublicShips(ctx, client, ns, name, shippedConflict(ans.body))
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return &PublisherDone{Cancelled: true}, nil
+			}
+			if ans, err = sendOwnerAction(ctx, client, act, ns, name, confirm, true); err != nil {
+				return nil, errors.New(publisherUnreachable())
+			}
+		}
 	}
 	if ans.status >= 200 && ans.status < 300 {
 		done := &PublisherDone{Sentence: words.done(ref)}
@@ -495,11 +513,15 @@ func (p *PublisherAPI) act(reg, ns, name string, act publisherAct, confirm strin
 }
 
 // sendOwnerAction makes the action's one call to the core.
-func sendOwnerAction(ctx context.Context, client *apiclient.ClientWithResponses, act publisherAct, ns, name, confirm string) (publisherAnswer, error) {
+func sendOwnerAction(ctx context.Context, client *apiclient.ClientWithResponses, act publisherAct, ns, name, confirm string, acknowledgeShips bool) (publisherAnswer, error) {
 	switch act {
 	case actPrivate, actPublic:
 		vis := apiclient.UpdateAgentJSONBodyVisibility(act)
-		res, err := client.UpdateAgentWithResponse(ctx, ns, name, apiclient.UpdateAgentJSONRequestBody{Visibility: &vis})
+		body := apiclient.UpdateAgentJSONRequestBody{Visibility: &vis}
+		if acknowledgeShips && act == actPublic {
+			body.AcknowledgeShippedKnowledge = &acknowledgeShips
+		}
+		res, err := client.UpdateAgentWithResponse(ctx, ns, name, body)
 		if err != nil {
 			return publisherAnswer{}, err
 		}

@@ -54,13 +54,14 @@ var draftJSONFields = map[string]bool{
 
 // ReadHosted reads a hosted draft's draft.json from the run folder its
 // output.tar was unpacked into, decodes it, and decodes its manifest into
-// the Build form's Model under namespace. It writes nothing.
-func ReadHosted(outDir, namespace string) (*Result, error) {
+// the Build form's Model under namespace, shipping the packs in ships and
+// no other. It writes nothing.
+func ReadHosted(outDir, namespace string, ships ...build.ShipSource) (*Result, error) {
 	raw, err := readDraftFile(filepath.Join(outDir, "draft.json"))
 	if err != nil {
 		return nil, err
 	}
-	d, model, notes, err := Decode(raw, namespace)
+	d, model, notes, err := Decode(raw, namespace, ships...)
 	if err != nil {
 		return nil, fmt.Errorf("the draft could not be opened in the form (its files are in %s): %w", outDir, err)
 	}
@@ -102,8 +103,10 @@ func readDraftFile(path string) ([]byte, error) {
 // (each other one named in the notes), every value of the shape
 // pkg/drafter writes and within its bound, or the draft is refused; then
 // its manifest and instructions into the form's Model (build.FromDraft,
-// whose notes follow). It opens, launches, reads and writes nothing.
-func Decode(raw []byte, namespace string) (*drafter.Draft, *build.Model, []string, error) {
+// whose notes follow). ships are the packs the person chose to ship with
+// it, if any; the draft ships those and no other. It opens, launches, reads
+// and writes nothing.
+func Decode(raw []byte, namespace string, ships ...build.ShipSource) (*drafter.Draft, *build.Model, []string, error) {
 	if len(raw) > MaxDraftJSONBytes {
 		return nil, nil, nil, fmt.Errorf("draft.json is %d bytes; the Build surface reads at most %d", len(raw), MaxDraftJSONBytes)
 	}
@@ -135,7 +138,7 @@ func Decode(raw []byte, namespace string) (*drafter.Draft, *build.Model, []strin
 	if err := holdDraft(&d); err != nil {
 		return nil, nil, nil, err
 	}
-	model, more, err := build.FromDraft(d.Manifest, d.Instructions, namespace)
+	model, more, err := build.FromDraft(d.Manifest, d.Instructions, namespace, ships...)
 	if err != nil {
 		return nil, nil, nil, err
 	}

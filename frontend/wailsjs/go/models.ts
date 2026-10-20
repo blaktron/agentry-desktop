@@ -539,6 +539,7 @@ export namespace app {
 	    maxPacks: number;
 	    maxBytes: number;
 	    knowledgeNote?: string;
+	    shipEnabled: boolean;
 	    balance: number;
 	    balanceKnown: boolean;
 	    pool?: string;
@@ -571,6 +572,7 @@ export namespace app {
 	        this.maxPacks = source["maxPacks"];
 	        this.maxBytes = source["maxBytes"];
 	        this.knowledgeNote = source["knowledgeNote"];
+	        this.shipEnabled = source["shipEnabled"];
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
 	        this.pool = source["pool"];
@@ -878,6 +880,7 @@ export namespace app {
 	    name: string;
 	    from: string;
 	    version: string;
+	    notes: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new EditView(source);
@@ -890,6 +893,7 @@ export namespace app {
 	        this.name = source["name"];
 	        this.from = source["from"];
 	        this.version = source["version"];
+	        this.notes = source["notes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2517,6 +2521,240 @@ export namespace app {
 	        this.via = source["via"];
 	    }
 	}
+	export class PersistentVolumesView {
+	    session: string;
+	    data: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentVolumesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session = source["session"];
+	        this.data = source["data"];
+	    }
+	}
+	export class PersistentUsageView {
+	    segments: number;
+	    inputTokens: number;
+	    outputTokens: number;
+	    totalTokens: number;
+	    userTurns: number;
+	    toolCalls: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentUsageView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.segments = source["segments"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.userTurns = source["userTurns"];
+	        this.toolCalls = source["toolCalls"];
+	    }
+	}
+	export class PersistentStatusView {
+	    since: string;
+	    segment: number;
+	    run: string;
+	    adapter: string;
+	    model: string;
+	    resumed: boolean;
+	    resumeReason?: string;
+	    busy: boolean;
+	    pending: boolean;
+	    inputTokens: number;
+	    outputTokens: number;
+	    totalTokens: number;
+	    costUsd: number;
+	    userTurns: number;
+	    toolCalls: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.since = source["since"];
+	        this.segment = source["segment"];
+	        this.run = source["run"];
+	        this.adapter = source["adapter"];
+	        this.model = source["model"];
+	        this.resumed = source["resumed"];
+	        this.resumeReason = source["resumeReason"];
+	        this.busy = source["busy"];
+	        this.pending = source["pending"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.costUsd = source["costUsd"];
+	        this.userTurns = source["userTurns"];
+	        this.toolCalls = source["toolCalls"];
+	    }
+	}
+	export class PersistentRosterEntry {
+	    id: string;
+	    kind: string;
+	    name: string;
+	    grantedBy: string;
+	    state: string;
+	    on: boolean;
+	    line: string;
+	    fixed?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentRosterEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.name = source["name"];
+	        this.grantedBy = source["grantedBy"];
+	        this.state = source["state"];
+	        this.on = source["on"];
+	        this.line = source["line"];
+	        this.fixed = source["fixed"];
+	    }
+	}
+	export class PersistentServerView {
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentServerView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class PersistentAgentView {
+	    name: string;
+	    title: string;
+	    displayName: string;
+	    state: string;
+	    holder?: string;
+	    personality?: string;
+	    share: string;
+	    defaultShare: boolean;
+	    knowledge: string[];
+	    servers: PersistentServerView[];
+	    roster: PersistentRosterEntry[];
+	    status?: PersistentStatusView;
+	    lifetime: PersistentUsageView;
+	    volumes: PersistentVolumesView;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentAgentView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.title = source["title"];
+	        this.displayName = source["displayName"];
+	        this.state = source["state"];
+	        this.holder = source["holder"];
+	        this.personality = source["personality"];
+	        this.share = source["share"];
+	        this.defaultShare = source["defaultShare"];
+	        this.knowledge = source["knowledge"];
+	        this.servers = this.convertValues(source["servers"], PersistentServerView);
+	        this.roster = this.convertValues(source["roster"], PersistentRosterEntry);
+	        this.status = this.convertValues(source["status"], PersistentStatusView);
+	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
+	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PersistentSwitch {
+	    id: string;
+	    on: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentSwitch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.on = source["on"];
+	    }
+	}
+	export class PersistentChange {
+	    name?: string;
+	    personality?: string;
+	    defaultShare?: boolean;
+	    addKnowledge?: string;
+	    removeKnowledge?: string;
+	    removeServer?: string;
+	    switch?: PersistentSwitch;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentChange(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.personality = source["personality"];
+	        this.defaultShare = source["defaultShare"];
+	        this.addKnowledge = source["addKnowledge"];
+	        this.removeKnowledge = source["removeKnowledge"];
+	        this.removeServer = source["removeServer"];
+	        this.switch = this.convertValues(source["switch"], PersistentSwitch);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
 	export class PrereqView {
 	    dockerOk: boolean;
 	    dockerErr?: string;
@@ -4445,6 +4683,42 @@ export namespace app {
 		}
 	}
 	
+	export class SessionEventView {
+	    seq?: number;
+	    kind: string;
+	    time: string;
+	    text?: string;
+	    synthetic?: boolean;
+	    stopReason?: string;
+	    path?: string;
+	    digest?: string;
+	    reason?: string;
+	    inputTokens?: number;
+	    outputTokens?: number;
+	    totalTokens?: number;
+	    costUsd?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionEventView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.kind = source["kind"];
+	        this.time = source["time"];
+	        this.text = source["text"];
+	        this.synthetic = source["synthetic"];
+	        this.stopReason = source["stopReason"];
+	        this.path = source["path"];
+	        this.digest = source["digest"];
+	        this.reason = source["reason"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.costUsd = source["costUsd"];
+	    }
+	}
 	export class SessionView {
 	    ref: string;
 	
@@ -5331,6 +5605,30 @@ export namespace build {
 		    return a;
 		}
 	}
+	export class ShipSource {
+	    name: string;
+	    kind: string;
+	    org?: string;
+	    id?: string;
+	    agentryId?: string;
+	    bytes: number;
+	    pages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShipSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.org = source["org"];
+	        this.id = source["id"];
+	        this.agentryId = source["agentryId"];
+	        this.bytes = source["bytes"];
+	        this.pages = source["pages"];
+	    }
+	}
 	export class Model {
 	    name: string;
 	    namespace: string;
@@ -5367,6 +5665,7 @@ export namespace build {
 	    knowledgePrompt: string;
 	    knowledgeRequired: boolean;
 	    knowledgeShips: string[];
+	    ships: ShipSource[];
 	    dependencies: DependencyRow[];
 	    publishChannel: string;
 	    publishInclude: string[];
@@ -5413,6 +5712,7 @@ export namespace build {
 	        this.knowledgePrompt = source["knowledgePrompt"];
 	        this.knowledgeRequired = source["knowledgeRequired"];
 	        this.knowledgeShips = source["knowledgeShips"];
+	        this.ships = this.convertValues(source["ships"], ShipSource);
 	        this.dependencies = this.convertValues(source["dependencies"], DependencyRow);
 	        this.publishChannel = source["publishChannel"];
 	        this.publishInclude = source["publishInclude"];
@@ -5466,6 +5766,35 @@ export namespace build {
 	        this.visibility = source["visibility"];
 	        this.visibilityNote = source["visibilityNote"];
 	        this.settingsUrl = source["settingsUrl"];
+	    }
+	}
+	
+	export class ShipOption {
+	    name: string;
+	    kind: string;
+	    org?: string;
+	    id?: string;
+	    agentryId?: string;
+	    bytes: number;
+	    pages: number;
+	    ready: boolean;
+	    orgAdmin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShipOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.org = source["org"];
+	        this.id = source["id"];
+	        this.agentryId = source["agentryId"];
+	        this.bytes = source["bytes"];
+	        this.pages = source["pages"];
+	        this.ready = source["ready"];
+	        this.orgAdmin = source["orgAdmin"];
 	    }
 	}
 	
@@ -6462,6 +6791,7 @@ export namespace knowledge {
 	    shared: boolean;
 	    org?: string;
 	    exportable: boolean;
+	    orgAdmin: boolean;
 	    canExport: boolean;
 	    updated?: string;
 	    agentryUpdated?: string;
@@ -6496,6 +6826,7 @@ export namespace knowledge {
 	        this.shared = source["shared"];
 	        this.org = source["org"];
 	        this.exportable = source["exportable"];
+	        this.orgAdmin = source["orgAdmin"];
 	        this.canExport = source["canExport"];
 	        this.updated = source["updated"];
 	        this.agentryUpdated = source["agentryUpdated"];

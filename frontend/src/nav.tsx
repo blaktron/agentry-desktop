@@ -13,7 +13,11 @@ import { Fragment } from "react";
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+
+/** A persistent agent's entry, after Scheduled: the Assistant by the name
+ *  the person gave it, with a dot for running or stopped. */
+export type NavAgent = { id: string; label: string; running: boolean };
 
 // needsSignIn: shown only while the active registry holds a token.
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
@@ -37,12 +41,16 @@ const ITEMS: Item[] = [
   { label: "Settings", page: "settings" },
 ];
 
-export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false }: {
+export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false, agents = [], agent, onOpenAgent }: {
   page: NavPage;
   onNav?: (page: NavPage) => void;
   installedUpdates?: number;
   /** The active registry holds a token: Publisher is shown. */
   signedIn?: boolean;
+  /** The enabled persistent agents; agent the one whose page is open. */
+  agents?: NavAgent[];
+  agent?: string;
+  onOpenAgent?: (id: string) => void;
 }) {
   const button = (item: Item, className: string, lit: boolean) => (
     <button
@@ -70,6 +78,25 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
             {item.sub && (item.page === page || subOpen) && (
               <div className="nav-sub" role="group" aria-label={`${item.label} sections`}>
                 {item.sub.map((s) => button(s, "nav-sub-item", s.page === page))}
+              </div>
+            )}
+            {item.page === "scheduled" && agents.length > 0 && (
+              <div className="nav-agents" role="group" aria-label="Persistent agents">
+                {agents.map((a) => {
+                  const open = page === "persistent" && agent === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      className={`nav-item nav-agent${open ? " active" : ""}`}
+                      aria-current={open ? "page" : undefined}
+                      title={`${a.label}: ${a.running ? "running" : "stopped"}`}
+                      onClick={() => onOpenAgent?.(a.id)}
+                    >
+                      <span className={`agent-dot${a.running ? " on" : ""}`} aria-hidden="true" />
+                      <span className="nav-agent-label">{a.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </Fragment>

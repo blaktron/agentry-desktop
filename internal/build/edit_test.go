@@ -44,22 +44,26 @@ func TestFromReleaseFixesTheNameSetsTheVersionAndDropsWhatTheBuilderCannotHold(t
 	// What the site's Builder cannot hold is dropped, and the runtime and
 	// the instruction file are the form's own.
 	fresh := Default("chris")
-	if m.Homepage != "" || len(m.Authors) != 0 || m.IdleTimeoutSeconds != 0 || len(m.KnowledgeShips) != 0 ||
+	if m.Homepage != "" || len(m.Authors) != 0 || m.IdleTimeoutSeconds != 0 ||
 		len(m.Dependencies) != 0 || m.PublishChannel != "" || len(m.PublishInclude) != 0 ||
 		!slices.Equal(m.RuntimeModels, fresh.RuntimeModels) || !slices.Equal(m.RuntimeInterfaces, fresh.RuntimeInterfaces) ||
 		m.InstructionFile != "AGENT.md" || m.HadComments {
 		t.Fatalf("unheld fields kept: %+v", m)
 	}
+	// The packs it shipped stay ticked by name, for the caller to tie to the
+	// person's packs; nothing is laid by the read.
+	if !slices.Equal(m.KnowledgeShips, []string{"glossary"}) || len(m.Ships) != 0 {
+		t.Fatalf("ships %v from %v", m.KnowledgeShips, m.Ships)
+	}
 	// The lists the page maps over and that FromRelease resets are never
-	// nil (KnowledgeShips is nil, as FromDraft leaves it; the page reads it
-	// with a fallback).
+	// nil.
 	if m.Authors == nil || m.Dependencies == nil || m.PublishInclude == nil {
 		t.Fatal("a nil list reaches the page")
 	}
 	// And the form writes it: the manifest it renders parses, with none of
 	// the dropped fields in it.
 	yaml := m.manifestYAML()
-	for _, gone := range []string{"homepage", "authors", "idleTimeoutSeconds", "ships", "dependencies", "channel", "x-unknown", "PROMPT.md", "claude-opus"} {
+	for _, gone := range []string{"homepage", "authors", "idleTimeoutSeconds", "dependencies", "channel", "x-unknown", "PROMPT.md", "claude-opus"} {
 		if strings.Contains(yaml, gone) {
 			t.Errorf("the rendered manifest still names %s:\n%s", gone, yaml)
 		}

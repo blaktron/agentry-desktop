@@ -9,7 +9,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// CodingAgentExport is Settings → Coding agents as the install reads it:
+// CodingAgentExport is Settings → Coding tools as the install reads it:
 // the coding-agent export the operator policy implies — the one rule the
 // runner home's export/ follows (installdir.StyleFor: a chosen Claude Code
 // → the Claude skill, else a chosen Codex → AGENTS.md, else an Anthropic
@@ -30,7 +30,7 @@ type CodingAgentExport struct {
 }
 
 // ExportSettings reads the policy and the settings into what Settings →
-// Coding agents shows and what a one-click install with the switch on
+// Coding tools shows and what a one-click install with the switch on
 // writes. A policy that is missing or cannot be read implies AGENTS.md,
 // as the runner home's export does.
 func ExportSettings() (CodingAgentExport, error) {

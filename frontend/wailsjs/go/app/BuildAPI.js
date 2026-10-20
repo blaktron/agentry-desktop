@@ -18,16 +18,16 @@ export function DescribeAgainText(arg1, arg2, arg3) {
   return window['go']['app']['BuildAPI']['DescribeAgainText'](arg1, arg2, arg3);
 }
 
-export function DescribeInAgentry(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['BuildAPI']['DescribeInAgentry'](arg1, arg2, arg3, arg4);
+export function DescribeInAgentry(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['BuildAPI']['DescribeInAgentry'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function DescribeInAgentryStatus(arg1) {
   return window['go']['app']['BuildAPI']['DescribeInAgentryStatus'](arg1);
 }
 
-export function DescribeOnThisComputer(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['BuildAPI']['DescribeOnThisComputer'](arg1, arg2, arg3, arg4);
+export function DescribeOnThisComputer(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['BuildAPI']['DescribeOnThisComputer'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function DescribeStatus() {
@@ -86,12 +86,16 @@ export function ReviseOnThisComputer(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['BuildAPI']['ReviseOnThisComputer'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function Save(arg1, arg2) {
-  return window['go']['app']['BuildAPI']['Save'](arg1, arg2);
+export function Save(arg1, arg2, arg3) {
+  return window['go']['app']['BuildAPI']['Save'](arg1, arg2, arg3);
 }
 
 export function ServerChecks(arg1, arg2) {
   return window['go']['app']['BuildAPI']['ServerChecks'](arg1, arg2);
+}
+
+export function ShipOptions(arg1) {
+  return window['go']['app']['BuildAPI']['ShipOptions'](arg1);
 }
 
 export function StopDraft() {

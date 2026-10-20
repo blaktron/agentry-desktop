@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"sync"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
 )
@@ -28,6 +29,7 @@ type Services struct {
 	schedule     *ScheduleAPI
 	destinations *DestinationsAPI
 	notices      *NoticesAPI
+	persistent   *PersistentAPI
 }
 
 // New builds the App and its APIs. notices is the third-party notices text
@@ -51,6 +53,7 @@ func New(notices string) *Services {
 		schedule:     &ScheduleAPI{app: app, run: run},
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},
+		persistent:   &PersistentAPI{app: app, run: run},
 	}
 }
 
@@ -92,8 +95,19 @@ func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
 // release is waiting and the person turned it on. OnShutdown rather than
 // OnBeforeClose: by here the window is going anyway, so replacing the
 // application cannot interrupt anything the person is still doing.
+//
+// The persistent agents running here stop beside the run's teardown, each
+// segment ending without a final result and its volumes kept, so the next
+// start continues each conversation; both before the managed engine stops.
 func (s *Services) Shutdown(ctx context.Context) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s.persistent.stopAll()
+	}()
 	s.run.shutdown()
+	wg.Wait()
 	s.run.stopManagedEngine(ctx)
 	s.selfUpdate.applyOnQuit()
 }
@@ -117,5 +131,6 @@ func (s *Services) Bind() []interface{} {
 		s.schedule,
 		s.destinations,
 		s.notices,
+		s.persistent,
 	}
 }

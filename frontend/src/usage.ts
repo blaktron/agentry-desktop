@@ -118,3 +118,62 @@ export function progressTokens(p: { inputTokens?: number; outputTokens?: number 
   if (i <= 0 && o <= 0) return null;
   return `${fmtNumber(i)} input, ${fmtNumber(o)} output`;
 }
+
+/** A persistent agent's figures, as its usage panel shows them: what the
+ *  segment running now has used, its last turn, its context, what it cost,
+ *  its turns and tool calls, since when it runs, and every segment's tokens
+ *  together. A figure the harness did not report reads "not reported",
+ *  never 0, and a model whose context window is not known reads "unknown". */
+export type AgentUsage = {
+  /** The running segment's usage; absent when the agent is not running. */
+  segment?: { inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; userTurns: number; toolCalls: number; since: string };
+  /** The last turn's tokens, from its usage events; 0 when none came. */
+  lastTurnTokens: number;
+  /** The model's context window in tokens; 0 when it is not known. */
+  contextWindow: number;
+  /** The context the harness says the conversation holds; 0 when it does not say. */
+  contextUsed: number;
+  /** Every segment's tokens, summed. */
+  lifetime: { segments: number; inputTokens: number; outputTokens: number; totalTokens: number };
+};
+
+export const NOT_REPORTED = "not reported";
+export const UNKNOWN = "unknown";
+
+const tokenLine = (input: number, output: number, total: number): string => {
+  if (input > 0 || output > 0) return `${fmtNumber(input + output)} (${fmtNumber(input)} in, ${fmtNumber(output)} out)`;
+  return total > 0 ? fmtNumber(total) : NOT_REPORTED;
+};
+
+/** The usage panel's rows, label and value. `now` is the page's clock. */
+export function agentUsageRows(u: AgentUsage, now: number): { label: string; value: string }[] {
+  const s = u.segment;
+  const since = s ? Date.parse(s.since) : NaN;
+  const context = u.contextWindow > 0
+    ? u.contextUsed > 0 ? `${fmtNumber(u.contextUsed)} of ${fmtNumber(u.contextWindow)} tokens` : `${NOT_REPORTED} of ${fmtNumber(u.contextWindow)} tokens`
+    : UNKNOWN;
+  return [
+    { label: "This segment", value: s ? tokenLine(s.inputTokens, s.outputTokens, s.totalTokens) : "not running" },
+    { label: "Last turn", value: u.lastTurnTokens > 0 ? `${fmtNumber(u.lastTurnTokens)} tokens` : NOT_REPORTED },
+    { label: "Context", value: context },
+    { label: "Cost", value: s && s.costUsd > 0 ? `$${s.costUsd.toFixed(4)}` : NOT_REPORTED },
+    { label: "Turns", value: s ? fmtNumber(s.userTurns) : "—" },
+    { label: "Tool calls", value: s ? fmtNumber(s.toolCalls) : "—" },
+    { label: "Running for", value: s && Number.isFinite(since) ? fmtElapsed(Math.max(0, now - since)) : "—" },
+    {
+      label: "All segments",
+      value: u.lifetime.segments > 0
+        ? `${tokenLine(u.lifetime.inputTokens, u.lifetime.outputTokens, u.lifetime.totalTokens)} over ${u.lifetime.segments} segment${u.lifetime.segments === 1 ? "" : "s"}`
+        : "none yet",
+    },
+  ];
+}
+
+/** An elapsed time in its two largest units: "3 min", "2 h 5 min". */
+function fmtElapsed(ms: number): string {
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return "under a minute";
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h} h ${m % 60} min`;
+}

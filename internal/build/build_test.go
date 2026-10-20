@@ -407,8 +407,7 @@ func TestEveryFieldRoundTrips(t *testing.T) {
 	m.Dependencies = []DependencyRow{{Ref: "acme/helper", Version: "^1.2.0"}}
 	m.PublishChannel = "beta"
 	m.Intake = []IntakeRow{{ID: "region", Prompt: "Which region?", Type: "choice", Choices: []string{"emea", "apac"}, Required: true}}
-	// The knowledge block: the form edits accepts and carries a loaded
-	// ships list through, never adding one.
+	// The knowledge block: the form edits accepts and the ships list.
 	m.KnowledgePrompt = "Attach your runbook: the steps it quotes come from it."
 	m.KnowledgeRequired = true
 	m.KnowledgeShips = []string{"glossary"}
@@ -428,9 +427,9 @@ func TestEveryFieldRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 	got.HadComments = false
-	// An empty include means the four files the form writes; loaded, it is
-	// the list the file names.
-	m.PublishInclude = []string{"agent.yaml", "AGENT.md", "README.md", "LICENSE"}
+	// An empty include means the four files the form writes, and the packs
+	// it ships; loaded, it is the list the file names.
+	m.PublishInclude = []string{"agent.yaml", "AGENT.md", "README.md", "LICENSE", "knowledge/**"}
 	if !reflect.DeepEqual(m, got) {
 		t.Errorf("round trip:\nwant %+v\n got %+v", m, got)
 	}

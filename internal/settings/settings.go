@@ -76,7 +76,7 @@ type Settings struct {
 	// false mean the same thing, and it is off by default so that nothing
 	// replaces the application without the person having said so at least once.
 	InstallUpdatesOnQuit bool `yaml:"installUpdatesOnQuit,omitempty" json:"installUpdatesOnQuit,omitempty"`
-	// InstallIntoCodingAgent is Settings → Coding agents → "Also install
+	// InstallIntoCodingAgent is Settings → Coding tools → "Also install
 	// into <coding agent>": with it on, a one-click Install also writes
 	// the coding-agent export — the Claude skill or AGENTS.md, whichever
 	// the operator policy implies — beside the runner-home install. A

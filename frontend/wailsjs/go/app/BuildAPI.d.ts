@@ -13,11 +13,11 @@ export function Check(arg1:build.Model):Promise<build.CheckResult>;
 
 export function DescribeAgainText(arg1:build.Model,arg2:string,arg3:string):Promise<string>;
 
-export function DescribeInAgentry(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<app.HostedDraftStartView>;
+export function DescribeInAgentry(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>,arg5:Array<string>):Promise<app.HostedDraftStartView>;
 
 export function DescribeInAgentryStatus(arg1:string):Promise<app.DescribeHostedView>;
 
-export function DescribeOnThisComputer(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<app.DraftView>;
+export function DescribeOnThisComputer(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>,arg5:Array<string>):Promise<app.DraftView>;
 
 export function DescribeStatus():Promise<app.DescribeStatusView>;
 
@@ -47,9 +47,11 @@ export function ReviseInAgentry(arg1:string,arg2:string,arg3:string,arg4:string,
 
 export function ReviseOnThisComputer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<app.DraftView>;
 
-export function Save(arg1:string,arg2:build.Model):Promise<void>;
+export function Save(arg1:string,arg2:string,arg3:build.Model):Promise<void>;
 
 export function ServerChecks(arg1:string,arg2:build.Model):Promise<Array<mcpvuln.Status>>;
+
+export function ShipOptions(arg1:string):Promise<Array<build.ShipOption>>;
 
 export function StopDraft():Promise<void>;
 

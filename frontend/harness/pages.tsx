@@ -89,7 +89,7 @@ const installedUpdateWarning = window.location.hash === "#installed-update-warni
 let updateApplied = false;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
-// Settings → Coding agents: the hash picks the
+// Settings → Coding tools: the hash picks the
 // coding agent the policy records. #coding-codex has Codex alone, so the
 // export is AGENTS.md in the chosen project folder, and the switch on;
 // #coding-none has nothing chosen and no folder, so the switch cannot go
@@ -123,7 +123,11 @@ type HarnessServer = {
   oauth?: { issuer: string; scopes: string[]; files: { path: string; template: string }[]; env: { name: string; value: string }[] };
 };
 const buildModel = {
-  knowledgePrompt: "", knowledgeRequired: false, knowledgeShips: [] as string[],
+  knowledgePrompt: "", knowledgeRequired: false,
+  // #build-guide-ships: two of the person's packs ticked, one of them loaded
+  // from a folder (no stored pack behind it).
+  knowledgeShips: window.location.hash === "#build-guide-ships" ? ["glossary", "by-hand"] : [] as string[],
+  ships: window.location.hash === "#build-guide-ships" ? [{ name: "glossary", kind: "own", id: "kp_1", bytes: 1536, pages: 4 }] : [] as object[],
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
   license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
@@ -181,7 +185,7 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 // markup; #build-summary-problem a rule the form still fails, with Fix it.
 const buildSummary = buildHash.startsWith("summary");
 const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-ships": 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it: #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
@@ -687,6 +691,17 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
   };
 };
 
+const harnessAssistant = {
+  name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
+  share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [],
+  roster: [
+    { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/assistantshare with you, read and write" },
+    { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
+  ],
+  lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 1 },
+  volumes: { session: "agentry-persistent-assistant-session", data: "agentry-persistent-assistant-data" },
+};
+
 g.go = { app: {
   ScheduleAPI: {
     // The agentry command's card in Settings: not offered off macOS.
@@ -759,6 +774,26 @@ g.go = { app: {
       publisherRows[ns] = (publisherRows[ns] ?? []).filter((r) => r.name !== name);
       return { cancelled: false, sentence: `${ns}/${name} is deleted.` };
     },
+  },
+  // The Assistant, enabled and stopped, named by the person; the one
+  // persistent agent the app offers.
+  PersistentAPI: {
+    List: async () => [harnessAssistant],
+    Get: async () => harnessAssistant,
+    Transcript: async () => [
+      { kind: "user_turn", time: "2026-10-20T19:00:00Z", text: "Could you word a note asking my neighbour to keep the hallway clear?" },
+      { kind: "tool_call", time: "2026-10-20T19:00:01Z", text: "fs_read" },
+      { kind: "assistant_turn", time: "2026-10-20T19:00:03Z", text: "Here is one: *Hi, could we keep the hallway clear? Thanks!*" },
+    ],
+    SetEnabled: async () => harnessAssistant,
+    Start: async () => harnessAssistant,
+    Stop: async () => harnessAssistant,
+    Send: async () => {},
+    Configure: async () => harnessAssistant,
+    ChooseShare: async () => harnessAssistant,
+    AddServer: async () => harnessAssistant,
+    AddFiles: async () => [],
+    Reset: async () => harnessAssistant,
   },
   HomeAPI: {
     Layout: async () => {
@@ -898,6 +933,15 @@ g.go = { app: {
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
     DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next", maxPacks: 5, maxBytes: 10 << 20,
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
+    // The Knowledge section's packs: one ready, one still being read, one past the
+    // cap, and an organization's the person administers (it ships only into its
+    // own namespace).
+    ShipOptions: async () => [
+      { name: "glossary", kind: "own", id: "kp_1", bytes: 1536, pages: 4, ready: true, orgAdmin: false },
+      { name: "runbook", kind: "own", id: "kp_2", bytes: 3 << 20, pages: 120, ready: false, orgAdmin: false },
+      { name: "archive", kind: "own", id: "kp_3", bytes: 11 << 20, pages: 900, ready: true, orgAdmin: false },
+      { name: "team-handbook", kind: "org", org: "acme", agentryId: "6f1c0000-0000-4000-8000-000000000009", bytes: 80 << 10, pages: 30, ready: true, orgAdmin: true },
+    ],
     DescribeOnThisComputer: async () => (landedDraft ? draftedView : new Promise(() => {})),
     DescribeInAgentryStatus: async () => describeHosted,
     AttachHostedDraft: async () => (hostedDrafting ? { draft: hostedDrafting } : {}),
@@ -1233,6 +1277,7 @@ import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
 import Publisher from "../src/pages/Publisher";
+import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
@@ -1407,6 +1452,9 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
+    {/* The Assistant's page: its chat from the transcript, its usage, its
+        roster. A fixed height, since its panes fill what they are given. */}
+    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
         shot can tell when it was not. Outside every

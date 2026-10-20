@@ -17,14 +17,20 @@ export function Sev({ severity }: { severity: string }) {
 }
 
 /** Run-mode badges (manifest v2 modes), in a fixed order. */
+const MODE_TITLES: Record<string, string> = {
+  autonomous: "runs from its files and ends",
+  interactive: "a chat session under the same controls",
+  persistent: "an agent kept between conversations, run only as a built-in",
+};
+
 export function ModeBadges({ modes }: { modes?: string[] }) {
   const set = new Set(modes ?? []);
-  const ordered = ["autonomous", "interactive"].filter((m) => set.has(m));
+  const ordered = ["autonomous", "interactive", "persistent"].filter((m) => set.has(m));
   if (ordered.length === 0) return <span className="badge kind" title="no run mode declared">no mode</span>;
   return (
     <>
       {ordered.map((m) => (
-        <span key={m} className="badge kind" title={m === "autonomous" ? "runs from its files and ends" : "a chat session under the same controls"}>{m}</span>
+        <span key={m} className="badge kind" title={MODE_TITLES[m]}>{m}</span>
       ))}
     </>
   );

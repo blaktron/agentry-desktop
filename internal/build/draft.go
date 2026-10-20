@@ -29,11 +29,15 @@ import (
 //     writes the instructions over. Paths in the contract are shown as
 //     written, for the form's rules and the person to judge.
 //
+// A draft ships only the packs its person chose: chosen are those packs, and
+// the model's ships are exactly them (Model.KeepChosenShips), a ship the
+// draft listed that was not chosen dropped and named.
+//
 // The draft is published under the person's namespace: a non-empty
 // namespace replaces the Drafter's guess, and the notes say so. The notes
 // also say when the manifest as written does not parse under the core's
 // rules, since the form shows only what it could read.
-func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []string, error) {
+func FromDraft(manifestJSON []byte, instructions, namespace string, chosen ...ShipSource) (*Model, []string, error) {
 	if len(manifestJSON) > maxManifestBytes {
 		return nil, nil, fmt.Errorf("the draft's manifest is %d bytes; the Build surface reads at most %d", len(manifestJSON), maxManifestBytes)
 	}
@@ -57,17 +61,14 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 	}
 	var notes []string
 	dropped := unknownFields(obj, draftFields, "")
-	// A draft never ships the person's pack: its knowledge.ships is dropped
-	// and named, as the site's importer does, and its knowledge.accepts is
-	// kept.
-	if len(m.KnowledgeShips) > 0 {
-		dropped = append(dropped, "knowledge.ships")
-		m.KnowledgeShips = nil
-	}
+	// What the draft ships is what its person chose to ship, no more and no
+	// fewer; its knowledge.accepts is kept.
+	shipNotes := m.KeepChosenShips(chosen)
 	if len(dropped) > 0 {
 		sort.Strings(dropped)
 		notes = append(notes, "The form cannot hold these fields of the draft, so they were left out: "+strings.Join(dropped, ", ")+".")
 	}
+	notes = append(notes, shipNotes...)
 	if f := m.InstructionFile; f != "" && (!draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md")) {
 		notes = append(notes, fmt.Sprintf("The draft named its instruction file %q, which is not one file in the QuickAgent's folder; here it is %s.", f, defaultInstructionFile))
 		m.InstructionFile = defaultInstructionFile
