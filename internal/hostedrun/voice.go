@@ -46,6 +46,26 @@ type VoiceTerms struct {
 	Attach           struct {
 		Enabled bool `json:"enabled"`
 	} `json:"attach"`
+	// URLs are web addresses of the person's writing a run takes, at most
+	// Max, each page read by AI Review before the run sees it, MaxPages
+	// reads inside the flat price; nil from a registry that takes none.
+	URLs *VoiceURLTerms `json:"urls,omitempty"`
+}
+
+// VoiceURLTerms is the status route's voiceBuild.urls.
+type VoiceURLTerms struct {
+	Enabled  bool `json:"enabled"`
+	Max      int  `json:"max"`
+	MaxPages int  `json:"maxPages"`
+}
+
+// TakesURLs reports whether the registry's Voice Writer reads web
+// addresses, answering its terms.
+func (t *VoiceTerms) TakesURLs() (*VoiceURLTerms, bool) {
+	if t == nil || !t.Enabled || t.URLs == nil || !t.URLs.Enabled || t.URLs.Max <= 0 {
+		return nil, false
+	}
+	return t.URLs, true
 }
 
 // CallerVoice is the signed-in caller's Voice Writer line: whether their
@@ -71,6 +91,14 @@ type VoiceBuild struct {
 	Digest       string `json:"digest,omitempty"`
 	Bytes        int    `json:"bytes,omitempty"`
 	Note         string `json:"note,omitempty"`
+	// URLs are the web addresses it was given; Pages the page reads
+	// admitted of MaxPages, Scanned the texts AI Review read and Withheld
+	// those it kept from the Voice Writer.
+	URLs     []string `json:"urls,omitempty"`
+	MaxPages int      `json:"maxPages,omitempty"`
+	Pages    int      `json:"pages,omitempty"`
+	Scanned  int      `json:"scanned,omitempty"`
+	Withheld int      `json:"withheld,omitempty"`
 }
 
 // AttachedVoice is the Writing Voice a run attached: from the hand-off,

@@ -146,8 +146,16 @@ func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuiltin(t *testing.T) {
 	isolate(t)
 	pol := policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
-	if len(localrun.Builtins()) != 4 {
-		t.Fatalf("%d built-ins: the switch's sentence in Run defaults names four", len(localrun.Builtins()))
+	// The built-ins this app runs as runs: a persistent built-in is started
+	// only by a segment, which the switch's sentence does not cover.
+	var builtins []localrun.Builtin
+	for _, b := range localrun.Builtins() {
+		if !b.Persistent() {
+			builtins = append(builtins, b)
+		}
+	}
+	if len(builtins) != 4 {
+		t.Fatalf("%d built-ins run as runs: the switch's sentence in Run defaults names four", len(builtins))
 	}
 	noLimit := BuiltinLimits{
 		Run:   spec.Budgets{TimeoutSeconds: 0, MaxTurns: BuiltinFailsafeTurns, MaxCostUSD: 2},
@@ -156,7 +164,7 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	floor := func(b localrun.Builtin, p policy.Budgets) BuiltinLimits {
 		return BuiltinLimits{Run: b.LocalBudgets(p), Shown: b.LocalBudgets(p)}
 	}
-	for _, b := range localrun.Builtins() {
+	for _, b := range builtins {
 		if got := BuiltinBudgets(b, pol); got != noLimit {
 			t.Errorf("%s by default (no file): %+v, want %+v", b.Ref(), got, noLimit)
 		}
@@ -179,7 +187,7 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	if err := Save(s); err != nil {
 		t.Fatal(err)
 	}
-	for _, b := range localrun.Builtins() {
+	for _, b := range builtins {
 		if got := BuiltinBudgets(b, pol); got != floor(b, pol) || got.Run.TimeoutSeconds < 1800 || got.Run.MaxTurns != 60 {
 			t.Errorf("%s with the switch off: %+v, want the floor %+v", b.Ref(), got, floor(b, pol))
 		}
@@ -204,7 +212,7 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	if err := os.WriteFile(path, []byte("builtinNoLimit: true\n: [\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, b := range localrun.Builtins() {
+	for _, b := range builtins {
 		if got := BuiltinBudgets(b, pol); got != floor(b, pol) {
 			t.Errorf("%s with an unreadable desktop.yaml: %+v, want the floor", b.Ref(), got)
 		}
@@ -215,7 +223,7 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	if err := os.WriteFile(path, []byte("builtinNoTimeout: false\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, b := range localrun.Builtins() {
+	for _, b := range builtins {
 		if got := BuiltinBudgets(b, pol); got != noLimit {
 			t.Errorf("%s with only the old key: %+v, want %+v", b.Ref(), got, noLimit)
 		}
@@ -225,7 +233,7 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	if err := write(Settings{BuiltinNoLimit: &on}); err != nil {
 		t.Fatal(err)
 	}
-	for _, b := range localrun.Builtins() {
+	for _, b := range builtins {
 		if got := BuiltinBudgets(b, pol); got != noLimit {
 			t.Errorf("%s with the switch turned on again: %+v", b.Ref(), got)
 		}

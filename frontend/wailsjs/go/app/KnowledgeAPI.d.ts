@@ -3,15 +3,17 @@
 import {knowledge} from '../models';
 import {app} from '../models';
 
-export function Add(arg1:string,arg2:string,arg3:Array<string>,arg4:string,arg5:boolean):Promise<knowledge.BuildResult>;
+export function Add(arg1:string,arg2:string,arg3:Array<string>,arg4:knowledge.Sources,arg5:string,arg6:boolean):Promise<knowledge.BuildResult>;
 
 export function AttachHostedBuild(arg1:string):Promise<app.KnowledgeHostedStartView>;
 
 export function CancelHostedBuild():Promise<app.KnowledgeHostedBuildView>;
 
+export function CheckSources(arg1:knowledge.Sources):Promise<knowledge.SourcesCheck>;
+
 export function ContinueHostedBuild(arg1:string,arg2:string):Promise<app.KnowledgeHostedStartView>;
 
-export function Create(arg1:string,arg2:string,arg3:Array<string>,arg4:string,arg5:boolean):Promise<knowledge.BuildResult>;
+export function Create(arg1:string,arg2:string,arg3:Array<string>,arg4:knowledge.Sources,arg5:string,arg6:boolean):Promise<knowledge.BuildResult>;
 
 export function CreatorBudget():Promise<app.CreatorBudgetView>;
 
@@ -39,7 +41,7 @@ export function Preview(arg1:string,arg2:string):Promise<knowledge.Preview>;
 
 export function ReadPage(arg1:string,arg2:string,arg3:string):Promise<knowledge.Page>;
 
-export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:boolean):Promise<app.KnowledgeHostedStartView>;
+export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:knowledge.Sources,arg6:string,arg7:boolean):Promise<app.KnowledgeHostedStartView>;
 
 export function StopBuild():Promise<void>;
 

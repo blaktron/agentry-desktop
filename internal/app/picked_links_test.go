@@ -13,6 +13,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 )
 
@@ -168,10 +169,10 @@ func TestAKnowledgeBuildReadsNothingThroughALink(t *testing.T) {
 	}
 	picked, through := linkedOut(t)
 	f.k.app.markPicked(picked)
-	if _, err := f.k.Create(f.reg.URL, "notes", []string{through}, "", false); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := f.k.Create(f.reg.URL, "notes", []string{through}, knowledge.Sources{}, "", false); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("create through a link: %v", err)
 	}
-	if _, err := f.k.Add(f.reg.URL, "handbook", []string{through}, "", false); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := f.k.Add(f.reg.URL, "handbook", []string{through}, knowledge.Sources{}, "", false); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("add through a link: %v", err)
 	}
 	if built {
@@ -216,7 +217,7 @@ func TestTheVoiceReviewAndRevisionRefuseALink(t *testing.T) {
 
 	v := newVoiceFixture(t, false)
 	v.v.app.markPicked(picked)
-	if _, err := v.v.Write(v.reg.URL, "create", []string{through}, ""); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := v.v.Write(v.reg.URL, "create", []string{through}, nil, ""); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("a writing sample through a link: %v", err)
 	}
 

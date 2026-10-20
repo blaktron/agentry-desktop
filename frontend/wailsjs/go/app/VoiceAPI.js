@@ -10,6 +10,10 @@ export function CancelHosted() {
   return window['go']['app']['VoiceAPI']['CancelHosted']();
 }
 
+export function CheckAddresses(arg1) {
+  return window['go']['app']['VoiceAPI']['CheckAddresses'](arg1);
+}
+
 export function DeleteAccount(arg1) {
   return window['go']['app']['VoiceAPI']['DeleteAccount'](arg1);
 }
@@ -26,8 +30,8 @@ export function HostedAvailability(arg1, arg2) {
   return window['go']['app']['VoiceAPI']['HostedAvailability'](arg1, arg2);
 }
 
-export function HostedWithAI(arg1, arg2, arg3) {
-  return window['go']['app']['VoiceAPI']['HostedWithAI'](arg1, arg2, arg3);
+export function HostedWithAI(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['VoiceAPI']['HostedWithAI'](arg1, arg2, arg3, arg4);
 }
 
 export function RestoreAccount(arg1) {
@@ -50,8 +54,8 @@ export function SetLocalAttach(arg1, arg2) {
   return window['go']['app']['VoiceAPI']['SetLocalAttach'](arg1, arg2);
 }
 
-export function StartHosted(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['VoiceAPI']['StartHosted'](arg1, arg2, arg3, arg4);
+export function StartHosted(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['VoiceAPI']['StartHosted'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function StopWrite() {
@@ -70,10 +74,10 @@ export function View(arg1) {
   return window['go']['app']['VoiceAPI']['View'](arg1);
 }
 
-export function Write(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['VoiceAPI']['Write'](arg1, arg2, arg3, arg4);
+export function Write(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['VoiceAPI']['Write'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function WriteWithAI(arg1, arg2, arg3) {
-  return window['go']['app']['VoiceAPI']['WriteWithAI'](arg1, arg2, arg3);
+export function WriteWithAI(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['VoiceAPI']['WriteWithAI'](arg1, arg2, arg3, arg4);
 }
