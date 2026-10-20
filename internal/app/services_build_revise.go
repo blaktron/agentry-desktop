@@ -34,6 +34,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -314,13 +315,19 @@ func (b *BuildAPI) landRevision(ctx context.Context, url, token string, v *Draft
 	if err != nil {
 		return fmt.Errorf("the revision could not be opened in the form: %w", err)
 	}
+	// A revision ships the packs the release shipped, which the person can
+	// still ship; the Drafter chooses none. The diff shows the release as it
+	// was against the revision, so a pack that can no longer ship shows as
+	// removed, and the notes name it.
+	after.KnowledgeShips, after.Ships = slices.Clone(before.KnowledgeShips), nil
+	shipNotes := b.reconcileShips(ctx, url, after)
 	label := build.ReleaseInstructionPath(rel.Manifest)
 	if label != "AGENT.md" {
 		label += ", written as AGENT.md"
 	}
 	v.Model = after
 	// What the Builder drops it drops without a word, as Edit does.
-	v.DecodeNotes = []string{}
+	v.DecodeNotes = append([]string{}, shipNotes...)
 	v.Unmentioned = draft.UnmentionedHosts(after, v.Description+"\n"+before.ManifestYAML())
 	v.Revision = &RevisionView{Namespace: ns, Name: name, From: rel.Version, Version: rel.Next, Hosted: hosted,
 		Diff: []build.DiffFile{
@@ -372,7 +379,7 @@ func (b *BuildAPI) PublishThisVersion(reg, dir, key string) (*build.PublishResul
 		return nil, fmt.Errorf("%s already holds an agent.yaml; choose an empty folder for the revision", dir)
 	}
 	m := cur.model
-	if err := build.Save(dir, &m); err != nil {
+	if err := b.saveWorkspace(b.app.ctx, reg, dir, &m); err != nil {
 		return nil, err
 	}
 	return b.submit(reg, dir, cur.runID)

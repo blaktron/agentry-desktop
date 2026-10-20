@@ -231,13 +231,22 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	if b := m.Browser; b != nil {
 		s.Grants = append(s.Grants, "Opens these in a headless browser it drives: "+mcpview.BrowserReach(b.manifest())+".")
 	}
-	// The site's words.
+	// The site's words, with each pack's size where the form knows it, and
+	// the confirmation Submit will ask.
 	if ships := compact(m.KnowledgeShips); len(ships) > 0 {
 		word, them := "packs", "them"
 		if len(ships) == 1 {
 			word, them = "pack", "it"
 		}
-		s.Knowledge = append(s.Knowledge, fmt.Sprintf("Ships the knowledge %s %s in the release, unencrypted: anyone who can download it can read %s.", word, strings.Join(ships, ", "), them))
+		named := make([]string, 0, len(ships))
+		for _, n := range ships {
+			if src, ok := m.shipSource(n); ok && src.Bytes > 0 {
+				n += " (" + PackSize(src.Bytes) + ")"
+			}
+			named = append(named, n)
+		}
+		s.Knowledge = append(s.Knowledge, fmt.Sprintf("Ships the knowledge %s %s in the release, unencrypted: anyone who can download it can read %s.", word, strings.Join(named, ", "), them))
+		s.Knowledge = append(s.Knowledge, "Submit asks you to confirm, for each pack, that it holds no private data.")
 	}
 	if strings.TrimSpace(m.KnowledgePrompt) != "" {
 		line := "Asks a person to attach a knowledge pack of their own"

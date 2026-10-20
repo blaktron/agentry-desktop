@@ -35,6 +35,7 @@ import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest,
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { RevisionView } from "./BuildRevision";
+import { BuildShips } from "./BuildShips";
 import { BUILD_TAGLINE, BuildWays } from "./BuildWays";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
@@ -51,7 +52,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View; drafted: app.DraftView | null; editing: Editing | null; revisionShown: boolean } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: app.DraftView | null; editing: Editing | null; revisionShown: boolean; shipNotes: string[] } | null = null;
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -385,6 +386,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // A landed revision shows its diff and Publish this version until the
   // person opens it in the form.
   const [revisionShown, setRevisionShown] = useState(kept?.revisionShown ?? false);
+  // What Edit could not carry over of the previous version's shipped packs,
+  // shown in the Knowledge section until the form is replaced.
+  const [shipNotes, setShipNotes] = useState<string[]>(kept?.shipNotes ?? []);
   // A draft still being made is followed on Describe it.
   const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
@@ -453,10 +457,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
-    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing, revisionShown };
+    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing, revisionShown, shipNotes };
     // What the QuickAgent page's Edit says it replaces.
     noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
-  }, [model, dir, view, touched, drafted, editing, revisionShown]);
+  }, [model, dir, view, touched, drafted, editing, revisionShown, shipNotes]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -548,6 +552,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setModel(loaded);
       setDrafted(null);
       setEditing(null);
+      setShipNotes([]);
       setTouched(true);
       setResult(null);
       setPubResult(null);
@@ -571,7 +576,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("save", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setNotice(`Saved to ${d}: agent.yaml, the instructions file, and on the first save README, LICENSE and .gitignore.`);
     });
@@ -580,7 +585,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("validate", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setResult(await BuildAPI.Validate(d));
     });
@@ -608,7 +613,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("submit", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setLog([]);
       setPubResult(null);
@@ -625,7 +630,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("review", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       await startReview(registry, d);
     });
@@ -637,7 +642,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     wrap("install", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
-      await BuildAPI.Save(d, m);
+      await BuildAPI.Save(registry, d, m);
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setPubResult(null);
       setLocalInstall(null);
@@ -691,6 +696,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     noteHeldForm(null);
     setDrafted(null);
     setEditing(null);
+    setShipNotes([]);
     resetOutcome();
     asked.current.clear();
     setServerChecks({});
@@ -713,6 +719,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     const r = v.revision;
     setEditing(r ? { namespace: r.namespace, name: r.name, from: r.from, version: r.version } : null);
     setRevisionShown(!!r);
+    // A pack the draft or the previous version shipped that cannot ship now
+    // is named in the Knowledge section; the draft's own notes name the rest.
+    setShipNotes(r ? (v.decodeNotes ?? []) : []);
     setTouched(true);
     setDir("");
     resetOutcome();
@@ -732,6 +741,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setModel(new build.Model(v.model));
     setDrafted(null);
     setEditing({ namespace: v.namespace, name: v.name, from: v.from, version: v.version });
+    setShipNotes(v.notes ?? []);
     setTouched(true);
     setDir("");
     resetOutcome();
@@ -1101,9 +1111,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <input type="checkbox" checked={!!m.knowledgeRequired} onChange={(e) => set({ knowledgeRequired: e.target.checked })} />{" "}
             required: a run cannot start without a pack
           </label>
-          {(m.knowledgeShips ?? []).length > 0 && (
-            <p className="small muted">It ships the knowledge {(m.knowledgeShips ?? []).length === 1 ? "pack" : "packs"} <span className="mono">{(m.knowledgeShips ?? []).join(", ")}</span>, kept as it was loaded.</p>
-          )}
+          <BuildShips registry={registry} m={m} onChange={(ships) => set(ships)} draftShipped={drafted ? (drafted.model?.knowledgeShips ?? []) : null} notes={shipNotes} />
           {stepped && (
             <div className="card" style={{ marginTop: 12 }}>
               <strong className="small">What a person sees before a run</strong>
@@ -1263,6 +1271,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             dir={dir}
             headingRef={summaryHeading}
             outcome={outcome}
+            shipNotes={shipNotes}
           />
         ) : !error && <Spinner />}
       </div>

@@ -31,6 +31,7 @@ import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine,
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
+import { readAndShipReason, shipPickLine, shipsOf, type ShipOption } from "../shipKnowledge";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
 import { GetAKeyLink } from "./AIReviewKey";
 
@@ -51,8 +52,8 @@ function hintLines(h: Hints): string[] {
 
 // The description the page keeps while the tab is away, as Build keeps its
 // form (the tab unmounts on every change); a draft that lands clears it.
-let kept: { text: string; hints: Hints; where: Where | null; picked: string[] } = { text: "", hints: NO_HINTS, where: null, picked: [] };
-whenLanded(() => { kept = { text: "", hints: NO_HINTS, where: kept.where, picked: [] }; });
+let kept: { text: string; hints: Hints; where: Where | null; picked: string[]; shipped: string[] } = { text: "", hints: NO_HINTS, where: null, picked: [], shipped: [] };
+whenLanded(() => { kept = { text: "", hints: NO_HINTS, where: kept.where, picked: [], shipped: [] }; });
 
 // credits is a count of credits, singular for one (the site's creditsPhrase).
 function credits(n: number): string {
@@ -75,6 +76,9 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   // The knowledge packs the Drafter reads first, by
   // name, and the person's packs as the Knowledge list gives them.
   const [picked, setPicked] = useState<string[]>(kept.picked);
+  // Of those, the ones that also ship with the QuickAgent ("Read and ship").
+  const [shipped, setShipped] = useState<string[]>(kept.shipped);
+  const [shipOptions, setShipOptions] = useState<ShipOption[]>([]);
   const [packs, setPacks] = useState<knowledge.Pack[]>([]);
   const [status, setStatus] = useState<app.DescribeStatusView | null>(null);
   const [agentry, setAgentry] = useState<app.DescribeHostedView | null>(null);
@@ -87,17 +91,24 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
     BuildAPI.DescribeInAgentryStatus(registry).then(setAgentry).catch(() => {});
     RunAPI.SetupStatus().then(setSetup).catch(() => {});
     KnowledgeAPI.List(registry).then((l) => setPacks(l.packs ?? [])).catch(() => setPacks([]));
+    BuildAPI.ShipOptions(registry).then((o) => setShipOptions((o ?? []) as ShipOption[])).catch(() => setShipOptions([]));
     attachHosted(registry);
   }, [registry]);
   // In Agentry is chosen first where it can be, as on the site.
   useEffect(() => {
     if (where === null && agentry) setWhere(agentry.available ? "agentry" : "here");
   }, [agentry, where]);
-  useEffect(() => { kept = { text, hints, where, picked }; }, [text, hints, where, picked]);
+  useEffect(() => { kept = { text, hints, where, picked, shipped }; }, [text, hints, where, picked, shipped]);
   // A switch of where it drafts keeps only the picks it can still read.
   useEffect(() => {
     if (where) setPicked((p) => keepPickable(p, packs, where));
   }, [where, packs]);
+  // A pack that is no longer read is no longer shipped; nor are any where the
+  // draft cannot ship them.
+  const canShip = where === "here" || (where === "agentry" && !!agentry?.shipEnabled);
+  useEffect(() => {
+    setShipped((sh) => (canShip ? shipsOf(picked, sh) : []));
+  }, [picked, canShip]);
   // A draft that landed, while this page showed or before it came back.
   useEffect(() => {
     const v = takeLandedDraft();
@@ -122,7 +133,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   function draft() {
     if (!where) return;
     setError(null);
-    startDraft(registry, where, text, hintLines(hints), offered.length > 0 ? picked : []);
+    startDraft(registry, where, text, hintLines(hints), offered.length > 0 ? picked : [], offered.length > 0 && canShip ? shipsOf(picked, shipped) : []);
   }
 
   return (
@@ -229,8 +240,8 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           <p className="small muted">
             Pick knowledge packs you keep, or your organization shares. The Drafter reads them before it searches the web:
             it learns the domain from them and writes what the QuickAgent needs into its instruction, so the draft is
-            better and may need fewer searches. Where the QuickAgent needs a pack when it runs, the draft asks for one; it
-            never ships yours.
+            better and may need fewer searches. Where the QuickAgent needs a pack when it runs, the draft asks for one. A pack
+            ships with the QuickAgent only if you choose Read and ship for it.
           </p>
           <fieldset className="describe-knowledge">
             <legend className="sr-only">Knowledge packs for the Drafter</legend>
@@ -245,6 +256,21 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
                   {p.shared && p.org && <span className="muted"> shared by <RevealText text={p.org} /></span>}
                   <span className="muted"> — {p.pages} {p.pages === 1 ? "page" : "pages"}, {packSize(p.bytes)}, <RevealText text={p.scan} /></span>
                   {(why ?? note) && <span className="muted"> ({why ?? note})</span>}
+                  {picked.includes(p.name) && (() => {
+                    const opt = shipOptions.find((o) => o.name === p.name && o.kind === (p.shared ? "org" : "own") && (o.org ?? "") === (p.org ?? ""));
+                    const noShip = readAndShipReason(opt, where, !!agentry?.shipEnabled);
+                    return (
+                      <>
+                        {" "}
+                        <Select aria-label={`What the draft does with ${p.name}`} value={shipped.includes(p.name) ? "ship" : "read"} disabled={busy || noShip !== null}
+                          onChange={(e) => setShipped(e.target.value === "ship" ? [...shipped.filter((n) => n !== p.name), p.name] : shipped.filter((n) => n !== p.name))}>
+                          <option value="read">Read</option>
+                          <option value="ship">Read and ship</option>
+                        </Select>
+                        {noShip && <span className="muted"> ({noShip})</span>}
+                      </>
+                    );
+                  })()}
                 </label>
               );
             })}
@@ -252,6 +278,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           <p className="small muted" style={{ marginBottom: 0 }}>{totalLine(picked, packs, bounds)}</p>
           {packProblem && <Notice tone="warn">{packProblem}</Notice>}
           {scanFirst && <Notice tone="warn">{scanFirst}</Notice>}
+          {shipPickLine(shipsOf(picked, shipped)) && <Notice tone="warn">{shipPickLine(shipsOf(picked, shipped))}</Notice>}
         </Card>
       )}
 

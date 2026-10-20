@@ -369,6 +369,11 @@ type CreateRequest struct {
 	// Knowledge are the registry ids of the account's packs in Agentry a
 	// run attaches; a build takes none.
 	Knowledge []string `json:"knowledge,omitempty"`
+	// Ship are the registry ids of those packs, among Knowledge, a draft
+	// ships with the QuickAgent it writes; Namespace is the handle the
+	// QuickAgent is for, which an organization's pack needs.
+	Ship      []string `json:"ship,omitempty"`
+	Namespace string   `json:"namespace,omitempty"`
 	// Mode is ModeInteractive for a hosted session of Ref's release; empty is
 	// a run.
 	Mode string `json:"mode,omitempty"`

@@ -58,10 +58,18 @@ func SetByBuilder(m *Model, words string, taken []string) []string {
 	return notes
 }
 
+// shipsGlob packs the knowledge packs a release ships.
+const shipsGlob = "knowledge/**"
+
 // defaultInclude is the include list Save's files make: the manifest, the
-// instruction file, and the README and LICENSE Save writes.
+// instruction file, the README and LICENSE Save writes, and the packs the
+// release ships.
 func (m *Model) defaultInclude() []string {
-	return []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
+	out := []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
+	if len(compact(m.KnowledgeShips)) > 0 {
+		out = append(out, shipsGlob)
+	}
+	return out
 }
 
 // UniqueName is name, or name with the first free -2, -3… when one of

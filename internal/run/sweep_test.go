@@ -170,7 +170,9 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// the run's (a delivery runs after the run's record is gone, and a later one
 	// for a finished run's folder has no run): it is removed by the step and, from
 	// its containers' owner labels, by engine.SweepAbandoned.
-	want := []string{"-browser", "-dlv", "-docker", "-egress", "-net", "-relays", "-relays-out", "-render", "-session", "-src-", "-web"}
+	// "-applink" is the volume the app link's relay serves its socket in,
+	// labelled with the run and removed with the session's by label.
+	want := []string{"-applink", "-browser", "-dlv", "-docker", "-egress", "-net", "-relays", "-relays-out", "-render", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}

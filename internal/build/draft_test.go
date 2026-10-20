@@ -146,9 +146,9 @@ func TestFromDraftHoldsAHostileDraftAsData(t *testing.T) {
 }
 
 // A draft's knowledge block: the Drafter declares knowledge.accepts when the
-// QuickAgent needs a pack at run time, and the form keeps it. It never ships
-// the person's pack: a draft's knowledge.ships is dropped and named, as the
-// site's importer does.
+// QuickAgent needs a pack at run time, and the form keeps it. A draft ships
+// only the packs its person chose: one it lists that was not chosen is dropped
+// and named.
 func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
 	withKnowledge := strings.Replace(draftManifest, `"publish":`,
 		`"knowledge": {"accepts": {"prompt": "Attach the team's runbook: the commands it quotes come from it.", "required": true},
@@ -163,7 +163,7 @@ func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
 	if len(m.KnowledgeShips) != 0 {
 		t.Fatalf("a draft shipped a pack: %v", m.KnowledgeShips)
 	}
-	if !slices.Contains(notes, "The form cannot hold these fields of the draft, so they were left out: knowledge.ships.") {
+	if !slices.Contains(notes, "The draft listed the knowledge pack m6-dev-runbook to ship, which you did not choose to ship, so it was left out.") {
 		t.Fatalf("ships not named: %q", notes)
 	}
 	if strings.Contains(m.manifestYAML(), "ships") || !strings.Contains(m.manifestYAML(), "required: true") {

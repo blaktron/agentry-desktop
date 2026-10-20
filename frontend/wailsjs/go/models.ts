@@ -539,6 +539,7 @@ export namespace app {
 	    maxPacks: number;
 	    maxBytes: number;
 	    knowledgeNote?: string;
+	    shipEnabled: boolean;
 	    balance: number;
 	    balanceKnown: boolean;
 	    pool?: string;
@@ -571,6 +572,7 @@ export namespace app {
 	        this.maxPacks = source["maxPacks"];
 	        this.maxBytes = source["maxBytes"];
 	        this.knowledgeNote = source["knowledgeNote"];
+	        this.shipEnabled = source["shipEnabled"];
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
 	        this.pool = source["pool"];
@@ -878,6 +880,7 @@ export namespace app {
 	    name: string;
 	    from: string;
 	    version: string;
+	    notes: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new EditView(source);
@@ -890,6 +893,7 @@ export namespace app {
 	        this.name = source["name"];
 	        this.from = source["from"];
 	        this.version = source["version"];
+	        this.notes = source["notes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5331,6 +5335,30 @@ export namespace build {
 		    return a;
 		}
 	}
+	export class ShipSource {
+	    name: string;
+	    kind: string;
+	    org?: string;
+	    id?: string;
+	    agentryId?: string;
+	    bytes: number;
+	    pages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShipSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.org = source["org"];
+	        this.id = source["id"];
+	        this.agentryId = source["agentryId"];
+	        this.bytes = source["bytes"];
+	        this.pages = source["pages"];
+	    }
+	}
 	export class Model {
 	    name: string;
 	    namespace: string;
@@ -5367,6 +5395,7 @@ export namespace build {
 	    knowledgePrompt: string;
 	    knowledgeRequired: boolean;
 	    knowledgeShips: string[];
+	    ships: ShipSource[];
 	    dependencies: DependencyRow[];
 	    publishChannel: string;
 	    publishInclude: string[];
@@ -5413,6 +5442,7 @@ export namespace build {
 	        this.knowledgePrompt = source["knowledgePrompt"];
 	        this.knowledgeRequired = source["knowledgeRequired"];
 	        this.knowledgeShips = source["knowledgeShips"];
+	        this.ships = this.convertValues(source["ships"], ShipSource);
 	        this.dependencies = this.convertValues(source["dependencies"], DependencyRow);
 	        this.publishChannel = source["publishChannel"];
 	        this.publishInclude = source["publishInclude"];
@@ -5466,6 +5496,35 @@ export namespace build {
 	        this.visibility = source["visibility"];
 	        this.visibilityNote = source["visibilityNote"];
 	        this.settingsUrl = source["settingsUrl"];
+	    }
+	}
+	
+	export class ShipOption {
+	    name: string;
+	    kind: string;
+	    org?: string;
+	    id?: string;
+	    agentryId?: string;
+	    bytes: number;
+	    pages: number;
+	    ready: boolean;
+	    orgAdmin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShipOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.org = source["org"];
+	        this.id = source["id"];
+	        this.agentryId = source["agentryId"];
+	        this.bytes = source["bytes"];
+	        this.pages = source["pages"];
+	        this.ready = source["ready"];
+	        this.orgAdmin = source["orgAdmin"];
 	    }
 	}
 	
@@ -6462,6 +6521,7 @@ export namespace knowledge {
 	    shared: boolean;
 	    org?: string;
 	    exportable: boolean;
+	    orgAdmin: boolean;
 	    canExport: boolean;
 	    updated?: string;
 	    agentryUpdated?: string;
@@ -6496,6 +6556,7 @@ export namespace knowledge {
 	        this.shared = source["shared"];
 	        this.org = source["org"];
 	        this.exportable = source["exportable"];
+	        this.orgAdmin = source["orgAdmin"];
 	        this.canExport = source["canExport"];
 	        this.updated = source["updated"];
 	        this.agentryUpdated = source["agentryUpdated"];

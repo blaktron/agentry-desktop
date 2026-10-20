@@ -99,7 +99,7 @@ func TestLiveDescribe(t *testing.T) {
 	}
 	dv, err := b.DescribeOnThisComputer(reg,
 		"Check a CSV file I add for data-quality problems: missing values, duplicate rows, and columns whose values are not all the same format. Report the problems per column.",
-		[]string{"It runs on its own, from the one file I add"}, packs)
+		[]string{"It runs on its own, from the one file I add"}, packs, nil)
 	if err != nil {
 		t.Fatalf("draft: %v", err)
 	}

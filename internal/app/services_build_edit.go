@@ -30,6 +30,9 @@ type EditView struct {
 	// set, the next minor, which the person can change.
 	From    string `json:"from"`
 	Version string `json:"version"`
+	// Notes name what the read could not carry over: a knowledge pack the
+	// previous version shipped that the person can no longer ship.
+	Notes []string `json:"notes"`
 }
 
 // errNotEditable is a QuickAgent this caller may not add a version to, or
@@ -42,7 +45,9 @@ var errNotEditable = errors.New("you cannot add a version to this QuickAgent fro
 // next minor above every version the QuickAgent has. It refuses a
 // QuickAgent the registry does not say this caller may publish to, one with
 // nothing published, and an instruction file the registry cut at its
-// display cap, which would be edited short. Nothing is written.
+// display cap, which would be edited short. The packs the release shipped
+// stay ticked when the person can still ship them, and the others are
+// unticked and named in the view's notes. Nothing is written.
 func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
@@ -56,7 +61,11 @@ func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &EditView{Model: m, Namespace: ns, Name: name, From: rel.Version, Version: rel.Next}, nil
+	notes := b.reconcileShips(b.app.ctx, reg, m)
+	if notes == nil {
+		notes = []string{}
+	}
+	return &EditView{Model: m, Namespace: ns, Name: name, From: rel.Version, Version: rel.Next, Notes: notes}, nil
 }
 
 // release is a QuickAgent's release as Edit and Edit with AI read it.

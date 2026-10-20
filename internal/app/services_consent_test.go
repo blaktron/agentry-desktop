@@ -51,7 +51,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		// before anything leaves this computer.
 		"BuildAPI.DescribeOnThisComputer": func() error {
 			b := &BuildAPI{app: app, run: r}
-			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil, nil)
+			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil, nil, nil)
 			return err
 		},
 	} {
@@ -116,7 +116,7 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
 			return err
 		},
-		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },
+		"BuildAPI.Save": func() error { return b.Save("https://r.example", typed, build.Model{}) },
 		"BuildAPI.Submit": func() error {
 			_, err := b.Submit("https://r.example", typed)
 			return err
