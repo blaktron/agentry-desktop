@@ -10,7 +10,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { sendToAgent, updateAgent, useAgentChat, useAgents } from "../agents";
-import { agentStateWords, pendingChange, termLines } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, pendingChange, termLines } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { AgentConfigModal } from "./SettingsPersistentAgents";
@@ -33,7 +33,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   useEffect(() => {
     const t = setInterval(() => {
       setNow(Date.now());
-      if (agent?.state === "running") PersistentAPI.Get(name).then(updateAgent).catch(() => {});
+      if (agent?.state === AGENT_STATES.running) PersistentAPI.Get(name).then(updateAgent).catch(() => {});
     }, 5000);
     return () => clearInterval(t);
   }, [name, agent?.state]);
@@ -57,7 +57,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   };
 
   if (!agent) return <p className="muted">Reading the agent…</p>;
-  const running = agent.state === "running";
+  const running = agent.state === AGENT_STATES.running;
   const answering = rec.sending || rec.chat.busy;
   const send = async () => {
     const text = draft.trim();
@@ -89,8 +89,8 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
             </span>
           </div>
           <div className="row gap">
-            {agent.state === "stopped" && <Button variant="primary" disabled={busy} onClick={() => act(() => PersistentAPI.Start(name))}>Start</Button>}
-            {agent.state === "starting" && <Button disabled>Starting…</Button>}
+            {agent.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy} onClick={() => act(() => PersistentAPI.Start(name))}>Start</Button>}
+            {agent.state === AGENT_STATES.starting && <Button disabled>Starting…</Button>}
             {running && <Button disabled={busy} onClick={() => act(() => PersistentAPI.Stop(name))}>Stop</Button>}
             <Button variant="ghost" onClick={() => setConfiguring(true)}>Configure</Button>
           </div>

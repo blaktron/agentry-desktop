@@ -6,6 +6,9 @@
 import type { app } from "../wailsjs/go/models";
 import { applyEvent, newChat, type Chat, type SessionEvent } from "./sessionChat.ts";
 
+/** The states an agent's view reads. */
+export const AGENT_STATES = { disabled: "disabled", stopped: "stopped", starting: "starting", running: "running", elsewhere: "elsewhere" } as const;
+
 /** An agent's chat: its conversation, and the tokens of its last turn. */
 export type AgentChat = Chat & { lastTurnTokens: number };
 
@@ -70,8 +73,8 @@ export type AgentNavEntry = { id: string; label: string; running: boolean };
 
 export function agentNavEntries(agents: Pick<app.PersistentAgentView, "name" | "displayName" | "state">[]): AgentNavEntry[] {
   return agents
-    .filter((a) => a.state !== "disabled")
-    .map((a) => ({ id: a.name, label: a.displayName, running: a.state === "running" || a.state === "starting" || a.state === "elsewhere" }));
+    .filter((a) => a.state !== AGENT_STATES.disabled)
+    .map((a) => ({ id: a.name, label: a.displayName, running: a.state === AGENT_STATES.running || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere }));
 }
 
 /** The words for an agent's state. */
@@ -92,8 +95,8 @@ export function agentStateWords(a: Pick<app.PersistentAgentView, "state" | "hold
 
 /** Settings → Persistent Agents' status line on its card. */
 export function persistentAgentsStatus(agents: Pick<app.PersistentAgentView, "state">[]): string {
-  const enabled = agents.filter((a) => a.state !== "disabled").length;
-  const running = agents.filter((a) => a.state === "running" || a.state === "elsewhere").length;
+  const enabled = agents.filter((a) => a.state !== AGENT_STATES.disabled).length;
+  const running = agents.filter((a) => a.state === AGENT_STATES.running || a.state === AGENT_STATES.elsewhere).length;
   if (enabled === 0) return "None enabled";
   return `${enabled} enabled, ${running} running`;
 }
@@ -134,4 +137,55 @@ export function rosterStateWords(e: Pick<app.PersistentRosterEntry, "state">): s
 /** Whether a roster change is waiting for the agent's next turn. */
 export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "status">): boolean {
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");
+}
+
+/** What the app says where a release runs only persistent: the runner's own
+ *  refusal, word for word. */
+export const PERSISTENT_ONLY_SENTENCE = "A persistent release runs only as a built-in in this version.";
+
+/** Whether a release's modes are persistent alone: no run of it is offered. */
+export function persistentOnly(modes?: string[]): boolean {
+  const m = modes ?? [];
+  return m.includes("persistent") && !m.includes("autonomous") && !m.includes("interactive");
+}
+
+// The kinds the transcript keeps, which a reload already draws.
+const KEPT = new Set(["user_turn", "assistant_turn", "tool_call", "error", "session_end", "input_added", "permission_denied", "notice"]);
+
+/** The most events held for an agent whose transcript is not read yet. */
+export const MAX_EARLY = 200;
+
+/** holdEarly is what an event that arrives before the agent's transcript is
+ *  read leaves held: an event the transcript keeps is dropped, since the
+ *  reload draws it, and what it does not keep (the streamed reply, its
+ *  usage) is held, at most MAX_EARLY, the newest kept. */
+export function holdEarly(held: SessionEvent[], ev: SessionEvent): SessionEvent[] {
+  if (KEPT.has(ev.kind)) return held;
+  const next = [...held, ev];
+  return next.length > MAX_EARLY ? next.slice(next.length - MAX_EARLY) : next;
+}
+
+/** Whether an event may change what the agent's view says: a turn
+ *  answered (a change waiting for it has been applied) or the runner's
+ *  notice. */
+export function refreshesView(ev: SessionEvent): boolean {
+  return ev.kind === "assistant_turn" || ev.kind === "notice" || ev.kind === "session_end";
+}
+
+/** The Configuration's server form. */
+export type ServerForm = { source: string; package: string; version: string; url: string; tools: string };
+
+const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+
+/** serverRowOf is the form as the Builder's server row: a package of npm or
+ *  PyPI at an exact version, or a remote server's address, which signs in
+ *  with nothing. */
+export function serverRowOf(f: ServerForm): { source: string; package?: string; version?: string; url?: string; auth?: string; tools: string[] } {
+  if (f.source === "url") return { source: "url", url: f.url.trim(), auth: "none", tools: list(f.tools) };
+  return { source: f.source, package: f.package.trim(), version: f.version.trim(), tools: list(f.tools) };
+}
+
+/** Whether the form names a server to add. */
+export function canAddServer(f: ServerForm): boolean {
+  return f.source === "url" ? f.url.trim() !== "" : f.package.trim() !== "" && f.version.trim() !== "";
 }

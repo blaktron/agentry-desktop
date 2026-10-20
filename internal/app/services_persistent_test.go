@@ -315,3 +315,112 @@ func TestQuittingStopsEveryPersistentAgent(t *testing.T) {
 		t.Fatalf("stopped %d times", rig.agent.stopped)
 	}
 }
+
+// A change that turns on what the person has not agreed to on this computer
+// asks in a native dialog naming it, and a No changes nothing.
+func TestAWideningChangeAsksAndANoChangesNothing(t *testing.T) {
+	rig := newPersistentRig(t)
+	rig.answer = false
+	if _, err := rig.p.Configure("assistant", PersistentChange{AddKnowledge: "team-wiki"}); !errors.Is(err, errNotConfirmed) {
+		t.Fatalf("a No: %v", err)
+	}
+	d := rig.dialogs()
+	if len(d) != 1 || !strings.Contains(d[0], "team-wiki") {
+		t.Fatalf("the dialog: %q", d)
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil || len(cfg.Knowledge) != 0 {
+		t.Fatalf("a No left %v (%v)", cfg.Knowledge, err)
+	}
+	rig.answer = true
+	v, err := rig.p.Configure("assistant", PersistentChange{AddKnowledge: "team-wiki"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Knowledge) != 1 || v.Knowledge[0] != "team-wiki" {
+		t.Fatalf("knowledge %v", v.Knowledge)
+	}
+	// Turning it off narrows: nothing to ask.
+	before := len(rig.dialogs())
+	if _, err := rig.p.Configure("assistant", PersistentChange{Switch: &PersistentSwitch{ID: persistent.KnowledgeEntryID("team-wiki"), On: false}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rig.dialogs()) != before {
+		t.Fatal("switching an entry off asked")
+	}
+}
+
+// A file added to the share is copied beside what is there, never over it,
+// and only a regular file is copied.
+func TestAFileAddedToTheShareIsNeverWrittenOverAFile(t *testing.T) {
+	share, src := t.TempDir(), t.TempDir()
+	f := filepath.Join(src, "notes.md")
+	if err := os.WriteFile(f, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(share, "notes.md"), []byte("the agent's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	name, err := copyInto(share, f)
+	if err != nil || name != "notes (1).md" {
+		t.Fatalf("copied as %q, %v", name, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(share, "notes.md")); string(b) != "the agent's" {
+		t.Fatalf("the file there was written over: %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(share, name)); string(b) != "new" {
+		t.Fatalf("the copy holds %q", b)
+	}
+	if _, err := copyInto(share, src); err == nil {
+		t.Fatal("a folder was copied")
+	}
+	// A link the agent left at the name is not followed: the copy takes
+	// the next name.
+	if err := os.Symlink(filepath.Join(src, "elsewhere"), filepath.Join(share, "report.md")); err != nil {
+		t.Fatal(err)
+	}
+	g := filepath.Join(src, "report.md")
+	if err := os.WriteFile(g, []byte("r"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if name, err := copyInto(share, g); err != nil || name != "report (1).md" {
+		t.Fatalf("beside a link: %q, %v", name, err)
+	}
+	if _, err := os.Stat(filepath.Join(src, "elsewhere")); !os.IsNotExist(err) {
+		t.Fatal("the copy followed the link it found")
+	}
+}
+
+// A quit while an agent starts cancels the start and waits for it, so the
+// start leaves nothing running.
+func TestAQuitDuringAStartCancelsIt(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	rig.p.start = func(ctx context.Context, _ persistent.Options) (agentSupervisor, error) {
+		close(entered)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := rig.p.Start("assistant")
+		errc <- err
+	}()
+	<-entered
+	done := make(chan struct{})
+	go func() {
+		rig.p.stopAll()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the quit did not end the start")
+	}
+	if err := <-errc; !errors.Is(err, context.Canceled) {
+		t.Fatalf("the start ended with %v", err)
+	}
+}

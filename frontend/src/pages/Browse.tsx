@@ -6,7 +6,7 @@ import {
   QuarantineBadge, Select, Spinner, Toolbar,
 } from "../ui";
 
-const MODES = ["", "autonomous", "interactive"];
+const MODES = ["", "autonomous", "interactive", "persistent"];
 const CAPABILITIES = ["", "network", "filesystem", "exec", "secrets", "dataAccess"];
 const SORTS = ["relevance", "installs", "newest", "updated"];
 

@@ -10,7 +10,7 @@ import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app, build } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, updateAgent, useAgents } from "../agents";
-import { agentStateWords } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, canAddServer, serverRowOf, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 
@@ -48,8 +48,8 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       </p>
       <ErrorBox error={error} />
       {agents.map((a) => {
-        const enabled = a.state !== "disabled";
-        const running = a.state === "running";
+        const enabled = a.state !== AGENT_STATES.disabled;
+        const running = a.state === AGENT_STATES.running;
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="row between">
@@ -65,23 +65,23 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                   role="switch"
                   data-persistent-enable={a.name}
                   checked={enabled}
-                  disabled={busy !== null || running || a.state === "elsewhere"}
+                  disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere}
                   onChange={(e) => void act(a.name, () => PersistentAPI.SetEnabled(a.name, e.target.checked))}
                 />
                 Enabled
               </label>
             </div>
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
-            {a.state === "elsewhere" && (
+            {a.state === AGENT_STATES.elsewhere && (
               <Notice>It is running in {a.holder || "another client"}. Stop it there to start it here.</Notice>
             )}
             <div className="row gap">
-              {a.state === "stopped" && <Button variant="primary" disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Start(a.name))}>Start</Button>}
-              {a.state === "starting" && <Button disabled>Starting…</Button>}
+              {a.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Start(a.name))}>Start</Button>}
+              {a.state === AGENT_STATES.starting && <Button disabled>Starting…</Button>}
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>
-              <Button variant="ghost" disabled={busy !== null || running || a.state === "elsewhere"} onClick={() => setResetting(a)}>Reset</Button>
+              <Button variant="ghost" disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere} onClick={() => setResetting(a)}>Reset</Button>
             </div>
           </Card>
         );
@@ -123,7 +123,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [displayName, setDisplayName] = useState("");
   const [personality, setPersonality] = useState("");
   const [packs, setPacks] = useState<string[] | null>(null);
-  const [server, setServer] = useState<{ source: string; package: string; version: string; url: string; tools: string }>({ source: "npm", package: "", version: "", url: "", tools: "" });
+  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", url: "", tools: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -150,7 +150,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
     setSaved(null);
     try {
       updateAgent(await PersistentAPI.Configure(name, c as app.PersistentChange));
-      setSaved(agent.state === "running" ? `${what} saved. The agent takes it at its next turn.` : `${what} saved.`);
+      setSaved(agent.state === AGENT_STATES.running ? `${what} saved. The agent takes it at its next turn.` : `${what} saved.`);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -171,12 +171,8 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
     }
   };
   const personalityBytes = new TextEncoder().encode(personality).length;
-  const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   const addServer = () => {
-    const row = server.source === "url"
-      ? { source: "url", url: server.url.trim(), auth: "none", tools: list(server.tools) }
-      : { source: server.source, package: server.package.trim(), version: server.version.trim(), tools: list(server.tools) };
-    void call(() => PersistentAPI.AddServer(name, row as unknown as build.MCPServerRow), "The server").then(() =>
+    void call(() => PersistentAPI.AddServer(name, serverRowOf(server) as build.MCPServerRow), "The server").then(() =>
       setServer({ source: server.source, package: "", version: "", url: "", tools: "" }));
   };
 
@@ -253,7 +249,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
           </>
         )}
         <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>
-        <Button disabled={busy || (server.source === "url" ? !server.url.trim() : !server.package.trim() || !server.version.trim())} onClick={addServer}>Add server</Button>
+        <Button disabled={busy || !canAddServer(server)} onClick={addServer}>Add server</Button>
       </div>
 
       <h3>What it has</h3>

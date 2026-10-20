@@ -1264,6 +1264,7 @@ import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
 import Publisher from "../src/pages/Publisher";
+import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
@@ -1438,6 +1439,9 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
+    {/* The Assistant's page: its chat from the transcript, its usage, its
+        roster. A fixed height, since its panes fill what they are given. */}
+    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
         shot can tell when it was not. Outside every

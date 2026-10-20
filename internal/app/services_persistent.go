@@ -39,10 +39,19 @@ import (
 )
 
 const (
-	// eventAgentEvent carries an PersistentEventView; eventAgentState names an
+	// eventAgentEvent carries a PersistentEventView; eventAgentState names an
 	// agent that started or stopped.
 	eventAgentEvent = "runner:agent-event"
 	eventAgentState = "runner:agent-state"
+)
+
+// The states an agent's view reads, besides persistent.StateRunning.
+const (
+	agentDisabled = "disabled"
+	agentStopped  = "stopped"
+	agentStarting = "starting"
+	// agentElsewhere: running under another client (the CLI's supervisor).
+	agentElsewhere = "elsewhere"
 )
 
 // shownAgents are the persistent agents the app offers, in their order.
@@ -61,7 +70,9 @@ type PersistentAPI struct {
 
 	mu       sync.Mutex
 	sups     map[string]agentSupervisor
-	starting map[string]bool
+	starting map[string]context.CancelFunc
+	// starts are the Starts under way, which a quit cancels and waits for.
+	starts sync.WaitGroup
 	// followers are the goroutines that carry each agent's events.
 	followers sync.WaitGroup
 
@@ -237,7 +248,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	roster := persistent.BuildRoster(a, cfg, nil)
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
-	starting := p.starting[a.Name]
+	starting := p.starting[a.Name] != nil
 	p.mu.Unlock()
 	switch {
 	case ours:
@@ -246,17 +257,17 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		st := sv.Status()
 		v.Status = statusView(st)
 	case starting:
-		v.State = "starting"
+		v.State = agentStarting
 	default:
 		if held, holder := persistent.Held(home, a.Name); held {
-			v.State = "elsewhere"
+			v.State = agentElsewhere
 			if holder != nil {
 				v.Holder = holder.Where()
 			}
 		} else if cfg.Enabled {
-			v.State = "stopped"
+			v.State = agentStopped
 		} else {
-			v.State = "disabled"
+			v.State = agentDisabled
 		}
 	}
 	v.Roster = rosterView(roster)
@@ -331,16 +342,22 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A quit cancels a start under way, which tears down what it made, and
+	// waits for it, so no segment's containers outlive the app.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	p.mu.Lock()
-	if _, ok := p.sups[a.Name]; ok || p.starting[a.Name] {
+	if _, ok := p.sups[a.Name]; ok || p.starting[a.Name] != nil {
 		p.mu.Unlock()
 		return p.Get(name)
 	}
 	if p.starting == nil {
-		p.starting = map[string]bool{}
+		p.starting = map[string]context.CancelFunc{}
 	}
-	p.starting[a.Name] = true
+	p.starting[a.Name] = cancel
+	p.starts.Add(1)
 	p.mu.Unlock()
+	defer p.starts.Done()
 	emitEvent(p.app, eventAgentState, a.Name)
 	defer func() {
 		p.mu.Lock()
@@ -367,7 +384,7 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
-	sv, err := p.startSupervisor(context.Background(), opts)
+	sv, err := p.startSupervisor(ctx, opts)
 	var consent *persistent.ConsentError
 	if errors.As(err, &consent) {
 		return nil, fmt.Errorf("the %s's roster changed while it started: start it again", a.Title)
@@ -576,7 +593,9 @@ func (p *PersistentAPI) ChooseShare(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir, err := p.app.chooseDirectory("The " + a.Title + "'s share folder")
+	// Unmarked: a folder the agent writes into is not one a path binding
+	// may then take files from without the picker.
+	dir, err := p.app.pickDirectoryUnmarked("The " + a.Title + "'s share folder")
 	if err != nil {
 		return nil, err
 	}
@@ -650,6 +669,12 @@ func (p *PersistentAPI) Transcript(name string) ([]SessionEventView, error) {
 // stopAll stops every agent this app runs, each bounded, as the app quits:
 // each segment ends without a final result and its volumes stay.
 func (p *PersistentAPI) stopAll() {
+	p.mu.Lock()
+	for _, cancel := range p.starting {
+		cancel()
+	}
+	p.mu.Unlock()
+	p.starts.Wait()
 	p.mu.Lock()
 	sups := make([]agentSupervisor, 0, len(p.sups))
 	for _, sv := range p.sups {
@@ -742,6 +767,9 @@ func (p *PersistentAPI) AddFiles(name string) ([]string, error) {
 	return out, nil
 }
 
+// maxNameTries bounds the numbered names copyInto tries for a file.
+const maxNameTries = 1000
+
 // copyInto copies a regular file into dir under its own name, or with a
 // number where that is taken, and never over a file; it answers the name.
 func copyInto(dir, src string) (string, error) {
@@ -760,7 +788,7 @@ func copyInto(dir, src string) (string, error) {
 	base := filepath.Base(src)
 	ext := filepath.Ext(base)
 	stem := strings.TrimSuffix(base, ext)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < maxNameTries; i++ {
 		name := base
 		if i > 0 {
 			name = fmt.Sprintf("%s (%d)%s", stem, i, ext)

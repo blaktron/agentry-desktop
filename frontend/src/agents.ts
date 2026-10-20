@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import type { app } from "../wailsjs/go/models";
-import { applyAgentEvent, chatFromTranscript, newAgentChat, type AgentChat } from "./persistentAgents";
+import { applyAgentEvent, chatFromTranscript, holdEarly, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
 
 export type AgentRecord = {
@@ -35,7 +35,8 @@ const put = (name: string, r: AgentRecord) => {
 };
 
 // Events that arrive before the transcript is read are held, then applied
-// after it, so the reload never draws a live turn above the history.
+// after it, so the reload never draws a live turn above the history; one the
+// transcript keeps is not held, since the reload draws it (holdEarly).
 const early = new Map<string, SessionEvent[]>();
 
 let wired = false;
@@ -44,8 +45,9 @@ function wire() {
   wired = true;
   EventsOn("runner:agent-event", (p: { agent: string; event: SessionEvent }) => {
     const r = record(p.agent);
+    if (refreshesView(p.event)) void refreshAgents();
     if (!r.loaded) {
-      early.set(p.agent, [...(early.get(p.agent) ?? []), p.event]);
+      early.set(p.agent, holdEarly(early.get(p.agent) ?? [], p.event));
       return;
     }
     put(p.agent, { ...r, chat: applyAgentEvent(r.chat, p.event, Date.now()) });

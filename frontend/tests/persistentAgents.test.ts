@@ -5,7 +5,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { app } from "../wailsjs/go/models";
 import {
+  MAX_EARLY,
+  PERSISTENT_ONLY_SENTENCE,
   agentNavEntries,
+  canAddServer,
+  holdEarly,
+  persistentOnly,
+  refreshesView,
+  serverRowOf,
   agentStateWords,
   applyAgentEvent,
   chatFromTranscript,
@@ -91,4 +98,38 @@ test("the roster's panel groups its entries by kind, in the roster's order, and 
   assert.equal(rosterStateWords({ state: "needs-sign-in" }), "Needs a sign-in");
   assert.equal(pendingChange(agent({ roster: [e("knowledge:wiki", "knowledge", "pending")] })), true);
   assert.equal(pendingChange(agent({ roster: [e("share", "files")] })), false);
+});
+
+test("an event before the transcript is read is held only if the reload would not draw it", () => {
+  let held = holdEarly([], { kind: "user_turn", time: t, text: "in the transcript" });
+  assert.deepEqual(held, []);
+  held = holdEarly(held, { kind: "assistant_turn", time: t, text: "in the transcript too" });
+  held = holdEarly(held, { kind: "notice", time: t, text: "kept" });
+  assert.deepEqual(held, []);
+  held = holdEarly(held, { kind: "assistant_text", time: t, text: "streamed" });
+  held = holdEarly(held, { kind: "usage", time: t, totalTokens: 10 });
+  assert.deepEqual(held.map((e) => e.kind), ["assistant_text", "usage"]);
+  for (let i = 0; i < MAX_EARLY + 5; i++) held = holdEarly(held, { kind: "assistant_text", time: t, text: String(i) });
+  assert.equal(held.length, MAX_EARLY);
+  assert.equal(held[held.length - 1].text, String(MAX_EARLY + 4), "the newest are kept");
+  assert.equal(refreshesView({ kind: "assistant_turn", time: t }), true);
+  assert.equal(refreshesView({ kind: "assistant_text", time: t }), false);
+});
+
+test("the Configuration's server form is the Builder's row: a pinned package, or a remote address with no sign-in", () => {
+  const pkg = { source: "npm", package: " @acme/notes ", version: " 1.2.3 ", url: "", tools: "read, write ,," };
+  assert.deepEqual(serverRowOf(pkg), { source: "npm", package: "@acme/notes", version: "1.2.3", tools: ["read", "write"] });
+  assert.equal(canAddServer(pkg), true);
+  assert.equal(canAddServer({ ...pkg, version: " " }), false, "a package needs its exact version");
+  const remote = { source: "url", package: "", version: "", url: " https://mcp.example.com/mcp ", tools: "" };
+  assert.deepEqual(serverRowOf(remote), { source: "url", url: "https://mcp.example.com/mcp", auth: "none", tools: [] });
+  assert.equal(canAddServer({ ...remote, url: "" }), false);
+});
+
+test("a release that runs only persistent offers no run, in the runner's own words", () => {
+  assert.equal(persistentOnly(["persistent"]), true);
+  assert.equal(persistentOnly(["persistent", "interactive"]), false);
+  assert.equal(persistentOnly(["autonomous"]), false);
+  assert.equal(persistentOnly(undefined), false);
+  assert.equal(PERSISTENT_ONLY_SENTENCE, "A persistent release runs only as a built-in in this version.");
 });
