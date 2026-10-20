@@ -1503,6 +1503,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .nav-item.nav-agent { display: flex; align-items: center; gap: 8px; padding-left: 22px; }
 .nav-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .persistent-agent-card { margin-bottom: 12px; }
+.persistent-agent-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .persistent-server-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: start; margin: 8px 0; }
 .persistent-server-form > button { grid-column: 1 / -1; justify-self: start; }
 @media (max-width: 900px) {

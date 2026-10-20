@@ -52,7 +52,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         const running = a.state === AGENT_STATES.running;
         return (
           <Card key={a.name} className="persistent-agent-card">
-            <div className="row between">
+            <div className="persistent-agent-head">
               <div>
                 <h3 style={{ margin: 0 }}>{a.displayName}{a.displayName !== a.title && <span className="small muted"> · {a.title}</span>}</h3>
                 <span className="small muted">
@@ -88,7 +88,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       })}
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
       {resetting && (
-        <Modal title={`Reset the ${resetting.displayName}?`} onClose={() => setResetting(null)}>
+        <Modal title={`Reset ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}?`} onClose={() => setResetting(null)}>
           <p>
             This wipes its conversation and its own files. Its share folder and the receipts of what it did are kept, and its
             next start begins a new conversation.

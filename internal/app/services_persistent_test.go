@@ -225,7 +225,7 @@ func TestResettingAPersistentAgentAsksFirst(t *testing.T) {
 		t.Fatalf("a No: %v", err)
 	}
 	d := rig.dialogs()
-	if len(d) != 1 || !strings.Contains(d[0], "Reset the Sandra?") || !strings.Contains(d[0], "share folder and the receipts") {
+	if len(d) != 1 || !strings.Contains(d[0], "Reset Sandra?") || !strings.Contains(d[0], "share folder and the receipts") {
 		t.Fatalf("the dialog: %q", d)
 	}
 	rig.answer = true
@@ -429,5 +429,74 @@ func TestAQuitDuringAStartCancelsIt(t *testing.T) {
 	}
 	if err := <-errc; !errors.Is(err, context.Canceled) {
 		t.Fatalf("the start ended with %v", err)
+	}
+}
+
+// The context a supervisor starts under is the agent's for its whole life:
+// a start that succeeds does not cancel it.
+func TestAStartedAgentsContextOutlivesItsStart(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	var started context.Context
+	rig.p.start = func(ctx context.Context, _ persistent.Options) (agentSupervisor, error) {
+		started = ctx
+		return rig.agent, nil
+	}
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	if err := started.Err(); err != nil {
+		t.Fatalf("the running agent's context ended with its start: %v", err)
+	}
+	if d := rig.dialogs(); len(d) != 1 || !strings.HasPrefix(d[0], "Start the Assistant?") {
+		t.Fatalf("the dialog: %q", d)
+	}
+}
+
+// An agent that stops without being asked says so in its chat; one the
+// person stops does not.
+func TestAnAgentThatStopsByItselfSaysSo(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	// The segment ends by itself.
+	_, _ = rig.agent.Stop(context.Background())
+	deadline := time.Now().Add(5 * time.Second)
+	var notice string
+	for notice == "" && time.Now().Before(deadline) {
+		rig.mu.Lock()
+		for _, e := range rig.emitted {
+			if ev, ok := e.(PersistentEventView); ok && ev.Event.Kind == "notice" {
+				notice = ev.Event.Text
+			}
+		}
+		rig.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.HasPrefix(notice, "The agent stopped by itself") {
+		t.Fatalf("the notice: %q", notice)
+	}
+	rig.p.followers.Wait()
+	rig.mu.Lock()
+	rig.emitted = nil
+	rig.mu.Unlock()
+	rig.agent = newFakeAgent()
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Stop("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	rig.p.followers.Wait()
+	rig.mu.Lock()
+	defer rig.mu.Unlock()
+	if len(rig.emitted) != 0 {
+		t.Fatalf("a stop the person asked for was told as its own: %v", rig.emitted)
 	}
 }

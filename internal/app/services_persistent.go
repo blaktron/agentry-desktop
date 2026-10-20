@@ -75,6 +75,9 @@ type PersistentAPI struct {
 	starts sync.WaitGroup
 	// followers are the goroutines that carry each agent's events.
 	followers sync.WaitGroup
+	// stopping names the agents a Stop or a quit is ending, so their end
+	// is not told as one they came to by themselves.
+	stopping map[string]bool
 
 	// start starts a supervisor; nil is persistent.Start. A test puts its
 	// own here.
@@ -343,9 +346,17 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		return nil, err
 	}
 	// A quit cancels a start under way, which tears down what it made, and
-	// waits for it, so no segment's containers outlive the app.
+	// waits for it, so no segment's containers outlive the app. The context
+	// is the supervisor's for the agent's whole life once it starts, so it
+	// is cancelled only when the start does not succeed; a running agent is
+	// ended by Stop.
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	started := false
+	defer func() {
+		if !started {
+			cancel()
+		}
+	}()
 	p.mu.Lock()
 	if _, ok := p.sups[a.Name]; ok || p.starting[a.Name] != nil {
 		p.mu.Unlock()
@@ -373,7 +384,7 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
 	}
 	if pending := persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg); len(pending) > 0 {
-		if err := p.app.askConsent("Start the "+a.DisplayName(cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
+		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
 			return nil, err
 		}
 		if err := persistent.AgreeToRoster(home, a, persistent.ClientDesktop); err != nil {
@@ -392,8 +403,18 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
+	started = true
 	p.follow(a.Name, sv)
 	return p.Get(name)
+}
+
+// called is the agent in a sentence: the name the person gave it, or "the
+// Assistant" while it has none.
+func called(a persistent.Agent, c persistent.Config) string {
+	if c.DisplayName != "" {
+		return c.DisplayName
+	}
+	return "the " + a.Title
 }
 
 // consentText is the native dialog's message for entries to agree to: the
@@ -484,7 +505,27 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor) {
 		if p.sups[name] == sv {
 			delete(p.sups, name)
 		}
+		asked := p.stopping[name]
+		delete(p.stopping, name)
 		p.mu.Unlock()
+		// An agent that stopped without being asked says so in its chat,
+		// with why, from its segment's end.
+		if !asked {
+			ctx, cancel := context.WithTimeout(context.Background(), stopWait)
+			env, err := sv.Stop(ctx)
+			cancel()
+			why := "its segment ended"
+			switch {
+			case err != nil:
+				why = err.Error()
+			case env != nil && env.Status != "":
+				why = "its segment ended (" + string(env.Status) + ")"
+			}
+			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: SessionEventView{
+				Kind: string(session.KindNotice), Time: time.Now().UTC().Format(time.RFC3339Nano),
+				Text: "The agent stopped by itself: " + why + ". Start it again to go on; the conversation continues.",
+			}})
+		}
 		emitEvent(p.app, eventAgentState, name)
 	}()
 }
@@ -509,6 +550,7 @@ func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 	if !ok {
 		return p.Get(name)
 	}
+	p.markStopping(a.Name)
 	_, err = sv.Stop(context.Background())
 	p.mu.Lock()
 	if p.sups[a.Name] == sv {
@@ -520,6 +562,16 @@ func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 		return nil, err
 	}
 	return p.Get(name)
+}
+
+// markStopping says a Stop is ending the agent.
+func (p *PersistentAPI) markStopping(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopping == nil {
+		p.stopping = map[string]bool{}
+	}
+	p.stopping[name] = true
 }
 
 // Send sends the person's message as the agent's next turn and returns
@@ -577,7 +629,7 @@ func (p *PersistentAPI) configure(a persistent.Agent, c persistent.Change) error
 		return err
 	}
 	cfg, _ := persistent.LoadConfig(home, a.Name)
-	if err := p.app.askConsent("Give the "+a.DisplayName(cfg)+" this?", consentText(a.DisplayName(cfg), consent.Entries)); err != nil {
+	if err := p.app.askConsent("Give "+called(a, cfg)+" this?", consentText(a.DisplayName(cfg), consent.Entries)); err != nil {
 		return err
 	}
 	c.Consent = true
@@ -631,8 +683,8 @@ func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 		return nil, fmt.Errorf("the %s is running: stop it first", a.Title)
 	}
 	cfg, _ := persistent.LoadConfig(home, a.Name)
-	who := a.DisplayName(cfg)
-	if err := p.app.askConsent("Reset the "+who+"?", "This wipes the "+who+"'s conversation and its own files (its two volumes). Its share folder and the receipts of its segments are kept. Its next start begins a new conversation."); err != nil {
+	who := called(a, cfg)
+	if err := p.app.askConsent("Reset "+who+"?", "This wipes "+who+"'s conversation and its own files (its two volumes). Its share folder and the receipts of its segments are kept. Its next start begins a new conversation."); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -677,8 +729,12 @@ func (p *PersistentAPI) stopAll() {
 	p.starts.Wait()
 	p.mu.Lock()
 	sups := make([]agentSupervisor, 0, len(p.sups))
-	for _, sv := range p.sups {
+	for name, sv := range p.sups {
 		sups = append(sups, sv)
+		if p.stopping == nil {
+			p.stopping = map[string]bool{}
+		}
+		p.stopping[name] = true
 	}
 	p.mu.Unlock()
 	var wg sync.WaitGroup
@@ -749,7 +805,7 @@ func (p *PersistentAPI) AddFiles(name string) ([]string, error) {
 	if err := persistent.CheckShareFolder(home, share); err != nil {
 		return nil, err
 	}
-	files, err := p.app.ChooseFiles("Add files to the " + a.DisplayName(cfg) + "'s share folder")
+	files, err := p.app.ChooseFiles("Add files to " + called(a, cfg) + "'s share folder")
 	if err != nil || len(files) == 0 {
 		return nil, err
 	}

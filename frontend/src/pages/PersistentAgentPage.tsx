@@ -157,7 +157,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
           }, now).map((r) => (
             <div key={r.label} className="agent-usage-row"><dt>{r.label}</dt><dd>{r.value}</dd></div>
           ))}
-          <div className="agent-usage-row"><dt>Volumes</dt><dd className="mono small">{agent.volumes.session}<br />{agent.volumes.data}</dd></div>
+          <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
         </dl>
       </aside>
       <aside className="agent-roster" aria-label="Tools and servers">
