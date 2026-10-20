@@ -91,15 +91,18 @@ func TestABuildFetchesItsSourcesWithTheSavedKey(t *testing.T) {
 	var log strings.Builder
 	res, err := e.Create(ctx, BuildRequest{
 		Registry: reg.URL, Name: "uuid",
-		Sources: Sources{Repos: []string{"https://github.com/google/uuid@v1.6.0"}, URLs: []string{"https://arxiv.org/pdf/1706.03762"}},
+		Sources: Sources{Repos: []string{"https://github.com/google/uuid@v1.6.0"}, URLs: []string{"https://arxiv.org/pdf/1706.03762", "https://github.com/google/uuid/raw/v1.6.0/README.md"}},
 		Build:   fakeCreator(t, &seen, nil), Log: &log,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(seen.Sources) != 2 || seen.Sources[0].ID != "repo-github.com-google-uuid" || seen.Sources[0].Ref != "v1.6.0" ||
+	// The key saved for a host is used for that host alone: the repository
+	// and a file on github.com take it, the file on arxiv.org does not.
+	if len(seen.Sources) != 3 || seen.Sources[0].ID != "repo-github.com-google-uuid" || seen.Sources[0].Ref != "v1.6.0" ||
 		seen.Sources[0].Token != "not-a-real-token" || seen.Sources[0].TokenFrom != sources.TokenFromKeychain ||
-		seen.Sources[1].Host != "arxiv.org" || seen.Sources[1].Token != "" {
+		seen.Sources[1].Host != "arxiv.org" || seen.Sources[1].Token != "" ||
+		seen.Sources[2].Host != "github.com" || seen.Sources[2].Token != "not-a-real-token" {
 		t.Fatalf("the Creator was handed sources %+v", seen.Sources)
 	}
 	if strings.Contains(log.String(), NoDocumentsWarning) {
@@ -135,5 +138,37 @@ func TestABuildRefusesASourceBeforeItRuns(t *testing.T) {
 	}
 	if ran {
 		t.Fatal("the Creator ran on a refused build")
+	}
+}
+
+// A refusal names the address with no name, password or query, since any
+// of them can carry a token; the hosted list reads no key.
+func TestARefusalNamesTheAddressRedacted(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://me:pw@github.com/o/r":        "https://github.com/o/r",
+		"https://example.com/a.pdf?token=abc": "https://example.com/a.pdf?…",
+		"https://example.com/a.pdf":           "https://example.com/a.pdf",
+		"ftp://me:pw@example.com/a":           "ftp://example.com/a",
+		"not a url with a secret?token=abc":   "not a url with a secret…",
+	} {
+		if got := Redacted(in); got != want {
+			t.Errorf("Redacted(%q) = %q, want %q", in, got, want)
+		}
+	}
+	first := CheckSourceList(Sources{URLs: []string{"http://example.com/a.pdf?token=not-a-real-token"}}).First()
+	if first == "" || strings.Contains(first, "not-a-real-token") {
+		t.Fatalf("first problem: %q", first)
+	}
+	keyring.MockInit()
+	t.Setenv("AGENTRY_NO_KEYRING", "")
+	if err := keyring.Set(modelkey.Service, sources.KeyAccount("github.com"), "not-a-real-token"); err != nil {
+		t.Fatal(err)
+	}
+	if c := checkSourceList(Sources{Repos: []string{"https://github.com/o/r"}}, false); c.Lines[0].Saved {
+		t.Fatal("the hosted check looked up a key it never sends")
+	}
+	got, err := CheckHostedSources(Sources{Repos: []string{" https://github.com/o/r ", ""}})
+	if err != nil || len(got.Repos) != 1 || got.Repos[0] != "https://github.com/o/r" {
+		t.Fatalf("hosted sources: %+v, %v", got, err)
 	}
 }

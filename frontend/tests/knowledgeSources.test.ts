@@ -108,8 +108,10 @@ test("repositories and addresses are one a line, and Go's check is said line by 
 
 test("a private repository's key is the one saved for its host, in each place", () => {
   const saved = [{ address: "https://github.com/o/r", kind: "repository", host: "github.com", saved: true }];
-  assert.equal(sourceKeyLine(saved, false), "On this computer a build uses the key you saved for github.com in a run setup.");
-  assert.match(sourceKeyLine([], true), /On this computer a repository that needs an access token uses the key you saved for its host in a run setup\. In Agentry it uses the key saved in Agentry/);
+  assert.equal(sourceKeyLine(saved, false), "On this computer a build uses the key you saved for github.com in a run setup, for that host alone.");
+  // A file on a host with a saved key takes it too.
+  assert.match(sourceKeyLine([{ address: "https://gitlab.com/o/r/-/raw/main/a.md", kind: "url", host: "gitlab.com", saved: true }], false), /saved for gitlab\.com/);
+  assert.match(sourceKeyLine([], true), /On this computer a repository or a file that needs an access token uses the key you saved for its host in a run setup\. In Agentry it uses the key saved in Agentry/);
   assert.equal(addressesRecap(["https://github.com/o/r"], "repository"), "https://github.com/o/r");
   assert.equal(addressesRecap(["a", "b"], "repository"), "2 repositories");
   assert.equal(addressesRecap(["a", "b", "c"], "address"), "3 web addresses");

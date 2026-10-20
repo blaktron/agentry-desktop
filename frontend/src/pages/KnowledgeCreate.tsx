@@ -496,7 +496,7 @@ export default function KnowledgeCreate({
                   lines={(sourceCheck?.lines ?? []).filter((l) => l.kind === "url")}
                 />
                 {sourceCheck?.problem && <p className="step-problem" role="alert">{sourceListProblem(sourceCheck)}</p>}
-                {repos.length > 0 && <p className="muted small">{sourceKeyLine(sourceCheck?.lines ?? [], !!avail?.takesSources)}</p>}
+                {nSources > 0 && <p className="muted small">{sourceKeyLine(sourceCheck?.lines ?? [], !!avail?.takesSources)}</p>}
                 <Field
                   label={<>A brief <span className="muted">(optional with documents or sources)</span></>}
                   htmlFor="knowledge-brief"

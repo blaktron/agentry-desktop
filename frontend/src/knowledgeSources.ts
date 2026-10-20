@@ -1,6 +1,7 @@
 // What a knowledge build is made from: documents, git repositories and
-// files at web addresses, a brief, or a mix, and the Search the web choice — the Documents step's check before Next, the
-// warning, the choice's default and the sentences beside it. Pure,
+// files at web addresses, a brief, or a mix, and the Search the web
+// choice — the Documents step's check before Next, the warning, the
+// choice's default and the sentences beside it. Pure,
 // so the rules are tested apart from the page; Go checks the brief and the
 // documents again (build.CheckBrief), and the registry once more.
 
@@ -23,7 +24,8 @@ export function sourcesProblem(documents: number, brief: string, maxBriefBytes =
   return null;
 }
 
-/** The addresses one a line in a field, trimmed, blank lines dropped. */
+/** The addresses in a field that holds one a line: each trimmed, blank
+ *  lines dropped. */
 export function addressLines(text: string): string[] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
 }
@@ -46,13 +48,14 @@ export function sourceListProblem(check: { problem?: string; lines?: SourceLine[
   return bad ? `${bad.address}: ${bad.problem}.` : null;
 }
 
-/** What a repository that needs an access token uses for it, in each place, beside the
- *  repositories field. */
+/** What a repository or a file that needs an access token uses for it, in
+ *  each place, beside the fields: the key saved for its host, which goes to
+ *  that host alone. */
 export function sourceKeyLine(lines: SourceLine[], agentry: boolean): string {
-  const saved = [...new Set(lines.filter((l) => l.kind === "repository" && l.saved && l.host).map((l) => l.host!))];
+  const saved = [...new Set(lines.filter((l) => l.saved && l.host).map((l) => l.host!))];
   const here = saved.length > 0
-    ? `On this computer a build uses the key you saved for ${saved.join(", ")} in a run setup.`
-    : "On this computer a repository that needs an access token uses the key you saved for its host in a run setup.";
+    ? `On this computer a build uses the key you saved for ${saved.join(", ")} in a run setup, for that host alone.`
+    : "On this computer a repository or a file that needs an access token uses the key you saved for its host in a run setup.";
   return agentry ? `${here} In Agentry it uses the key saved in Agentry for that host, under Settings → Encrypted storage on the site.` : here;
 }
 

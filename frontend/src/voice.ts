@@ -372,8 +372,8 @@ export function hostedCostLine(a: {
   return `${cost} This account has ${a.balance.toLocaleString("en-GB")} credits, fewer than the Voice Writer costs, so the registry will refuse it.`;
 }
 
-/** The addresses one a line in the dialog's field, trimmed, blank lines
- *  dropped. */
+/** The addresses in the dialog's field, which holds one a line: each
+ *  trimmed, blank lines dropped. */
 export function voiceAddressLines(text: string): string[] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
 }

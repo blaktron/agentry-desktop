@@ -302,17 +302,9 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 	if err := knowledge.CheckSources(documents, srcs, brief); err != nil {
 		return nil, err
 	}
-	check := knowledge.CheckSourceList(srcs)
-	if p := check.First(); p != "" {
-		return nil, fmt.Errorf("the build's sources: %s", p)
-	}
-	srcs = knowledge.Sources{}
-	for _, l := range check.Lines {
-		if l.Kind == "repository" {
-			srcs.Repos = append(srcs.Repos, l.Address)
-		} else {
-			srcs.URLs = append(srcs.URLs, l.Address)
-		}
+	srcs, err := knowledge.CheckHostedSources(srcs)
+	if err != nil {
+		return nil, err
 	}
 	// The slot is claimed before anything is uploaded, so a second Start
 	// (a double click) is refused here rather than after its upload.

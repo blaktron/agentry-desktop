@@ -12,6 +12,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/voice/build"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
+
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 )
 
 // Web addresses of the person's writing: a blog post, a newsletter issue,
@@ -44,21 +46,10 @@ type AddressCheck struct {
 const NoReviewKey = "AI Review reads every page from a web address before the Voice Writer does, and that takes your own TypeSafe key: " +
 	"add one under Settings → Provider settings → AI Review key, or give the samples as files"
 
-// trimmedURLs drops blank lines and trims the rest.
-func trimmedURLs(urls []string) []string {
-	var out []string
-	for _, a := range urls {
-		if a = strings.TrimSpace(a); a != "" {
-			out = append(out, a)
-		}
-	}
-	return out
-}
-
 // CheckAddresses reads the addresses as the Voice Writer's build would,
 // with the CLI's own parse, so the step refuses what the build would.
 func CheckAddresses(urls []string) *AddressCheck {
-	urls = trimmedURLs(urls)
+	urls = knowledge.TrimmedLines(urls)
 	out := &AddressCheck{Max: build.MaxURLs}
 	if len(urls) > build.MaxURLs {
 		out.Problem = fmt.Sprintf("a voice takes at most %d web addresses", build.MaxURLs)
@@ -75,14 +66,15 @@ func CheckAddresses(urls []string) *AddressCheck {
 	return out
 }
 
-// First is the first thing wrong with the list, as a sentence, or "".
+// First is the first thing wrong with the list, as a sentence naming the
+// address redacted, or "".
 func (c *AddressCheck) First() string {
 	if c.Problem != "" {
 		return c.Problem
 	}
 	for _, l := range c.Lines {
 		if l.Problem != "" {
-			return fmt.Sprintf("%s: %s", l.Address, l.Problem)
+			return fmt.Sprintf("%s: %s", knowledge.Redacted(l.Address), l.Problem)
 		}
 	}
 	return ""
@@ -96,7 +88,7 @@ var jevKey = drafter.JevKey
 // web_read configuration that reads them, with the person's own TypeSafe
 // key: nil for a build of files alone, and a refusal without the key.
 func pageReview(pol *policy.Policy, urls []string) ([]*sources.Source, webscan.Scanner, *engine.WebRun, error) {
-	urls = trimmedURLs(urls)
+	urls = knowledge.TrimmedLines(urls)
 	if len(urls) == 0 {
 		return nil, nil, nil, nil
 	}

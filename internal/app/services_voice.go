@@ -32,6 +32,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/voice"
 )
@@ -348,7 +349,7 @@ func (v *VoiceAPI) checkVoiceJob(job build.Job, samples, urls []string, brief st
 	switch {
 	case job == build.Edit && strings.TrimSpace(brief) == "":
 		return errors.New("say what should change in your voice")
-	case job != build.Edit && len(samples) == 0 && len(voice.CheckAddresses(urls).Lines) == 0:
+	case job != build.Edit && len(samples) == 0 && len(knowledge.TrimmedLines(urls)) == 0:
 		return errors.New("choose samples of your writing, or give web addresses of it, first")
 	case len(strings.TrimSpace(brief)) > hostedrun.MaxVoiceBriefBytes:
 		return errors.New("a brief or a note is at most 4 KiB")
@@ -611,14 +612,22 @@ func voicePagesLine(b *hostedrun.VoiceBuild) string {
 	if len(b.URLs) == 0 || b.Pages == 0 {
 		return ""
 	}
-	s := fmt.Sprintf("%d page %s", b.Pages, map[bool]string{true: "read", false: "reads"}[b.Pages == 1])
+	s := plural(b.Pages, "page read", "page reads")
 	if b.MaxPages > 0 {
 		s += fmt.Sprintf(" of the %d it may make", b.MaxPages)
 	}
 	if b.Withheld > 0 {
-		s += fmt.Sprintf("; AI Review withheld %d %s from the Voice Writer", b.Withheld, map[bool]string{true: "text", false: "texts"}[b.Withheld == 1])
+		s += "; AI Review withheld " + plural(b.Withheld, "text", "texts") + " from the Voice Writer"
 	}
 	return s + "."
+}
+
+// plural is n with the word that fits it.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // StartHosted runs the Voice Writer In Agentry: the samples (files and
@@ -636,10 +645,7 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples, urls []string, brief st
 	if err := v.checkVoiceJob(j, samples, urls, brief); err != nil {
 		return nil, err
 	}
-	var addrs []string
-	for _, l := range voice.CheckAddresses(urls).Lines {
-		addrs = append(addrs, l.Address)
-	}
+	addrs := knowledge.TrimmedLines(urls)
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, fmt.Errorf("the registry: %w", err)
 	}

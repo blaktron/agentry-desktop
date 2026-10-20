@@ -370,7 +370,8 @@ type built struct {
 // Agentry alike, in the words the Documents step uses. A repository or an
 // address counts as a document.
 func CheckSources(documents []string, srcs Sources, brief string) error {
-	inputs := append(append(append([]string{}, documents...), srcs.trimmed().Repos...), srcs.trimmed().URLs...)
+	t := srcs.Trimmed()
+	inputs := append(append(append([]string{}, documents...), t.Repos...), t.URLs...)
 	err := build.CheckBrief(inputs, strings.TrimSpace(brief))
 	if errors.Is(err, build.ErrNothingToBuild) {
 		return errors.New("choose documents, give a repository or a web address, write a brief that says what the pack should cover, or a mix")
