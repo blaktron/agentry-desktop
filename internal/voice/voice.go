@@ -469,6 +469,10 @@ type BuildRequest struct {
 	// Improve); Brief is the brief (Create, Improve) or the note (Edit).
 	Samples []string
 	Brief   string
+	// URLs are web addresses of the person's writing, beside or instead of
+	// samples; each page is read by AI Review with the person's own
+	// TypeSafe key first.
+	URLs    []string
 	RunID   string
 	Build   Builder
 	Log     io.Writer
@@ -482,6 +486,17 @@ type BuildResult struct {
 	Created bool     `json:"created"`
 	Samples []string `json:"samples,omitempty"`
 	Skipped []string `json:"skipped,omitempty"`
+	// Pages are the web addresses it was given and what became of each.
+	Pages []Page `json:"pages,omitempty"`
+}
+
+// Page is one web address a build was given: the sample it became, or that
+// the Voice Writer read it rendered, or why AI Review withheld it.
+type Page struct {
+	URL      string `json:"url"`
+	Sample   string `json:"sample,omitempty"`
+	Rendered bool   `json:"rendered,omitempty"`
+	Withheld string `json:"withheld,omitempty"`
 }
 
 // Model names the model the runner policy gives the Voice Writer.
@@ -521,8 +536,20 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	if logw == nil {
 		logw = io.Discard
 	}
+	urls, review, web, err := pageReview(pol, req.URLs)
+	if err != nil {
+		return nil, err
+	}
+	reviewed := "nothing it reads or writes is reviewed"
+	if len(urls) > 0 {
+		reviewed = "nothing it reads from files, or writes, is reviewed"
+	}
 	_, _ = fmt.Fprintf(logw, "The Voice Writer runs on this computer against the model your runner policy names (%s). "+
-		"It costs no credits, and nothing it reads or writes is reviewed.\n", knowledge.CreatorModel(pol))
+		"It costs no credits, and %s.\n", knowledge.CreatorModel(pol), reviewed)
+	if len(urls) > 0 {
+		_, _ = fmt.Fprintln(logw, "Each page from a web address is fetched first and read by AI Review with your TypeSafe key; one it flags is withheld. "+
+			"A page drawn by scripts is rendered in a headless browser and read by AI Review there.")
+	}
 	// The run's reports hold the voice in the clear: a private folder in
 	// the runner home, removed with the build.
 	outDir, err := os.MkdirTemp(home, ".voice-run-")
@@ -539,10 +566,17 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	}
 	budgets := settings.BuiltinBudgets(localrun.VoiceWriter(), pol.Budgets).Run
 	res, err := b(ctx, dockerx.New(), build.Options{
-		Job: req.Job, Samples: req.Samples, Brief: strings.TrimSpace(req.Brief), Current: current,
+		Job: req.Job, Samples: req.Samples, URLs: urls, Review: review, Web: web, Brief: strings.TrimSpace(req.Brief), Current: current,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(),
 		OutDir: outDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: req.OnUsage,
 	})
+	if res != nil {
+		for _, p := range res.Pages {
+			if p.Withheld != "" {
+				_, _ = fmt.Fprintf(logw, "withheld: %s (%s)\n", p.URL, p.Withheld)
+			}
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -551,5 +585,9 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	if err != nil {
 		return nil, fmt.Errorf("the Voice Writer wrote a voice that could not be kept: %w", err)
 	}
-	return &BuildResult{Voice: l, Created: created, Samples: res.Samples, Skipped: res.Skipped}, nil
+	out := &BuildResult{Voice: l, Created: created, Samples: res.Samples, Skipped: res.Skipped}
+	for _, p := range res.Pages {
+		out.Pages = append(out.Pages, Page{URL: p.URL, Sample: p.Sample, Rendered: p.Rendered, Withheld: p.Withheld})
+	}
+	return out, nil
 }

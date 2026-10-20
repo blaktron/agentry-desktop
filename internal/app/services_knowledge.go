@@ -100,18 +100,27 @@ func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
 }
 
 // Create makes a new pack named name with the Knowledge Creator on this
-// computer and keeps it sealed, from the documents, the brief, or both,
-// searching the web when web is set and this computer has the keys for it.
-// Every document must be one the native picker returned. The build takes the
-// run lock; its progress streams as knowledge:build-log.
-func (k *KnowledgeAPI) Create(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
-	return k.runBuild(reg, name, documents, brief, web, false)
+// computer and keeps it sealed, from the documents, the repositories and
+// addresses (srcs), the brief, or a mix, searching the web when web is set
+// and this computer has the keys for it. Every document must be one the
+// native picker returned. The build takes the run lock; its progress
+// streams as knowledge:build-log.
+func (k *KnowledgeAPI) Create(reg, name string, documents []string, srcs knowledge.Sources, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, srcs, brief, web, false)
 }
 
-// Add extends the kept pack name with the documents, the brief, or both,
-// under the key it had.
-func (k *KnowledgeAPI) Add(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
-	return k.runBuild(reg, name, documents, brief, web, true)
+// Add extends the kept pack name with the documents, the repositories and
+// addresses, the brief, or a mix, under the key it had.
+func (k *KnowledgeAPI) Add(reg, name string, documents []string, srcs knowledge.Sources, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, srcs, brief, web, true)
+}
+
+// CheckSources is the Documents step's check of a build's repositories and
+// addresses, with the CLI's own parse: each line's problem, or the host it
+// fetches from and whether this computer keeps a key for it. No key is
+// returned.
+func (k *KnowledgeAPI) CheckSources(srcs knowledge.Sources) *knowledge.SourcesCheck {
+	return knowledge.CheckSourceList(srcs)
 }
 
 // CreatorWebView is whether a build on this computer can search the web, for
@@ -170,7 +179,7 @@ func (k *KnowledgeAPI) StopBuild() error {
 	return nil
 }
 
-func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, brief string, web, add bool) (*knowledge.BuildResult, error) {
+func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, srcs knowledge.Sources, brief string, web, add bool) (*knowledge.BuildResult, error) {
 	for _, p := range documents {
 		if err := k.app.requirePicked("document", p); err != nil {
 			return nil, err
@@ -181,7 +190,7 @@ func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, brief stri
 	var res *knowledge.BuildResult
 	err := k.run.asRun(jobBuild, "a knowledge build by the Knowledge Creator", knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		req := knowledge.BuildRequest{
-			Registry: reg, Name: name, Documents: documents, Brief: brief, Web: web, RunID: runID, Build: k.build, Log: logw,
+			Registry: reg, Name: name, Documents: documents, Sources: srcs, Brief: brief, Web: web, RunID: runID, Build: k.build, Log: logw,
 			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },
 		}
 		var err error

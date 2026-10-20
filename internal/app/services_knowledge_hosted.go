@@ -135,6 +135,12 @@ type KnowledgeHostedAvailabilityView struct {
 	MaxBriefBytes int    `json:"maxBriefBytes"`
 	Web           bool   `json:"web"`
 	WebNote       string `json:"webNote,omitempty"`
+	// TakesSources says the registry builds from git repositories and file
+	// addresses too, at most MaxRepos and MaxURLs; a private repository
+	// there uses the key saved in Agentry for its host.
+	TakesSources bool `json:"takesSources"`
+	MaxRepos     int  `json:"maxRepos,omitempty"`
+	MaxURLs      int  `json:"maxUrls,omitempty"`
 }
 
 // KnowledgeHostedBuildView is one build In Agentry as the panel shows it:
@@ -178,6 +184,9 @@ type KnowledgeHostedBuildView struct {
 	// a build without the web.
 	Brief   string `json:"brief,omitempty"`
 	WebLine string `json:"webLine,omitempty"`
+	// Repos and URLs are the repositories and addresses it was given.
+	Repos []string `json:"repos,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
 	// CanContinue says Continue is offered: the build stopped short.
 	CanContinue bool `json:"canContinue"`
 
@@ -241,6 +250,9 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 					v.Web, v.WebNote = true, kb.Web.Note
 				}
 			}
+			if st, ok := kb.TakesSources(); ok {
+				v.TakesSources, v.MaxRepos, v.MaxURLs = true, st.MaxRepos, st.MaxURLs
+			}
 		}
 		if st.Caller != nil && st.Caller.Build != nil {
 			v.HoldCredits = st.Caller.Build.HoldCredits
@@ -268,11 +280,13 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 }
 
 // StartHostedBuild builds In Agentry: into a new pack named name, or, with
-// addTo, into that pack's copy in Agentry, from the documents, the brief, or
-// both, searching the web when web is set. The documents are files and
-// folders a native picker returned; nothing is created until they are staged
-// and uploaded.
-func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []string, brief string, web bool) (*KnowledgeHostedStartView, error) {
+// addTo, into that pack's copy in Agentry, from the documents, the
+// repositories and addresses (srcs), the brief, or a mix, searching the web
+// when web is set. The documents are files and folders a native picker
+// returned; nothing is created until they are staged and uploaded. A
+// private repository uses the key the account saved in Agentry for its
+// host: no key on this computer is sent for a build.
+func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []string, srcs knowledge.Sources, brief string, web bool) (*KnowledgeHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := k.app.ctx
 	token := k.env().TokenFor(reg)
@@ -285,7 +299,11 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 		}
 	}
 	brief = strings.TrimSpace(brief)
-	if err := knowledge.CheckSources(documents, brief); err != nil {
+	if err := knowledge.CheckSources(documents, srcs, brief); err != nil {
+		return nil, err
+	}
+	srcs, err := knowledge.CheckHostedSources(srcs)
+	if err != nil {
 		return nil, err
 	}
 	// The slot is claimed before anything is uploaded, so a second Start
@@ -310,10 +328,21 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 	if brief != "" && !terms.KnowledgeBuild.TakesBrief() {
 		return nil, errors.New("this registry builds In Agentry from documents only, without a brief: leave the brief out, or build it on this computer")
 	}
+	if srcs.Count() > 0 {
+		st, ok := terms.KnowledgeBuild.TakesSources()
+		switch {
+		case !ok:
+			return nil, errors.New("this registry does not build In Agentry from repositories or web addresses: build it on this computer, or add the files as documents")
+		case len(srcs.Repos) > st.MaxRepos:
+			return nil, fmt.Errorf("a build In Agentry takes at most %d repositories", st.MaxRepos)
+		case len(srcs.URLs) > st.MaxURLs:
+			return nil, fmt.Errorf("a build In Agentry takes at most %d web addresses", st.MaxURLs)
+		}
+	}
 	web = web && terms.KnowledgeBuild.TakesBrief() && terms.KnowledgeBuild.Web != nil && terms.KnowledgeBuild.Web.Enabled
 	// The choice is sent as made, so the registry's default never stands
 	// in for what the step showed.
-	req := hostedrun.CreateRequest{Kind: hostedrun.KindKnowledgeBuild, Brief: brief, Web: &web}
+	req := hostedrun.CreateRequest{Kind: hostedrun.KindKnowledgeBuild, Brief: brief, Web: &web, Repos: srcs.Repos, URLs: srcs.URLs}
 	target, err := k.hostedTarget(ctx, reg, name, addTo)
 	if err != nil {
 		return nil, err
@@ -668,6 +697,7 @@ func hostedBuildView(r *hostedrun.Run, final bool) *KnowledgeHostedBuildView {
 		}
 		v.Note = hostedrun.NoteSentence(b.Note)
 		v.WebLine = buildWebLine(b.Web)
+		v.Repos, v.URLs = b.Repos, b.URLs
 	}
 	if r.IsBuild() {
 		v.Brief = strings.TrimSpace(r.Task)

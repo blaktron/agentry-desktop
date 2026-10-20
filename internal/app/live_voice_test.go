@@ -125,7 +125,7 @@ func TestLiveVoice(t *testing.T) {
 		t.Fatal(err)
 	}
 	v.app.markPicked(samples)
-	start, err := v.HostedWithAI(reg, "Add one rule: keep paragraphs to three sentences at most.", []string{samples})
+	start, err := v.HostedWithAI(reg, "Add one rule: keep paragraphs to three sentences at most.", []string{samples}, nil)
 	if err != nil || start.Refusal != "" || start.Run == nil {
 		t.Fatalf("start: %+v, %v", start, err)
 	}

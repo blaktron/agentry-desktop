@@ -42,6 +42,10 @@ type BuildRequest struct {
 	// Documents are the files and folders to ingest, each one the native
 	// picker returned (the binding checks).
 	Documents []string
+	// Sources are git repositories and files at web addresses fetched
+	// beside the documents, each counted as one by the documents-or-a-brief
+	// rule.
+	Sources Sources
 	// Brief is what the pack should cover and for whom, in the person's
 	// words, at most build.MaxBriefBytes: a build takes documents, a brief
 	// or both. The CLI keeps it in the pack as sources/brief.md.
@@ -104,6 +108,9 @@ type BuildResult struct {
 	Pages     int      `json:"pages"`
 	Bytes     int64    `json:"bytes"`
 	Documents []string `json:"documents"`
+	// Fetched are the repositories and addresses the build fetched, each
+	// with what it resolved to.
+	Fetched []FetchedSource `json:"fetched,omitempty"`
 	// Brief says the build was given a brief, which Documents lists by the
 	// name the pack cites it under (brief.md, or brief-N.md): the panel
 	// names it as the brief, never as one more document.
@@ -133,6 +140,19 @@ type BuildResult struct {
 	InputTokens  int64   `json:"inputTokens"`
 	OutputTokens int64   `json:"outputTokens"`
 	CostUSD      float64 `json:"costUsd"`
+}
+
+// FetchedSource is one repository or address a build fetched: the address
+// as shown, the commit a repository resolved to, the document the pack
+// cites it under, its files and bytes, and whether a saved key was used.
+type FetchedSource struct {
+	Kind     string `json:"kind"`
+	URL      string `json:"url"`
+	Commit   string `json:"commit,omitempty"`
+	Document string `json:"document"`
+	Files    int    `json:"files"`
+	Bytes    int64  `json:"bytes"`
+	SavedKey bool   `json:"savedKey,omitempty"`
 }
 
 // Dropped is one page the apply step did not take as written.
@@ -251,7 +271,11 @@ func sealContext(ctx context.Context) (context.Context, context.CancelFunc) {
 // the budgets the policy sets, as `agentry knowledge create` does.
 func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir string) (*built, error) {
 	req.Brief = strings.TrimSpace(req.Brief)
-	if err := CheckSources(req.Documents, req.Brief); err != nil {
+	if err := CheckSources(req.Documents, req.Sources, req.Brief); err != nil {
+		return nil, err
+	}
+	srcs, err := parseSources(req.Sources, func(w string) { logf(req.Log, "warning: %s", w) })
+	if err != nil {
 		return nil, err
 	}
 	home, err := e.Home()
@@ -270,8 +294,15 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	// step.
 	logf(req.Log, "The Knowledge Creator runs on this computer against the model your runner policy names (%s). "+
 		"It costs no credits, and nothing it reads or writes is scanned.", CreatorModel(pol))
-	if len(req.Documents) == 0 {
+	if len(req.Documents) == 0 && len(srcs) == 0 {
 		logf(req.Log, "%s", NoDocumentsWarning)
+	}
+	for _, s := range srcs {
+		key := ""
+		if s.Token != "" {
+			key = fmt.Sprintf(", with the key saved on this computer for %s", s.Host)
+		}
+		logf(req.Log, "It fetches %s first, through a proxy to %s alone%s.", s.Shown(), s.Host, key)
 	}
 	web, withoutWeb, err := creatorWeb(pol, req.Web)
 	if err != nil {
@@ -307,7 +338,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	stop := prog.watch()
 	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{
-		PackDir: dir, Name: name, Documents: req.Documents, Brief: req.Brief, Web: web,
+		PackDir: dir, Name: name, Documents: req.Documents, Sources: srcs, Brief: req.Brief, Web: web,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &budgets,
@@ -334,13 +365,16 @@ type built struct {
 	searched   bool
 }
 
-// CheckSources refuses a build given neither documents nor a brief, or a
-// brief past build.MaxBriefBytes, on this computer and In Agentry alike, in
-// the words the Documents step uses.
-func CheckSources(documents []string, brief string) error {
-	err := build.CheckBrief(documents, strings.TrimSpace(brief))
+// CheckSources refuses a build given neither documents, sources nor a
+// brief, or a brief past build.MaxBriefBytes, on this computer and In
+// Agentry alike, in the words the Documents step uses. A repository or an
+// address counts as a document.
+func CheckSources(documents []string, srcs Sources, brief string) error {
+	t := srcs.Trimmed()
+	inputs := append(append(append([]string{}, documents...), t.Repos...), t.URLs...)
+	err := build.CheckBrief(inputs, strings.TrimSpace(brief))
 	if errors.Is(err, build.ErrNothingToBuild) {
-		return errors.New("choose documents, write a brief that says what the pack should cover, or both")
+		return errors.New("choose documents, give a repository or a web address, write a brief that says what the pack should cover, or a mix")
 	}
 	return err
 }
@@ -446,6 +480,12 @@ func buildResult(res *built, en store.Entry, brief bool) *BuildResult {
 		Name: en.Name(), Pages: en.Manifest.Pages, Bytes: en.Manifest.Bytes,
 		Documents: append([]string{}, res.Documents...), Brief: brief, Skipped: res.Skipped, Key: KeyHolder(en),
 		WithoutWeb: res.withoutWeb, Searched: res.searched,
+	}
+	for _, f := range res.Sources {
+		out.Fetched = append(out.Fetched, FetchedSource{
+			Kind: string(f.Kind), URL: f.URL, Commit: f.Commit, Document: f.Document, Files: f.Files, Bytes: f.Bytes,
+			SavedKey: f.Token != "",
+		})
 	}
 	if res.Applied != nil {
 		for _, d := range res.Applied.Dropped {
