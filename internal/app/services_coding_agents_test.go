@@ -223,7 +223,7 @@ func TestContractDialogNamesTheCodingAgent(t *testing.T) {
 	}
 }
 
-// TestCodingAgentsSettingsSurface: Settings → Coding agents shows the chosen
+// TestCodingAgentsSettingsSurface: Settings → Coding tools shows the chosen
 // coding agents, the export they imply and its folder, and the switch, off
 // by default; the switch will not go on while AGENTS.md has no project
 // directory; the directory comes from the native picker in this process and

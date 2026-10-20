@@ -330,7 +330,7 @@ const states = [
   { name: "settings-agent-runs-advanced", url: "/pages.html?settings=provider", note: "Settings → Provider settings with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
   { name: "settings-model-signins-kept", url: "/pages.html?settings=provider#signins", note: "Settings → Model provider: every sign-in and connected account kept on this computer, with Remove and Disconnect", locator: '[data-preview="settings"] .kept-signins', expectText: ["Kept on this computer", "Signed in as chris@example.com", "Connected — the key works until 2026-11-11", "Disconnect"] },
   { name: "settings-agent-runs-custom-http", url: "/pages.html?settings=provider#setup-custom-http", note: "Settings → Provider settings, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
-  // Settings → Coding agents: the coding agent,
+  // Settings → Coding tools: the coding agent,
   // the export it implies, its folder, the switch off by default; and
   // the agent page's one-off link, named for the coding agent, opening
   // the wizard on that export.
@@ -356,7 +356,7 @@ const states = [
   { name: "settings-report-design-pale", url: "/pages.html?settings=report-design#report-pale", note: "the contrast guard: an accent under what it needs is refused with the nearest passing shade and a Use button; Save stays greyed", locator: '#settings-part-design-editor', expectText: ["so it cannot be saved", "Use #3a6aa6"] },
   { name: "settings-connections", url: "/pages.html?settings=connections", note: "Settings → Connections: each kept connection by version and server, one no longer working, with Disconnect; the person's own Google client with Forget; never a token or a secret", locator: '[data-preview="settings"]', expectText: ["acme/inbox-brief@0.1.0", "acme/mail-digest@1.0.0", "No longer works (invalid_grant: the grant was revoked)", "Your OAuth clients", "secret kept in the OS keychain"] },
   { name: "settings-connections-disconnect", url: "/pages.html?settings=connections", note: "Disconnect on a Google connection whose client another connection shares: the dialog names it, since Google revokes the whole grant (it is still revoked, after the warning)", locator: ".modal", click: '[data-preview="settings"] .card:has-text("acme/inbox-brief") button:has-text("Disconnect")', expectText: ["may revoke everything granted to that client", "Google does", "acme/mail-digest@1.0.0 → pypi:workspace-mcp"] },
-  { name: "settings-coding-agents", url: "/pages.html?settings=coding-agents", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
+  { name: "settings-coding-agents", url: "/pages.html?settings=coding-agents", note: "Settings → Coding tools: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-codex", url: "/pages.html?settings=coding-agents#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-none", url: "/pages.html?settings=coding-agents#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
   { name: "settings-coding-agents-both", url: "/pages.html?settings=coding-agents#coding-both", note: "both chosen: the Claude skill is what is written, so the switch names Claude Code alone", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectSwitchLabel: "Also install into Claude Code" },
@@ -727,14 +727,14 @@ const states = [
   // card's status line; each section page; a card opened, a part's link
   // followed, the way back; and each deep link App gives a caller.
   { name: "page-settings", url: "/pages.html", note: "Settings under the shell: five cards, each with its sentence, its status line and its parts", locator: '[data-preview="settings"]',
-    expectText: ["Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "secureagentry.net, signed in.", "Agentry Desktop 0.2.0 is available.", "AI Review key saved", "Runs stop after 15 minutes, on this computer.", "Settings file:"],
+    expectText: ["Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "secureagentry.net, signed in.", "Agentry Desktop 0.2.0 is available.", "AI Review key saved", "Runs stop after 15 minutes, on this computer.", "Settings file:"],
     expectSection: "landing" },
   // Settings → Profile: offered only while the
   // active registry holds a token, first on the landing.
   { name: "settings-landing-profile", url: "/pages.html", note: "signed in: the Profile card first on the landing", locator: '[data-preview="settings"]',
-    expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Profile", "Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
+    expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Profile", "Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
   { name: "settings-landing-signed-out", url: "/pages.html?active=anon", note: "the active registry not signed in: no Profile card", locator: '[data-preview="settings"]',
-    expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
+    expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
   { name: "settings-profile", url: "/pages.html?settings=profile", note: "Profile: the handle, the verified email, signed up with Google, the display name; Standard's credits, allowance, private QuickAgents, knowledge, hosted-run caps, Upgrade", locator: '[data-preview="settings"]',
     expectSection: "profile", expectText: ["chris · chris@example.test (verified)", "Signed up with Google", "Save profile", "40 of 50 credits · 40 submissions left this cycle", "4 of 10", "20 MB of 100 MB", "A hosted run holds 20 credits for its cap", "Upgrade"] },
   { name: "settings-profile-save", url: "/pages.html?settings=profile", note: "the display name changed and saved: the card shows the name the registry answered, and says so", locator: '[data-preview="settings"]',
@@ -758,8 +758,8 @@ const states = [
     click: '[data-preview="settings"] .settings-card:has-text("Registry settings") .settings-card-link', expectSection: "registry", expectText: ["← Settings", "Registries", "Add a registry", "Secrets for runs In Agentry"] },
   { name: "settings-open-updates", url: "/pages.html", note: "Update settings: the self-update card and the QuickAgents switch", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Update settings") .settings-card-link', expectSection: "updates", expectText: ["Check for newer versions", "Update QuickAgents automatically"] },
-  { name: "settings-open-coding-agents", url: "/pages.html", note: "Coding agents: the chooser and the export switch", locator: '[data-preview="settings"]',
-    click: '[data-preview="settings"] .settings-card:has-text("Coding agents") .settings-card-link', expectSection: "coding-agents", expectText: ["Also install into"] },
+  { name: "settings-open-coding-agents", url: "/pages.html", note: "Coding tools: the chooser and the export switch", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Coding tools") .settings-card-link', expectSection: "coding-agents", expectText: ["Also install into"] },
   { name: "settings-open-run-defaults", url: "/pages.html", note: "Run defaults: the container engine's state", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Run defaults") .settings-card-link', expectSection: "run-defaults", expectText: ["Container engine"] },
   { name: "settings-open-provider", url: "/pages.html", note: "Provider settings: the model provider form and the AI Review key", locator: '[data-preview="settings"]',
@@ -776,7 +776,7 @@ const states = [
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   { name: "settings-back-updates", url: "/pages.html?settings=updates", note: "← Settings on Update settings returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
-  { name: "settings-back-coding-agents", url: "/pages.html?settings=coding-agents", note: "← Settings on Coding agents returns to the cards", locator: '[data-preview="settings"]',
+  { name: "settings-back-coding-agents", url: "/pages.html?settings=coding-agents", note: "← Settings on Coding tools returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   { name: "settings-back-run-defaults", url: "/pages.html?settings=run-defaults", note: "← Settings on Run defaults returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },

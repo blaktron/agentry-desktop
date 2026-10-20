@@ -4,6 +4,7 @@ import * as SelfUpdateAPI from "../../wailsjs/go/app/SelfUpdateAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
 import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
+import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { app, destinations } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
@@ -30,6 +31,8 @@ import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
 import { LicencesSettings } from "./SettingsLicences";
+import PersistentAgentsSettings from "./SettingsPersistentAgents";
+import { persistentAgentsStatus } from "../persistentAgents";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
 // Settings as five cards: the landing is a card per section, each card the
@@ -44,7 +47,7 @@ import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from
 //
 // Report design comes second, after Profile, as on the site: the account's
 // report design and its editor.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home" | "licences";
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home" | "licences";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -81,8 +84,13 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "quickagents", label: "QuickAgents" }],
   },
   {
-    id: "coding-agents", title: "Coding agents",
-    sentence: "The coding agent on this computer, and whether Install also puts a QuickAgent where it reads.",
+    id: "coding-agents", title: "Coding tools",
+    sentence: "The coding tool on this computer (Claude Code or Codex), and whether Install also puts a QuickAgent where it reads.",
+    parts: [],
+  },
+  {
+    id: "persistent-agents", title: "Persistent Agents",
+    sentence: "The agents that keep their conversation and their own files between the times you talk to them: turn them on, start and stop them, and configure what each is given.",
     parts: [],
   },
   {
@@ -160,7 +168,7 @@ export const SETTINGS_FOR = {
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
 
 export default function Settings({
-  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen,
+  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen, onOpenAgent,
 }: {
   settings: app.SettingsView | null;
   activeRegistry: string;
@@ -175,6 +183,8 @@ export default function Settings({
   part?: SettingsPart;
   // Opens a section (and a part of it), or the landing with none.
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
+  // Opens a persistent agent's page.
+  onOpenAgent?: (name: string) => void;
 }) {
   // A part named by a link is scrolled to once its section has rendered, and
   // followed while the section's own reads fill it in;
@@ -229,6 +239,7 @@ export default function Settings({
         </>
       )}
       {section === "coding-agents" && <CodingAgentsCard />}
+      {section === "persistent-agents" && <PersistentAgentsSettings registry={activeRegistry} onOpenAgent={(name) => onOpenAgent?.(name)} />}
       {section === "run-defaults" && (
         <>
           <RunDefaultsSettings onChanged={onChanged} />
@@ -277,6 +288,7 @@ type Statuses = {
   home?: app.HomeLayoutView | null;
   connections?: app.KeptConnectionsView | null;
   destinations?: destinations.Status | null;
+  agents?: app.PersistentAgentView[] | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
@@ -299,6 +311,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     // the line, not the landing.
     Promise.resolve().then(() => RunAPI.Connections()).then(put("connections")).catch(() => put("connections")(null));
     Promise.resolve().then(() => DestinationsAPI.List()).then(put("destinations")).catch(() => put("destinations")(null));
+    Promise.resolve().then(() => PersistentAPI.List()).then(put("agents")).catch(() => put("agents")(null));
     return () => { live = false; };
   }, []);
 
@@ -308,6 +321,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     registry: registryStatus(settings, activeRegistry),
     updates: st.update ? updateStatus(st.update) : null,
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
+    "persistent-agents": st.agents ? persistentAgentsStatus(st.agents) : null,
     "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
     connections: st.connections ? connectionsStatus(st.connections) : null,

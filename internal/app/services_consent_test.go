@@ -10,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
@@ -34,10 +35,23 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	t.Setenv(policy.DefaultJudgeKeyEnv, "jev-consent-test")
 	// A settings file of the test's own: Unsafe Mode is off.
 	t.Setenv(configdir.EnvVar, t.TempDir())
+	// The Assistant, enabled, whose share it has not been given on this
+	// computer: its start asks.
+	p := &PersistentAPI{app: app, run: r}
+	cfg, err := persistent.LoadConfig(r.runnerHomeDir, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Enabled = true
+	if err := persistent.SaveConfig(r.runnerHomeDir, "assistant", cfg); err != nil {
+		t.Fatal(err)
+	}
 	for name, call := range map[string]func() error{
-		"RestartNow":       func() error { return r.RestartNow() },
-		"InstallEngine":    func() error { _, err := r.InstallEngine(); return err },
-		"AddToDockerGroup": func() error { _, err := r.AddToDockerGroup(); return err },
+		"PersistentAPI.Start": func() error { _, err := p.Start("assistant"); return err },
+		"PersistentAPI.Reset": func() error { _, err := p.Reset("assistant"); return err },
+		"RestartNow":          func() error { return r.RestartNow() },
+		"InstallEngine":       func() error { _, err := r.InstallEngine(); return err },
+		"AddToDockerGroup":    func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
 			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil, nil)
 			return err
@@ -60,7 +74,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			t.Errorf("%s with the dialog answered No: err = %v, want a refusal", name, err)
 		}
 	}
-	if len(asked) != 6 {
+	if len(asked) != 8 {
 		t.Fatalf("dialogs raised = %v, want one per call", asked)
 	}
 	// A consent-free run raises no dialog: nothing to confirm.

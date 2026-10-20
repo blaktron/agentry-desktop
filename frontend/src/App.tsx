@@ -33,6 +33,9 @@ import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/S
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
+import PersistentAgentPage from "./pages/PersistentAgentPage";
+import { useAgents } from "./agents";
+import { agentNavEntries } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
@@ -51,6 +54,8 @@ export type Route =
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled"; run?: boolean; schedule?: boolean }
   // The schedules on this computer; focus: one just made.
   | { page: "scheduled"; focus?: string }
+  // A persistent agent's page, by its name.
+  | { page: "persistent"; id: string }
   // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).
   | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" }
@@ -121,6 +126,8 @@ export default function App() {
   // The event is the newer word: a poll's answer that set out before the
   // latest event arrived is dropped, not allowed to undo it.
   const [unsafeLive, setUnsafeLive] = useState(false);
+  // The persistent agents, for the sidebar's entries.
+  const agents = useAgents();
   const unsafeEvents = useRef(0);
   // A run setup that made a schedule opens the Scheduled page on it.
   useEffect(() => {
@@ -223,7 +230,15 @@ export default function App() {
           <div className="brand">
             <Wordmark sub="Desktop" />
           </div>
-          <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} signedIn={signedIn} />
+          <SidebarNav
+            page={route.page}
+            onNav={(page) => nav({ page } as Route)}
+            installedUpdates={installedUpdates}
+            signedIn={signedIn}
+            agents={agentNavEntries(agents)}
+            agent={route.page === "persistent" ? route.id : undefined}
+            onOpenAgent={(id) => nav({ page: "persistent", id })}
+          />
           <div className="foot">
             {/* Unsafe Mode in words, beside the red edge below. */}
             {unsafeShown && (
@@ -275,7 +290,9 @@ export default function App() {
             }}
           />
         )}
-        <div className="content">
+        {/* A persistent agent's page lays its three panes over the whole
+            content area, with no scroller of the content's own. */}
+        <div className={route.page === "persistent" ? "content content-full" : "content"}>
           {/* A render fault shows its way back here, under a sidebar that
               still works. */}
           <Recover subject="This page" resetKey={JSON.stringify(route)}>
@@ -326,6 +343,7 @@ export default function App() {
                 }}
               />
             )}
+            {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} />}
             {route.page === "browse" && (
               // Browse takes its query only when it mounts, so the key gives
               // a new search from the Library a fresh Browse.
@@ -414,6 +432,7 @@ export default function App() {
                 section={route.section}
                 part={route.part}
                 onOpen={(section, part) => nav({ page: "settings", section, part })}
+                onOpenAgent={(id) => nav({ page: "persistent", id })}
               />
             )}
           </Recover>

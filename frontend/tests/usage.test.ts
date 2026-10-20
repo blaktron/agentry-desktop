@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { app } from "../wailsjs/go/models";
 import {
+  agentUsageRows,
   buildHoldLine,
   capsSentence,
   creatorUseLine,
@@ -114,4 +115,41 @@ test("a chat on this computer counts its tokens and names no credit; a chat In A
   });
   noTokens(hosted);
   assert.equal(h.tokens, 0);
+});
+
+test("a persistent agent's usage panel says 'not reported' and 'unknown' for what its harness gives nothing", () => {
+  const rows = agentUsageRows({
+    segment: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, userTurns: 2, toolCalls: 1, since: "2026-10-20T19:00:00Z" },
+    lastTurnTokens: 0, contextWindow: 0, contextUsed: 0,
+    lifetime: { segments: 3, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  }, Date.parse("2026-10-20T19:05:30Z"));
+  const v = Object.fromEntries(rows.map((r) => [r.label, r.value]));
+  assert.equal(v["This segment"], "not reported");
+  assert.equal(v["Last turn"], "not reported");
+  assert.equal(v["Context"], "unknown");
+  assert.equal(v["Cost"], "not reported");
+  assert.equal(v["Turns"], "2");
+  assert.equal(v["Tool calls"], "1");
+  assert.equal(v["Running for"], "5 min");
+  assert.equal(v["All segments"], "not reported over 3 segments");
+  for (const r of rows) assert.doesNotMatch(r.value, /^0\b|\b0 tokens/, `${r.label}: ${r.value}`);
+  rows.forEach((r) => noCredits(r.value));
+});
+
+test("a persistent agent's usage panel reads the figures its harness does report", () => {
+  const rows = agentUsageRows({
+    segment: { inputTokens: 1200, outputTokens: 300, totalTokens: 0, costUsd: 0.0123, userTurns: 4, toolCalls: 6, since: "2026-10-20T17:00:00Z" },
+    lastTurnTokens: 450, contextWindow: 128000, contextUsed: 9000,
+    lifetime: { segments: 1, inputTokens: 0, outputTokens: 0, totalTokens: 5000 },
+  }, Date.parse("2026-10-20T19:05:00Z"));
+  const v = Object.fromEntries(rows.map((r) => [r.label, r.value]));
+  assert.equal(v["This segment"], "1,500 (1,200 in, 300 out)");
+  assert.equal(v["Last turn"], "450 tokens");
+  assert.equal(v["Context"], "9,000 of 128,000 tokens");
+  assert.equal(v["Cost"], "$0.0123");
+  assert.equal(v["Running for"], "2 h 5 min");
+  assert.equal(v["All segments"], "5,000 over 1 segment");
+  const stopped = agentUsageRows({ lastTurnTokens: 0, contextWindow: 0, contextUsed: 0, lifetime: { segments: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 } }, 0);
+  assert.equal(stopped[0].value, "not running");
+  assert.equal(stopped[stopped.length - 1].value, "none yet");
 });

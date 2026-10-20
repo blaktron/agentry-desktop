@@ -88,7 +88,7 @@ export default function AgentPage({
   // The coding-agent export (the wizard) is the one-off behind a link;
   // the primary Install is one click into the runner home.
   const [wizardOpen, setWizardOpen] = useState(false);
-  // The link is named for the coding agent Settings → Coding agents holds
+  // The link is named for the coding agent Settings → Coding tools holds
   // and opens the wizard on the export it implies;
   // read once, since nothing on this page changes that setting.
   const [codingAgents, setCodingAgents] = useState<app.CodingAgentsView | null>(null);
