@@ -260,7 +260,14 @@ func TestConfiguringTheAssistantsNameAndPersonality(t *testing.T) {
 // person's is saved, and a cancel changes nothing.
 func TestTheShareFolderComesFromThePicker(t *testing.T) {
 	rig := newPersistentRig(t)
+	// The home as the system resolves it: a temporary folder can be reached
+	// through a link (macOS's /var is /private/var), and a share reached
+	// through one is refused.
 	home, _ := os.UserHomeDir()
+	if real, err := filepath.EvalSymlinks(home); err == nil {
+		home = real
+		setUserHome(t, home)
+	}
 	pick := home
 	rig.p.app.pickDirectory = func(context.Context, string) (string, error) { return pick, nil }
 	if _, err := rig.p.ChooseShare("assistant"); err == nil {
