@@ -222,6 +222,16 @@ g.go = { app: {
     CancelHostedBuild: async () => hostedRunning,
     StopBuild: async () => undefined,
     CreatorWeb: async () => localWeb,
+    // Go's check of the repositories and addresses, as it answers: an
+    // address that is not https is refused, and a key is saved here for
+    // github.com.
+    CheckSources: async (s: { repos: string[]; urls: string[] }) => ({
+      maxRepos: 10, maxUrls: 20,
+      lines: [
+        ...s.repos.map((a) => ({ address: a, kind: "repository", ...(a.startsWith("https://") ? { host: new URL(a).hostname, saved: a.includes("github.com") } : { problem: "a repository's address is https" }) })),
+        ...s.urls.map((a) => ({ address: a, kind: "url", ...(a.startsWith("https://") ? { host: new URL(a).hostname } : { problem: "an address is https" }) })),
+      ],
+    }),
   },
   RunAPI: {
     SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
@@ -281,7 +291,7 @@ const create = hash.startsWith("create-") || hash === "add-review" || hostedStat
 const step =
   hash === "create-name" ? "name"
   : hash === "hosted-where" || hash.startsWith("hosted-where-pro") || hash === "hosted-where-large" ? "where"
-  : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" || hash === "create-review-brief" || hash === "hosted-review-brief" ? "review"
+  : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" || hash === "create-review-brief" || hash === "hosted-review-brief" || hash === "create-review-sources" ? "review"
   : "documents";
 
 createRoot(document.getElementById("root")!).render(
@@ -310,6 +320,8 @@ createRoot(document.getElementById("root")!).render(
         initialStep={step}
         initialDocuments={briefState ? [] : hash.startsWith("create-documents") || step !== "documents" ? docs : []}
         initialBrief={briefState ? brief : undefined}
+        initialRepos={hash.endsWith("-sources") ? "https://github.com/google/uuid@v1.6.0" : undefined}
+        initialUrls={hash === "create-documents-sources" ? "https://arxiv.org/pdf/1706.03762\nhttp://example.com/notes.txt" : hash.endsWith("-sources") ? "https://arxiv.org/pdf/1706.03762" : undefined}
         initialWeb={localWeb}
         initialName={hash === "add-review" ? undefined : "handbook"}
         minimized={card}

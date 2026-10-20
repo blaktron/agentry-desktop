@@ -273,10 +273,10 @@ func TestKnowledgeDocumentsMustComeFromTheNativePicker(t *testing.T) {
 		return nil, errors.New("not reached")
 	}
 	typed := filepath.Join(t.TempDir(), "typed.txt")
-	if _, err := f.k.Create(f.reg.URL, "notes", []string{typed}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if _, err := f.k.Create(f.reg.URL, "notes", []string{typed}, knowledge.Sources{}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("create with a typed path: %v", err)
 	}
-	if _, err := f.k.Add(f.reg.URL, "handbook", []string{typed}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if _, err := f.k.Add(f.reg.URL, "handbook", []string{typed}, knowledge.Sources{}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("add with a typed path: %v", err)
 	}
 	if built {
@@ -309,12 +309,12 @@ func TestKnowledgeBuildIsARunUnderTheRunLock(t *testing.T) {
 	}
 
 	f.k.run.mu.Lock()
-	if _, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false); !errors.Is(err, errBusy) {
+	if _, err := f.k.Create(f.reg.URL, "notes", []string{doc}, knowledge.Sources{}, "", false); !errors.Is(err, errBusy) {
 		t.Fatalf("create while a run holds the lock: %v", err)
 	}
 	f.k.run.mu.Unlock()
 
-	res, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false)
+	res, err := f.k.Create(f.reg.URL, "notes", []string{doc}, knowledge.Sources{}, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +360,7 @@ func TestStopBuildStopsOnlyAKnowledgeBuild(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false)
+		_, err := f.k.Create(f.reg.URL, "notes", []string{doc}, knowledge.Sources{}, "", false)
 		done <- err
 	}()
 	<-started

@@ -82,7 +82,7 @@ func TestLiveHostedKnowledge(t *testing.T) {
 		}
 	}
 	app.markPicked(dir)
-	start, err := k.StartHostedBuild(reg, name, "", []string{dir}, "", false)
+	start, err := k.StartHostedBuild(reg, name, "", []string{dir}, knowledge.Sources{}, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}

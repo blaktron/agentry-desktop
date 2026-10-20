@@ -90,6 +90,9 @@ type hostedFake struct {
 	// does.
 	sessions       *hostedrun.SessionTerms
 	sessionAllowed *bool
+	// voiceURLs, when set, is the status route's voiceBuild block with its
+	// urls terms; nil leaves voiceBuild out.
+	voiceURLs *hostedrun.VoiceURLTerms
 	// frames are a session's display events in order (sequence numbers
 	// from 1), which the stream writes after the `after` it is asked for;
 	// streamAfters records each stream's `after`, and sessionPosts every
@@ -241,6 +244,10 @@ func (f *hostedFake) start(t *testing.T) string {
 		}
 		if f.sessionAllowed != nil {
 			st["caller"].(map[string]any)["session"] = map[string]any{"allowed": *f.sessionAllowed}
+		}
+		if f.voiceURLs != nil {
+			st["voiceBuild"] = map[string]any{"enabled": true, "credits": 20, "maxInputs": 20, "maxTextBytes": 1 << 20, "maxBriefBytes": 4096,
+				"standardPerCycle": 1, "aiReviewCredits": 1, "attach": map[string]any{"enabled": true}, "urls": f.voiceURLs}
 		}
 		hostedJSON(w, http.StatusOK, st)
 	})

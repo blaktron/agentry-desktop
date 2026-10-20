@@ -7,6 +7,8 @@ export function AttachHosted(arg1:string):Promise<app.VoiceHostedStartView>;
 
 export function CancelHosted():Promise<app.VoiceHostedView>;
 
+export function CheckAddresses(arg1:Array<string>):Promise<app.VoiceAddressesView>;
+
 export function DeleteAccount(arg1:string):Promise<void>;
 
 export function DeleteLocal(arg1:string):Promise<void>;
@@ -15,7 +17,7 @@ export function DiscardAccount(arg1:string):Promise<voice.Account>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<app.VoiceHostedAvailabilityView>;
 
-export function HostedWithAI(arg1:string,arg2:string,arg3:Array<string>):Promise<app.VoiceHostedStartView>;
+export function HostedWithAI(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<app.VoiceHostedStartView>;
 
 export function RestoreAccount(arg1:string):Promise<app.VoiceRestoreView>;
 
@@ -27,7 +29,7 @@ export function SetAccountAttach(arg1:string,arg2:boolean):Promise<voice.Account
 
 export function SetLocalAttach(arg1:string,arg2:boolean):Promise<void>;
 
-export function StartHosted(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<app.VoiceHostedStartView>;
+export function StartHosted(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>,arg5:string):Promise<app.VoiceHostedStartView>;
 
 export function StopWrite():Promise<void>;
 
@@ -37,6 +39,6 @@ export function UseAccount(arg1:string):Promise<app.VoiceSaveView>;
 
 export function View(arg1:string):Promise<app.VoiceView>;
 
-export function Write(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<voice.BuildResult>;
+export function Write(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>,arg5:string):Promise<voice.BuildResult>;
 
-export function WriteWithAI(arg1:string,arg2:string,arg3:Array<string>):Promise<voice.BuildResult>;
+export function WriteWithAI(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<voice.BuildResult>;

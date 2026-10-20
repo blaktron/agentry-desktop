@@ -17,6 +17,13 @@
 // Cloud page In Agentry at the registry's flat price, and what it writes
 // waits for AI Review.
 //
+// Both dialogs also take web addresses of the person's writing, one a line,
+// beside or instead of samples. Go checks them with the CLI's own parse as
+// the person types (VoiceAPI.CheckAddresses). Each page is fetched first and
+// read by AI Review before the Voice Writer sees it: on this computer with
+// the person's own TypeSafe key, which the dialog asks for before Start when
+// none is set; In Agentry through the registry, where it reads addresses.
+//
 // Every gate is in Go (services_voice.go): samples come only from the
 // native pickers, a replace, an upload over a newer version, a discard and
 // a delete are asked in a native dialog, and a Voice Writer run here takes
@@ -35,7 +42,7 @@ import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
 import {
   CLOUD_CARD_BLURB, CLOUD_SWITCH_LABEL, LOCAL_CARD_BLURB, LOCAL_SWITCH_LABEL, MAX_VOICE_BYTES, MAX_VOICE_NOTE_BYTES, NOT_LIVE,
   NO_HOSTED_WRITER, VOICE_ON, VOICE_TAGLINE, accountJob, accountSource, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedFailure,
-  localStatus, pendingLine, restoreLine, reviewCostLine, uploadButton, plainVoiceSave, versionLine, voiceBytes, voiceStamp,
+  localStatus, pendingLine, restoreLine, reviewCostLine, uploadButton, plainVoiceSave, versionLine, voiceBytes, voiceStamp, addressesProblem, voiceAddressLines,
 } from "../voice";
 
 export type VoiceView = "start" | "local" | "cloud";
@@ -310,6 +317,9 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
 }) {
   const [text, setText] = useState("");
   const [samples, setSamples] = useState<string[]>([]);
+  const [urlsText, setUrlsText] = useState("");
+  const urls = voiceAddressLines(urlsText);
+  const addrCheck = useAddressCheck(urlsText);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [log, setLog] = useState<string[]>([]);
@@ -322,7 +332,7 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
     setStopping(false);
     setRunning(true);
     try {
-      const res = await VoiceAPI.WriteWithAI(registry, text, samples);
+      const res = await VoiceAPI.WriteWithAI(registry, text, samples, urls);
       onDone(res.created ? `The Voice Writer kept your voice on this computer. ${VOICE_ON}` : "The Voice Writer kept your new voice on this computer.");
     } catch (e) {
       setRunning(false);
@@ -331,13 +341,13 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
     }
   }
 
-  const problem = editWithAIProblem(hasVoice, text, samples.length);
+  const problem = editWithAIProblem(hasVoice, text, samples.length + urls.length) ?? addressesProblem(urls.length, addrCheck, "local");
   return (
     <Modal title={hasVoice ? "Edit with AI" : "Write with AI"} onClose={running ? () => {} : onClose}>
       {running ? (
         <>
           <Spinner label="The Voice Writer is running on this computer…" />
-          <p className="muted small">It reads {hasVoice ? "your voice, what should change" : "your samples"}{hasVoice && samples.length > 0 ? " and your samples" : ""}, then writes VOICE.md. When it ends, the voice here is replaced with what it wrote.</p>
+          <p className="muted small">It reads {hasVoice ? "your voice, what should change" : "your samples"}{hasVoice && samples.length > 0 ? " and your samples" : ""}{urls.length > 0 ? ", and the pages at your web addresses once AI Review has read them" : ""}, then writes VOICE.md. When it ends, the voice here is replaced with what it wrote.</p>
           {log.length > 0 && <FoldedLog label="The Voice Writer's log" lines={log} />}
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <StopButton stopping={stopping} onStop={() => { setStopping(true); VoiceAPI.StopWrite().catch(() => setStopping(false)); }} />
@@ -362,6 +372,14 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
             />
           </div>
           <SamplesPicker label={hasVoice ? "Add writing samples (optional)" : "Samples of your writing"} samples={samples} onChange={setSamples} />
+          <AddressesField
+            id="voice-ai-urls"
+            value={urlsText}
+            onChange={setUrlsText}
+            check={addrCheck}
+            hint="One https address a line: your posts, articles or newsletters. Each page is fetched first and read by AI Review with your TypeSafe key before the Voice Writer sees it; one drawn by scripts is opened in a headless browser."
+          />
+          {urls.length > 0 && addrCheck && !addrCheck.reviewReady && <Notice tone="warn">{addrCheck.reviewWhy}.</Notice>}
           <p className="small">
             Free, on this computer: it runs on {model} for no credits, and the voice it writes is kept here, not reviewed.
             {hasVoice && " When it ends, it replaces the voice on this computer."}
@@ -373,10 +391,68 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
             <Button onClick={onClose}>Cancel</Button>
             <Button variant="primary" disabled={problem !== null} onClick={start}>Start</Button>
           </div>
-          {problem && (text.trim() !== "" || samples.length > 0) && <p className="muted small">{problem}</p>}
+          {problem && (text.trim() !== "" || samples.length > 0 || urls.length > 0) && <p className="muted small">{problem}</p>}
         </>
       )}
     </Modal>
+  );
+}
+
+// useAddressCheck is Go's check of the dialog's web addresses, asked a
+// moment after the person stops typing; null until it answers for what is
+// typed now, or with nothing typed.
+function useAddressCheck(text: string): app.VoiceAddressesView | null {
+  const [check, setCheck] = useState<app.VoiceAddressesView | null>(null);
+  useEffect(() => {
+    setCheck(null);
+    const urls = voiceAddressLines(text);
+    if (urls.length === 0) return;
+    let live = true;
+    const t = setTimeout(() => {
+      VoiceAPI.CheckAddresses(urls).then((c) => live && setCheck(c)).catch(() => live && setCheck(null));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [text]);
+  return check;
+}
+
+// AddressesField is the dialogs' web addresses of the person's writing, one
+// a line, with each address Go's check refuses named under it.
+function AddressesField({ id, value, onChange, check, hint }: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  check: app.VoiceAddressesView | null;
+  hint: string;
+}) {
+  const bad = (check?.check?.lines ?? []).filter((l) => l.problem);
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={id}>Web addresses of your writing <span className="muted">(optional)</span></label>
+      <Textarea
+        id={id}
+        rows={2}
+        value={value}
+        spellCheck={false}
+        placeholder="https://example.com/blog/my-post"
+        aria-invalid={bad.length > 0 || undefined}
+        aria-describedby={`${id}-hint`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <div id={`${id}-hint`} className="field-hint muted small">{hint}</div>
+      {bad.length > 0 && (
+        <ul className="step-problem small" role="alert">
+          {bad.map((l) => (
+            <li key={l.address}>
+              <span className="mono">{l.address}</span>: {l.problem}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -641,6 +717,9 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
 }) {
   const [text, setText] = useState("");
   const [samples, setSamples] = useState<string[]>([]);
+  const [urlsText, setUrlsText] = useState("");
+  const urls = voiceAddressLines(urlsText);
+  const addrCheck = useAddressCheck(urlsText);
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -650,7 +729,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
     setError(null);
     setStarting(true);
     try {
-      const r = await VoiceAPI.HostedWithAI(registry, text, samples);
+      const r = await VoiceAPI.HostedWithAI(registry, text, samples, urls);
       if (r.refusal) setError(r.detail || r.refusal);
       else if (r.run) onHosted(r.run);
     } catch (e) {
@@ -687,7 +766,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
       </Modal>
     );
   }
-  const problem = editWithAIProblem(hasVoice, text, samples.length);
+  const problem = editWithAIProblem(hasVoice, text, samples.length + urls.length) ?? addressesProblem(urls.length, addrCheck, "agentry", avail);
   const mb = Math.round(avail.maxInputBytes / (1024 * 1024));
   return (
     <Modal title={title} onClose={onClose}>
@@ -713,6 +792,15 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
         onChange={setSamples}
         hint={`Text, Markdown, PDF or Word documents you wrote. They are uploaded when it starts: at most ${avail.maxInputFiles} files, ${mb} MB together. The Voice Writer reads up to 1 MB of their text.`}
       />
+      {avail.takesUrls && (
+        <AddressesField
+          id="voice-cloud-ai-urls"
+          value={urlsText}
+          onChange={setUrlsText}
+          check={addrCheck}
+          hint={`One https address a line, up to ${avail.maxUrls}: your posts, articles or newsletters. Each page is fetched first and read by AI Review through the registry before the Voice Writer sees it; one drawn by scripts is opened in a headless browser. It is part of the same price.`}
+        />
+      )}
       <p className="small">{hostedCostLine(avail)}</p>
       <p className="muted small">
         {hasVoice ? "It rewrites your newest version, the one in the editor. " : ""}What it writes waits for AI Review like any version you save. The
@@ -724,7 +812,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={problem !== null} busy={starting} busyLabel="Starting…" onClick={start}>Start</Button>
       </div>
-      {problem && (text.trim() !== "" || samples.length > 0) && <p className="muted small">{problem}</p>}
+      {problem && (text.trim() !== "" || samples.length > 0 || urls.length > 0) && <p className="muted small">{problem}</p>}
     </Modal>
   );
 }

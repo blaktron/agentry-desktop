@@ -2157,6 +2157,9 @@ export namespace app {
 	    maxBriefBytes: number;
 	    web: boolean;
 	    webNote?: string;
+	    takesSources: boolean;
+	    maxRepos?: number;
+	    maxUrls?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new KnowledgeHostedAvailabilityView(source);
@@ -2183,6 +2186,9 @@ export namespace app {
 	        this.maxBriefBytes = source["maxBriefBytes"];
 	        this.web = source["web"];
 	        this.webNote = source["webNote"];
+	        this.takesSources = source["takesSources"];
+	        this.maxRepos = source["maxRepos"];
+	        this.maxUrls = source["maxUrls"];
 	    }
 	}
 	export class KnowledgeHostedBuildView {
@@ -2209,6 +2215,8 @@ export namespace app {
 	    documents: HostedArtefactView[];
 	    brief?: string;
 	    webLine?: string;
+	    repos?: string[];
+	    urls?: string[];
 	    canContinue: boolean;
 	    downloaded: boolean;
 	    kept?: string;
@@ -2246,6 +2254,8 @@ export namespace app {
 	        this.documents = this.convertValues(source["documents"], HostedArtefactView);
 	        this.brief = source["brief"];
 	        this.webLine = source["webLine"];
+	        this.repos = source["repos"];
+	        this.urls = source["urls"];
 	        this.canContinue = source["canContinue"];
 	        this.downloaded = source["downloaded"];
 	        this.kept = source["kept"];
@@ -4708,6 +4718,40 @@ export namespace app {
 	}
 	
 	
+	export class VoiceAddressesView {
+	    check?: voice.AddressCheck;
+	    reviewReady: boolean;
+	    reviewWhy?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceAddressesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.check = this.convertValues(source["check"], voice.AddressCheck);
+	        this.reviewReady = source["reviewReady"];
+	        this.reviewWhy = source["reviewWhy"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class VoiceHostedAvailabilityView {
 	    offered: boolean;
 	    available: boolean;
@@ -4725,6 +4769,8 @@ export namespace app {
 	    pool?: string;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
+	    takesUrls: boolean;
+	    maxUrls?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new VoiceHostedAvailabilityView(source);
@@ -4748,6 +4794,8 @@ export namespace app {
 	        this.pool = source["pool"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
+	        this.takesUrls = source["takesUrls"];
+	        this.maxUrls = source["maxUrls"];
 	    }
 	}
 	export class VoiceHostedView {
@@ -4767,6 +4815,8 @@ export namespace app {
 	    bytes?: number;
 	    note?: string;
 	    final: boolean;
+	    urls?: string[];
+	    pagesLine?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new VoiceHostedView(source);
@@ -4790,6 +4840,8 @@ export namespace app {
 	        this.bytes = source["bytes"];
 	        this.note = source["note"];
 	        this.final = source["final"];
+	        this.urls = source["urls"];
+	        this.pagesLine = source["pagesLine"];
 	    }
 	}
 	export class VoiceHostedStartView {
@@ -6301,11 +6353,36 @@ export namespace knowledge {
 	        this.kept = source["kept"];
 	    }
 	}
+	export class FetchedSource {
+	    kind: string;
+	    url: string;
+	    commit?: string;
+	    document: string;
+	    files: number;
+	    bytes: number;
+	    savedKey?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FetchedSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.url = source["url"];
+	        this.commit = source["commit"];
+	        this.document = source["document"];
+	        this.files = source["files"];
+	        this.bytes = source["bytes"];
+	        this.savedKey = source["savedKey"];
+	    }
+	}
 	export class BuildResult {
 	    name: string;
 	    pages: number;
 	    bytes: number;
 	    documents: string[];
+	    fetched?: FetchedSource[];
 	    brief?: boolean;
 	    skipped?: string[];
 	    dropped?: Dropped[];
@@ -6329,6 +6406,7 @@ export namespace knowledge {
 	        this.pages = source["pages"];
 	        this.bytes = source["bytes"];
 	        this.documents = source["documents"];
+	        this.fetched = this.convertValues(source["fetched"], FetchedSource);
 	        this.brief = source["brief"];
 	        this.skipped = source["skipped"];
 	        this.dropped = this.convertValues(source["dropped"], Dropped);
@@ -6361,6 +6439,7 @@ export namespace knowledge {
 		    return a;
 		}
 	}
+	
 	
 	export class Pack {
 	    name: string;
@@ -6515,6 +6594,78 @@ export namespace knowledge {
 	        this.name = source["name"];
 	        this.index = this.convertValues(source["index"], Page);
 	        this.pages = this.convertValues(source["pages"], PageInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SourceLine {
+	    address: string;
+	    kind: string;
+	    problem?: string;
+	    shown?: string;
+	    host?: string;
+	    saved?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceLine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.kind = source["kind"];
+	        this.problem = source["problem"];
+	        this.shown = source["shown"];
+	        this.host = source["host"];
+	        this.saved = source["saved"];
+	    }
+	}
+	export class Sources {
+	    repos: string[];
+	    urls: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Sources(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.repos = source["repos"];
+	        this.urls = source["urls"];
+	    }
+	}
+	export class SourcesCheck {
+	    lines: SourceLine[];
+	    problem?: string;
+	    maxRepos: number;
+	    maxUrls: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourcesCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lines = this.convertValues(source["lines"], SourceLine);
+	        this.problem = source["problem"];
+	        this.maxRepos = source["maxRepos"];
+	        this.maxUrls = source["maxUrls"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -7942,6 +8093,77 @@ export namespace voice {
 		    return a;
 		}
 	}
+	export class AddressLine {
+	    address: string;
+	    problem?: string;
+	    shown?: string;
+	    host?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddressLine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.problem = source["problem"];
+	        this.shown = source["shown"];
+	        this.host = source["host"];
+	    }
+	}
+	export class AddressCheck {
+	    lines: AddressLine[];
+	    problem?: string;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddressCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lines = this.convertValues(source["lines"], AddressLine);
+	        this.problem = source["problem"];
+	        this.max = source["max"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Page {
+	    url: string;
+	    sample?: string;
+	    rendered?: boolean;
+	    withheld?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Page(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.sample = source["sample"];
+	        this.rendered = source["rendered"];
+	        this.withheld = source["withheld"];
+	    }
+	}
 	export class Local {
 	    exists: boolean;
 	    text: string;
@@ -7977,6 +8199,7 @@ export namespace voice {
 	    created: boolean;
 	    samples?: string[];
 	    skipped?: string[];
+	    pages?: Page[];
 	
 	    static createFrom(source: any = {}) {
 	        return new BuildResult(source);
@@ -7988,6 +8211,7 @@ export namespace voice {
 	        this.created = source["created"];
 	        this.samples = source["samples"];
 	        this.skipped = source["skipped"];
+	        this.pages = this.convertValues(source["pages"], Page);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -8008,6 +8232,7 @@ export namespace voice {
 		    return a;
 		}
 	}
+	
 	
 	export class Sync {
 	    downloadSame: boolean;

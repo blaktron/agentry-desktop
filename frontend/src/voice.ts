@@ -276,7 +276,7 @@ export const MAX_VOICE_NOTE_BYTES = 4 * 1024;
  *  with none it is a Create, samples required, the text its brief. */
 export function editWithAIProblem(hasVoice: boolean, text: string, samples: number): string | null {
   if (hasVoice && text.trim() === "") return "Say what should change in your voice.";
-  if (!hasVoice && samples === 0) return "Add samples of your writing: the Voice Writer writes your voice from them.";
+  if (!hasVoice && samples === 0) return "Add samples of your writing, or web addresses of it: the Voice Writer writes your voice from them.";
   if (new TextEncoder().encode(text.trim()).length > MAX_VOICE_NOTE_BYTES) return "What you write here is at most 4 KiB.";
   return null;
 }
@@ -370,4 +370,31 @@ export function hostedCostLine(a: {
   const cost = hostedVoiceCost(a);
   if (!a.balanceKnown || a.holdCredits === 0 || a.balance >= a.holdCredits) return cost;
   return `${cost} This account has ${a.balance.toLocaleString("en-GB")} credits, fewer than the Voice Writer costs, so the registry will refuse it.`;
+}
+
+/** The addresses one a line in the dialog's field, trimmed, blank lines
+ *  dropped. */
+export function voiceAddressLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
+}
+
+/** What stops a Voice Writer run from its web addresses, as a sentence, or
+ *  null: an answer from Go not yet in, an address the build would refuse,
+ *  on this computer no TypeSafe key for AI Review, In Agentry a registry
+ *  that reads none or fewer. */
+export function addressesProblem(
+  n: number,
+  check: { check?: { problem?: string; lines?: { address: string; problem?: string }[] }; reviewReady?: boolean; reviewWhy?: string } | null,
+  where: "local" | "agentry",
+  agentry?: { takesUrls?: boolean; maxUrls?: number },
+): string | null {
+  if (n === 0) return null;
+  if (!check) return "Still checking the web addresses.";
+  if (check.check?.problem) return `The web addresses: ${check.check.problem}.`;
+  const bad = (check.check?.lines ?? []).find((l) => l.problem);
+  if (bad) return `${bad.address}: ${bad.problem}.`;
+  if (where === "local" && !check.reviewReady) return `${check.reviewWhy}.`;
+  if (where === "agentry" && !agentry?.takesUrls) return "This registry's Voice Writer does not read web addresses In Agentry: give the samples as files.";
+  if (where === "agentry" && n > (agentry?.maxUrls ?? 0)) return `The Voice Writer In Agentry takes at most ${agentry?.maxUrls} web addresses.`;
+  return null;
 }

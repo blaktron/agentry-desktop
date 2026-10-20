@@ -42,6 +42,16 @@
 // registry searches, and its note says searching can raise the credits a
 // build uses. The choice is sent as made either way.
 //
+// The Documents step also takes git repositories (an @ref pins a branch, a
+// tag or a commit) and files or pages at web addresses, one a line. Each is
+// fetched before the build and read as a document; they count as documents
+// for the brief rule and Search the web's default. Go checks the lists with
+// the CLI's own parse as the person types (KnowledgeAPI.CheckSources), and
+// Next is refused while one would be refused. On this computer a
+// repository that needs an access token uses the key a run setup saved for
+// its host; In Agentry, the key saved in Agentry for it, where the registry
+// builds from sources at all (its counts are the availability's).
+//
 // The Local and Cloud Knowledge pages each open this flow preset to their
 // place: `place`
 // chooses the Where step's answer, which the person can still change. Where
@@ -72,7 +82,8 @@ import { buildHoldLine, creatorUseLine } from "../usage";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 import {
-  MAX_BRIEF_BYTES, agentryWebLine, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap, type LocalWeb,
+  MAX_BRIEF_BYTES, addressLines, addressesRecap, agentryWebLine, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches,
+  sourceKeyLine, sourceListProblem, sourcesProblem, sourcesWarning, webDefault, webRecap, type LocalWeb,
 } from "../knowledgeSources";
 
 type Step = "documents" | "name" | "where" | "review";
@@ -86,7 +97,7 @@ const LABEL: Record<Step, string> = {
 
 export default function KnowledgeCreate({
   registry, addTo, place, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
-  initialBrief, initialWeb,
+  initialBrief, initialWeb, initialRepos, initialUrls,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
@@ -117,6 +128,9 @@ export default function KnowledgeCreate({
   /** Harness-only: the brief, and this computer's answer on the web. */
   initialBrief?: string;
   initialWeb?: LocalWeb;
+  /** Harness-only: the repositories and addresses, one a line. */
+  initialRepos?: string;
+  initialUrls?: string;
 }) {
   const [avail, setAvail] = useState<app.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
   const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? place ?? "local");
@@ -132,6 +146,12 @@ export default function KnowledgeCreate({
   const [docs, setDocs] = useState<string[]>(initialDocuments ?? []);
   const [name, setName] = useState(initialName ?? addTo ?? "");
   const [brief, setBrief] = useState(initialBrief ?? "");
+  // The repositories and addresses as typed, one a line, and Go's check of
+  // them; checking says an answer for what is typed now has not come.
+  const [reposText, setReposText] = useState(initialRepos ?? "");
+  const [urlsText, setUrlsText] = useState(initialUrls ?? "");
+  const [sourceCheck, setSourceCheck] = useState<knowledge.SourcesCheck | null>(null);
+  const [checking, setChecking] = useState(false);
   // webChoice is Search the web as the person set it; null follows the
   // default, which follows the documents.
   const [webChoice, setWebChoice] = useState<boolean | null>(null);
@@ -195,22 +215,55 @@ export default function KnowledgeCreate({
       live = false;
     };
   }, [docs]);
+  const repos = addressLines(reposText);
+  const urls = addressLines(urlsText);
+  const nSources = repos.length + urls.length;
+  useEffect(() => {
+    setSourceCheck(null);
+    if (nSources === 0) {
+      setChecking(false);
+      return;
+    }
+    let live = true;
+    setChecking(true);
+    const t = setTimeout(() => {
+      KnowledgeAPI.CheckSources({ repos, urls })
+        .then((c) => live && setSourceCheck(c))
+        .catch(() => live && setSourceCheck(null))
+        .finally(() => live && setChecking(false));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reposText, urlsText]);
+  // What the build reads beside the brief: the documents and the sources.
+  const inputs = docs.length + nSources;
   const pastAgentry = !!size && size.bytes > size.agentryMaxBytes;
   const pastLocal = !!size && size.bytes > size.localMaxBytes;
   const hasBrief = brief.trim() !== "";
-  const webOn = webChoice ?? webDefault(!!addTo, docs.length);
+  const webOn = webChoice ?? webDefault(!!addTo, inputs);
   const agentryWeb = !!avail?.web;
   // A registry from before briefs builds In Agentry from documents only,
   // and takes no brief beside them either.
-  const agentryNoBrief = !!avail && !avail.takesBrief && (docs.length === 0 || hasBrief);
+  const agentryNoBrief = !!avail && !avail.takesBrief && (inputs === 0 || hasBrief);
+  // In Agentry takes repositories and addresses only where the registry
+  // builds from them, up to its counts.
+  const agentrySources =
+    nSources === 0 || !avail ? null
+    : !avail.takesSources ? "This registry does not build In Agentry from repositories or web addresses: build it on this computer, or add the files as documents."
+    : repos.length > (avail.maxRepos ?? 0) ? `A build In Agentry takes at most ${avail.maxRepos} repositories.`
+    : urls.length > (avail.maxUrls ?? 0) ? `A build In Agentry takes at most ${avail.maxUrls} web addresses.`
+    : null;
   // The brief's bound: 8 KiB, or less where the registry says so.
   const maxBrief = Math.min(MAX_BRIEF_BYTES, avail?.maxBriefBytes || MAX_BRIEF_BYTES);
   // The warning follows whether the build will search, where it runs: a
   // ticked box on a computer without the keys does not search.
-  const warning = sourcesWarning(docs.length, searches(webOn, where, localWeb, agentryWeb));
+  const warning = sourcesWarning(inputs, searches(webOn, where, localWeb, agentryWeb));
   // In Agentry preset where it cannot be chosen falls back to this
   // computer, as its radio is disabled then.
-  const agentryChoosable = !!avail?.offered && avail.available && !pastAgentry && !agentryNoBrief;
+  const agentryChoosable = !!avail?.offered && avail.available && !pastAgentry && !agentryNoBrief && !agentrySources;
   // Add documents from the Cloud page does not fall back: the pack may not
   // be kept here, and documents added here would change only this
   // computer's copy, so In Agentry stays chosen and the reason blocks it.
@@ -231,7 +284,7 @@ export default function KnowledgeCreate({
   };
   function next() {
     const p =
-      step === "documents" ? sourcesProblem(docs.length, brief, maxBrief) ?? documentsProblem()
+      step === "documents" ? sourcesProblem(inputs, brief, maxBrief) ?? documentsProblem()
       : step === "name" ? nameProblem(name)
       : null;
     if (p) {
@@ -243,6 +296,8 @@ export default function KnowledgeCreate({
   }
   function documentsProblem(): string | null {
     return docs.length > 0 && sizing ? "Still adding up the documents' size; try again in a moment."
+      : nSources > 0 && (checking || !sourceCheck) ? "Still checking the repositories and addresses; try again in a moment."
+      : sourceListProblem(sourceCheck) ? sourceListProblem(sourceCheck)
       : pastLocal ? `The documents come to ${fmtBytes(size!.bytes)}; a knowledge pack made on this computer, its documents included, is at most ${fmtCap(size!.localMaxBytes)}. Remove some.`
       : null;
   }
@@ -264,6 +319,7 @@ export default function KnowledgeCreate({
     else if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
     if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
+    if (agentrySources) blockers.push(agentrySources);
   } else if (setup && !setup.dockerOk) blockers.push(`The container engine is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
   if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
@@ -272,7 +328,7 @@ export default function KnowledgeCreate({
     setRefusal(null);
     setStarting(true);
     try {
-      const v = await KnowledgeAPI.StartHostedBuild(registry, addTo ? "" : name, addTo ?? "", docs, brief, searches(webOn, "agentry", localWeb, agentryWeb));
+      const v = await KnowledgeAPI.StartHostedBuild(registry, addTo ? "" : name, addTo ?? "", docs, { repos, urls }, brief, searches(webOn, "agentry", localWeb, agentryWeb));
       if (v.build) setHosted(v.build);
       else setRefusal(v.detail || v.refusal || "The registry refused the build.");
     } catch (e) {
@@ -319,7 +375,11 @@ export default function KnowledgeCreate({
     setLog([]);
     setProgress(null);
     try {
-      setResult(addTo ? await KnowledgeAPI.Add(registry, addTo, docs, brief, webOn) : await KnowledgeAPI.Create(registry, name, docs, brief, webOn));
+      setResult(
+        addTo
+          ? await KnowledgeAPI.Add(registry, addTo, docs, { repos, urls }, brief, webOn)
+          : await KnowledgeAPI.Create(registry, name, docs, { repos, urls }, brief, webOn),
+      );
     } catch (e) {
       setError(String(e));
     } finally {
@@ -387,7 +447,7 @@ export default function KnowledgeCreate({
 
             {step === "documents" && (
               <>
-                <p className="small">Choose documents, write a brief, or both.</p>
+                <p className="small">Choose documents, give repositories or web addresses, write a brief, or a mix.</p>
                 <p className="muted small">
                   Markdown, text, HTML, CSV, JSON, YAML and source files are read as they are; PDF, DOCX, ODT, EPUB, RTF, PPTX
                   and XLSX, and PNG, JPEG, TIFF or WebP images, as the text decoded from them on this computer first. The
@@ -417,8 +477,28 @@ export default function KnowledgeCreate({
                   <Button onClick={addFiles}>Add files…</Button>
                   <Button onClick={addFolder}>Add folder…</Button>
                 </div>
+                <SourcesField
+                  id="knowledge-repos"
+                  label="Git repositories"
+                  hint="One https address a line. Add @ and a branch, tag or commit to pin one. The build reads its text files, not its history."
+                  placeholder="https://github.com/owner/repo@v1.2.0"
+                  value={reposText}
+                  onChange={setReposText}
+                  lines={(sourceCheck?.lines ?? []).filter((l) => l.kind === "repository")}
+                />
+                <SourcesField
+                  id="knowledge-urls"
+                  label="Web addresses of files or pages"
+                  hint="One https address a line. Each is fetched once, before the build, and read like a document you chose. Public addresses only."
+                  placeholder="https://example.com/guide.pdf"
+                  value={urlsText}
+                  onChange={setUrlsText}
+                  lines={(sourceCheck?.lines ?? []).filter((l) => l.kind === "url")}
+                />
+                {sourceCheck?.problem && <p className="step-problem" role="alert">{sourceListProblem(sourceCheck)}</p>}
+                {repos.length > 0 && <p className="muted small">{sourceKeyLine(sourceCheck?.lines ?? [], !!avail?.takesSources)}</p>}
                 <Field
-                  label={<>A brief <span className="muted">(optional with documents)</span></>}
+                  label={<>A brief <span className="muted">(optional with documents or sources)</span></>}
                   htmlFor="knowledge-brief"
                   hint={<>What the pack should cover, and for whom. It is kept in the pack as <span className="mono">sources/brief.md</span>, up to {maxBrief >> 10} KiB.</>}
                 >
@@ -466,7 +546,7 @@ export default function KnowledgeCreate({
                     </span>
                   </label>
                   <label className="check-row">
-                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNoBrief} onChange={() => setWhere("agentry")} />
+                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNoBrief || !!agentrySources} onChange={() => setWhere("agentry")} />
                     <span>
                       <strong>In Agentry</strong>{" "}
                       <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then copied here</span>
@@ -479,6 +559,7 @@ export default function KnowledgeCreate({
                   </p>
                 )}
                 {avail.available && agentryNoBrief && <p className="muted small">{AGENTRY_NO_BRIEF}</p>}
+                {avail.available && agentrySources && <p className="muted small">{agentrySources}</p>}
                 {!avail.available && avail.reason && (
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
@@ -504,7 +585,9 @@ export default function KnowledgeCreate({
               <>
                 <Recap
                   rows={[
-                    { label: "Documents", value: documentsRecap(docs), onEdit: () => goTo(steps.indexOf("documents")) },
+                    { label: "Documents", value: documentsRecap(docs, nSources > 0), onEdit: () => goTo(steps.indexOf("documents")) },
+                    ...(repos.length > 0 ? [{ label: "Repositories", value: addressesRecap(repos, "repository"), onEdit: () => goTo(steps.indexOf("documents")) }] : []),
+                    ...(urls.length > 0 ? [{ label: "Web addresses", value: addressesRecap(urls, "address"), onEdit: () => goTo(steps.indexOf("documents")) }] : []),
                     ...(hasBrief ? [{ label: "Brief", value: clip(brief.trim(), 280), onEdit: () => goTo(steps.indexOf("documents")) }] : []),
                     { label: "Search the web", value: webRecap(webOn, where, localWeb, agentryWeb), onEdit: () => goTo(steps.indexOf("documents")) },
                     ...(addTo ? [] : [{ label: "Name", value: name, onEdit: () => goTo(steps.indexOf("name")) }]),
@@ -515,7 +598,7 @@ export default function KnowledgeCreate({
                     },
                   ]}
                 />
-                {docs.length === 0 && <Notice tone="warn">{warning.text}</Notice>}
+                {inputs === 0 && <Notice tone="warn">{warning.text}</Notice>}
                 {fellBack && !avail?.offered && (
                   <Notice tone="info">
                     This registry does not build knowledge In Agentry, so the pack is made on this computer. Copy to Cloud keeps a copy in
@@ -524,7 +607,7 @@ export default function KnowledgeCreate({
                 )}
                 {inAgentry && avail ? (
                   <>
-                    <Notice tone="info">{inAgentryNote(registry, docs.length, hasBrief)}</Notice>
+                    <Notice tone="info">{inAgentryNote(registry, inputs, hasBrief)}</Notice>
                     <HostedCost avail={avail} />
                   </>
                 ) : (
@@ -555,7 +638,7 @@ export default function KnowledgeCreate({
         <RunningView
           spinner={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`}
           about={<>
-            The Knowledge Creator is reading {readsLine(docs.length, hasBrief)} and writing the pages. This can take a long time; the pages it has
+            The Knowledge Creator is reading {readsLine(inputs, hasBrief)} and writing the pages. This can take a long time; the pages it has
             written count up as it goes, and are checked when it finishes, which may drop some.
           </>}
           actions={<>
@@ -609,7 +692,7 @@ export default function KnowledgeCreate({
         <>
           <Spinner label={hosted.statusLine || hosted.state} />
           <p className="muted small">
-            The Knowledge Creator runs In Agentry on {readsLine(hosted.documents?.length ?? 0, !!hosted.brief)}. Run in the background keeps it in a card
+            The Knowledge Creator runs In Agentry on {readsLine((hosted.documents?.length ?? 0) + (hosted.repos?.length ?? 0) + (hosted.urls?.length ?? 0), !!hosted.brief)}. Run in the background keeps it in a card
             in the corner while you use the rest of the app; the build goes on in Agentry either way.
           </p>
           <p className="small">{buildCreditsLine(hosted)}</p>
@@ -634,6 +717,44 @@ export default function KnowledgeCreate({
         />
       )}
     </Modal>
+  );
+}
+
+// SourcesField is one list of repositories or addresses, one a line, with
+// Go's check of each line under it: its problem, or the host it is fetched
+// from and, for a repository, whether a key is saved here for that host.
+function SourcesField({ id, label, hint, placeholder, value, onChange, lines }: {
+  id: string;
+  label: string;
+  hint: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  lines: knowledge.SourceLine[];
+}) {
+  const bad = lines.filter((l) => l.problem);
+  return (
+    <Field label={<>{label} <span className="muted">(optional)</span></>} htmlFor={id} hint={hint}>
+      <Textarea
+        id={id}
+        rows={2}
+        value={value}
+        spellCheck={false}
+        placeholder={placeholder}
+        aria-invalid={bad.length > 0 || undefined}
+        aria-describedby={bad.length > 0 ? `${id}-problems` : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {bad.length > 0 && (
+        <ul id={`${id}-problems`} className="step-problem small" role="alert">
+          {bad.map((l) => (
+            <li key={l.address}>
+              <span className="mono">{l.address}</span>: {l.problem}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Field>
   );
 }
 
@@ -713,6 +834,12 @@ function HostedDone({ v, onContinue, onClose, onPreview }: {
       {v.note && <p>{v.note}</p>}
       {v.error && <ErrorBox error={v.error} />}
       {v.webLine && <p className="small">{v.webLine}</p>}
+      {((v.repos ?? []).length > 0 || (v.urls ?? []).length > 0) && (
+        <dl className="knowledge-facts">
+          {(v.repos ?? []).length > 0 && <FragmentRow label="Repositories" value={<span className="mono small">{v.repos!.join(", ")}</span>} />}
+          {(v.urls ?? []).length > 0 && <FragmentRow label="Web addresses" value={<span className="mono small">{v.urls!.join(", ")}</span>} />}
+        </dl>
+      )}
       <p className="small">{buildCreditsLine(v)}</p>
       {v.downloaded && (
         <p>
@@ -782,6 +909,17 @@ function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
       <dl className="knowledge-facts">
         <dt>Documents read</dt>
         <dd><span className="mono small">{docs.join(", ") || "none"}</span></dd>
+        {(result.fetched ?? []).map((f) => (
+          <FragmentRow
+            key={f.document}
+            label={f.kind === "repository" ? "Repository fetched" : "File fetched"}
+            value={<>
+              <span className="mono small">{f.url}</span>
+              {f.commit ? <> at <span className="mono small">{f.commit.slice(0, 12)}</span></> : null}: {f.files === 1 ? "1 file" : `${f.files} files`},{" "}
+              {fmtBytes(f.bytes)}, cited as <span className="mono small">{f.document}</span>{f.savedKey ? ", with the key saved on this computer" : ""}
+            </>}
+          />
+        ))}
         {(result.skipped ?? []).length > 0 && (
           <>
             <dt>Not read</dt>

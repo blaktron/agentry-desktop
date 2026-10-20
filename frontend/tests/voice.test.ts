@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ALREADY_THE_SAME, accountJob, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedFailure, hostedVoiceCost, localStatus, pendingLine,
-  restoreLine, reviewCostLine, uploadButton, versionLine, voiceChoice, voiceTextProblem,
+  restoreLine, reviewCostLine, uploadButton, versionLine, voiceChoice, voiceTextProblem, addressesProblem, voiceAddressLines,
 } from "../src/voice.ts";
 
 test("a run on this computer is offered this computer's voice, ticked from its switch", () => {
@@ -164,4 +164,20 @@ test("the hosted dialog's cost says the price and warns of a balance short of it
   // An unmetered organization: no shortage to warn of.
   assert.doesNotMatch(hostedCostLine({ ...avail, holdCredits: 0, balance: 0 }), /fewer credits/);
   assert.doesNotMatch(hostedCostLine({ ...avail, balance: 0, balanceKnown: false }), /fewer credits/);
+});
+
+test("web addresses of the person's writing are held to Go's check, the key on this computer and the registry's terms", () => {
+  assert.deepEqual(voiceAddressLines(" https://a.example/1 \n\nhttps://a.example/2"), ["https://a.example/1", "https://a.example/2"]);
+  const ok = { check: { lines: [{ address: "https://a.example/1" }] }, reviewReady: true };
+  assert.equal(addressesProblem(0, null, "local"), null);
+  assert.match(addressesProblem(1, null, "local") ?? "", /Still checking/);
+  assert.equal(addressesProblem(1, ok, "local"), null);
+  assert.equal(addressesProblem(1, { check: { lines: [{ address: "http://a.example/1", problem: "must be https" }] }, reviewReady: true }, "local"), "http://a.example/1: must be https.");
+  // On this computer AI Review takes the person's own TypeSafe key.
+  assert.match(addressesProblem(1, { ...ok, reviewReady: false, reviewWhy: "that takes your own TypeSafe key" }, "local") ?? "", /TypeSafe key\.$/);
+  // In Agentry the registry reads them, where it does, up to its count.
+  assert.match(addressesProblem(1, { ...ok, reviewReady: false }, "agentry", { takesUrls: false }) ?? "", /does not read web addresses/);
+  assert.equal(addressesProblem(1, { ...ok, reviewReady: false }, "agentry", { takesUrls: true, maxUrls: 20 }), null);
+  assert.match(addressesProblem(3, ok, "agentry", { takesUrls: true, maxUrls: 2 }) ?? "", /at most 2 web addresses/);
+  assert.match(editWithAIProblem(false, "", 0) ?? "", /or web addresses of it/);
 });

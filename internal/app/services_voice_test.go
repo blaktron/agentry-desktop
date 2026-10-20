@@ -138,20 +138,20 @@ func TestSubmitAndDeleteKeepTheirPlaces(t *testing.T) {
 
 func TestTheVoiceWriterTakesOnlyPickedSamplesAndANoteForAnEdit(t *testing.T) {
 	f := newVoiceFixture(t, false)
-	if _, err := f.v.Write(f.reg.URL, "rewrite", nil, ""); err == nil {
+	if _, err := f.v.Write(f.reg.URL, "rewrite", nil, nil, ""); err == nil {
 		t.Fatal("a job that is not create, improve or edit ran")
 	}
-	if _, err := f.v.Write(f.reg.URL, "create", []string{"/etc/passwd"}, ""); err == nil || !strings.Contains(err.Error(), "file dialog") {
+	if _, err := f.v.Write(f.reg.URL, "create", []string{"/etc/passwd"}, nil, ""); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("a sample no picker returned: %v", err)
 	}
-	if _, err := f.v.Write(f.reg.URL, "edit", nil, " "); err == nil {
+	if _, err := f.v.Write(f.reg.URL, "edit", nil, nil, " "); err == nil {
 		t.Fatal("an AI Edit with no note ran")
 	}
 	// An AI Edit takes samples now, and still only picked ones.
-	if _, err := f.v.Write(f.reg.URL, "edit", []string{"/etc/passwd"}, "shorter"); err == nil || !strings.Contains(err.Error(), "file dialog") {
+	if _, err := f.v.Write(f.reg.URL, "edit", []string{"/etc/passwd"}, nil, "shorter"); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("an AI Edit's sample no picker returned: %v", err)
 	}
-	if _, err := f.v.StartHosted(f.reg.URL, "create", nil, ""); err == nil {
+	if _, err := f.v.StartHosted(f.reg.URL, "create", nil, nil, ""); err == nil {
 		t.Fatal("a Create with no samples ran In Agentry")
 	}
 }
@@ -166,12 +166,12 @@ func TestEditWithAIIsAnEditOverAVoiceHereAndACreateWithout(t *testing.T) {
 		seen = append(seen, o)
 		return &voicebuild.Result{Text: []byte("# Written by the Writer\n\nPlain words.\n")}, nil
 	}
-	if _, err := f.v.WriteWithAI(f.reg.URL, "sound like me", nil); err == nil || !strings.Contains(err.Error(), "samples") {
+	if _, err := f.v.WriteWithAI(f.reg.URL, "sound like me", nil, nil); err == nil || !strings.Contains(err.Error(), "samples") {
 		t.Fatalf("with no voice and no samples: %v", err)
 	}
 	sample := t.TempDir()
 	f.v.app.markPicked(sample)
-	res, err := f.v.WriteWithAI(f.reg.URL, " sound like me ", []string{sample})
+	res, err := f.v.WriteWithAI(f.reg.URL, " sound like me ", []string{sample}, nil)
 	if err != nil || !res.Created || res.Voice.Source != "create" {
 		t.Fatalf("a Create from the dialog: %+v, %v", res, err)
 	}
@@ -182,13 +182,13 @@ func TestEditWithAIIsAnEditOverAVoiceHereAndACreateWithout(t *testing.T) {
 		t.Fatalf("a Create with nothing to replace asked %v", f.steps)
 	}
 	// With a voice here: an AI Edit, the samples optional.
-	if _, err := f.v.WriteWithAI(f.reg.URL, "", nil); err == nil || !strings.Contains(err.Error(), "what should change") {
+	if _, err := f.v.WriteWithAI(f.reg.URL, "", nil, nil); err == nil || !strings.Contains(err.Error(), "what should change") {
 		t.Fatalf("an Edit with no note: %v", err)
 	}
-	if _, err := f.v.WriteWithAI(f.reg.URL, "shorter sentences", nil); err != nil {
+	if _, err := f.v.WriteWithAI(f.reg.URL, "shorter sentences", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.v.WriteWithAI(f.reg.URL, "shorter sentences", []string{sample}); err != nil {
+	if _, err := f.v.WriteWithAI(f.reg.URL, "shorter sentences", []string{sample}, nil); err != nil {
 		t.Fatal(err)
 	}
 	for i, want := range []int{0, 1} {
@@ -378,7 +378,7 @@ func TestACreateAsksBeforeItReplacesTheVoiceHere(t *testing.T) {
 	sample := t.TempDir()
 	f.v.app.markPicked(sample)
 	f.answer = false
-	if _, err := f.v.Write(f.reg.URL, "create", []string{sample}, ""); err == nil {
+	if _, err := f.v.Write(f.reg.URL, "create", []string{sample}, nil, ""); err == nil {
 		t.Fatal("a Create answered No ran")
 	}
 	if strings.Join(f.steps, "|") != "ask: Replace this computer's voice?" {
@@ -396,7 +396,7 @@ func TestTheVoiceWriterInAgentrySendsNoTokenToAURLSettingsRefuses(t *testing.T) 
 	}
 	sample := t.TempDir()
 	f.v.app.markPicked(sample)
-	if _, err := f.v.StartHosted("http://example.com", "create", []string{sample}, ""); err == nil || !strings.Contains(err.Error(), "registry") {
+	if _, err := f.v.StartHosted("http://example.com", "create", []string{sample}, nil, ""); err == nil || !strings.Contains(err.Error(), "registry") {
 		t.Fatalf("a start at a refused URL: %v", err)
 	}
 }
@@ -487,19 +487,76 @@ func TestEditWithAIInAgentryIsAnEditOverTheAccountsNewestVersionAndACreateWithou
 	f := newVoiceFixture(t, true)
 	// No voice in the account: a Create, so samples are required, as the
 	// dialog says.
-	if _, err := f.v.HostedWithAI(f.reg.URL, "plain and direct", nil); err == nil || !strings.Contains(err.Error(), "samples") {
+	if _, err := f.v.HostedWithAI(f.reg.URL, "plain and direct", nil, nil); err == nil || !strings.Contains(err.Error(), "samples") {
 		t.Fatalf("a Create In Agentry with no samples: %v", err)
 	}
 	if _, err := f.v.SaveAccount(f.reg.URL, voiceText); err != nil {
 		t.Fatal(err)
 	}
 	// A voice in the account: an AI Edit, so the note is required.
-	if _, err := f.v.HostedWithAI(f.reg.URL, "  ", nil); err == nil || !strings.Contains(err.Error(), "what should change") {
+	if _, err := f.v.HostedWithAI(f.reg.URL, "  ", nil, nil); err == nil || !strings.Contains(err.Error(), "what should change") {
 		t.Fatalf("an AI Edit In Agentry with no note: %v", err)
 	}
 	// Samples come only from the native pickers.
-	if _, err := f.v.HostedWithAI(f.reg.URL, "shorter", []string{t.TempDir()}); err == nil {
+	if _, err := f.v.HostedWithAI(f.reg.URL, "shorter", []string{t.TempDir()}, nil); err == nil {
 		t.Fatal("an AI Edit In Agentry took a sample no picker returned")
+	}
+}
+
+// The Voice Writer In Agentry takes web addresses of the person's writing
+// where the registry says it reads them: a Create from addresses alone
+// uploads nothing and sends them as the create's urls, blank lines dropped.
+// Past the registry's count, or to a registry that reads none, it is refused
+// before anything is created; an address the build would refuse is refused
+// before the registry is asked.
+func TestTheVoiceWriterInAgentrySendsWebAddresses(t *testing.T) {
+	f := &hostedFake{
+		enabled: true,
+		scopes:  []string{"agent:read", "user:profile", "run:read", "run:write", "voice:read", "voice:write"},
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	fastPoll(t)
+	r, _ := newRunAPI(t)
+	v := &VoiceAPI{app: r.app, run: r}
+	urls := []string{" https://paulgraham.com/greatwork.html", "", "https://paulgraham.com/hwh.html"}
+
+	if _, err := v.StartHosted(reg, "create", nil, urls, ""); err == nil || !strings.Contains(err.Error(), "does not read web addresses") {
+		t.Fatalf("addresses to a registry that reads none: %v", err)
+	}
+	f.mu.Lock()
+	f.voiceURLs = &hostedrun.VoiceURLTerms{Enabled: true, Max: 1, MaxPages: 100}
+	f.mu.Unlock()
+	if _, err := v.StartHosted(reg, "create", nil, urls, ""); err == nil || !strings.Contains(err.Error(), "at most 1 web addresses") {
+		t.Fatalf("past the registry's count: %v", err)
+	}
+	if _, err := v.StartHosted(reg, "create", nil, []string{"http://example.com/post"}, ""); err == nil || !strings.Contains(err.Error(), "the web addresses") {
+		t.Fatalf("an address the build would refuse: %v", err)
+	}
+	f.mu.Lock()
+	refused := f.created
+	f.voiceURLs.Max = 20
+	f.mu.Unlock()
+	if refused != nil {
+		t.Fatalf("a refused run was created: %+v", refused)
+	}
+	avail, err := v.HostedAvailability(reg, "create")
+	if err != nil || !avail.TakesURLs || avail.MaxURLs != 20 {
+		t.Fatalf("availability = %+v, %v", avail, err)
+	}
+	start, err := v.StartHosted(reg, "create", nil, urls, "plain")
+	if err != nil || start.Run == nil {
+		t.Fatalf("start = %+v, %v", start, err)
+	}
+	f.mu.Lock()
+	created, uploads := f.created, f.uploads
+	f.mu.Unlock()
+	if uploads != 0 || created == nil || len(created.Inputs) != 0 || created.Op != "create" || created.Brief != "plain" ||
+		strings.Join(created.URLs, ",") != "https://paulgraham.com/greatwork.html,https://paulgraham.com/hwh.html" {
+		t.Fatalf("uploaded %d, created %+v", uploads, created)
+	}
+	if got := voicePagesLine(&hostedrun.VoiceBuild{URLs: created.URLs, Pages: 3, MaxPages: 100, Withheld: 1}); got != "3 page reads of the 100 it may make; AI Review withheld 1 text from the Voice Writer." {
+		t.Fatalf("pages line = %q", got)
 	}
 }
 

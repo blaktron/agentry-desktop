@@ -1,5 +1,5 @@
-// What a knowledge build is made from: documents, a brief, or both, and
-// the Search the web choice — the Documents step's check before Next, the
+// What a knowledge build is made from: documents, git repositories and
+// files at web addresses, a brief, or a mix, and the Search the web choice — the Documents step's check before Next, the
 // warning, the choice's default and the sentences beside it. Pure,
 // so the rules are tested apart from the page; Go checks the brief and the
 // documents again (build.CheckBrief), and the registry once more.
@@ -14,12 +14,52 @@ export function briefBytes(brief: string): number {
 }
 
 /** The Documents step's check before Next: documents, a brief, or both,
- *  and a brief within its bound. */
+ *  and a brief within its bound. A repository or an address counts as a
+ *  document. */
 export function sourcesProblem(documents: number, brief: string, maxBriefBytes = MAX_BRIEF_BYTES): string | null {
   const n = briefBytes(brief);
-  if (documents === 0 && n === 0) return "Add a document or a folder, write a brief that says what the pack should cover, or both.";
+  if (documents === 0 && n === 0) return "Add a document or a folder, give a repository or a web address, write a brief that says what the pack should cover, or a mix.";
   if (n > maxBriefBytes) return `The brief is ${n.toLocaleString("en")} bytes; a brief is at most ${maxBriefBytes >> 10} KiB. Shorten it.`;
   return null;
+}
+
+/** The addresses one a line in a field, trimmed, blank lines dropped. */
+export function addressLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
+}
+
+/** One line of Go's check of a build's sources (knowledge.SourceLine). */
+export interface SourceLine {
+  address: string;
+  kind: string;
+  problem?: string;
+  host?: string;
+  saved?: boolean;
+}
+
+/** The first thing wrong with a build's sources as the step says it, or
+ *  null: the list's own problem (the count), then the first line's. */
+export function sourceListProblem(check: { problem?: string; lines?: SourceLine[] } | null): string | null {
+  if (!check) return null;
+  if (check.problem) return `The repositories and addresses: ${check.problem}.`;
+  const bad = (check.lines ?? []).find((l) => l.problem);
+  return bad ? `${bad.address}: ${bad.problem}.` : null;
+}
+
+/** What a repository that needs an access token uses for it, in each place, beside the
+ *  repositories field. */
+export function sourceKeyLine(lines: SourceLine[], agentry: boolean): string {
+  const saved = [...new Set(lines.filter((l) => l.kind === "repository" && l.saved && l.host).map((l) => l.host!))];
+  const here = saved.length > 0
+    ? `On this computer a build uses the key you saved for ${saved.join(", ")} in a run setup.`
+    : "On this computer a repository that needs an access token uses the key you saved for its host in a run setup.";
+  return agentry ? `${here} In Agentry it uses the key saved in Agentry for that host, under Settings → Encrypted storage on the site.` : here;
+}
+
+/** The Review step's row for repositories or addresses. */
+export function addressesRecap(list: string[], what: "repository" | "address"): string {
+  if (list.length === 1) return list[0];
+  return `${list.length} ${what === "repository" ? "repositories" : "web addresses"}`;
 }
 
 /** Search the web's default: on for a new pack with no documents,
@@ -79,9 +119,10 @@ export function searches(asked: boolean, where: "local" | "agentry", local: Loca
   return where === "agentry" ? agentryWeb : !!local?.ready;
 }
 
-/** The Review step's Documents row. */
-export function documentsRecap(documents: string[]): string {
-  if (documents.length === 0) return "None: the Creator works from the brief";
+/** The Review step's Documents row; sources says the build is given
+ *  repositories or addresses beside them. */
+export function documentsRecap(documents: string[], sources = false): string {
+  if (documents.length === 0) return sources ? "None" : "None: the Creator works from the brief";
   return documents.length === 1 ? documents[0] : `${documents.length} files and folders`;
 }
 

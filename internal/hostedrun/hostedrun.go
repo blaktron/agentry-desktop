@@ -122,6 +122,27 @@ type BuildPrice struct {
 	// Web is Search the web on a build, nil from a registry that does not
 	// send it.
 	Web *BuildWebTerms `json:"web,omitempty"`
+	// Sources are the git repositories and file addresses a build takes
+	// beside its documents; nil from a registry that does not send them,
+	// which takes none.
+	Sources *BuildSourceTerms `json:"sources,omitempty"`
+}
+
+// BuildSourceTerms is the status route's knowledgeBuild.sources: whether a
+// build here fetches repositories and addresses, and how many of each.
+type BuildSourceTerms struct {
+	Enabled  bool `json:"enabled"`
+	MaxRepos int  `json:"maxRepos"`
+	MaxURLs  int  `json:"maxUrls"`
+}
+
+// TakesSources reports whether the registry builds from repositories and
+// addresses, answering its counts.
+func (p *BuildPrice) TakesSources() (*BuildSourceTerms, bool) {
+	if p == nil || !p.Enabled || p.Sources == nil || !p.Sources.Enabled || p.Sources.MaxRepos <= 0 || p.Sources.MaxURLs <= 0 {
+		return nil, false
+	}
+	return p.Sources, true
 }
 
 // TakesBrief reports whether the registry builds without documents.
@@ -227,6 +248,10 @@ type KnowledgeBuild struct {
 	// Web is a build that could search the web's record of it; nil for a
 	// build without the web.
 	Web *BuildWeb `json:"web,omitempty"`
+	// Repos and URLs are the repositories and file addresses it was given,
+	// as the create checked them.
+	Repos []string `json:"repos,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
 }
 
 // BuildWeb is what a web build's record counts: the searches the provider
@@ -334,6 +359,13 @@ type CreateRequest struct {
 	Task        string            `json:"task,omitempty"`
 	Intake      map[string]string `json:"intake,omitempty"`
 	Inputs      []string          `json:"inputs,omitempty"`
+	// Repos and URLs are a knowledge build's git repositories (a ref may
+	// follow @) and file addresses, fetched by its run beside its Inputs;
+	// URLs are a Voice Writer run's web addresses of the person's writing.
+	// The registry uses the key the account saved in Agentry for a source's
+	// host; no token is sent for a build.
+	Repos []string `json:"repos,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
 	// Knowledge are the registry ids of the account's packs in Agentry a
 	// run attaches; a build takes none.
 	Knowledge []string `json:"knowledge,omitempty"`

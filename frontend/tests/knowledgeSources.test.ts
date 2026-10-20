@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_BRIEF_BYTES, agentryWebLine, briefBytes, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap,
+  MAX_BRIEF_BYTES, addressLines, addressesRecap, agentryWebLine, briefBytes, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches,
+  sourceKeyLine, sourceListProblem, sourcesProblem, sourcesWarning, webDefault, webRecap,
 } from "../src/knowledgeSources.ts";
 
 test("a build takes documents, a brief, or both, and a brief of at most 8 KiB", () => {
@@ -87,4 +88,29 @@ test("a result's documents without its brief", () => {
   assert.equal(documentsRead(["a.pdf", "brief.md"], true), 1);
   assert.equal(documentsRead(["a.pdf", "b.md"], false), 2);
   assert.equal(documentsRead([], true), 0);
+});
+
+test("repositories and addresses are one a line, and Go's check is said line by line", () => {
+  assert.deepEqual(addressLines("  https://github.com/o/r@v1 \r\n\n https://example.com/a.pdf\n"), ["https://github.com/o/r@v1", "https://example.com/a.pdf"]);
+  assert.deepEqual(addressLines("  \n"), []);
+  assert.equal(sourceListProblem(null), null);
+  assert.equal(sourceListProblem({ lines: [{ address: "https://github.com/o/r", kind: "repository", host: "github.com" }] }), null);
+  assert.equal(
+    sourceListProblem({ lines: [{ address: "https://github.com/o/r", kind: "repository" }, { address: "http://x.example/a", kind: "url", problem: "must be https" }] }),
+    "http://x.example/a: must be https.",
+  );
+  assert.equal(sourceListProblem({ problem: "a build takes at most 10 repositories", lines: [] }), "The repositories and addresses: a build takes at most 10 repositories.");
+  // A repository with a source counts as a document for the brief rule.
+  assert.equal(sourcesProblem(1, ""), null);
+  assert.match(sourcesProblem(0, "") ?? "", /give a repository or a web address/);
+  assert.equal(documentsRecap([], true), "None");
+});
+
+test("a private repository's key is the one saved for its host, in each place", () => {
+  const saved = [{ address: "https://github.com/o/r", kind: "repository", host: "github.com", saved: true }];
+  assert.equal(sourceKeyLine(saved, false), "On this computer a build uses the key you saved for github.com in a run setup.");
+  assert.match(sourceKeyLine([], true), /On this computer a repository that needs an access token uses the key you saved for its host in a run setup\. In Agentry it uses the key saved in Agentry/);
+  assert.equal(addressesRecap(["https://github.com/o/r"], "repository"), "https://github.com/o/r");
+  assert.equal(addressesRecap(["a", "b"], "repository"), "2 repositories");
+  assert.equal(addressesRecap(["a", "b", "c"], "address"), "3 web addresses");
 });

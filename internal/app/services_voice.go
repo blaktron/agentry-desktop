@@ -30,6 +30,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/voice/build"
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
 
+	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/voice"
@@ -335,16 +336,20 @@ func voiceJob(job string) (build.Job, error) {
 	return "", fmt.Errorf("%q is not create, improve or edit", job)
 }
 
-// checkVoiceJob holds a job's samples and brief to the rule both places
-// share: Create and Improve take samples, an AI Edit a note and samples if
-// the person adds some, and a brief or a note is at most 4 KiB. Every sample
-// is one a native picker returned.
-func (v *VoiceAPI) checkVoiceJob(job build.Job, samples []string, brief string) error {
+// checkVoiceJob holds a job's samples, addresses and brief to the rule both
+// places share: Create and Improve take samples or web addresses of the
+// person's writing, an AI Edit a note and either if the person adds some,
+// and a brief or a note is at most 4 KiB. Every sample is one a native
+// picker returned, and every address one the build would fetch.
+func (v *VoiceAPI) checkVoiceJob(job build.Job, samples, urls []string, brief string) error {
+	if p := voice.CheckAddresses(urls).First(); p != "" {
+		return fmt.Errorf("the web addresses: %s", p)
+	}
 	switch {
 	case job == build.Edit && strings.TrimSpace(brief) == "":
 		return errors.New("say what should change in your voice")
-	case job != build.Edit && len(samples) == 0:
-		return errors.New("choose samples of your writing first")
+	case job != build.Edit && len(samples) == 0 && len(voice.CheckAddresses(urls).Lines) == 0:
+		return errors.New("choose samples of your writing, or give web addresses of it, first")
 	case len(strings.TrimSpace(brief)) > hostedrun.MaxVoiceBriefBytes:
 		return errors.New("a brief or a note is at most 4 KiB")
 	}
@@ -356,15 +361,39 @@ func (v *VoiceAPI) checkVoiceJob(job build.Job, samples []string, brief string) 
 	return nil
 }
 
+// VoiceAddressesView is the step's check of the web addresses: each line,
+// and on this computer whether AI Review can read the pages, which takes
+// the person's own TypeSafe key (ReviewWhy says what is missing). Answered
+// from presence alone: no key is read.
+type VoiceAddressesView struct {
+	Check       *voice.AddressCheck `json:"check"`
+	ReviewReady bool                `json:"reviewReady"`
+	ReviewWhy   string              `json:"reviewWhy,omitempty"`
+}
+
+// CheckAddresses answers VoiceAddressesView for the addresses, with the
+// CLI's own parse.
+func (v *VoiceAPI) CheckAddresses(urls []string) (*VoiceAddressesView, error) {
+	st, err := draft.GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	out := &VoiceAddressesView{Check: voice.CheckAddresses(urls), ReviewReady: st.Key.Ready()}
+	if !out.ReviewReady {
+		out.ReviewWhy = voice.NoReviewKey
+	}
+	return out, nil
+}
+
 // Write runs the Voice Writer on this computer (job create, improve or
 // edit) and keeps what it wrote as this computer's voice. It takes the run
 // lock; its log streams as voice:write-log.
-func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voice.BuildResult, error) {
+func (v *VoiceAPI) Write(reg, job string, samples, urls []string, brief string) (*voice.BuildResult, error) {
 	j, err := voiceJob(job)
 	if err != nil {
 		return nil, err
 	}
-	if err := v.checkVoiceJob(j, samples, brief); err != nil {
+	if err := v.checkVoiceJob(j, samples, urls, brief); err != nil {
 		return nil, err
 	}
 	reg = settings.Normalize(reg)
@@ -386,7 +415,7 @@ func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voic
 	err = v.run.asRun(jobBuild, "a run of the Voice Writer", voiceRunRef, eventVoiceLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
 		res, err = v.env().Build(ctx, voice.BuildRequest{
-			Registry: reg, Job: j, Samples: samples, Brief: brief, RunID: runID, Build: v.build, Log: logw,
+			Registry: reg, Job: j, Samples: samples, URLs: urls, Brief: brief, RunID: runID, Build: v.build, Log: logw,
 		})
 		return err
 	})
@@ -398,13 +427,13 @@ func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voic
 // it is an AI Edit, the text being what should change and the samples
 // optional; where it keeps none it is a Create, the samples required and the
 // text read as the brief.
-func (v *VoiceAPI) WriteWithAI(reg, text string, samples []string) (*voice.BuildResult, error) {
+func (v *VoiceAPI) WriteWithAI(reg, text string, samples, urls []string) (*voice.BuildResult, error) {
 	reg = settings.Normalize(reg)
 	here, err := v.env().Local(v.app.ctx, reg)
 	if err != nil {
 		return nil, err
 	}
-	return v.Write(reg, dialogJob(here), samples, text)
+	return v.Write(reg, dialogJob(here), samples, urls, text)
 }
 
 // dialogJob is the Voice Writer's job behind Edit with AI: Edit over a
@@ -455,6 +484,10 @@ type VoiceHostedAvailabilityView struct {
 	Pool            string `json:"pool,omitempty"`
 	MaxInputFiles   int    `json:"maxInputFiles"`
 	MaxInputBytes   int64  `json:"maxInputBytes"`
+	// TakesURLs says the registry's Voice Writer reads web addresses, at
+	// most MaxURLs; AI Review reads each page there through the registry.
+	TakesURLs bool `json:"takesUrls"`
+	MaxURLs   int  `json:"maxUrls,omitempty"`
 }
 
 // HostedAvailability answers the Where step for a job at reg.
@@ -490,6 +523,9 @@ func (v *VoiceAPI) HostedAvailability(reg, job string) (*VoiceHostedAvailability
 		f.StatusKnown, f.Terms = true, st.VoiceBuild
 		if t := st.VoiceBuild; t != nil {
 			out.Credits, out.HoldCredits, out.AIReviewCredits = t.Credits, t.Credits, t.AIReviewCredits
+			if u, ok := t.TakesURLs(); ok {
+				out.TakesURLs, out.MaxURLs = true, u.Max
+			}
 		}
 		if st.Caller != nil && st.Caller.Voice != nil {
 			c := st.Caller.Voice
@@ -538,6 +574,10 @@ type VoiceHostedView struct {
 	Bytes   int    `json:"bytes,omitempty"`
 	Note    string `json:"note,omitempty"`
 	Final   bool   `json:"final"`
+	// URLs are the web addresses it was given; PagesLine what its record
+	// says of their page reads, "" for a run given none.
+	URLs      []string `json:"urls,omitempty"`
+	PagesLine string   `json:"pagesLine,omitempty"`
 }
 
 // VoiceHostedStartView is a started run, or the registry's refusal.
@@ -557,6 +597,7 @@ func voiceHostedView(r *hostedrun.Run, final bool) *VoiceHostedView {
 	if b := r.VoiceBuild; b != nil {
 		out.Op, out.Applied, out.Bytes = b.Op, b.Applied, b.Bytes
 		out.Note = hostedrun.VoiceNoteSentence(b.Note)
+		out.URLs, out.PagesLine = b.URLs, voicePagesLine(b)
 	}
 	if final && out.Applied {
 		out.OutcomeLine = "The Voice Writer wrote a new version of your voice. AI Review reads it before it is live; until it passes, your live voice stays as it was."
@@ -564,18 +605,40 @@ func voiceHostedView(r *hostedrun.Run, final bool) *VoiceHostedView {
 	return out
 }
 
+// voicePagesLine is what a run given web addresses read of them: the page
+// reads admitted against its terms, and the texts AI Review withheld.
+func voicePagesLine(b *hostedrun.VoiceBuild) string {
+	if len(b.URLs) == 0 || b.Pages == 0 {
+		return ""
+	}
+	s := fmt.Sprintf("%d page %s", b.Pages, map[bool]string{true: "read", false: "reads"}[b.Pages == 1])
+	if b.MaxPages > 0 {
+		s += fmt.Sprintf(" of the %d it may make", b.MaxPages)
+	}
+	if b.Withheld > 0 {
+		s += fmt.Sprintf("; AI Review withheld %d %s from the Voice Writer", b.Withheld, map[bool]string{true: "text", false: "texts"}[b.Withheld == 1])
+	}
+	return s + "."
+}
+
 // StartHosted runs the Voice Writer In Agentry: the samples (files and
 // folders a native picker returned) are staged and uploaded as the run's
-// inputs, then the run is created and followed in the background.
-func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) (*VoiceHostedStartView, error) {
+// inputs, the web addresses sent as its urls, then the run is created and
+// followed in the background. AI Review reads each page through the
+// registry before the run sees it.
+func (v *VoiceAPI) StartHosted(reg, job string, samples, urls []string, brief string) (*VoiceHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := v.app.ctx
 	j, err := voiceJob(job)
 	if err != nil {
 		return nil, err
 	}
-	if err := v.checkVoiceJob(j, samples, brief); err != nil {
+	if err := v.checkVoiceJob(j, samples, urls, brief); err != nil {
 		return nil, err
+	}
+	var addrs []string
+	for _, l := range voice.CheckAddresses(urls).Lines {
+		addrs = append(addrs, l.Address)
 	}
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, fmt.Errorf("the registry: %w", err)
@@ -594,7 +657,20 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 		}
 	}()
 	client := hostedrun.New(reg, token)
-	req := hostedrun.CreateRequest{Kind: hostedrun.KindVoiceBuild, Op: job}
+	if len(addrs) > 0 {
+		terms, err := client.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		u, ok := terms.VoiceBuild.TakesURLs()
+		switch {
+		case !ok:
+			return nil, errors.New("this registry's Voice Writer does not read web addresses In Agentry: run it on this computer, or give the samples as files")
+		case len(addrs) > u.Max:
+			return nil, fmt.Errorf("the Voice Writer In Agentry takes at most %d web addresses", u.Max)
+		}
+	}
+	req := hostedrun.CreateRequest{Kind: hostedrun.KindVoiceBuild, Op: job, URLs: addrs}
 	if j == build.Edit {
 		req.Note = strings.TrimSpace(brief)
 	} else {
@@ -641,13 +717,13 @@ func voiceRefusal(r *hostedrun.Refusal) *VoiceHostedStartView {
 // is an AI Edit of its newest version, the text being what should change and
 // the samples optional; where it keeps none it is a Create, the samples
 // required and the text read as the brief (accountJob).
-func (v *VoiceAPI) HostedWithAI(reg, text string, samples []string) (*VoiceHostedStartView, error) {
+func (v *VoiceAPI) HostedWithAI(reg, text string, samples, urls []string) (*VoiceHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	a, err := v.env().Account(v.app.ctx, reg)
 	if err != nil {
 		return nil, err
 	}
-	return v.StartHosted(reg, accountJob(a), samples, text)
+	return v.StartHosted(reg, accountJob(a), samples, urls, text)
 }
 
 // accountJob is the Voice Writer's job behind Edit with AI In Agentry:

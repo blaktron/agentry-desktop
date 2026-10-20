@@ -79,7 +79,7 @@ func TestLiveKnowledgeBrief(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Search the web on this computer: ready %v (%s) %s", status.Ready, status.Provider, status.Why)
-	res, err := k.Create(reg, name, nil, liveBrief, web)
+	res, err := k.Create(reg, name, nil, knowledge.Sources{}, liveBrief, web)
 	mu.Lock()
 	t.Logf("build log:\n%s", strings.Join(log, "\n"))
 	mu.Unlock()
@@ -147,7 +147,7 @@ func TestLiveHostedKnowledgeBrief(t *testing.T) {
 	if !avail.Available || !avail.TakesBrief || !avail.Web {
 		t.Fatalf("a brief-only build that searches the web is not offered here: %+v", avail)
 	}
-	start, err := k.StartHostedBuild(reg, name, "", nil, liveBrief, true)
+	start, err := k.StartHostedBuild(reg, name, "", nil, knowledge.Sources{}, liveBrief, true)
 	if err != nil {
 		t.Fatal(err)
 	}
