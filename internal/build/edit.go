@@ -18,8 +18,11 @@ import (
 //   - The release's licence is kept; a release with none gets the form's.
 //   - What the site's Builder cannot hold is dropped without a word
 //     (they are regenerated for a new version): homepage, authors, the
-//     idle timeout, knowledge.ships, runtime (back to the form's own),
-//     dependencies and publish.channel and include. The instruction file is written as AGENT.md, whatever
+//     idle timeout, runtime (back to the form's own), dependencies and
+//     publish.channel and include.
+//   - The packs the release shipped stay ticked by name. The form cannot
+//     lay them: the caller ties each name to the person's pack
+//     (Model.ReconcileShips), which reads it again, and names any it cannot. The instruction file is written as AGENT.md, whatever
 //     the release named it (a v1 skill's SKILL.md included). Fields the
 //     schema does not know never reach the form.
 //
@@ -51,7 +54,7 @@ func FromRelease(manifestJSON []byte, instructions, namespace, name, version str
 	m.Homepage = ""
 	m.Authors = fresh.Authors
 	m.IdleTimeoutSeconds = 0
-	m.KnowledgeShips = nil
+	m.Ships = []ShipSource{}
 	m.RuntimeModels, m.RuntimeInterfaces = fresh.RuntimeModels, fresh.RuntimeInterfaces
 	m.Dependencies = fresh.Dependencies
 	m.PublishChannel, m.PublishInclude = "", fresh.PublishInclude

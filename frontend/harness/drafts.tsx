@@ -68,6 +68,7 @@ g.go = { app: {
       holdSentence: "This draft holds 41 credits and settles from what it uses.", inputsSentence: "Your description and the Drafter's searches go to a search provider, to AI Review and to the sites the Drafter reads.",
       timeoutSeconds: 1200, maxTurns: 60, maxPages: 40, balance: 496, balanceKnown: true, unmetered: false, short: false }),
     AttachHostedDraft: async () => ({}),
+    ShipOptions: async () => [],
     DescribeOnThisComputer: async () => {
       if (hash === "draft-landed" || hash === "card-landed") return landedDraft;
       if (hash === "draft-failed" || hostile) {

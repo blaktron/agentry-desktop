@@ -58,6 +58,9 @@ type DescribeHostedView struct {
 	MaxPacks         int    `json:"maxPacks"`
 	MaxBytes         int64  `json:"maxBytes"`
 	KnowledgeNote    string `json:"knowledgeNote,omitempty"`
+	// ShipEnabled says a draft here also takes the packs the person chose to
+	// ship with the QuickAgent.
+	ShipEnabled bool `json:"shipEnabled"`
 
 	// Balance is the credits the draft is paid from; Pool names the
 	// organization for a member; BalanceKnown is false when billing did
@@ -165,6 +168,7 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 				v.KnowledgeNote = "This computer's token for " + reg + " does not carry " + hostedrun.ScopeKnowledgeRead + ", which a draft In Agentry needs to read your knowledge packs. It was minted before this app asked for it: sign in again to pick packs."
 			} else {
 				v.KnowledgeEnabled, v.MaxPacks, v.MaxBytes = true, k.Knowledge.MaxPacks, k.Knowledge.MaxBytes
+				v.ShipEnabled = k.Knowledge.Ship
 			}
 		}
 		if sub, err := fetchSubscription(ctx, reg, token); err == nil && sub != nil {
@@ -185,8 +189,11 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 // Agentry while it lasts. packs are the names of the person's knowledge
 // packs kept in Agentry the Drafter reads first, resolved to the registry's
 // ids as a run's are (each kept and scanned there); the registry checks each
-// again, and holds them to its bounds.
-func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs []string) (*HostedDraftStartView, error) {
+// again, and holds them to its bounds. ships are the packs, among those, the
+// person chose to ship with the QuickAgent: only a registry that takes them
+// is asked for them, and it refuses any it should not (an organization's
+// pack for a person who does not administer it).
+func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs, ships []string) (*HostedDraftStartView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, err
@@ -204,6 +211,19 @@ func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs []str
 	if err != nil {
 		return nil, err
 	}
+	var shipIDs []string
+	ns := ""
+	if len(ships) > 0 {
+		if u, err := whoami(b.app, reg, token); err == nil {
+			ns = u.Handle
+		}
+		if _, err := b.shipChoices(ctx, reg, ns, packs, ships); err != nil {
+			return nil, err
+		}
+		if shipIDs, err = b.run.packsInAgentry(reg, ships); err != nil {
+			return nil, err
+		}
+	}
 	if err := b.claimHosted(); err != nil {
 		return nil, err
 	}
@@ -214,7 +234,7 @@ func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs []str
 		}
 	}()
 	client := hostedrun.New(reg, token)
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Kind: hostedrun.KindDraft, Description: description, Hints: hints, Knowledge: ids})
+	created, err := client.Create(ctx, hostedrun.CreateRequest{Kind: hostedrun.KindDraft, Description: description, Hints: hints, Knowledge: ids, Ship: shipIDs, Namespace: ns})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return hostedDraftRefusal(refusal), nil
@@ -370,7 +390,11 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 	if u, err := whoami(b.app, reg, token); err == nil {
 		ns = u.Handle
 	}
-	res, err := draft.ReadHosted(outDir, ns)
+	var chosen []build.ShipSource
+	if final.Draft != nil {
+		chosen = b.hostedShips(ctx, reg, final.Draft.Ships)
+	}
+	res, err := draft.ReadHosted(outDir, ns, chosen...)
 	if err != nil {
 		v.DraftError = err.Error()
 		return v

@@ -161,7 +161,7 @@ func TestSubmitWarningNamesTheCost(t *testing.T) {
 		{"unmetered", false, &SubscriptionView{Unmetered: true}, nil, []string{"spends no credits"}},
 		{"unreadable", false, nil, errors.New("HTTP 500"), []string{"could not be read (HTTP 500)"}},
 	} {
-		got := submitConsentText("acme/reporter@1.0.0", "https://dev.example", c.private, c.sub, c.subErr)
+		got := submitConsentText("acme/reporter@1.0.0", "https://dev.example", c.private, c.sub, c.subErr, nil)
 		for _, w := range c.want {
 			if !strings.Contains(got, w) {
 				t.Errorf("%s: %q missing from\n%s", c.name, w, got)

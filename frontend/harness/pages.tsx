@@ -123,7 +123,11 @@ type HarnessServer = {
   oauth?: { issuer: string; scopes: string[]; files: { path: string; template: string }[]; env: { name: string; value: string }[] };
 };
 const buildModel = {
-  knowledgePrompt: "", knowledgeRequired: false, knowledgeShips: [] as string[],
+  knowledgePrompt: "", knowledgeRequired: false,
+  // #build-guide-ships: two of the person's packs ticked, one of them loaded
+  // from a folder (no stored pack behind it).
+  knowledgeShips: window.location.hash === "#build-guide-ships" ? ["glossary", "by-hand"] : [] as string[],
+  ships: window.location.hash === "#build-guide-ships" ? [{ name: "glossary", kind: "own", id: "kp_1", bytes: 1536, pages: 4 }] : [] as object[],
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
   license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
@@ -181,7 +185,7 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 // markup; #build-summary-problem a rule the form still fails, with Fix it.
 const buildSummary = buildHash.startsWith("summary");
 const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-ships": 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it: #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
@@ -929,6 +933,15 @@ g.go = { app: {
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
     DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next", maxPacks: 5, maxBytes: 10 << 20,
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
+    // The Knowledge section's packs: one ready, one still being read, one past the
+    // cap, and an organization's the person administers (it ships only into its
+    // own namespace).
+    ShipOptions: async () => [
+      { name: "glossary", kind: "own", id: "kp_1", bytes: 1536, pages: 4, ready: true, orgAdmin: false },
+      { name: "runbook", kind: "own", id: "kp_2", bytes: 3 << 20, pages: 120, ready: false, orgAdmin: false },
+      { name: "archive", kind: "own", id: "kp_3", bytes: 11 << 20, pages: 900, ready: true, orgAdmin: false },
+      { name: "team-handbook", kind: "org", org: "acme", agentryId: "6f1c0000-0000-4000-8000-000000000009", bytes: 80 << 10, pages: 30, ready: true, orgAdmin: true },
+    ],
     DescribeOnThisComputer: async () => (landedDraft ? draftedView : new Promise(() => {})),
     DescribeInAgentryStatus: async () => describeHosted,
     AttachHostedDraft: async () => (hostedDrafting ? { draft: hostedDrafting } : {}),

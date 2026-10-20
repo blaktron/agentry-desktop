@@ -16,6 +16,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -120,11 +121,14 @@ type Model struct {
 	// the run setup's Knowledge step shows when the QuickAgent needs a pack
 	// of the person's own, empty for none; KnowledgeRequired makes the step
 	// unskippable. KnowledgeShips are the packs knowledge.ships names, which
-	// the form carries through a load and a save and never adds: a draft
-	// never brings one (FromDraft).
-	KnowledgePrompt   string   `json:"knowledgePrompt"`
-	KnowledgeRequired bool     `json:"knowledgeRequired"`
-	KnowledgeShips    []string `json:"knowledgeShips"`
+	// the person ticks in the form's Knowledge section; Ships says, for the
+	// ones the form lays into the workspace, which stored pack each is. A
+	// name with no source is a pack whose files the workspace already holds,
+	// and a save keeps it as it is.
+	KnowledgePrompt   string       `json:"knowledgePrompt"`
+	KnowledgeRequired bool         `json:"knowledgeRequired"`
+	KnowledgeShips    []string     `json:"knowledgeShips"`
+	Ships             []ShipSource `json:"ships"`
 
 	// Dependencies are dependencies.agents.
 	Dependencies []DependencyRow `json:"dependencies"`
@@ -326,7 +330,7 @@ func Default(namespace string) *Model {
 		ExecCommands: []string{}, Secrets: []string{}, RequiredSecrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{}, TargetHosts: []string{},
 		Authors: []AuthorRow{}, Guide: GuideModel{Prepare: []string{}, Connect: []ConnectRow{}},
 		RuntimeModels: []string{}, RuntimeInterfaces: []string{"claude-skill", "agents-md"},
-		Dependencies: []DependencyRow{}, PublishInclude: []string{},
+		Dependencies: []DependencyRow{}, PublishInclude: []string{}, KnowledgeShips: []string{}, Ships: []ShipSource{},
 		Instructions: "# New QuickAgent\n\nDescribe the one job this agent does: task in, result out.\n\n## What you are given\n\nThe task, and any files under /inputs.\n\n## Steps\n\n1. \n\n## What you return\n\nWrite the report with the write_report tool.\n",
 	}
 }
@@ -557,6 +561,20 @@ func (m *Model) formProblems() []SectionProblem {
 		}
 	} else if m.KnowledgeRequired {
 		add(SectionGuide, "say which knowledge pack it needs, or untick required")
+	}
+	// knowledge.ships (V11): a pack's folder name, once, at most five.
+	seenShip := map[string]bool{}
+	for _, n := range compact(m.KnowledgeShips) {
+		if !manifest.ValidKnowledgePackName(n) {
+			add(SectionGuide, "%q is not a knowledge pack's name", n)
+		}
+		if seenShip[n] {
+			add(SectionGuide, "the knowledge pack %s is shipped twice", n)
+		}
+		seenShip[n] = true
+	}
+	if len(seenShip) > MaxShips {
+		add(SectionGuide, "a release ships at most %d knowledge packs", MaxShips)
 	}
 
 	if !manifest.ValidNamespace(m.Namespace) {
@@ -1745,10 +1763,61 @@ func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, l
 // the site's Submit sends it. It is a claim the registry proves against
 // the draft's record, never a grant. Empty sends none.
 func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold bool, draftRun string, logw io.Writer) (*PublishResult, error) {
+	return PublishWith(ctx, regURL, token, dir, privateTold, PublishOptions{DraftRun: draftRun}, logw)
+}
+
+// PublishOptions are what an upload carries beside the archive.
+type PublishOptions struct {
+	// DraftRun is the hosted draft a revision was published from as
+	// drafted; empty sends none.
+	DraftRun string
+	// Shipping is the publisher's confirmation of the knowledge packs the
+	// release ships: one entry for each, nil for a release that ships none.
+	Shipping *KnowledgeShipping
+}
+
+// checkShipping holds the upload to the rule that no release ships a pack
+// the publisher has not confirmed: it ships the packs the manifest names if
+// and only if it carries an entry for each of them.
+func checkShipping(ships []string, k *KnowledgeShipping) error {
+	var named []string
+	if k != nil {
+		for _, p := range k.Packs {
+			named = append(named, p.Name)
+		}
+	}
+	slices.Sort(named)
+	want := slices.Clone(ships)
+	slices.Sort(want)
+	switch {
+	case len(want) > 0 && k == nil:
+		return fmt.Errorf("this release ships the knowledge %s %s, and nothing is sent until each one is confirmed", plural(len(want), "pack", "packs"), strings.Join(want, ", "))
+	case !slices.Equal(named, want):
+		return fmt.Errorf("the confirmation names %v, and the release ships %v", named, want)
+	}
+	return nil
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// PublishWith is PublishRevision carrying PublishOptions. A release that
+// ships knowledge packs is sent only with the publisher's confirmation of
+// each one (Shipping), as the registry requires; without it nothing is
+// sent, and not even the agent is created.
+func PublishWith(ctx context.Context, regURL, token, dir string, privateTold bool, opts PublishOptions, logw io.Writer) (*PublishResult, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
 		return nil, err
 	}
+	if err := checkShipping(m.ShippedPacks(), opts.Shipping); err != nil {
+		return nil, err
+	}
+	draftRun := opts.DraftRun
 	if token == "" {
 		return nil, fmt.Errorf("publishing needs a signed-in registry — sign in under Settings → Registry settings")
 	}
@@ -1833,6 +1902,22 @@ func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold
 	}
 	if draftRun != "" {
 		if err := mw.WriteField("draftRun", draftRun); err != nil {
+			return nil, err
+		}
+	}
+	if opts.Shipping != nil {
+		raw, err := opts.Shipping.jsonBytes()
+		if err != nil {
+			return nil, err
+		}
+		h := textproto.MIMEHeader{}
+		h.Set("Content-Disposition", `form-data; name="knowledgeShipping"`)
+		h.Set("Content-Type", "application/json")
+		part, err := mw.CreatePart(h)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := part.Write(raw); err != nil {
 			return nil, err
 		}
 	}
@@ -1962,7 +2047,9 @@ const PrivateStaysNote = "it stays private: making it public is a step of its ow
 // caller's.
 func refusedWithReason(status int, body []byte, logw io.Writer) *PublishResult {
 	slug, msg, account := refusalOf(body)
-	if status != http.StatusForbidden && slug != "private-agent-cap" {
+	// The refusals of a release's shipped packs name the pack, and the
+	// person can act on them.
+	if status != http.StatusForbidden && slug != "private-agent-cap" && !strings.HasPrefix(slug, "knowledge-shipping-") {
 		return nil
 	}
 	if msg == "" {

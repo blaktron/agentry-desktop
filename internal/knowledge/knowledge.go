@@ -217,6 +217,10 @@ type Pack struct {
 	Shared     bool   `json:"shared"`
 	Org        string `json:"org,omitempty"`
 	Exportable bool   `json:"exportable"`
+	// OrgAdmin says the person administers Org, as the memberships read for
+	// this answer says (false when it could not be read): only an
+	// administrator can ship the organization's pack with a QuickAgent.
+	OrgAdmin bool `json:"orgAdmin"`
 	// CanExport says the panel offers Export: the person's own pack, or a
 	// shared one they administer or an admin marked exportable. The
 	// registry decides again when it is asked.
@@ -380,6 +384,7 @@ func (e Env) addShared(ctx context.Context, s *store.Store, out *List, reg strin
 			matched[r.ID] = true
 			p.agentryCopy(r, "")
 			p.Exportable = r.Exportable
+			p.OrgAdmin = admin[p.Org]
 			p.CanExport = admin[p.Org] || r.Exportable
 		} else {
 			p.InAgentry, p.AgentryID = false, ""
@@ -391,6 +396,7 @@ func (e Env) addShared(ctx context.Context, s *store.Store, out *List, reg strin
 			if !matched[r.ID] {
 				p := remotePack(r)
 				p.Shared, p.Org, p.Exportable = true, org, r.Exportable
+				p.OrgAdmin = admin[org]
 				out.Packs = append(out.Packs, p)
 			}
 		}
