@@ -116,7 +116,10 @@ func TestTheSummaryListsEveryDeclaredCapabilityAndNothingElse(t *testing.T) {
 			}},
 		{name: "ships a pack", set: func(m *Model) { m.KnowledgeShips = []string{"glossary"} }, kinds: []string{"knowledge"},
 			want: func(t *testing.T, s *Summary) {
-				if !reflect.DeepEqual(s.Knowledge, []string{"Ships the knowledge pack glossary in the release, unencrypted: anyone who can download it can read it."}) {
+				if !reflect.DeepEqual(s.Knowledge, []string{
+					"Ships the knowledge pack glossary in the release, unencrypted: anyone who can download it can read it.",
+					"Submit asks you to confirm, for each pack, that it holds no private data.",
+				}) {
 					t.Errorf("knowledge = %q", s.Knowledge)
 				}
 			}},

@@ -44,7 +44,7 @@ function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) 
 }
 
 export function SummaryView({
-  s, check, problem, publicProblem, onForm, onSave, onInstall, onSubmit, onReview, onOpenReviewKey, busy, ready, dir, registry, headingRef, outcome,
+  s, check, problem, publicProblem, onForm, onSave, onInstall, onSubmit, onReview, onOpenReviewKey, busy, ready, dir, registry, headingRef, outcome, shipNotes = [],
 }: {
   s: build.Summary;
   /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
@@ -72,6 +72,8 @@ export function SummaryView({
   headingRef?: Ref<HTMLHeadingElement>;
   /** The publish log and its verdict, once Submit ran. */
   outcome?: ReactNode;
+  /** The packs the previous version shipped that this one will not, named. */
+  shipNotes?: string[];
 }) {
   return (
     <section aria-labelledby="build-summary-heading" className="build-summary">
@@ -139,11 +141,12 @@ export function SummaryView({
           </>
         )}
 
-        {(s.knowledge ?? []).length > 0 && (
+        {((s.knowledge ?? []).length > 0 || shipNotes.length > 0) && (
           <>
             <h4 className="small">Knowledge</h4>
+            {shipNotes.map((n) => <p key={n} className="small build-summary-unnamed"><RevealText text={n} /></p>)}
             <ul className="small build-summary-list" aria-label="Knowledge">
-              {s.knowledge.map((k) => <li key={k}><RevealText text={k} /></li>)}
+              {(s.knowledge ?? []).map((k) => <li key={k}><RevealText text={k} /></li>)}
             </ul>
           </>
         )}

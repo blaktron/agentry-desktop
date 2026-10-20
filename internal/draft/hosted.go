@@ -102,8 +102,10 @@ func readDraftFile(path string) ([]byte, error) {
 // (each other one named in the notes), every value of the shape
 // pkg/drafter writes and within its bound, or the draft is refused; then
 // its manifest and instructions into the form's Model (build.FromDraft,
-// whose notes follow). It opens, launches, reads and writes nothing.
-func Decode(raw []byte, namespace string) (*drafter.Draft, *build.Model, []string, error) {
+// whose notes follow). ships are the packs the person chose to ship with
+// it, if any; the draft ships those and no other. It opens, launches, reads
+// and writes nothing.
+func Decode(raw []byte, namespace string, ships ...build.ShipSource) (*drafter.Draft, *build.Model, []string, error) {
 	if len(raw) > MaxDraftJSONBytes {
 		return nil, nil, nil, fmt.Errorf("draft.json is %d bytes; the Build surface reads at most %d", len(raw), MaxDraftJSONBytes)
 	}
@@ -135,7 +137,7 @@ func Decode(raw []byte, namespace string) (*drafter.Draft, *build.Model, []strin
 	if err := holdDraft(&d); err != nil {
 		return nil, nil, nil, err
 	}
-	model, more, err := build.FromDraft(d.Manifest, d.Instructions, namespace)
+	model, more, err := build.FromDraft(d.Manifest, d.Instructions, namespace, ships...)
 	if err != nil {
 		return nil, nil, nil, err
 	}

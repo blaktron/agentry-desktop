@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
 const hostedManifest = `{"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
@@ -303,4 +305,26 @@ func tree(t *testing.T, root string) []string {
 		return nil
 	})
 	return out
+}
+
+// A draft's ships are the packs its person chose, and no other.
+func TestDecodeShipsOnlyWhatWasChosen(t *testing.T) {
+	raw := []byte(`{"manifest": {"schemaVersion": "2", "name": "ship-check", "namespace": "alice", "version": "0.1.0", "summary": "Ships packs.", "modes": ["autonomous"],
+	  "entrypoints": {"instruction": "AGENT.md"}, "knowledge": {"ships": [{"name": "glossary"}, {"name": "stray"}]}, "publish": {"include": ["agent.yaml", "AGENT.md"]}},
+	  "instructions": "# Ship check\n"}`)
+	_, model, notes, err := Decode(raw, "alice", build.ShipSource{Name: "glossary", Kind: build.ShipOwn, Bytes: 9})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(model.KnowledgeShips) != 1 || model.KnowledgeShips[0] != "glossary" || len(model.Ships) != 1 {
+		t.Fatalf("ships %v %v", model.KnowledgeShips, model.Ships)
+	}
+	if !slices.Contains(notes, "The draft listed the knowledge pack stray to ship, which you did not choose to ship, so it was left out.") {
+		t.Fatalf("notes %q", notes)
+	}
+	// Chosen nothing: nothing ships.
+	_, model, _, err = Decode(raw, "alice")
+	if err != nil || len(model.KnowledgeShips) != 0 {
+		t.Fatalf("%v %v", err, model.KnowledgeShips)
+	}
 }

@@ -180,10 +180,12 @@ function startHosted(call: () => Promise<app.HostedDraftStartView>) {
 }
 
 /** Starts a draft in the place chosen, and opens its progress dialog.
- *  packs are the knowledge packs it reads first, by name. */
-export function startDraft(registry: string, w: Where, text: string, hints: string[], packs: string[] = []) {
+ *  packs are the knowledge packs it reads first, by name; ships are those,
+ *  among them, it also ships with the QuickAgent (a draft on this computer
+ *  only: one made In Agentry reads packs and ships none). */
+export function startDraft(registry: string, w: Where, text: string, hints: string[], packs: string[] = [], ships: string[] = []) {
   if (w === "agentry") startHosted(() => BuildAPI.DescribeInAgentry(registry, text, hints, packs));
-  else startLocal(() => BuildAPI.DescribeOnThisComputer(registry, text, hints, packs));
+  else startLocal(() => BuildAPI.DescribeOnThisComputer(registry, text, hints, packs, ships));
 }
 
 /** Starts Edit with AI's revision of ns/name's current release in the place

@@ -159,7 +159,7 @@ func TestALocalDraftsViewCarriesItsCheckLine(t *testing.T) {
 		"publish": {"include": ["agent.yaml", "AGENT.md", "README.md", "LICENSE"]}},
 		"matches": [], "sources": [], "openQuestions": []}`
 	saveDescribeKey(t)
-	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
+	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func saveDescribeKey(t *testing.T) {
 // anything is scanned or run.
 func TestDescribeWithoutAKeyIsRefusedBeforeAnyDialog(t *testing.T) {
 	f := newDescribeFixture(t)
-	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
+	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "Settings → Provider settings → AI Review key") {
 		t.Fatalf("err = %v", err)
 	}
@@ -199,7 +199,7 @@ func TestDescribeAsksInANativeDialogFirst(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
 	f.answer = false
-	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
+	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("err = %v", err)
 	}
@@ -213,7 +213,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	saveDescribeKey(t)
 
 	f.b.run.mu.Lock()
-	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil); !errors.Is(err, errBusy) {
+	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil); !errors.Is(err, errBusy) {
 		t.Fatalf("describe while a run holds the lock: %v", err)
 	}
 	f.b.run.mu.Unlock()
@@ -221,7 +221,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 		t.Fatal("scanned while another run held the lock")
 	}
 
-	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", []string{"Slack"}, nil)
+	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", []string{"Slack"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +308,7 @@ func TestTheChecksVerdictsAreTheChecksOwnWords(t *testing.T) {
 func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
-	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil); err != nil {
+	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	var stages []string
@@ -354,7 +354,7 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
+		_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil)
 		done <- err
 	}()
 	<-started

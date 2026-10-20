@@ -176,7 +176,11 @@ type Request struct {
 	RunID string
 	// Namespace is the person's, which the draft is published under.
 	Namespace string
-	Log       io.Writer
+	// Ships are the packs the person chose to ship with the QuickAgent,
+	// each also among the packs the draft reads: the draft ships these and
+	// no other.
+	Ships []build.ShipSource
+	Log   io.Writer
 	// Scanner builds the description's scanner from the Jev key; nil is
 	// the core's pkg/judge through drafter.CoreJev.
 	Scanner func(key string) (webscan.Scanner, error)
@@ -390,7 +394,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if err := os.WriteFile(filepath.Join(outDir, "draft.json"), append(raw, '\n'), 0o644); err != nil { //nolint:gosec // the run's own output folder
 		return nil, fmt.Errorf("write draft.json: %w", err)
 	}
-	m, notes, err := build.FromDraft(d.Manifest, d.Instructions, req.Namespace)
+	m, notes, err := build.FromDraft(d.Manifest, d.Instructions, req.Namespace, req.Ships...)
 	if err != nil {
 		return nil, fmt.Errorf("the draft could not be opened in the form (it is in %s): %w", outDir, err)
 	}

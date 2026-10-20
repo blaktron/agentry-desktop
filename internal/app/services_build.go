@@ -58,6 +58,12 @@ type BuildAPI struct {
 	// revised is the revision Edit with AI landed last, which Publish this
 	// version publishes.
 	revised revisedSlot
+	// shipper lays the knowledge packs a QuickAgent ships into its folder;
+	// nil is a build with no way to ship a pack.
+	shipper build.Shipper
+	// lister is the Knowledge page's list a test substitutes; nil is the
+	// real one.
+	lister func(ctx context.Context, reg string) (*knowledge.List, error)
 	// reviewHTTP and reviewRunner are the Examiner's seams a test
 	// substitutes; nil is a client with a timeout and this machine's docker.
 	reviewHTTP   *http.Client
@@ -95,7 +101,8 @@ func (b *BuildAPI) Exists(dir string) (bool, error) {
 }
 
 // Save writes the workspace (agent.yaml + entrypoint always; README,
-// LICENSE, .gitignore only when absent).
+// LICENSE, .gitignore only when absent) and lays each knowledge pack the
+// form ships under knowledge/, read again from its store.
 func (b *BuildAPI) Save(dir string, m build.Model) error {
 	if dir == "" {
 		return fmt.Errorf("pick a folder to save into")
@@ -105,7 +112,7 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 	if err := b.app.requirePicked("folder", dir); err != nil {
 		return err
 	}
-	return build.Save(dir, &m)
+	return b.saveWorkspace(b.app.ctx, dir, &m)
 }
 
 // Check renders the form's model without touching disk and runs the rules
@@ -145,8 +152,9 @@ func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
 // pipeline to a verdict. Nothing is sent until the person has said Yes to a
 // native dialog the page cannot answer: what the submission spends in
 // credits, read from the account, and that the QuickAgent becomes public, or
-// that it stays private when it already exists private. A No sends nothing
-// and returns nil.
+// that it stays private when it already exists private; then, for each
+// knowledge pack it ships, the publisher's confirmation of that pack. A No
+// to any of them sends nothing and returns nil.
 func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if !b.mu.TryLock() {
 		return nil, errBuildBusy
@@ -181,15 +189,25 @@ func (b *BuildAPI) submit(reg, dir, draftRun string) (*build.PublishResult, erro
 	if private {
 		title = "Submit " + m.Namespace + "/" + m.Name + "? It stays private"
 	}
-	if cerr := b.app.askConsent(title, submitConsentText(m.Namespace+"/"+m.Name+"@"+m.Version, originOf(url), private, sub, subErr)); cerr != nil {
+	ships := m.ShippedPacks()
+	if cerr := b.app.askConsent(title, submitConsentText(m.Namespace+"/"+m.Name+"@"+m.Version, originOf(url), private, sub, subErr, ships)); cerr != nil {
 		if errors.Is(cerr, errNotConfirmed) {
 			return nil, nil //nolint:nilnil // a No is the answer: nothing was sent
 		}
 		return nil, cerr
 	}
+	// Each pack it ships is confirmed on its own, after the submission is
+	// agreed, in the words for the visibility this version will have.
+	shipping, err := b.confirmShips(dir, ships, private)
+	if err != nil {
+		return nil, err
+	}
+	if len(ships) > 0 && shipping == nil {
+		return nil, nil //nolint:nilnil // a No is the answer: nothing was sent
+	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
-	res, err := build.PublishRevision(b.app.ctx, url, token, dir, private, draftRun, logw)
+	res, err := build.PublishWith(b.app.ctx, url, token, dir, private, build.PublishOptions{DraftRun: draftRun, Shipping: shipping}, logw)
 	// The site changes a private agent's visibility; a registry that is
 	// the hosted site mounts billing, and a bare one has no such page.
 	if res != nil && res.Visibility == "private" && sub != nil {
@@ -206,7 +224,7 @@ var errBuildBusy = errors.New("a submit or an install is already in progress")
 // private stays private: making it public is a step of its own, Make public
 // in the Publisher section, for its namespace's administrators, and never a
 // fork's.
-func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
+func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error, ships []string) string {
 	sends := "This sends " + ref + " to " + origin + ", where the security pipeline scans it"
 	lines := []string{sends + ", and makes it public: anyone can find and install it once the pipeline publishes it."}
 	if private {
@@ -214,6 +232,9 @@ func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, 
 			sends + ".",
 			"It exists there as a private QuickAgent, and this version stays private with it. Making it public is a step of its own: Make public in the Publisher section, for its namespace's administrators, and never for a fork.",
 		}
+	}
+	if note := shipsNote(ships); note != "" {
+		lines = append(lines, note)
 	}
 	switch {
 	case subErr != nil:
@@ -407,11 +428,26 @@ type DraftAIReviewView struct {
 // Nothing is written into a QuickAgent folder: the draft reaches one only
 // when the person saves it where the native picker says.
 //
+// ships are the packs, among packs, the person chose to ship with the
+// QuickAgent as well as have the Drafter read: the draft ships exactly
+// those (a pack the registry would not take from them is refused here,
+// naming it), and the dialog says so.
+//
 // packs are knowledge packs kept on this computer the Drafter reads first:
 // opened before the dialog and held to the Drafter's bound, and the dialog
 // says which of them AI Review scans first with the person's key, because no
 // scan in Agentry stands in for them.
-func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs []string) (*DraftView, error) {
+func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs, ships []string) (*DraftView, error) {
+	ns := ""
+	if token := settings.TokenFor(reg); token != "" {
+		if u, err := whoami(b.app, reg, token); err == nil {
+			ns = u.Handle
+		}
+	}
+	chosen, err := b.shipChoices(b.app.ctx, reg, ns, packs, ships)
+	if err != nil {
+		return nil, err
+	}
 	k, err := b.run.knowledge().ForDraft(b.app.ctx, reg, packs)
 	if err != nil {
 		return nil, err
@@ -430,22 +466,16 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs 
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
 			"before the model does, and holds back what it flags. It then sends the finished draft and your description to TypeSafe for AI Review's check, "+
 			"with the questions the pipeline asks at publish, and if the rules refuse the draft or the check flags something it can fix, the model has one more turn, with no web access, to fix it. "+
-			knowledgeConsent(k)+
+			knowledgeConsent(k)+shipConsent(chosen)+
 			"Your description goes to "+goes+" and the sites the Drafter reads, "+
 			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
 			"nothing is written into a QuickAgent folder or submitted until you save or publish it. Continue?"); err != nil {
 		return nil, err
 	}
-	ns := ""
-	if token := settings.TokenFor(reg); token != "" {
-		if u, err := whoami(b.app, reg, token); err == nil {
-			ns = u.Handle
-		}
-	}
 	var res *draft.Result
 	err = b.run.asRun(jobDraft, "a draft by the Drafter", draftRunRef, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
-		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
+		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Ships: chosen, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
 			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})
 		if res != nil {
 			b.run.keepFolder(runID, res.OutDir)
