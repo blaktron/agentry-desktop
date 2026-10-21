@@ -1314,7 +1314,7 @@ import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
 import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
-import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
+import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
 const settingsView = {
@@ -1396,12 +1396,14 @@ const profileView = () => {
     hostedRuns: caps,
   };
 };
-function Shell({ active, children, signedIn }: { active: NavPage; children: React.ReactNode; signedIn?: boolean }) {
+// section and onOpenSection: the Settings preview's own route, so the
+// sidebar lists Settings' sections and lights the one open.
+function Shell({ active, children, signedIn, section, onOpenSection }: { active: NavPage; children: React.ReactNode; signedIn?: boolean; section?: string; onOpenSection?: (id: string) => void }) {
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        <SidebarNav page={active} installedUpdates={installedUpdates} signedIn={signedIn} />
+        <SidebarNav page={active} installedUpdates={installedUpdates} signedIn={signedIn} sections={SECTIONS} section={section} onOpenSection={onOpenSection} />
         <div className="foot">{(unsafeOn || unsafeRunning) && <UnsafeBadge running={unsafeRunning} />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
@@ -1419,7 +1421,7 @@ function SettingsPreview() {
   const q = new URLSearchParams(window.location.search);
   const [at, setAt] = useState<{ section?: SettingsSection; part?: SettingsPart }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
   return (
-    <>
+    <Shell active="settings" section={at.section} onOpenSection={(id) => setAt({ section: id as SettingsSection })}>
       {/* ?active=anon makes the anonymous registry the active one: the
           landing then has no Profile card. */}
       <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
@@ -1430,7 +1432,7 @@ function SettingsPreview() {
           <button key={name} type="button" data-deeplink={name} onClick={() => setAt(to)}>{name}</button>
         ))}
       </div>
-    </>
+    </Shell>
   );
 }
 
@@ -1488,7 +1490,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }}
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
-    <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
+    <div data-preview="settings"><SettingsPreview /></div>
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}
     <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
