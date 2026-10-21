@@ -62,9 +62,11 @@ type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
 // the anchor its section page scrolls to when the landing's link names it.
-export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
+// needsSignIn: the landing offers the card, and the sidebar the row, only
+// while the active registry is signed in.
+export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[]; needsSignIn?: boolean }[] = [
   {
-    id: "profile", title: "Profile",
+    id: "profile", title: "Profile", needsSignIn: true,
     sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
     parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
   },
@@ -341,7 +343,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
       <div className="settings-cards">
-        {SECTIONS.filter((s) => s.id !== "profile" || signedInTo(settings, activeRegistry)).map((s) => (
+        {SECTIONS.filter((s) => !s.needsSignIn || signedInTo(settings, activeRegistry)).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}

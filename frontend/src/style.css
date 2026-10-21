@@ -232,7 +232,10 @@ code, pre, .mono {
   font-weight: 600;
 }
 
-.sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+/* The rows scroll inside the sidebar, so a long list (Settings' sections)
+   never pushes the foot, with the version and the update line, out of a
+   short window. */
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 /* A row and the rows beneath it: no box of its own, so the column's gap
    spaces every row alike. */
 .nav-row { display: contents; }

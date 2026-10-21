@@ -18,8 +18,10 @@ export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "age
  *  person gave it, with a dot for running or stopped. */
 export type NavAgent = { id: string; label: string; running: boolean };
 
-/** A Settings section's row: its id and its title on the landing. */
-export type NavSection = { id: string; title: string };
+/** A Settings section's row: its id and its title on the landing.
+ *  needsSignIn: listed only while the active registry is signed in, as the
+ *  landing shows its card. */
+export type NavSection = { id: string; title: string; needsSignIn?: boolean };
 
 // What a row does when clicked.
 export type NavTarget =
@@ -134,7 +136,7 @@ export function navRows(s: NavState): NavRow[] {
     lit: inSettings, current: inSettings && !s.section, parent: sectionOpen,
   };
   if (inSettings && s.sections?.length) {
-    settings.children = s.sections.map((x) => {
+    settings.children = s.sections.filter((x) => !x.needsSignIn || signedIn).map((x) => {
       const open = sectionOpen && s.section === x.id;
       return { key: `section:${x.id}`, label: x.title, target: { kind: "section", id: x.id }, lit: open, current: open, parent: false };
     });

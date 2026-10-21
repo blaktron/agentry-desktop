@@ -790,6 +790,8 @@ const states = [
       ['[data-preview="settings"] .sidebar .nav-item[aria-current="page"]', ["Run defaults"]],
       ['[data-preview="settings"] .sidebar .nav-item.active', ["Settings", "Run defaults"]],
     ] },
+  { name: "sidebar-settings-signed-out", url: "/pages.html?active=anon", note: "signed out: Profile is not listed beneath Settings, as the landing shows no Profile card", locator: '[data-preview="settings"] .sidebar',
+    expectOrder: [['[data-preview="settings"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings", "Report design", "Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Destinations", "Home", "Licences"]]] },
   { name: "sidebar-build-collapse", url: "/pages.html", note: "Build is a section, not a page: on QuickAgent a click on Build collapses its rows and Build stays lit", locator: '[data-preview="build"] .sidebar', click: '[data-preview="build"] .sidebar [data-nav="build"]',
     expectSelector: '[data-preview="build"] .sidebar [data-nav="build"][aria-expanded="false"]',
     expectOrder: [
