@@ -295,6 +295,9 @@ func (a *App) OpenExternal(url string) error {
 	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
 		return fmt.Errorf("refusing to open non-http(s) URL")
 	}
-	runtime.BrowserOpenURL(a.ctx, url)
+	browserOpenURL(a.ctx, url)
 	return nil
 }
+
+// browserOpenURL opens an address in the system browser; a test replaces it.
+var browserOpenURL = runtime.BrowserOpenURL

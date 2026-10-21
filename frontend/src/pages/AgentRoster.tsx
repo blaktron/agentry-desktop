@@ -1,10 +1,11 @@
 // A persistent agent's roster, as its page and its Configuration draw it:
 // the entries grouped by kind, each with who granted it, its state and its
-// consent sentence, and a switch on each the person may change.
+// consent sentence, a switch on each the person may change, and Open in
+// browser on a port the agent publishes now.
 import { useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
-import { rosterGroups, rosterStateWords } from "../persistentAgents";
+import { portOpenable, rosterGroups, rosterStateWords } from "../persistentAgents";
 
 /** The roster's entries grouped by kind, a switch on each the person may
  *  change. A switch on what they have not agreed to on this computer asks
@@ -25,6 +26,10 @@ export function RosterList({ agent, onChanged, onError }: {
     } finally {
       setBusy(null);
     }
+  };
+  const open = (id: string) => {
+    onError(null);
+    PersistentAPI.OpenPort(agent.name, id.replace(/^port:/, "")).catch((e) => onError(String(e)));
   };
   return (
     <div className="agent-roster-list">
@@ -50,6 +55,9 @@ export function RosterList({ agent, onChanged, onError }: {
                   <span className="small">{e.line}</span>
                 </span>
               </label>
+              {portOpenable(agent, e) && (
+                <button type="button" className="btn ghost small" onClick={() => open(e.id)}>Open in browser</button>
+              )}
             </div>
           ))}
         </section>

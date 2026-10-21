@@ -26,6 +26,10 @@ export function List() {
   return window['go']['app']['PersistentAPI']['List']();
 }
 
+export function OpenPort(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['OpenPort'](arg1, arg2);
+}
+
 export function Reset(arg1) {
   return window['go']['app']['PersistentAPI']['Reset'](arg1);
 }
