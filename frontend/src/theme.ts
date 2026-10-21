@@ -1,11 +1,9 @@
 // The themes Settings → Home offers, and putting one on the window. Pure
-// but for the root element and the storage it is handed, so the node tests
-// can import it.
+// but for the root element it is handed, so the node tests can import it.
 //
-// Go keeps the choice (HomeAPI.Theme, SetTheme; desktop.yaml's theme key).
-// This window also keeps a copy in its own storage, which index.html reads
-// before the first paint, so a restart opens in the chosen theme rather
-// than flashing the default one first. Go's answer wins when it comes.
+// Go keeps the choice (HomeAPI.Theme, SetTheme; desktop.yaml's theme key),
+// and serves it as /theme.js, which index.html loads before the first
+// paint, so a start opens in the chosen theme rather than the default one.
 
 export type ThemeId = "system" | "light" | "dark" | "slate" | "forest" | "midnight" | "contrast";
 
@@ -25,29 +23,17 @@ export const THEMES: ThemeChoice[] = [
   { id: "contrast", title: "High contrast", line: "Black and white grounds with stronger lines and text, light or dark as your computer is set.", swatch: ["#ffffff", "#f2f2f2", "#00574a", "#000000"] },
 ];
 
-/** Where this window keeps its copy of the theme. index.html reads the
- *  same key. */
-export const THEME_KEY = "agentry.theme";
-
 export const isTheme = (v: unknown): v is ThemeId => typeof v === "string" && THEMES.some((t) => t.id === v);
 
 type Root = { dataset: Record<string, string | undefined> };
-type Store = { setItem(k: string, v: string): void };
 
 /** Puts the theme on the window: data-theme on the root element, none for
- *  System (the base palette), and the window's copy for the next start. A
- *  name this app lacks is System. */
-export function applyTheme(id: string, root: Root, store?: Store): ThemeId {
+ *  System (the base palette). A name this app lacks is System. */
+export function applyTheme(id: string, root: Root): ThemeId {
   const theme: ThemeId = isTheme(id) ? id : "system";
   if (theme === "system") delete root.dataset.theme;
   else root.dataset.theme = theme;
-  try { store?.setItem(THEME_KEY, theme); } catch { /* no storage: the next start shows System until Go answers */ }
   return theme;
-}
-
-/** The window's storage, or none where reading it throws. */
-export function windowStore(): Store | undefined {
-  try { return globalThis.localStorage; } catch { return undefined; }
 }
 
 /** The theme on the window now. */

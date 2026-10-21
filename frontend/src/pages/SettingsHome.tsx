@@ -5,7 +5,7 @@ import { install, app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
-import { applyTheme, THEMES, themeOn, windowStore, type ThemeId } from "../theme";
+import { applyTheme, THEMES, themeOn, type ThemeId } from "../theme";
 
 // Settings → Home: the theme, which default cards Home shows, the
 // QuickAgents pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
@@ -40,11 +40,11 @@ export function HomeSettings() {
   const chooseTheme = async (id: ThemeId) => {
     const before = theme;
     setSaid(null);
-    setTheme(applyTheme(id, document.documentElement, windowStore()));
+    setTheme(applyTheme(id, document.documentElement));
     try {
       await HomeAPI.SetTheme(id);
     } catch (e) {
-      setTheme(applyTheme(before, document.documentElement, windowStore()));
+      setTheme(applyTheme(before, document.documentElement));
       setSaid({ part: "theme", text: String(e), error: true });
     }
   };

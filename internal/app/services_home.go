@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
+	"slices"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -73,6 +75,28 @@ func (h *HomeAPI) Theme() (string, error) { return settings.ThemeNow() }
 
 // SetTheme keeps the person's theme in desktop.yaml; the page applies it.
 func (h *HomeAPI) SetTheme(name string) error { return settings.SetTheme(name) }
+
+// ThemeScript serves /theme.js, which index.html loads before the first
+// paint: one statement that puts the stored theme on the root element, or
+// nothing for System. The window's policy runs no inline script, so the
+// theme comes from the app's own origin like the bundle. Only a name in
+// settings.Themes is ever written into the script; anything else, and any
+// other path, is not served.
+func ThemeScript() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/theme.js" || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		theme, err := settings.ThemeNow()
+		if err != nil || theme == settings.ThemeSystem || !slices.Contains(settings.Themes, theme) {
+			return
+		}
+		_, _ = fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
+	})
+}
 
 // Reset puts Home back to the default cards.
 func (h *HomeAPI) Reset() (*HomeLayoutView, error) {

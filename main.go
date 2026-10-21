@@ -97,6 +97,9 @@ func main() {
 			// HTML sink renders registry-supplied README HTML, and the
 			// bindings are the local machine (internal/webview).
 			Middleware: webview.Middleware,
+			// What the bundle does not hold: /theme.js, the stored theme
+			// before the first paint.
+			Handler: app.ThemeScript(),
 		},
 		StartHidden: hidden,
 		// One app per user: each persistent agent has one owner, and a

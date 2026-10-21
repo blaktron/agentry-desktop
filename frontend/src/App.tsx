@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../wailsjs/go/app/SettingsAPI";
 import * as HomeAPI from "../wailsjs/go/app/HomeAPI";
-import { applyTheme, windowStore } from "./theme";
+import { applyTheme } from "./theme";
 import { AppVersion } from "../wailsjs/go/app/App";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/app/SelfUpdateAPI";
 import { UpdatesStatus } from "../wailsjs/go/app/InstallAPI";
@@ -132,10 +132,10 @@ export default function App() {
   const agents = useAgents();
   const unsafeEvents = useRef(0);
   // A run setup that made a schedule opens the Scheduled page on it.
-  // The theme Go keeps, over the window's own copy index.html put on
-  // before the first paint.
+  // The theme Go keeps; /theme.js put it on before the first paint, and
+  // this follows a change made while the app was closed by another copy.
   useEffect(() => {
-    HomeAPI.Theme().then((t) => applyTheme(t, document.documentElement, windowStore())).catch(() => {});
+    HomeAPI.Theme().then((t) => applyTheme(t, document.documentElement)).catch(() => {});
   }, []);
 
   useEffect(() => {
