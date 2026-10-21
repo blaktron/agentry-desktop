@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
@@ -211,10 +212,12 @@ func TestAPersistentAgentsEventsAreKeyedByItsName(t *testing.T) {
 	}
 }
 
-// Reset wipes nothing without a Yes in its native dialog, and is refused
-// while the agent runs.
+// Reset wipes nothing without a Yes in its native dialog, which says what
+// goes and what is kept; with one, a running agent is stopped first and
+// then put back to its defaults.
 func TestResettingAPersistentAgentAsksFirst(t *testing.T) {
 	rig := newPersistentRig(t)
+	rig.p.docker = &dockerx.Fake{}
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
 		t.Fatal(err)
 	}
@@ -222,20 +225,43 @@ func TestResettingAPersistentAgentAsksFirst(t *testing.T) {
 	if _, err := rig.p.Configure("assistant", PersistentChange{Name: &name}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	asked := len(rig.dialogs())
 	rig.answer = false
 	if _, err := rig.p.Reset("assistant"); !errors.Is(err, errNotConfirmed) {
 		t.Fatalf("a No: %v", err)
 	}
-	d := rig.dialogs()
-	if len(d) != 1 || !strings.Contains(d[0], "Reset Sandra?") || !strings.Contains(d[0], "share folder and the receipts") {
-		t.Fatalf("the dialog: %q", d)
+	d := rig.dialogs()[asked:]
+	if len(d) != 1 {
+		t.Fatalf("the dialogs: %q", d)
+	}
+	for _, want := range []string{"Reset Sandra?", "back to its defaults", "its name and personality", "what you agreed to", "files in the share folder you chose", "it is stopped first"} {
+		if !strings.Contains(d[0], want) {
+			t.Errorf("the dialog lacks %q: %q", want, d[0])
+		}
+	}
+	if _, here := rig.p.running("assistant"); !here {
+		t.Fatal("a No stopped the agent")
 	}
 	rig.answer = true
-	if _, err := rig.p.Start("assistant"); err != nil {
+	v, err := rig.p.Reset("assistant")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rig.p.Reset("assistant"); err == nil {
-		t.Fatal("a running agent was reset")
+	if _, here := rig.p.running("assistant"); here || rig.agent.stopped == 0 {
+		t.Fatal("the running agent was not stopped first")
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DisplayName != "" || len(cfg.Consented) != 0 || !cfg.Enabled {
+		t.Errorf("the configuration after a reset: %+v", cfg)
+	}
+	if v.DisplayName == name {
+		t.Errorf("the view after a reset still names it %q", v.DisplayName)
 	}
 }
 

@@ -100,7 +100,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
-              <Button variant="ghost" disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere} onClick={() => setResetting(a)}>Reset</Button>
+              <Button variant="ghost" data-persistent-reset={a.name} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => setResetting(a)}>Reset…</Button>
             </div>
           </Card>
         );
@@ -130,9 +130,12 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       {resetting && (
         <Modal title={`Reset ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}?`} onClose={() => setResetting(null)}>
           <p>
-            This wipes its conversation and its own files. Its share folder and the receipts of what it did are kept, and its
-            next start begins a new conversation.
+            This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers
+            and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what
+            you agreed to, so its next start asks you again. It goes back to its default share folder.
           </p>
+          <p>The files in the share folder you chose, the receipts of what it did and a dev server's sign-in in your keychain are kept.</p>
+          {resetting.state === AGENT_STATES.running && <p>It is running: Reset stops it first.</p>}
           <div className="row gap">
             <Button
               variant="danger"
