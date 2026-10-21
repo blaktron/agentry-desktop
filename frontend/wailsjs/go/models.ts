@@ -7725,6 +7725,7 @@ export namespace run {
 	    steps: string[];
 	    note?: string;
 	    docs?: string;
+	    help?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new OwnClientGuide(source);
@@ -7738,6 +7739,7 @@ export namespace run {
 	        this.steps = source["steps"];
 	        this.note = source["note"];
 	        this.docs = source["docs"];
+	        this.help = source["help"];
 	    }
 	}
 	export class ServerConnection {

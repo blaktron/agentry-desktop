@@ -147,6 +147,9 @@
 //                                itself, so Agentry's Google steps (the
 //                                Developer Preview and Test users steps
 //                                among them) and the client form
+//   #runpanel-signin-own-client-help  the same, with the release's own
+//                                help for signing in to that server after
+//                                Agentry's steps, framed as the author's
 //   #runpanel-signin-connected   connected, with Connect again and Disconnect
 //   #runpanel-signin-review      Review and start: Run held until connected
 //   #runpanel-signin-hosted      Connect tools In Agentry:
@@ -198,6 +201,9 @@ const signInRelease = {
       : { state: "none", granted: [] }),
   }],
 };
+// The release's own help for signing in to the Gmail server, its
+// guide.connect entry under the server's source id.
+const googleHelp = "Use the **same Google account** you read the shared inbox with.\n\nIf your Workspace admin blocks unlisted apps, ask them to trust your client ID first.";
 // Agentry's Google steps, as Go words them (internal/run OwnClientSteps).
 const googleGuide = {
   issuer: "https://accounts.google.com", vendor: "Google", known: true, docs: "https://docs.secureagentry.net/agentry/google-client/",
@@ -568,6 +574,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-signin": "tools",
   "runpanel-signin-connecting": "tools",
   "runpanel-signin-own-client": "tools",
+  "runpanel-signin-own-client-help": "tools",
   "runpanel-signin-connected": "tools",
   "runpanel-signin-review": "review",
   "runpanel-signin-hosted": "tools",
@@ -577,6 +584,8 @@ const STEP_OF: Record<string, StepKey> = {
 const g = window as any;
 g.go = { app: {
   SettingsAPI: { RunDefaults: async () => runDefaults },
+  // No saved destinations: the run panel reads them when it opens.
+  DestinationsAPI: { List: async () => ({ destinations: [], keychainOff: false }), DefaultFor: async () => [] },
   // Schedules on this computer: this computer can
   // schedule; on the Windows state it cannot also run signed out.
   ScheduleAPI: {
@@ -667,6 +676,7 @@ g.go = { app: {
     ReleaseConnections: async () => (signInShape ? signInRelease : { ref: profile.ref, digest: profile.digest, servers: [] }),
     Connect: async (_reg: string, _ref: string, server: string) => {
       if (view === "runpanel-signin-own-client") return { needsOwnClient: googleGuide };
+      if (view === "runpanel-signin-own-client-help") return { needsOwnClient: { ...googleGuide, help: googleHelp } };
       const url = "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=123-abc.apps.googleusercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A41817%2Fcallback&state=Q2hlY2s&code_challenge=E9Melhoa2Owv&code_challenge_method=S256&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly";
       for (const cb of listeners["connect:say"] ?? []) cb({ server, line: "The sign-in is at https://accounts.google.com (the authorization server " + server + " names), as your own OAuth client 123-abc.apps.googleusercontent.com, asking for: https://www.googleapis.com/auth/gmail.readonly." });
       for (const cb of listeners["connect:url"] ?? []) cb({ server, url });
