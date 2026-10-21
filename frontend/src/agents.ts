@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import type { app } from "../wailsjs/go/models";
-import { applyAgentEvent, chatFromTranscript, holdEarly, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
+import { applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
 
 export type AgentRecord = {
@@ -57,6 +57,12 @@ function wire() {
   });
 }
 
+// While a server installs, the list is read again every few seconds: the
+// supervisor's notice that an install ended refreshes it as well, and this
+// keeps the state true should the notice come before the state moves.
+const INSTALLING_POLL_MS = 3000;
+let installPoll: ReturnType<typeof setTimeout> | null = null;
+
 /** refreshAgents reads the list of agents again. */
 export async function refreshAgents(): Promise<app.PersistentAgentView[]> {
   wire();
@@ -66,7 +72,16 @@ export async function refreshAgents(): Promise<app.PersistentAgentView[]> {
     list = [];
   }
   changed();
+  pollWhileInstalling();
   return list;
+}
+
+function pollWhileInstalling() {
+  if (!installingAny(list) || installPoll !== null) return;
+  installPoll = setTimeout(() => {
+    installPoll = null;
+    void refreshAgents();
+  }, INSTALLING_POLL_MS);
 }
 
 /** loadChat reads the agent's transcript into its chat, once. */
@@ -134,6 +149,7 @@ export function updateAgent(v: app.PersistentAgentView) {
   const i = list.findIndex((a) => a.name === v.name);
   list = i < 0 ? [...list, v] : list.map((a, j) => (j === i ? v : a));
   changed();
+  pollWhileInstalling();
 }
 
 /** forgetChat drops an agent's chat after a reset, so its page reads the

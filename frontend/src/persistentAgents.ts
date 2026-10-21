@@ -171,6 +171,58 @@ export function rosterStateWords(e: Pick<app.PersistentRosterEntry, "state">): s
   }
 }
 
+/** What a server the person added shows: its state in words, the reason
+ *  its install failed, and whether Retry is offered. */
+export type ServerState = { words: string; reason?: string; retry: boolean };
+
+/** serverState is a server entry's state as the roster says it. Its
+ *  install runs in the agent's background: installing until the server is
+ *  ready, then pending until the next turn's segment has it. Only an agent
+ *  running in this app reports that, so a server that is on reads Ready
+ *  there and On anywhere else. A failed install keeps its reason until the
+ *  person retries it. */
+export function serverState(agent: Pick<app.PersistentAgentView, "state">, e: Pick<app.PersistentRosterEntry, "state" | "on" | "reason">): ServerState {
+  const live = agent.state === AGENT_STATES.running;
+  switch (e.state) {
+    case "installing":
+      return { words: "Installing…", retry: false };
+    case "failed":
+      return { words: "Failed", reason: e.reason ?? "", retry: true };
+    case "on":
+      return { words: live ? "Ready" : "On", retry: false };
+    case "pending":
+      return { words: e.on && live ? "Ready, joins at your next message" : rosterStateWords(e), retry: false };
+    default:
+      return { words: rosterStateWords(e), retry: false };
+  }
+}
+
+/** The changes Retry makes, in order: the failed server switched off, which
+ *  clears its failure, and on again, which installs it again. */
+export function retryChanges(id: string): { switch: { id: string; on: boolean } }[] {
+  return [{ switch: { id, on: false } }, { switch: { id, on: true } }];
+}
+
+/** A server's "Can see your share folder" switch: its id and whether it is
+ *  on, or, for a server the share is never given to, disabled with the
+ *  runner's reason. */
+export type ShareSwitch = { id: string; on: boolean; disabled: boolean; reason?: string };
+
+export const SHARE_SWITCH_LABEL = "Can see your share folder";
+
+export function serverShareSwitch(e: app.PersistentRosterEntry): ShareSwitch | null {
+  if (e.kind !== "server") return null;
+  if (e.shareSwitch) return { id: e.shareSwitch, on: !!e.share, disabled: false };
+  if (e.shareRefusal) return { id: "", on: false, disabled: true, reason: e.shareRefusal };
+  return null;
+}
+
+/** Whether any agent has a server installing: the list is read again
+ *  until none has, besides the notices that say an install ended. */
+export function installingAny(agents: Pick<app.PersistentAgentView, "roster">[]): boolean {
+  return agents.some((a) => a.roster.some((e) => e.kind === "server" && e.state === "installing"));
+}
+
 /** Whether a roster change is waiting for the agent's next turn. */
 export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "status">): boolean {
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");

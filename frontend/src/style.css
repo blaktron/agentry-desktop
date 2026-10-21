@@ -1577,6 +1577,11 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-roster-entry { padding: 4px 0; overflow-wrap: anywhere; min-width: 0; }
 .agent-roster-entry .check-row { align-items: flex-start; }
 .agent-roster-entry.state-pending strong { color: var(--color-warm); }
+.agent-roster-entry.state-installing strong { color: var(--color-warm); }
+.agent-roster-entry.state-failed strong { color: var(--color-sev-high); }
+.agent-roster-failed { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 0 24px; }
+.agent-roster-failed [role="alert"] { color: var(--color-sev-high); }
+.agent-roster-share { margin: 2px 0 0 24px; align-items: flex-start; }
 .agent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); vertical-align: middle; }
 .agent-dot.on { background: var(--color-ok); }
 .nav-item.nav-agent { display: flex; align-items: center; gap: 8px; }

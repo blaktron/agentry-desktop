@@ -2610,6 +2610,10 @@ export namespace app {
 	    on: boolean;
 	    line: string;
 	    fixed?: boolean;
+	    reason?: string;
+	    shareSwitch?: string;
+	    share?: boolean;
+	    shareRefusal?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2625,6 +2629,10 @@ export namespace app {
 	        this.on = source["on"];
 	        this.line = source["line"];
 	        this.fixed = source["fixed"];
+	        this.reason = source["reason"];
+	        this.shareSwitch = source["shareSwitch"];
+	        this.share = source["share"];
+	        this.shareRefusal = source["shareRefusal"];
 	    }
 	}
 	export class PersistentServerView {

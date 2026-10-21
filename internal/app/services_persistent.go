@@ -172,7 +172,7 @@ func (p *PersistentAPI) startOnLaunch() {
 		if err != nil || !cfg.Enabled || !cfg.RunOnStart {
 			continue
 		}
-		if len(persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg)) > 0 {
+		if len(persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheck()), cfg)) > 0 {
 			log.Printf("agentry-desktop: %s is set to run when Agentry starts, but its roster needs your agreement: start it from its page", a.Title)
 			continue
 		}
@@ -250,10 +250,21 @@ type PersistentRosterEntry struct {
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	GrantedBy string `json:"grantedBy"`
-	State     string `json:"state"`
-	On        bool   `json:"on"`
-	Line      string `json:"line"`
-	Fixed     bool   `json:"fixed,omitempty"`
+	// State is on, off, pending or needs-sign-in, and for a server the
+	// person added installing or failed, with Reason saying why it failed.
+	State  string `json:"state"`
+	On     bool   `json:"on"`
+	Line   string `json:"line"`
+	Fixed  bool   `json:"fixed,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// ShareSwitch is, for a server that may see the agent's share folder,
+	// the id of its switch for that, and Share says it is on. ShareRefusal
+	// is, for a server that may not, the runner's sentence saying why: a
+	// remote server, one that reaches the network or one that signs in by
+	// OAuth.
+	ShareSwitch  string `json:"shareSwitch,omitempty"`
+	Share        bool   `json:"share,omitempty"`
+	ShareRefusal string `json:"shareRefusal,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -379,7 +390,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	if u, err := persistent.LoadUsage(home, a.Name); err == nil {
 		v.Lifetime = PersistentUsageView{Segments: u.Segments, InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, TotalTokens: u.TotalTokens, UserTurns: u.UserTurns, ToolCalls: u.ToolCalls}
 	}
-	roster := persistent.BuildRoster(a, cfg, nil)
+	roster := persistent.BuildRosterUnder(a, cfg, nil, malwareCheck())
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
 	st, starting := p.starting[a.Name]
@@ -411,7 +422,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 			v.State = agentDisabled
 		}
 	}
-	v.Roster = rosterView(roster)
+	v.Roster = rosterView(roster, cfg.Servers)
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})
@@ -429,15 +440,43 @@ func statusView(st persistent.Status) *PersistentStatusView {
 	}
 }
 
-func rosterView(r persistent.Roster) []PersistentRosterEntry {
+// rosterView is the roster as the page draws it; servers are the agent's
+// servers as its config declares them, which say why a server may not see
+// the share.
+func rosterView(r persistent.Roster, servers []manifest.MCPServer) []PersistentRosterEntry {
 	out := make([]PersistentRosterEntry, 0, len(r))
 	for _, e := range r {
-		out = append(out, PersistentRosterEntry{
+		v := PersistentRosterEntry{
 			ID: e.ID, Kind: string(e.Kind), Name: e.Name, GrantedBy: e.GrantedBy,
-			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed,
-		})
+			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
+			ShareSwitch: e.ShareSwitch, Share: e.Share,
+		}
+		if e.Kind == persistent.KindServer && e.ShareSwitch == "" {
+			for _, srv := range servers {
+				if persistent.ServerEntryID(srv) != e.ID {
+					continue
+				}
+				if err := persistent.ServerMaySeeShare(srv); err != nil {
+					v.ShareRefusal = err.Error()
+				}
+			}
+		}
+		out = append(out, v)
 	}
 	return out
+}
+
+// malwareCheck is the malware-check setting of the runner policy the app
+// starts its agents under, for a roster built while the agent does not run
+// here: the share's sentence says whether ClamAV checks its files. Off
+// when the policy is missing or unreadable, as a new one has it.
+func malwareCheck() bool {
+	polFile, err := policy.Resolve("")
+	if err != nil {
+		return false
+	}
+	pol, _, err := policy.Load(polFile.Path)
+	return err == nil && pol.MalwareCheckOn()
 }
 
 // SetEnabled enables or disables an agent. A running agent is not
@@ -621,7 +660,7 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
 	}
-	if pending := persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg); len(pending) > 0 {
+	if pending := persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheck()), cfg); len(pending) > 0 {
 		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
 			return nil, err
 		}
