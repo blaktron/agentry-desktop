@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
+	"sync"
 	"sync/atomic"
 	"syscall"
 
@@ -42,6 +43,8 @@ type background struct {
 	quitting atomic.Bool
 	// hidden: the app was launched with loginitem.HiddenFlag.
 	hidden bool
+	// launching is the start of the agents set to run when Agentry starts.
+	launching sync.WaitGroup
 }
 
 // windowShow and windowHide are the runtime's, a test's seams.
@@ -85,7 +88,11 @@ func (s *Services) startBackground(ctx context.Context) {
 	if s.bg.hidden && !s.persistent.keepsRunning() {
 		windowShow(ctx)
 	}
-	go s.persistent.startOnLaunch()
+	s.bg.launching.Add(1)
+	go func() {
+		defer s.bg.launching.Done()
+		s.persistent.startOnLaunch()
+	}()
 }
 
 // followAgents starts the tray once an agent that runs in the background is

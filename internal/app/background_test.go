@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 
@@ -80,9 +81,18 @@ func TestTheCloseHidesWhileABackgroundAgentIsEnabledAndQuitQuits(t *testing.T) {
 		}
 	}
 	r.p.followers.Wait()
-	r.mu.Lock()
-	hidden, notices := r.hidden, append([]string{}, r.notices...)
-	r.mu.Unlock()
+	// The note is shown on a goroutine of its own.
+	var hidden int
+	var notices []string
+	for range 100 {
+		r.mu.Lock()
+		hidden, notices = r.hidden, append([]string{}, r.notices...)
+		r.mu.Unlock()
+		if len(notices) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if hidden != 2 || len(notices) != 1 {
 		t.Fatalf("hidden %d times, %d notices", hidden, len(notices))
 	}
@@ -153,6 +163,7 @@ func TestAHiddenLaunchWithNothingToRunShowsTheWindow(t *testing.T) {
 	r := newBGRig(t)
 	r.s.SetHidden(true)
 	r.s.startBackground(context.Background())
+	r.s.bg.launching.Wait()
 	if r.shown != 1 {
 		t.Fatalf("shown %d times", r.shown)
 	}

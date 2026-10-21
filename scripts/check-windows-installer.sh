@@ -129,7 +129,7 @@ if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -v -F 'Delete "$I
   printf '%s\n' "$install_section" >&2
   fail "the install section reaches beyond \$INSTDIR, the Start Menu and the uninstall key"
 fi
-grep -q -E '^Section /o "un\.Also remove my Agentry settings and sign-in"' "$nsi" || fail "the settings section is not off by default (/o)"
+grep -q -E '^Section /o "un\.Also remove my Agentry settings, sign-in and agents'"'"' share folders"' "$nsi" || fail "the settings section is not off by default (/o)"
 awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep 'SectionIn RO' >/dev/null || fail "the application section can be unticked"
 grep -q -- '--remove-my-settings' "$nsi" || fail "the settings section does not hand the removal to the app"
 # Agentry's Docker images go unless "Keep my Docker images" is ticked: the

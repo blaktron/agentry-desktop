@@ -17,7 +17,12 @@ import (
 // mocked keychain holding both clients' entries plus one of another program.
 func fakeMachine(t *testing.T) (home, confDir, runnerHome string) {
 	t.Helper()
-	home = t.TempDir()
+	// Resolved: on macOS the temporary folder is reached through /var, a
+	// link, which a share folder's guards refuse.
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	confDir = filepath.Join(home, ".config", "agentry")
