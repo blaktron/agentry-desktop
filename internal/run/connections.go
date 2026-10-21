@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -308,7 +309,9 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 	g, err := c.Run(ctx)
 	var own *mcpauth.NeedsOwnClientError
 	if errors.As(err, &own) {
-		return nil, &NeedsOwnClient{Issuer: own.Issuer, Guide: OwnClientSteps(own.Issuer, *srv)}
+		guide := OwnClientSteps(own.Issuer, *srv)
+		guide.Help = publisherHelp(m, *srv)
+		return nil, &NeedsOwnClient{Issuer: own.Issuer, Guide: guide}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("connect %s: %w", server, err)
@@ -568,6 +571,31 @@ type OwnClientGuide struct {
 	// Note follows the steps; Docs is the page that carries them.
 	Note string `json:"note,omitempty"`
 	Docs string `json:"docs,omitempty"`
+	// Help is the release's own help for signing in to this server, the
+	// guide's connect entry under the server's source id: Markdown the
+	// publisher wrote, shown after Agentry's steps and framed as theirs.
+	// Every control character but newline and tab, and every format
+	// character, is removed; empty when the release carries none.
+	Help string `json:"help,omitempty"`
+}
+
+// publisherHelp is m's guide.connect help for srv, with every control
+// character but newline and tab and every format character removed, so the
+// text cannot hide characters from the person reading it.
+func publisherHelp(m *manifest.Manifest, srv manifest.MCPServer) string {
+	if m == nil {
+		return ""
+	}
+	help := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' {
+			return r
+		}
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
+			return -1
+		}
+		return r
+	}, m.Guide.ServerConnect(srv))
+	return strings.TrimSpace(help)
 }
 
 // googleProducts names, for each of Google's remote MCP servers, the API
