@@ -16,6 +16,8 @@ export function Get(arg1:string):Promise<app.PersistentAgentView>;
 
 export function List():Promise<Array<app.PersistentAgentView>>;
 
+export function OpenPort(arg1:string,arg2:string):Promise<void>;
+
 export function Reset(arg1:string):Promise<app.PersistentAgentView>;
 
 export function Send(arg1:string,arg2:string):Promise<void>;

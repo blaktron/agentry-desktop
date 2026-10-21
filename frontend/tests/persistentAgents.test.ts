@@ -10,6 +10,8 @@ import {
   agentNavEntries,
   mainStatusLine,
   canAddServer,
+  portFormOK,
+  portOpenable,
   holdEarly,
   persistentOnly,
   refreshesView,
@@ -159,4 +161,23 @@ test("a No in the Coding agent's dialog leaves it off, and Settings says nothing
   assert.equal(enableOutcome(true, { state: "disabled" }), "Nothing was changed.");
   assert.equal(enableOutcome(true, { state: "stopped" }), null);
   assert.equal(enableOutcome(false, { state: "disabled" }), null);
+});
+
+test("a port form takes a name the CLI takes and an unprivileged number", () => {
+  assert.equal(portFormOK("web", "3000"), true);
+  assert.equal(portFormOK(" web ", " 8080 "), true);
+  for (const [name, port] of [["Web", "3000"], ["-web", "3000"], ["my web", "3000"], ["", "3000"], ["web", "80"], ["web", "65536"], ["web", "3e3"], ["web", ""]]) {
+    assert.equal(portFormOK(name, port), false, `${name}=${port}`);
+  }
+});
+
+test("a port opens only while the agent runs with it on and applied", () => {
+  const port = { kind: "port", on: true, state: "on" };
+  assert.equal(portOpenable({ state: "running" }, port), true);
+  assert.equal(portOpenable({ state: "elsewhere" }, port), true);
+  assert.equal(portOpenable({ state: "stopped" }, port), false);
+  assert.equal(portOpenable({ state: "running" }, { ...port, state: "pending" }), false);
+  assert.equal(portOpenable({ state: "running" }, { ...port, on: false, state: "off" }), false);
+  assert.equal(portOpenable({ state: "running" }, { ...port, kind: "host" }), false);
+  assert.deepEqual(rosterGroups([{ id: "port:web", kind: "port" } as never]).map((g) => g.title), ["Ports"]);
 });

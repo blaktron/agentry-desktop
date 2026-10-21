@@ -2637,6 +2637,20 @@ export namespace app {
 	        this.name = source["name"];
 	    }
 	}
+	export class PersistentPort {
+	    name: string;
+	    port: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentPort(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.port = source["port"];
+	    }
+	}
 	export class PersistentAgentView {
 	    name: string;
 	    title: string;
@@ -2650,6 +2664,7 @@ export namespace app {
 	    runOnStart: boolean;
 	    devHost?: string;
 	    devHostKey?: string;
+	    ports: PersistentPort[];
 	    servers: PersistentServerView[];
 	    roster: PersistentRosterEntry[];
 	    status?: PersistentStatusView;
@@ -2674,6 +2689,7 @@ export namespace app {
 	        this.runOnStart = source["runOnStart"];
 	        this.devHost = source["devHost"];
 	        this.devHostKey = source["devHostKey"];
+	        this.ports = this.convertValues(source["ports"], PersistentPort);
 	        this.servers = this.convertValues(source["servers"], PersistentServerView);
 	        this.roster = this.convertValues(source["roster"], PersistentRosterEntry);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
@@ -2719,6 +2735,8 @@ export namespace app {
 	    defaultShare?: boolean;
 	    runOnStart?: boolean;
 	    clearDevHost?: boolean;
+	    addPort?: PersistentPort;
+	    removePort?: string;
 	    addKnowledge?: string;
 	    removeKnowledge?: string;
 	    removeServer?: string;
@@ -2735,6 +2753,8 @@ export namespace app {
 	        this.defaultShare = source["defaultShare"];
 	        this.runOnStart = source["runOnStart"];
 	        this.clearDevHost = source["clearDevHost"];
+	        this.addPort = this.convertValues(source["addPort"], PersistentPort);
+	        this.removePort = source["removePort"];
 	        this.addKnowledge = source["addKnowledge"];
 	        this.removeKnowledge = source["removeKnowledge"];
 	        this.removeServer = source["removeServer"];
@@ -2759,6 +2779,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	
 	
 	

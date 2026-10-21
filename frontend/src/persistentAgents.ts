@@ -140,7 +140,7 @@ export function persistentAgentsStatus(agents: Pick<app.PersistentAgentView, "st
 /** The roster's panel: its entries grouped by kind, in the roster's order. */
 export type RosterGroup = { title: string; entries: app.PersistentRosterEntry[] };
 
-const GROUP_TITLES: Record<string, string> = { files: "Folders", tools: "Tools", host: "Dev server", knowledge: "Knowledge packs", server: "MCP servers" };
+const GROUP_TITLES: Record<string, string> = { files: "Folders", tools: "Tools", host: "Dev server", port: "Ports", knowledge: "Knowledge packs", server: "MCP servers" };
 
 export function rosterGroups(roster: app.PersistentRosterEntry[]): RosterGroup[] {
   const out: RosterGroup[] = [];
@@ -224,4 +224,21 @@ export function serverRowOf(f: ServerForm): { source: string; package?: string; 
 /** Whether the form names a server to add. */
 export function canAddServer(f: ServerForm): boolean {
   return f.source === "url" ? f.url.trim() !== "" : f.package.trim() !== "" && f.version.trim() !== "";
+}
+
+/** A port name the CLI takes: 1 to 32 lower-case letters, digits and
+ *  hyphens, not starting with a hyphen. */
+export const PORT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/** Whether a port form's name and number make a port the CLI takes: a
+ *  number from 1024 to 65535, the ports a program serves without privilege. */
+export function portFormOK(name: string, port: string): boolean {
+  const n = Number(port);
+  return PORT_NAME.test(name.trim()) && /^\d+$/.test(port.trim()) && n >= 1024 && n <= 65535;
+}
+
+/** Whether an entry is a published port the agent serves now: on, not
+ *  waiting for the next turn, while the agent runs. */
+export function portOpenable(agent: Pick<app.PersistentAgentView, "state">, e: Pick<app.PersistentRosterEntry, "kind" | "on" | "state">): boolean {
+  return e.kind === "port" && e.on && e.state === "on" && (agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.elsewhere);
 }
