@@ -7,6 +7,7 @@ package main
 import (
 	"embed"
 	"os"
+	"slices"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -22,6 +23,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/clipath"
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/hostpath"
+	"github.com/blaktron/agentry-desktop/internal/loginitem"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
 
@@ -66,6 +68,11 @@ func main() {
 		os.Exit(clipath.Main(os.Stderr, os.Args[1]))
 	}
 	services := app.New(notices)
+	// Launched by Start Agentry when you sign in: the window starts hidden,
+	// and the agents set to run when Agentry starts run in the background
+	// (internal/loginitem).
+	hidden := slices.Contains(os.Args[1:], loginitem.HiddenFlag)
+	services.SetHidden(hidden)
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",
@@ -90,6 +97,14 @@ func main() {
 			// HTML sink renders registry-supplied README HTML, and the
 			// bindings are the local machine (internal/webview).
 			Middleware: webview.Middleware,
+		},
+		StartHidden: hidden,
+		// One app per user: each persistent agent has one owner, and a
+		// second launch (the app opened again while it runs in the
+		// background) shows the window that is already there.
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "net.secureagentry.agentry-desktop",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) { services.ShowWindow() },
 		},
 		OnStartup:     services.Startup,
 		OnBeforeClose: services.BeforeClose,

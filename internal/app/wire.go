@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
+	"github.com/blaktron/agentry-desktop/internal/tray"
 )
 
 // Services is the App and every API the window binds, wired to one another.
@@ -30,6 +31,7 @@ type Services struct {
 	destinations *DestinationsAPI
 	notices      *NoticesAPI
 	persistent   *PersistentAPI
+	bg           background
 }
 
 // New builds the App and its APIs. notices is the third-party notices text
@@ -84,14 +86,28 @@ func (s *Services) Startup(ctx context.Context) {
 	// the PATH, brought up to the one this app carries; in its own
 	// goroutine, since it runs both CLIs' --version.
 	go refreshScriptCLI()
+	// The background app: the quit intent, the tray, and the agents set to
+	// run when Agentry starts (background.go).
+	s.startBackground(ctx)
 }
 
 // BeforeClose is the window's OnBeforeClose. A run in flight is ended first:
 // closing the window with one live asks in a native dialog, and Shutdown
 // cancels the run, waits (bounded) for the engine's teardown and sweeps the
 // run's label, so no agent or gateway container outlives the app.
+//
+// While the Assistant or the Coding agent is enabled, the window's close
+// hides the window instead, unless the person asked to quit (background.go).
 func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
-	return s.run.beforeClose(ctx)
+	if s.closeToBackground(ctx) {
+		return true
+	}
+	prevent = s.run.beforeClose(ctx)
+	if prevent {
+		// The person kept the run going: the next close is a close again.
+		s.bg.quitting.Store(false)
+	}
+	return prevent
 }
 
 // Shutdown is the window's OnShutdown. It also applies "Install automatically
@@ -113,6 +129,7 @@ func (s *Services) Shutdown(ctx context.Context) {
 	s.run.shutdown()
 	wg.Wait()
 	s.run.stopManagedEngine(ctx)
+	tray.Stop()
 	s.selfUpdate.applyOnQuit()
 }
 

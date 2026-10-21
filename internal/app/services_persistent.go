@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -93,6 +94,89 @@ type PersistentAPI struct {
 	docker dockerx.Client
 	// link answers Main's app link; nil answers its tools as unanswered.
 	link *mainLink
+	// onState is told whenever an agent starts, stops or is turned on or
+	// off: the tray follows it.
+	onState func()
+}
+
+// stateChanged tells the page and the tray that an agent's state changed.
+func (p *PersistentAPI) stateChanged(name string) {
+	emitEvent(p.app, eventAgentState, name)
+	if p.onState != nil {
+		p.onState()
+	}
+}
+
+// backgroundAgents are the agents that keep the app running with its window
+// closed: Main lives in the window.
+var backgroundAgents = []string{"assistant", coderAgent}
+
+// keepsRunning reports whether an agent that runs in the background is
+// enabled, so closing the window hides it instead of quitting.
+func (p *PersistentAPI) keepsRunning() bool {
+	home, err := p.home()
+	if err != nil {
+		return false
+	}
+	for _, name := range backgroundAgents {
+		if cfg, err := persistent.LoadConfig(home, name); err == nil && cfg.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+// runningLabels are the agents running in this app, by name, as the tray
+// names them.
+func (p *PersistentAPI) runningLabels() map[string]string {
+	out := map[string]string{}
+	home, err := p.home()
+	if err != nil {
+		return out
+	}
+	p.mu.Lock()
+	names := make([]string, 0, len(p.sups))
+	for name := range p.sups {
+		names = append(names, name)
+	}
+	p.mu.Unlock()
+	for _, name := range names {
+		a, err := persistent.Lookup(name)
+		if err != nil {
+			continue
+		}
+		cfg, _ := persistent.LoadConfig(home, name)
+		out[name] = a.DisplayName(cfg)
+	}
+	return out
+}
+
+// startOnLaunch starts each background agent that is enabled and set to run
+// when Agentry starts. One whose roster holds what the person has not agreed
+// to on this computer is not started, since that asks in a dialog nobody
+// launched the app to see; its page says to start it.
+func (p *PersistentAPI) startOnLaunch() {
+	home, err := p.home()
+	if err != nil {
+		return
+	}
+	for _, name := range backgroundAgents {
+		a, err := persistent.Lookup(name)
+		if err != nil {
+			continue
+		}
+		cfg, err := persistent.LoadConfig(home, name)
+		if err != nil || !cfg.Enabled || !cfg.RunOnStart {
+			continue
+		}
+		if len(persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg)) > 0 {
+			log.Printf("agentry-desktop: %s is set to run when Agentry starts, but its roster needs your agreement: start it from its page", a.Title)
+			continue
+		}
+		if _, err := p.Start(name); err != nil {
+			log.Printf("agentry-desktop: starting %s when Agentry started: %v", a.Title, err)
+		}
+	}
 }
 
 // agentSupervisor is what the app needs of a running agent: the CLI's
@@ -366,6 +450,7 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 	if err != nil {
 		return nil, err
 	}
+	p.stateChanged(a.Name)
 	return p.Get(name)
 }
 
@@ -416,12 +501,12 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	p.starts.Add(1)
 	p.mu.Unlock()
 	defer p.starts.Done()
-	emitEvent(p.app, eventAgentState, a.Name)
+	p.stateChanged(a.Name)
 	defer func() {
 		p.mu.Lock()
 		delete(p.starting, a.Name)
 		p.mu.Unlock()
-		emitEvent(p.app, eventAgentState, a.Name)
+		p.stateChanged(a.Name)
 	}()
 	cfg, err := persistent.LoadConfig(home, a.Name)
 	if err != nil {
@@ -603,7 +688,7 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor) {
 				Text: "The agent stopped by itself: " + why + ". Start it again to go on; the conversation continues.",
 			}})
 		}
-		emitEvent(p.app, eventAgentState, name)
+		p.stateChanged(name)
 	}()
 }
 
@@ -634,7 +719,7 @@ func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 		delete(p.sups, a.Name)
 	}
 	p.mu.Unlock()
-	emitEvent(p.app, eventAgentState, a.Name)
+	p.stateChanged(a.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -811,7 +896,7 @@ func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	if err := persistent.Reset(ctx, home, a.Name, p.dockerClient()); err != nil {
 		return nil, err
 	}
-	emitEvent(p.app, eventAgentState, a.Name)
+	p.stateChanged(a.Name)
 	return p.Get(name)
 }
 

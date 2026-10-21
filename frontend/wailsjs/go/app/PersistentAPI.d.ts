@@ -24,7 +24,11 @@ export function SetDevHost(arg1:string,arg2:string,arg3:run.HostSignIn):Promise<
 
 export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgentView>;
 
+export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
+
 export function Start(arg1:string):Promise<app.PersistentAgentView>;
+
+export function StartsAtSignIn():Promise<boolean>;
 
 export function Stop(arg1:string):Promise<app.PersistentAgentView>;
 

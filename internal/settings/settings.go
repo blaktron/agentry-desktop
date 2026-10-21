@@ -65,6 +65,10 @@ type Settings struct {
 	// explicitly skipped. While it is false and no registry is signed in,
 	// the desktop app opens the guided setup on start.
 	Onboarded bool `yaml:"onboarded,omitempty" json:"onboarded"`
+	// BackgroundNoted says the app has told the person, once, that it keeps
+	// running in the tray or menu bar when its window closes while a
+	// persistent agent is enabled.
+	BackgroundNoted bool `yaml:"backgroundNoted,omitempty" json:"-"`
 	// CheckForUpdates is Settings → "Check for newer versions". A POINTER
 	// because the default is on and this file is parsed leniently: absent
 	// must mean "on", and a plain bool cannot tell an absent field from a
