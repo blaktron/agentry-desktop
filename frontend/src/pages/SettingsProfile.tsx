@@ -106,7 +106,9 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
   if (!signedIn) {
     return (
       <Notice tone="info">
-        Sign in to <span className="mono">{registry}</span> to see your profile and subscription.{" "}
+        {registry
+          ? <>Sign in to <span className="mono">{registry}</span> to see your profile and subscription.{" "}</>
+          : <>Add a registry and sign in to it to see your profile and subscription.{" "}</>}
         <Button variant="link" onClick={onOpenRegistry}>Registry settings</Button>
       </Notice>
     );

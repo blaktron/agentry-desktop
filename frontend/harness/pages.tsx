@@ -1448,7 +1448,7 @@ function SettingsPreview() {
   const q = new URLSearchParams(window.location.search);
   const [at, setAt] = useState<{ section?: SettingsSection; part?: SettingsPart }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
   return (
-    <Shell active="settings" section={at.section} onOpenSection={(id) => setAt({ section: id as SettingsSection })}>
+    <Shell active="settings" signedIn={q.get("active") !== "anon"} section={at.section} onOpenSection={(id) => setAt({ section: id as SettingsSection })}>
       {/* ?active=anon makes the anonymous registry the active one: the
           landing then has no Profile card. */}
       <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
