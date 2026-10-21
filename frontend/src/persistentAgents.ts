@@ -70,6 +70,26 @@ export function termLines(c: Chat): TermLine[] {
 /** Main's name: its place is its Home card, with no sidebar entry or page. */
 export const MAIN_AGENT = "main";
 
+/** The Coding agent's name. */
+export const CODER_AGENT = "coder";
+
+/** What Settings says before the Coding agent's switch, as the native
+ *  dialog that turning it on raises says it. */
+export const CODER_WARNING =
+  "The Coding agent builds and runs software, reaches the web and any dev server you give it, and reads your codingshare folder as it is. That is riskier than other agents.";
+
+/** Whether the Coding agent's segment is live in this app: the sidebar's
+ *  "Coding agent running" badge. */
+export function coderRunning(agents: Pick<app.PersistentAgentView, "name" | "state">[]): boolean {
+  return agents.some((a) => a.name === CODER_AGENT && a.state === AGENT_STATES.running);
+}
+
+/** What the Settings page says after a switch: a No in the Coding agent's
+ *  dialog answers the agent as it was, and nothing was changed. */
+export function enableOutcome(asked: boolean, after: Pick<app.PersistentAgentView, "state">): string | null {
+  return asked && after.state === AGENT_STATES.disabled ? "Nothing was changed." : null;
+}
+
 /** The sidebar's entry for each enabled agent but Main: the Assistant by the
  *  name the person gave it, and a dot for running or stopped. */
 export type AgentNavEntry = { id: string; label: string; running: boolean };
@@ -120,7 +140,7 @@ export function persistentAgentsStatus(agents: Pick<app.PersistentAgentView, "st
 /** The roster's panel: its entries grouped by kind, in the roster's order. */
 export type RosterGroup = { title: string; entries: app.PersistentRosterEntry[] };
 
-const GROUP_TITLES: Record<string, string> = { files: "Folders", knowledge: "Knowledge packs", server: "MCP servers" };
+const GROUP_TITLES: Record<string, string> = { files: "Folders", tools: "Tools", host: "Dev server", knowledge: "Knowledge packs", server: "MCP servers" };
 
 export function rosterGroups(roster: app.PersistentRosterEntry[]): RosterGroup[] {
   const out: RosterGroup[] = [];

@@ -34,6 +34,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -55,8 +56,12 @@ const (
 )
 
 // shownAgents are the persistent agents the app offers, in their order:
-// Main, whose place is its Home card, then the Assistant.
-var shownAgents = []string{mainAgent, "assistant"}
+// Main, whose place is its Home card, then the Assistant and the Coding
+// agent.
+var shownAgents = []string{mainAgent, "assistant", coderAgent}
+
+// coderAgent is the Coding agent's name, its built-in's.
+const coderAgent = "coder"
 
 // transcriptLines is how much of an agent's transcript its page reloads.
 const transcriptLines = 500
@@ -115,14 +120,21 @@ type PersistentAgentView struct {
 	Personality string `json:"personality,omitempty"`
 	// Share is the share folder; DefaultShare says it is the agent's own
 	// default.
-	Share        string                  `json:"share"`
-	DefaultShare bool                    `json:"defaultShare"`
-	Knowledge    []string                `json:"knowledge"`
-	Servers      []PersistentServerView  `json:"servers"`
-	Roster       []PersistentRosterEntry `json:"roster"`
-	Status       *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime     PersistentUsageView     `json:"lifetime"`
-	Volumes      PersistentVolumesView   `json:"volumes"`
+	Share        string   `json:"share"`
+	DefaultShare bool     `json:"defaultShare"`
+	Knowledge    []string `json:"knowledge"`
+	// RunOnStart says the agent starts when the app does.
+	RunOnStart bool `json:"runOnStart"`
+	// DevHost is the Coding agent's dev server, user@host[:port], and
+	// DevHostKey the SHA256 fingerprint of its pinned host key; empty when
+	// it has none.
+	DevHost    string                  `json:"devHost,omitempty"`
+	DevHostKey string                  `json:"devHostKey,omitempty"`
+	Servers    []PersistentServerView  `json:"servers"`
+	Roster     []PersistentRosterEntry `json:"roster"`
+	Status     *PersistentStatusView   `json:"status,omitempty"`
+	Lifetime   PersistentUsageView     `json:"lifetime"`
+	Volumes    PersistentVolumesView   `json:"volumes"`
 }
 
 // PersistentServerView is an MCP server the person added.
@@ -192,7 +204,11 @@ type PersistentChange struct {
 	Name        *string `json:"name,omitempty"`
 	Personality *string `json:"personality,omitempty"`
 	// DefaultShare puts the share folder back to the agent's default.
-	DefaultShare    bool              `json:"defaultShare,omitempty"`
+	DefaultShare bool `json:"defaultShare,omitempty"`
+	// RunOnStart starts the agent when the app starts.
+	RunOnStart *bool `json:"runOnStart,omitempty"`
+	// ClearDevHost takes the Coding agent's dev server away.
+	ClearDevHost    bool              `json:"clearDevHost,omitempty"`
 	AddKnowledge    string            `json:"addKnowledge,omitempty"`
 	RemoveKnowledge string            `json:"removeKnowledge,omitempty"`
 	RemoveServer    string            `json:"removeServer,omitempty"`
@@ -244,10 +260,13 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	}
 	v := &PersistentAgentView{
 		Name: a.Name, Title: a.Title, DisplayName: a.DisplayName(cfg), Personality: cfg.Personality,
-		DefaultShare: cfg.Share == "", Knowledge: append([]string{}, cfg.Knowledge...), Servers: []PersistentServerView{},
+		DefaultShare: cfg.Share == "", Knowledge: append([]string{}, cfg.Knowledge...), Servers: []PersistentServerView{}, RunOnStart: cfg.RunOnStart,
 		Volumes: PersistentVolumesView{Session: persistent.SessionVolume(a.Name), Data: persistent.DataVolume(a.Name)},
 	}
 	v.Share, _ = persistent.ShareFolder(a, cfg)
+	if cfg.DevHost != nil {
+		v.DevHost, v.DevHostKey = cfg.DevHost.Host, cfg.DevHost.HostKey
+	}
 	if u, err := persistent.LoadUsage(home, a.Name); err == nil {
 		v.Lifetime = PersistentUsageView{Segments: u.Segments, InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, TotalTokens: u.TotalTokens, UserTurns: u.UserTurns, ToolCalls: u.ToolCalls}
 	}
@@ -306,7 +325,9 @@ func rosterView(r persistent.Roster) []PersistentRosterEntry {
 }
 
 // SetEnabled enables or disables an agent. A running agent is not
-// disabled: it is stopped first.
+// disabled: it is stopped first. Enabling the Coding agent asks first, in a
+// native dialog that says what it may do; a No changes nothing and answers
+// the agent as it was.
 func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -319,6 +340,18 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 	_, here := p.running(a.Name)
 	if held, _ := persistent.Held(home, a.Name); (held || here) && !on {
 		return nil, fmt.Errorf("the %s is running: stop it first", a.Title)
+	}
+	if on && a.Name == coderAgent {
+		if cfg, err := persistent.LoadConfig(home, a.Name); err == nil && !cfg.Enabled {
+			share, _ := persistent.ShareFolder(a, cfg)
+			err := p.app.askConsent("Enable the Coding agent?", coderWarning(share))
+			if errors.Is(err, errNotConfirmed) {
+				return p.Get(name)
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	owner, err := persistent.Acquire(home, a.Name, persistent.ClientDesktop)
 	if err != nil {
@@ -334,6 +367,17 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 		return nil, err
 	}
 	return p.Get(name)
+}
+
+// coderWarning is the Coding agent's enable dialog: what it may do, and
+// that it is riskier than the other agents.
+func coderWarning(share string) string {
+	folder := "your codingshare folder"
+	if share != "" {
+		folder = "your " + filepath.Base(share) + " folder"
+	}
+	return "The Coding agent builds and runs software, reaches the web and any dev server you give it, and reads " + folder +
+		" as it is. That is riskier than other agents.\n\nEnable it?"
 }
 
 // Start starts an agent: a roster with entries the person has not agreed to
@@ -633,7 +677,8 @@ func (p *PersistentAPI) Configure(name string, ch PersistentChange) (*Persistent
 	if err != nil {
 		return nil, err
 	}
-	c := persistent.Change{Name: ch.Name, Personality: ch.Personality, AddKnowledge: ch.AddKnowledge, RemoveKnowledge: ch.RemoveKnowledge, RemoveServer: ch.RemoveServer}
+	c := persistent.Change{Name: ch.Name, Personality: ch.Personality, AddKnowledge: ch.AddKnowledge, RemoveKnowledge: ch.RemoveKnowledge, RemoveServer: ch.RemoveServer,
+		RunOnStart: ch.RunOnStart, ClearDevHost: ch.ClearDevHost}
 	if ch.DefaultShare {
 		empty := ""
 		c.Share = &empty
@@ -668,6 +713,47 @@ func (p *PersistentAPI) configure(a persistent.Agent, c persistent.Change) error
 	c.Consent = true
 	_, _, err = persistent.Configure(ctx, home, a, persistent.ClientDesktop, c)
 	return err
+}
+
+// SetDevHost readies the Coding agent's dev server and saves it: answer is
+// user@host[:port]; the sign-in (a key file the native picker returned and
+// its passphrase, or a password) is signed in with and saved in the system
+// keychain, and a host key no known_hosts file holds is put to the person
+// in a native dialog. Saving it turns on a roster entry, which asks first
+// as any widening does. The sign-in travels inward only.
+func (p *PersistentAPI) SetDevHost(name, answer string, sign run.HostSignIn) (*PersistentAgentView, error) {
+	a, err := p.agent(name)
+	if err != nil {
+		return nil, err
+	}
+	if a.Name != coderAgent {
+		return nil, fmt.Errorf("only the Coding agent has a dev server")
+	}
+	home, err := p.home()
+	if err != nil {
+		return nil, err
+	}
+	polFile, err := policy.Resolve("")
+	if err != nil {
+		return nil, err
+	}
+	pol, _, err := policy.EnsureDefault(polFile.Path)
+	if err != nil {
+		return nil, fmt.Errorf("operator policy: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	sign.Sudo, sign.Save = "", true
+	d, err := run.ReadyDevHost(ctx, answer, sign, run.DevHost{
+		Pol: pol, Home: home, Picked: p.app.keyFiles.require, Trust: p.app.trustHostKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := p.configure(a, persistent.Change{DevHost: d}); err != nil {
+		return nil, err
+	}
+	return p.Get(name)
 }
 
 // ChooseShare opens the native folder picker for the agent's share folder

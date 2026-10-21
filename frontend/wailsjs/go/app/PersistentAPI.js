@@ -34,6 +34,10 @@ export function Send(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['Send'](arg1, arg2);
 }
 
+export function SetDevHost(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['SetDevHost'](arg1, arg2, arg3);
+}
+
 export function SetEnabled(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetEnabled'](arg1, arg2);
 }

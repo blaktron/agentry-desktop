@@ -702,6 +702,24 @@ const harnessAssistant = {
   volumes: { session: "agentry-persistent-assistant-session", data: "agentry-persistent-assistant-data" },
 };
 
+// The Coding agent, running, with its grant and a dev server.
+const harnessCoder = {
+  name: "coder", title: "Coding agent", displayName: "Coding agent", state: "running", runOnStart: true,
+  share: "/home/me/agentry/codingshare", defaultShare: true, knowledge: [], servers: [],
+  devHost: "deploy@devbox.lan", devHostKey: "SHA256:7cVzL3yXqk1rQm0Hd2pWb9sA4tEuN6fGjKoP8iZxY5w",
+  roster: [
+    { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/codingshare with you, read and write" },
+    { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
+    { id: "commands", kind: "tools", name: "Programs", grantedBy: "built-in", state: "on", on: true, line: "Runs any program it chooses in its toolchain image" },
+    { id: "egress", kind: "tools", name: "Open egress", grantedBy: "built-in", state: "on", on: true, line: "Reaches any address from its tools and the programs it runs" },
+    { id: "browser", kind: "tools", name: "Browser", grantedBy: "built-in", state: "off", on: false, line: "Drives a headless browser to any public website" },
+    { id: "devhost", kind: "host", name: "Dev server deploy@devbox.lan", grantedBy: "you", state: "on", on: true, line: "Reaches your dev server deploy@devbox.lan over SSH" },
+  ],
+  status: { since: "2026-10-20T19:00:00Z", segment: 2, run: "c0de0001", adapter: "docker-agent", model: "qwen3.8-flash-next", resumed: true, busy: false, pending: false, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, userTurns: 1, toolCalls: 4 },
+  lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 9 },
+  volumes: { session: "agentry-persistent-coder-session", data: "agentry-persistent-coder-data" },
+};
+
 // Main, stopped after a short conversation: Home's first card.
 const harnessMain = {
   name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
@@ -789,8 +807,9 @@ g.go = { app: {
   },
   // Main, and the Assistant enabled and stopped, named by the person.
   PersistentAPI: {
-    List: async () => [harnessMain, harnessAssistant],
-    Get: async (name: string) => (name === "main" ? harnessMain : harnessAssistant),
+    List: async () => [harnessMain, harnessAssistant, harnessCoder],
+    Get: async (name: string) => (name === "main" ? harnessMain : name === "coder" ? harnessCoder : harnessAssistant),
+    SetDevHost: async () => harnessCoder,
     Transcript: async (name: string) => (name === "main" ? [
       { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
       { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },

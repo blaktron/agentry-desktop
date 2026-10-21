@@ -10,9 +10,10 @@
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import type { app, build } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import type { app, build, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, MAIN_AGENT, agentStateWords, canAddServer, serverRowOf, type ServerForm } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, serverRowOf, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 
@@ -25,16 +26,20 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [error, setError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshAgents();
   }, []);
 
-  const act = async (name: string, f: () => Promise<app.PersistentAgentView>) => {
+  const act = async (name: string, f: () => Promise<app.PersistentAgentView>, asked = false) => {
     setBusy(name);
     setError(null);
+    setNote(null);
     try {
-      updateAgent(await f());
+      const v = await f();
+      updateAgent(v);
+      setNote(enableOutcome(asked, v));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -49,10 +54,12 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         with you. It runs on this computer with your model, in its own containers, beside your QuickAgents.
       </p>
       <ErrorBox error={error} />
+      {note && <p className="small" role="status">{note}</p>}
       {agents.map((a) => {
         const enabled = a.state !== AGENT_STATES.disabled;
         const running = a.state === AGENT_STATES.running;
         const isMain = a.name === MAIN_AGENT;
+        const isCoder = a.name === CODER_AGENT;
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
@@ -69,12 +76,16 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                   data-persistent-enable={a.name}
                   checked={enabled}
                   disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere}
-                  onChange={(e) => void act(a.name, () => PersistentAPI.SetEnabled(a.name, e.target.checked))}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    void act(a.name, () => PersistentAPI.SetEnabled(a.name, on), on && isCoder);
+                  }}
                 />
                 Enabled
               </label>}
             </div>
             {isMain && <p className="small">Its card on Home is where you talk to it; Settings → Home shows or hides the card.</p>}
+            {isCoder && !enabled && <Notice tone="warn">{CODER_WARNING} Turning it on asks you first.</Notice>}
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
             {a.state === AGENT_STATES.elsewhere && (
               <Notice>It is running in {a.holder || "another client"}. Stop it there to start it here.</Notice>
@@ -131,6 +142,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [dev, setDev] = useState<{ host: string; keyFile: string; passphrase: string; password: string }>({ host: "", keyFile: "", passphrase: "", password: "" });
 
   useEffect(() => {
     if (!agent) return;
@@ -180,12 +192,54 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
       setServer({ source: server.source, package: "", version: "", url: "", tools: "" }));
   };
 
+  const isCoder = agent.name === CODER_AGENT;
+  const saveDev = () => {
+    // The sign-in goes to Go and is never read back: the fields are emptied.
+    const sign = { keyFile: dev.keyFile, passphrase: dev.passphrase, password: dev.keyFile ? "" : dev.password } as run.HostSignIn;
+    void call(() => PersistentAPI.SetDevHost(name, dev.host.trim(), sign), "The dev server").then(() =>
+      setDev({ host: "", keyFile: "", passphrase: "", password: "" }));
+  };
+
   return (
     <Modal title={`Configure the ${agent.title}`} onClose={onClose} wide>
       <ErrorBox error={error} />
       {saved && <p className="small ok" role="status">{saved}</p>}
-      <h3>Name and personality</h3>
-      <Field label="Name" hint="What it goes by, in the sidebar and in conversation. Empty is its own name.">
+      {isCoder && (
+        <>
+          <h3>Dev server</h3>
+          {agent.devHost ? (
+            <div className="row between">
+              <span className="small"><span className="mono">{agent.devHost}</span>, host key <span className="mono">{agent.devHostKey}</span> pinned. Its sign-in is in your system keychain.</span>
+              <Button variant="ghost" disabled={busy} onClick={() => void change({ clearDevHost: true }, "The dev server's removal")}>Remove</Button>
+            </div>
+          ) : (
+            <p className="small muted">None. The Coding agent deploys over SSH to a server you give it here, as the account you name.</p>
+          )}
+          <div className="persistent-server-form">
+            <Field label="Server" hint="user@host, or user@host:port.">
+              <Input type="text" value={dev.host} placeholder="deploy@devbox.lan" onChange={(e) => setDev({ ...dev, host: e.target.value })} />
+            </Field>
+            <Field label="Key file" hint={dev.keyFile ? dev.keyFile : "A private key from the file dialog, or a password below."}>
+              <Button disabled={busy} onClick={() => {
+                RunAPI.ChooseHostKeyFile(dev.host.trim()).then((p) => { if (p) setDev({ ...dev, keyFile: p }); }).catch((e) => setError(String(e)));
+              }}>Choose a key file…</Button>
+            </Field>
+            {dev.keyFile ? (
+              <Field label="Passphrase" hint="Only if the key has one.">
+                <Input type="password" autoComplete="off" value={dev.passphrase} onChange={(e) => setDev({ ...dev, passphrase: e.target.value })} />
+              </Field>
+            ) : (
+              <Field label="Password">
+                <Input type="password" autoComplete="off" value={dev.password} onChange={(e) => setDev({ ...dev, password: e.target.value })} />
+              </Field>
+            )}
+            <Button disabled={busy || !dev.host.trim()} onClick={saveDev}>Check and save</Button>
+            <p className="small muted">Check and save reaches the server, puts a host key it has not seen to you, and keeps the sign-in in your system keychain.</p>
+          </div>
+        </>
+      )}
+      {!isCoder && <h3>Name and personality</h3>}
+      {!isCoder && <><Field label="Name" hint="What it goes by, in the sidebar and in conversation. Empty is its own name.">
         <Input value={displayName} maxLength={64} onChange={(e) => setDisplayName(e.target.value)} />
       </Field>
       <Field label="Personality" hint={`How it should sound and behave, in your words. ${personalityBytes.toLocaleString("en-US")} of ${MAX_PERSONALITY_BYTES.toLocaleString("en-US")} bytes.`}>
@@ -198,12 +252,12 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
         >
           Save name and personality
         </Button>
-      </div>
+      </div></>}
 
       <h3>Share folder</h3>
       <p className="small">
         <span className="mono">{agent.share}</span>{agent.defaultShare && " (its default)"}. The agent reads and writes it as you
-        do, and a file you add is checked for malware before it reads it.
+        do{isCoder ? ", and reads the files in it as they are" : ", and a file you add is checked for malware before it reads it"}.
       </p>
       <div className="row gap">
         <Button disabled={busy} onClick={() => void call(() => PersistentAPI.ChooseShare(name), "The share folder")}>Choose a folder…</Button>
