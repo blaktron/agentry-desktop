@@ -546,3 +546,51 @@ func TestRunOnStartIsSaved(t *testing.T) {
 		t.Fatalf("%+v, %v", v, err)
 	}
 }
+
+// The Coding agent's ports: added with the person's agreement and shown,
+// opened in the browser only while the agent runs with the port on, and
+// taken away; the Assistant has none.
+func TestTheCodingAgentsPortsOpenOnlyWhilePublished(t *testing.T) {
+	rig := newPersistentRig(t)
+	var opened []string
+	old := browserOpenURL
+	browserOpenURL = func(_ context.Context, url string) { opened = append(opened, url) }
+	t.Cleanup(func() { browserOpenURL = old })
+
+	if _, err := rig.p.SetEnabled(coderAgent, true); err != nil {
+		t.Fatal(err)
+	}
+	rig.answer = false
+	if _, err := rig.p.Configure(coderAgent, PersistentChange{AddPort: &PersistentPort{Name: "web", Port: 3000}}); !errors.Is(err, errNotConfirmed) {
+		t.Fatalf("a No: %v", err)
+	}
+	if d := rig.dialogs(); !strings.Contains(d[len(d)-1], "http://127.0.0.1:3000") {
+		t.Fatalf("the dialog: %q", d[len(d)-1])
+	}
+	rig.answer = true
+	v, err := rig.p.Configure(coderAgent, PersistentChange{AddPort: &PersistentPort{Name: "web", Port: 3000}})
+	if err != nil || len(v.Ports) != 1 || v.Ports[0] != (PersistentPort{Name: "web", Port: 3000}) {
+		t.Fatalf("after a Yes: %+v, %v", v.Ports, err)
+	}
+	if err := rig.p.OpenPort(coderAgent, "web"); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("a port of a stopped agent opened: %v", err)
+	}
+	cfg, _ := persistent.LoadConfig(rig.home, coderAgent)
+	a, _ := persistent.Lookup(coderAgent)
+	rig.agent.roster = persistent.BuildRoster(a, cfg, nil)
+	if _, err := rig.p.Start(coderAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := rig.p.OpenPort(coderAgent, "web"); err != nil || len(opened) != 1 || opened[0] != "http://127.0.0.1:3000/" {
+		t.Fatalf("open: %v, opened %q", err, opened)
+	}
+	if err := rig.p.OpenPort(coderAgent, "api"); err == nil {
+		t.Error("a port it does not have opened")
+	}
+	if v, err = rig.p.Configure(coderAgent, PersistentChange{RemovePort: "web"}); err != nil || len(v.Ports) != 0 {
+		t.Fatalf("removing: %+v, %v", v.Ports, err)
+	}
+	if _, err := rig.p.Configure("assistant", PersistentChange{AddPort: &PersistentPort{Name: "web", Port: 3000}}); err == nil {
+		t.Error("the Assistant took a port")
+	}
+}

@@ -212,13 +212,22 @@ type PersistentAgentView struct {
 	// DevHost is the Coding agent's dev server, user@host[:port], and
 	// DevHostKey the SHA256 fingerprint of its pinned host key; empty when
 	// it has none.
-	DevHost    string                  `json:"devHost,omitempty"`
-	DevHostKey string                  `json:"devHostKey,omitempty"`
-	Servers    []PersistentServerView  `json:"servers"`
-	Roster     []PersistentRosterEntry `json:"roster"`
-	Status     *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime   PersistentUsageView     `json:"lifetime"`
-	Volumes    PersistentVolumesView   `json:"volumes"`
+	DevHost    string `json:"devHost,omitempty"`
+	DevHostKey string `json:"devHostKey,omitempty"`
+	// Ports are the Coding agent's published ports.
+	Ports    []PersistentPort        `json:"ports"`
+	Servers  []PersistentServerView  `json:"servers"`
+	Roster   []PersistentRosterEntry `json:"roster"`
+	Status   *PersistentStatusView   `json:"status,omitempty"`
+	Lifetime PersistentUsageView     `json:"lifetime"`
+	Volumes  PersistentVolumesView   `json:"volumes"`
+}
+
+// PersistentPort is one of the Coding agent's published ports: a name the
+// person gave it and its number, published at 127.0.0.1 and that number.
+type PersistentPort struct {
+	Name string `json:"name"`
+	Port int    `json:"port"`
 }
 
 // PersistentServerView is an MCP server the person added.
@@ -292,7 +301,11 @@ type PersistentChange struct {
 	// RunOnStart starts the agent when the app starts.
 	RunOnStart *bool `json:"runOnStart,omitempty"`
 	// ClearDevHost takes the Coding agent's dev server away.
-	ClearDevHost    bool              `json:"clearDevHost,omitempty"`
+	ClearDevHost bool `json:"clearDevHost,omitempty"`
+	// AddPort publishes one of the Coding agent's ports; RemovePort takes
+	// one away by its name.
+	AddPort         *PersistentPort   `json:"addPort,omitempty"`
+	RemovePort      string            `json:"removePort,omitempty"`
 	AddKnowledge    string            `json:"addKnowledge,omitempty"`
 	RemoveKnowledge string            `json:"removeKnowledge,omitempty"`
 	RemoveServer    string            `json:"removeServer,omitempty"`
@@ -350,6 +363,10 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.Share, _ = persistent.ShareFolder(a, cfg)
 	if cfg.DevHost != nil {
 		v.DevHost, v.DevHostKey = cfg.DevHost.Host, cfg.DevHost.HostKey
+	}
+	v.Ports = []PersistentPort{}
+	for _, port := range cfg.Ports {
+		v.Ports = append(v.Ports, PersistentPort{Name: port.Name, Port: port.Port})
 	}
 	if u, err := persistent.LoadUsage(home, a.Name); err == nil {
 		v.Lifetime = PersistentUsageView{Segments: u.Segments, InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, TotalTokens: u.TotalTokens, UserTurns: u.UserTurns, ToolCalls: u.ToolCalls}
@@ -763,7 +780,10 @@ func (p *PersistentAPI) Configure(name string, ch PersistentChange) (*Persistent
 		return nil, err
 	}
 	c := persistent.Change{Name: ch.Name, Personality: ch.Personality, AddKnowledge: ch.AddKnowledge, RemoveKnowledge: ch.RemoveKnowledge, RemoveServer: ch.RemoveServer,
-		RunOnStart: ch.RunOnStart, ClearDevHost: ch.ClearDevHost}
+		RunOnStart: ch.RunOnStart, ClearDevHost: ch.ClearDevHost, RemovePort: ch.RemovePort}
+	if ch.AddPort != nil {
+		c.AddPort = &persistent.Port{Name: ch.AddPort.Name, Port: ch.AddPort.Port}
+	}
 	if ch.DefaultShare {
 		empty := ""
 		c.Share = &empty
@@ -775,6 +795,32 @@ func (p *PersistentAPI) Configure(name string, ch PersistentChange) (*Persistent
 		return nil, err
 	}
 	return p.Get(name)
+}
+
+// OpenPort opens one of the Coding agent's published ports in the person's
+// browser: only a port of its own, switched on, while it runs.
+func (p *PersistentAPI) OpenPort(name, port string) error {
+	v, err := p.Get(name)
+	if err != nil {
+		return err
+	}
+	if v.State != persistent.StateRunning && v.State != agentElsewhere {
+		return fmt.Errorf("the %s is not running: start it first", v.Title)
+	}
+	for _, e := range v.Roster {
+		if e.ID != persistent.PortEntryID(port) {
+			continue
+		}
+		if !e.On || e.State == string(persistent.StatePending) {
+			return fmt.Errorf("the port %s is not published now", port)
+		}
+		for _, q := range v.Ports {
+			if q.Name == port {
+				return p.app.OpenExternal(fmt.Sprintf("http://127.0.0.1:%d/", q.Port))
+			}
+		}
+	}
+	return fmt.Errorf("the %s has no port named %s", v.Title, port)
 }
 
 // configure applies one change, asking the person where it widens the

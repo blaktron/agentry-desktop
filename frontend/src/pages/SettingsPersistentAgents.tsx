@@ -13,7 +13,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, build, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, serverRowOf, type ServerForm } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 
@@ -168,6 +168,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [dev, setDev] = useState<{ host: string; keyFile: string; passphrase: string; password: string }>({ host: "", keyFile: "", passphrase: "", password: "" });
+  const [port, setPort] = useState<{ name: string; port: string }>({ name: "", port: "" });
 
   useEffect(() => {
     if (!agent) return;
@@ -185,15 +186,19 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   }, [registry]);
 
   if (!agent) return null;
-  const change = async (c: Partial<app.PersistentChange>, what: string) => {
+  // Says whether the change was saved, so a form keeps what was typed when
+  // it was not.
+  const change = async (c: Partial<app.PersistentChange>, what: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
     setSaved(null);
     try {
       updateAgent(await PersistentAPI.Configure(name, c as app.PersistentChange));
       setSaved(agent.state === AGENT_STATES.running ? `${what} saved. The agent takes it at its next turn.` : `${what} saved.`);
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -265,6 +270,32 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
             )}
             <Button disabled={busy || !dev.host.trim()} onClick={saveDev}>Check and save</Button>
             <p className="small muted">Check and save reaches the server, puts a host key it has not seen to you, and keeps the sign-in in your system keychain.</p>
+          </div>
+        </>
+      )}
+      {isCoder && (
+        <>
+          <h3>Ports</h3>
+          {agent.ports.length === 0 && (
+            <p className="small muted">None. A port you add here opens what the Coding agent serves from its sandbox, such as a dev server it started, in your browser on this computer.</p>
+          )}
+          {agent.ports.map((q) => (
+            <div key={q.name} className="row between">
+              <span className="small"><strong>{q.name}</strong> at <span className="mono">http://127.0.0.1:{q.port}</span></span>
+              <Button variant="ghost" disabled={busy} onClick={() => void change({ removePort: q.name }, `The port ${q.name}'s removal`)}>Remove</Button>
+            </div>
+          ))}
+          <div className="persistent-server-form">
+            <Field label="Name" hint="Lower-case letters, digits and hyphens, such as web.">
+              <Input type="text" value={port.name} maxLength={32} placeholder="web" onChange={(e) => setPort({ ...port, name: e.target.value })} />
+            </Field>
+            <Field label="Port" hint="The number it serves on, from 1024 to 65535. Your computer opens it at the same number.">
+              <Input type="text" inputMode="numeric" value={port.port} placeholder="3000" onChange={(e) => setPort({ ...port, port: e.target.value })} />
+            </Field>
+            <Button disabled={busy || !portFormOK(port.name, port.port)} onClick={() =>
+              void change({ addPort: { name: port.name.trim(), port: Number(port.port) } } as Partial<app.PersistentChange>, `The port ${port.name.trim()}`).then((ok) => { if (ok) setPort({ name: "", port: "" }); })}>
+              Add port
+            </Button>
           </div>
         </>
       )}
