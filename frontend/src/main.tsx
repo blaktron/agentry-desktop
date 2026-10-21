@@ -1,6 +1,8 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import './style.css'
+// After the base table, so a theme's block wins over it.
+import './themes.css'
 import App from './App'
 import {Recover} from './Recover'
 import {installDropGuard} from './dropGuard'

@@ -1,0 +1,219 @@
+/* Agentry Desktop's themes: the person's choice in Settings → Home, set as
+   data-theme on the root element (theme.ts). No theme set is System: the
+   base table in style.css, light or dark as the operating system says.
+
+   A theme changes colours only, never layout, type or radius. Light and
+   Dark fix the base table to one scheme. Slate, Forest and High contrast
+   recolour the grounds, the ink and the accent in each scheme and keep the
+   base table's severity, syntax and file colours; Midnight is dark in
+   either scheme, so its block is the whole dark table with its own
+   grounds. internal/designtokens audits every one of them against the same
+   contrast floors as the base table, and holds Dark to the base table's
+   dark block. */
+
+/* Light: the base light table, whatever the operating system says. */
+:root[data-theme="light"] { color-scheme: light; }
+
+/* Dark: the base dark table, whatever the operating system says. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #16110d;
+  --color-fg: #ece4d8;
+  --color-lead: #d6cbbb;
+  --color-muted: #b3a48f;
+  --color-border: #33291f;
+  --color-border-strong: #4d3f31;
+  --color-surface: #201914;
+  --color-raised: #241d17;
+  --color-accent: #4fd1b0;
+  --color-accent-hover: #74dfc4;
+  --color-accent-fg: #16110d;
+  --color-accent-soft: #1c241d;
+  --color-warm: #e2a86f;
+  --color-warm-soft: #261d15;
+  --color-sev-critical: #fca5a5;
+  --color-sev-high: #f87171;
+  --color-sev-high-bg: #3a201d;
+  --color-sev-medium: #fbbf24;
+  --color-sev-low: #a3e635;
+  --color-sev-info: #94a3b8;
+  --color-ok: #4ade80;
+  --color-unscanned: #c4b5fd;
+  --color-unsafe-glow: rgb(248 113 113 / 0.5);
+  --hl-keyword: #d8b4fe;
+  --hl-string: #86efac;
+  --hl-comment: #9ca3af;
+  --hl-number: #fbbf24;
+  --hl-name: #93c5fd;
+  --hl-type: #5eead4;
+  --hl-error: #fca5a5;
+  --badge-tint: 16%;
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 16px -8px rgb(0 0 0 / 0.6);
+  --shadow-overlay: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+  --file-pdf: #f87171;
+  --file-html: #8fb0ff;
+  --file-document: #7cb8f7;
+  --file-spreadsheet: #4ade80;
+  --file-presentation: #fbbf24;
+  --file-image: #c4b5fd;
+}
+
+/* Slate: a cool blue-grey. */
+:root[data-theme="slate"] {
+  --color-bg: #f7f8fa;
+  --color-fg: #161b22;
+  --color-lead: #2d3440;
+  --color-muted: #4f5866;
+  --color-border: #dde1e7;
+  --color-border-strong: #aab2bf;
+  --color-surface: #eef1f5;
+  --color-raised: #ffffff;
+  --color-accent: #1957c2;
+  --color-accent-hover: #14479f;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #e9eef7;
+  --color-warm: #8f4f22;
+  --color-warm-soft: #f3eee8;
+  --color-sev-high-bg: #f6e4e4;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="slate"] {
+    --color-bg: #0f141a;
+    --color-fg: #e6eaf0;
+    --color-lead: #c9d0da;
+    --color-muted: #9ea8b6;
+    --color-border: #262e38;
+    --color-border-strong: #3a4552;
+    --color-surface: #151b23;
+    --color-raised: #1a212b;
+    --color-accent: #6ea8ff;
+    --color-accent-hover: #94bfff;
+    --color-accent-fg: #0f141a;
+    --color-accent-soft: #16202e;
+    --color-warm: #e2a86f;
+    --color-warm-soft: #1f1b18;
+    --color-sev-high-bg: #36201f;
+  }
+}
+
+/* Forest: a green tint. */
+:root[data-theme="forest"] {
+  --color-bg: #f4f7f2;
+  --color-fg: #17201a;
+  --color-lead: #2d3a30;
+  --color-muted: #4d5c51;
+  --color-border: #d8e2d6;
+  --color-border-strong: #a7b8a5;
+  --color-surface: #ecf2ea;
+  --color-raised: #fbfdfa;
+  --color-accent: #2d662d;
+  --color-accent-hover: #245324;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #e8efe4;
+  --color-warm: #8a4f1c;
+  --color-warm-soft: #f2ece2;
+  --color-sev-high-bg: #f4e6de;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="forest"] {
+    --color-bg: #0f1510;
+    --color-fg: #e3ebe2;
+    --color-lead: #c8d4c6;
+    --color-muted: #a0b19e;
+    --color-border: #233025;
+    --color-border-strong: #364a39;
+    --color-surface: #151d16;
+    --color-raised: #1a231b;
+    --color-accent: #7fcf7a;
+    --color-accent-hover: #a2e09e;
+    --color-accent-fg: #0f1510;
+    --color-accent-soft: #182419;
+    --color-warm: #e2a86f;
+    --color-warm-soft: #221b13;
+    --color-sev-high-bg: #36201c;
+  }
+}
+
+/* Midnight: dark in either scheme, deep navy with a teal accent. Its
+   block is the whole dark table, so it holds when the operating system is
+   light too. */
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  --color-bg: #0b1220;
+  --color-fg: #e6edf7;
+  --color-lead: #c6d1e2;
+  --color-muted: #98a6bc;
+  --color-border: #1c2740;
+  --color-border-strong: #2e3d5c;
+  --color-surface: #101a2e;
+  --color-raised: #142037;
+  --color-accent: #3fd5c0;
+  --color-accent-hover: #6fe3d2;
+  --color-accent-fg: #0b1220;
+  --color-accent-soft: #0f2430;
+  --color-warm: #f0b37a;
+  --color-warm-soft: #1d1a1c;
+  --color-sev-critical: #fca5a5;
+  --color-sev-high: #f87171;
+  --color-sev-high-bg: #33202a;
+  --color-sev-medium: #fbbf24;
+  --color-sev-low: #a3e635;
+  --color-sev-info: #94a3b8;
+  --color-ok: #4ade80;
+  --color-unscanned: #c4b5fd;
+  --color-unsafe-glow: rgb(248 113 113 / 0.5);
+  --hl-keyword: #d8b4fe;
+  --hl-string: #86efac;
+  --hl-comment: #9ca3af;
+  --hl-number: #fbbf24;
+  --hl-name: #93c5fd;
+  --hl-type: #5eead4;
+  --hl-error: #fca5a5;
+  --badge-tint: 16%;
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 16px -8px rgb(0 0 0 / 0.6);
+  --shadow-overlay: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+  --file-pdf: #f87171;
+  --file-html: #8fb0ff;
+  --file-document: #7cb8f7;
+  --file-spreadsheet: #4ade80;
+  --file-presentation: #fbbf24;
+  --file-image: #c4b5fd;
+}
+
+/* High contrast: black and white grounds, stronger lines and text. */
+:root[data-theme="contrast"] {
+  --color-bg: #ffffff;
+  --color-fg: #000000;
+  --color-lead: #141414;
+  --color-muted: #383838;
+  --color-border: #767676;
+  --color-border-strong: #1a1a1a;
+  --color-surface: #f2f2f2;
+  --color-raised: #ffffff;
+  --color-accent: #00574a;
+  --color-accent-hover: #00443a;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #e4efec;
+  --color-warm: #6b3510;
+  --color-warm-soft: #f5ede6;
+  --color-sev-high-bg: #fbe7e7;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="contrast"] {
+    --color-bg: #000000;
+    --color-fg: #ffffff;
+    --color-lead: #f0f0f0;
+    --color-muted: #d4d4d4;
+    --color-border: #8a8a8a;
+    --color-border-strong: #e0e0e0;
+    --color-surface: #0d0d0d;
+    --color-raised: #141414;
+    --color-accent: #5ef0cc;
+    --color-accent-hover: #8ff5dc;
+    --color-accent-fg: #000000;
+    --color-accent-soft: #0a2a22;
+    --color-warm: #ffc08a;
+    --color-warm-soft: #1f140a;
+    --color-sev-high-bg: #3a1414;
+  }
+}

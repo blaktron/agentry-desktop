@@ -688,3 +688,41 @@ func TestHomeSizeIsPlainKeysAnOlderAppKeeps(t *testing.T) {
 		t.Fatalf("the size is not plain keys: %+v", older.Home.Cards[0].Rest)
 	}
 }
+
+// The theme is System until one is chosen, any of the offered ones is kept,
+// System is stored as none, and a name this app lacks is refused on the way
+// in and read as System on the way out (a newer app's theme).
+func TestThemeIsKeptAndSystemIsTheDefault(t *testing.T) {
+	isolate(t)
+	if got, err := ThemeNow(); err != nil || got != ThemeSystem {
+		t.Fatalf("no theme stored reads %q, %v", got, err)
+	}
+	if err := SetTheme("forest"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := ThemeNow(); got != "forest" {
+		t.Fatalf("after forest = %q", got)
+	}
+	if !strings.Contains(readRaw(t), "theme: forest") {
+		t.Fatalf("not written:\n%s", readRaw(t))
+	}
+	if err := SetTheme("neon"); err == nil {
+		t.Fatal("a theme this app lacks was accepted")
+	}
+	if err := SetTheme(ThemeSystem); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readRaw(t), "theme:") {
+		t.Fatalf("System was stored:\n%s", readRaw(t))
+	}
+	writeRaw(t, "theme: aurora\n")
+	if got, _ := ThemeNow(); got != ThemeSystem {
+		t.Fatalf("a newer app's theme reads %q, not System", got)
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(readRaw(t), "theme: aurora") {
+		t.Fatal("Reset Home touched the theme")
+	}
+}

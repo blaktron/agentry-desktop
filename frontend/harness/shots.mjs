@@ -547,6 +547,28 @@ const states = [
     expectSelector: '[data-preview="home"] [data-home-card="profile"][data-cols="2"][data-rows="3"]' },
   { name: "page-home-narrow", url: "/pages.html", note: "a narrow window: two columns, every card at most two wide", locator: '[data-preview="home"] .home-grid', width: 820,
     expectSelector: '[data-preview="home"] .home-grid[data-home-columns="2"]' },
+  // Settings → Home → Theme: a tile per theme, and a choice that is put on
+  // the window at once and kept by Go.
+  { name: "settings-home-theme", url: "/pages.html?settings=home", note: "the Theme part first in Settings → Home: System chosen, a tile per theme with its swatch and line", locator: '[data-preview="settings"] #settings-part-theme',
+    expectOrder: [['[data-preview="settings"] .theme-choice strong', ["System", "Light", "Dark", "Slate", "Forest", "Midnight", "High contrast"]]],
+    expectChecked: '[data-preview="settings"] [data-theme-choice="system"] input' },
+  { name: "settings-home-theme-chosen", url: "/pages.html?settings=home", note: "Slate chosen: the window is drawn in it at once and Go is asked to keep it", locator: '[data-preview="settings"]', window: true,
+    click: '[data-preview="settings"] [data-theme-choice="slate"]',
+    expectSelector: 'html[data-theme="slate"] body[data-theme-kept="slate"]' },
+  // Every theme over Home and over a dense Settings page, in the light and
+  // dark the system can be in.
+  { name: "theme-light-home", url: "/pages.html?theme=light", note: "Home in the light theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="light"]' },
+  { name: "theme-light-settings", url: "/pages.html?theme=light&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the light theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="light"]' },
+  { name: "theme-dark-home", url: "/pages.html?theme=dark", note: "Home in the dark theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="dark"]' },
+  { name: "theme-dark-settings", url: "/pages.html?theme=dark&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the dark theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="dark"]' },
+  { name: "theme-slate-home", url: "/pages.html?theme=slate", note: "Home in the slate theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="slate"]' },
+  { name: "theme-slate-settings", url: "/pages.html?theme=slate&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the slate theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="slate"]' },
+  { name: "theme-forest-home", url: "/pages.html?theme=forest", note: "Home in the forest theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="forest"]' },
+  { name: "theme-forest-settings", url: "/pages.html?theme=forest&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the forest theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="forest"]' },
+  { name: "theme-midnight-home", url: "/pages.html?theme=midnight", note: "Home in the midnight theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="midnight"]' },
+  { name: "theme-midnight-settings", url: "/pages.html?theme=midnight&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the midnight theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="midnight"]' },
+  { name: "theme-contrast-home", url: "/pages.html?theme=contrast", note: "Home in the contrast theme", locator: '[data-preview="home"]', window: true, expectSelector: 'html[data-theme="contrast"]' },
+  { name: "theme-contrast-settings", url: "/pages.html?theme=contrast&settings=run-defaults", note: "Run defaults, a dense page of fields, badges and notes, in the contrast theme", locator: '[data-preview="settings"]', window: true, expectSelector: 'html[data-theme="contrast"]' },
   { name: "page-home-scheduled-open", url: "/pages.html#home-scheduled", note: "a press anywhere on the Scheduled card opens the Scheduled page", locator: '[data-preview="home"]',
     click: '[data-preview="home"] [data-home-card="scheduled"] .build-way', expectSelector: 'body[data-open="scheduled"]' },
   { name: "page-home-scheduled-hosted", url: "/pages.html#home-scheduled-hosted", note: "the Scheduled card with a schedule In Agentry merged: both counted, the month's dots from both, the next three from both, the hosted one marked", locator: '[data-preview="home"] [data-home-card="scheduled"]',

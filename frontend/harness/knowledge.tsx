@@ -51,6 +51,7 @@
 //                         Recover under a sidebar that still works
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
+import "../src/themes.css";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 

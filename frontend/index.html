@@ -4,6 +4,9 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Agentry Desktop</title>
+    <!-- The theme chosen in Settings → Home, before the first paint: the
+         window's copy of it (theme.ts), which the app checks with Go. -->
+    <script>try { var t = localStorage.getItem("agentry.theme"); if (t && t !== "system") document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 <div id="root"></div>

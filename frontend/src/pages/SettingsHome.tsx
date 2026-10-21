@@ -5,16 +5,17 @@ import { install, app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
+import { applyTheme, THEMES, themeOn, windowStore, type ThemeId } from "../theme";
 
-// Settings → Home: which default cards Home shows, the QuickAgents
-// pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
+// Settings → Home: the theme, which default cards Home shows, the
+// QuickAgents pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
 // Unpin and Reset is one change Go makes and answers with the layout as it
 // now is, so the page never writes it whole. Hiding a card keeps its place,
 // Unpin follows the Pinned cards' rules (an emptied card goes, no pin moves
 // to another card), and Reset drops every pin, which the page says before
 // it asks.
 
-type HomePart = "cards" | "pins" | "reset";
+type HomePart = "theme" | "cards" | "pins" | "reset";
 // What a change in a part answered: Go's refusal, or what was done.
 type Answer = { part: HomePart; text: string; error?: boolean };
 
@@ -33,6 +34,20 @@ export function HomeSettings() {
   const [said, setSaid] = useState<Answer | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // The theme on the window; a choice shows at once and Go keeps it.
+  const [theme, setTheme] = useState<ThemeId>(() => themeOn(document.documentElement));
+
+  const chooseTheme = async (id: ThemeId) => {
+    const before = theme;
+    setSaid(null);
+    setTheme(applyTheme(id, document.documentElement, windowStore()));
+    try {
+      await HomeAPI.SetTheme(id);
+    } catch (e) {
+      setTheme(applyTheme(before, document.documentElement, windowStore()));
+      setSaid({ part: "theme", text: String(e), error: true });
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -83,6 +98,32 @@ export function HomeSettings() {
           and the file is left as it is. Reset Home starts again from the defaults.
         </Notice>
       )}
+
+      <section id="settings-part-theme" className="settings-part">
+        <h2>Theme</h2>
+        <Card>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            The colours Agentry Desktop is drawn in, on this computer. It changes at once.
+          </p>
+          <div className="theme-choices" role="radiogroup" aria-label="Theme">
+            {THEMES.map((t) => (
+              <label key={t.id} className={`theme-choice${theme === t.id ? " is-chosen" : ""}`} data-theme-choice={t.id}>
+                <input type="radio" name="theme" value={t.id} checked={theme === t.id} onChange={() => void chooseTheme(t.id)} />
+                <span className="theme-swatch" aria-hidden="true" style={{ background: t.swatch[0], borderColor: t.swatch[1] }}>
+                  <span style={{ background: t.swatch[1] }} />
+                  <span style={{ background: t.swatch[2] }} />
+                  <span style={{ background: t.swatch[3] }} />
+                </span>
+                <span className="theme-choice-text">
+                  <strong>{t.title}</strong>
+                  <span className="muted small">{t.line}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <Said said={said} part="theme" />
+        </Card>
+      </section>
 
       <section id="settings-part-home-cards" className="settings-part">
         <h2>Cards</h2>

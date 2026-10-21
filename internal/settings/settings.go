@@ -157,6 +157,8 @@ type Settings struct {
 	// defaults. Read it through HomeLayoutNow; it is written only by the
 	// Home setters, each of which changes one thing.
 	Home *HomeLayout `yaml:"home,omitempty" json:"-"`
+	// Theme is Settings → Home → Theme: one of Themes, "" for System.
+	Theme string `yaml:"theme,omitempty" json:"theme,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer

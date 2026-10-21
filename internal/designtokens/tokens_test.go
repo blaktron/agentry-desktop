@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The desktop's stylesheet, relative to this package.
@@ -154,5 +156,77 @@ func TestFollowCatchesAChangedAndADroppedToken(t *testing.T) {
 	fonts := Parse(strings.Replace(read(t, desktopCSS), `--font-mono: "IBM Plex Mono"`, `--font-mono: "Other Mono"`, 1))
 	if got := follow(site, fonts); len(got) != 0 {
 		t.Errorf("a deliberate difference was reported: %q", got)
+	}
+}
+
+// The desktop's themes, relative to this package.
+var themesCSS = filepath.Join("..", "..", "frontend", "src", "themes.css")
+
+// Every theme the settings offer has a block, and every block is a theme
+// the settings offer; System is the base table and has none.
+func TestThemesAreTheOnesTheSettingsOffer(t *testing.T) {
+	var got []string
+	for _, th := range ParseThemes(read(t, themesCSS)) {
+		got = append(got, th.Name)
+	}
+	var want []string
+	for _, name := range settings.Themes {
+		if name != settings.ThemeSystem {
+			want = append(want, name)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("themes.css has %v, the settings offer %v", got, want)
+	}
+}
+
+// Every theme, in every scheme it can be seen in, clears the contrast floors
+// the base table clears.
+func TestEveryThemeClearsTheContrastFloors(t *testing.T) {
+	base := Parse(read(t, desktopCSS))
+	for _, th := range ParseThemes(read(t, themesCSS)) {
+		p := th.Over(base)
+		problems := append(AuditPalette(th.Name+" light", p.Light), AuditPalette(th.Name+" dark", p.Dark)...)
+		if len(problems) > 0 {
+			t.Errorf("theme %s:\n%s", th.Name, strings.Join(problems, "\n"))
+		}
+	}
+}
+
+// Dark is the base table's dark block, fixed: the two cannot drift apart.
+func TestDarkThemeIsTheBaseDarkTable(t *testing.T) {
+	base := Parse(read(t, desktopCSS))
+	for _, th := range ParseThemes(read(t, themesCSS)) {
+		if th.Name != "dark" {
+			continue
+		}
+		p := th.Over(base)
+		if d := Drift("dark theme over the light table", base.Dark, p.Light, nil); len(d) > 0 {
+			t.Fatalf("the Dark theme differs from the base dark table:\n%s", strings.Join(d, "\n"))
+		}
+		return
+	}
+	t.Fatal("themes.css has no dark theme")
+}
+
+// The parser takes each theme's blocks apart: the light block, the dark
+// media block, and the scheme a theme fixes.
+func TestParseThemesReadsBothBlocks(t *testing.T) {
+	css := `/* x */ :root[data-theme="a"] { --color-bg: #ffffff; }
+@media (prefers-color-scheme: dark) { :root[data-theme="a"] { --color-bg: #000000; } }
+:root[data-theme="b"] { color-scheme: dark; --color-bg: #111111; }`
+	got := ParseThemes(css)
+	if len(got) != 2 || got[0].Name != "a" || got[0].Light["--color-bg"] != "#ffffff" || got[0].Dark["--color-bg"] != "#000000" || got[0].Scheme != "" {
+		t.Fatalf("theme a read as %+v", got)
+	}
+	if got[1].Scheme != "dark" || got[1].Light["--color-bg"] != "#111111" || len(got[1].Dark) != 0 {
+		t.Fatalf("theme b read as %+v", got[1])
+	}
+	base := Palettes{Light: Tokens{"--color-bg": "#fafafa", "--color-fg": "#222222"}, Dark: Tokens{"--color-bg": "#101010", "--color-fg": "#eeeeee"}}
+	if p := got[0].Over(base); p.Dark["--color-bg"] != "#000000" || p.Dark["--color-fg"] != "#eeeeee" || p.Light["--color-bg"] != "#ffffff" {
+		t.Fatalf("a over base = %+v", p)
+	}
+	if p := got[1].Over(base); p.Light["--color-bg"] != "#111111" || p.Dark["--color-fg"] != "#eeeeee" {
+		t.Fatalf("b over base = %+v", p)
 	}
 }
