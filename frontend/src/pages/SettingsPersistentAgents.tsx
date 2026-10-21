@@ -12,8 +12,8 @@ import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, build, run } from "../../wailsjs/go/models";
-import { forgetChat, refreshAgents, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, type ServerForm } from "../persistentAgents";
+import { forgetChat, refreshAgents, startAgent, updateAgent, useAgents } from "../agents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, startFailureLines, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 
@@ -51,6 +51,20 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
     }
   };
 
+  // A start waits for the whole start, which can take minutes; Stop, while
+  // it starts, cancels it, and is not held back by the busy start.
+  const start = async (name: string) => {
+    setBusy(name);
+    setError(null);
+    setNote(null);
+    setError(await startAgent(name));
+    setBusy(null);
+  };
+  const cancelStart = (name: string) => {
+    setError(null);
+    PersistentAPI.Stop(name).then(updateAgent).catch((e) => setError(String(e)));
+  };
+
   return (
     <section id="settings-part-persistent-agents" className="settings-part">
       <p className="lead">
@@ -64,6 +78,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         const running = a.state === AGENT_STATES.running;
         const isMain = a.name === MAIN_AGENT;
         const isCoder = a.name === CODER_AGENT;
+        const failure = startFailureLines(a);
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
@@ -91,12 +106,18 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
             {isMain && <p className="small">Its card on Home is where you talk to it; Settings → Home shows or hides the card.</p>}
             {isCoder && !enabled && <Notice tone="warn">{CODER_WARNING} Turning it on asks you first.</Notice>}
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
+            {failure && (
+              <Notice tone="warn">
+                <strong>{failure.title}</strong>
+                {failure.lines.map((l, i) => <div key={i} className="small">{l}</div>)}
+              </Notice>
+            )}
             {a.state === AGENT_STATES.elsewhere && (
               <Notice>It is running in {a.holder || "another client"}. Stop it there to start it here.</Notice>
             )}
             <div className="row gap">
-              {(a.state === AGENT_STATES.stopped || (isMain && !enabled)) && <Button variant="primary" disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Start(a.name))}>Start</Button>}
-              {a.state === AGENT_STATES.starting && <Button disabled>Starting…</Button>}
+              {(a.state === AGENT_STATES.stopped || (isMain && !enabled)) && <Button variant="primary" disabled={busy !== null} onClick={() => void start(a.name)}>Start</Button>}
+              {a.state === AGENT_STATES.starting && <Button data-stop-start={a.name} onClick={() => cancelStart(a.name)}>Stop</Button>}
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}

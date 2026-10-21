@@ -88,7 +88,7 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
                 return <div key={i} className="agent-term-note">{l.text}</div>;
             }
           })}
-          {starting && <div className="agent-term-note">Starting Agentry Helper…</div>}
+          {starting && <div className="agent-term-note">{agent?.stage ? `${agent.stage}…` : "Starting Agentry Helper…"}</div>}
           {rec.chat.streaming && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
           {!starting && answering && !rec.chat.streaming && <div className="agent-term-note">thinking…</div>}
         </div>

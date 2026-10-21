@@ -103,23 +103,24 @@ export function agentNavEntries(agents: Pick<app.PersistentAgentView, "name" | "
 /** The Main card's status line: "Main · 3 turns · 1,204 tokens" over its
  *  whole life, "Running" or "Stopped" after its name, and before its first
  *  start a line saying a message starts it. */
-export function mainStatusLine(a: Pick<app.PersistentAgentView, "state" | "lifetime" | "status">): string {
+export function mainStatusLine(a: Pick<app.PersistentAgentView, "state" | "lifetime" | "status"> & Partial<Pick<app.PersistentAgentView, "holder" | "stage">>): string {
   if (a.state === AGENT_STATES.disabled) return "Starts when you send it a message";
   const turns = (a.lifetime?.userTurns ?? 0) + (a.status?.userTurns ?? 0);
   const tokens = (a.lifetime?.totalTokens ?? 0) + (a.status?.totalTokens ?? 0);
-  const parts = [a.state === AGENT_STATES.running ? "Running" : agentStateWords(a as Pick<app.PersistentAgentView, "state" | "holder">)];
+  const parts = [a.state === AGENT_STATES.running ? "Running" : agentStateWords(a)];
   parts.push(`${turns} turn${turns === 1 ? "" : "s"}`);
   if (tokens > 0) parts.push(`${tokens.toLocaleString("en-US")} tokens`);
   return parts.join(" · ");
 }
 
-/** The words for an agent's state. */
-export function agentStateWords(a: Pick<app.PersistentAgentView, "state" | "holder">): string {
+/** The words for an agent's state: while it starts, the step its start is
+ *  on, in the runner's words ("Getting images ready…"). */
+export function agentStateWords(a: Pick<app.PersistentAgentView, "state" | "holder" | "stage">): string {
   switch (a.state) {
     case "running":
       return "Running";
     case "starting":
-      return "Starting…";
+      return a.stage ? `${a.stage}…` : "Starting…";
     case "elsewhere":
       return a.holder ? `Running in ${a.holder}` : "Running elsewhere";
     case "stopped":
@@ -241,4 +242,43 @@ export function portFormOK(name: string, port: string): boolean {
  *  waiting for the next turn, while the agent runs. */
 export function portOpenable(agent: Pick<app.PersistentAgentView, "state">, e: Pick<app.PersistentRosterEntry, "kind" | "on" | "state">): boolean {
   return e.kind === "port" && e.on && e.state === "on" && (agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.elsewhere);
+}
+
+/** What each reason code of the runner's closed list says about a start
+ *  that failed; a code this build does not know is shown as it is. */
+const START_REASONS: { [code: string]: string } = {
+  "mcp-install-failed": "A server could not be installed",
+  "mcp-not-resolved": "A server's version was not found in the registry",
+  "mcp-vulnerable": "The registry's vulnerability scan refused a server",
+  "mcp-runtime-excluded": "A server does not run on the runtime the agent uses",
+  "mcp-start-failed": "The gateway could not start a server",
+  "secret-missing": "A secret has no value",
+  "signin-missing": "Your model's sign-in is missing or cannot be used",
+  "exec-not-provided": "This computer's policy does not provide a command the agent needs",
+  "host-refused": "The dev server was not reached",
+  "out-of-credits": "Your model's provider says the account has no credits left",
+  "plan-limit": "Your plan's usage limit was reached",
+  "org-policy": "A policy of your organization at the model's vendor refused it",
+  "inputs-not-decoded": "The share folder's check could not run",
+};
+
+/** startReasonWords is a failed start's reason in words: what the code
+ *  says, the names it concerns, and its detail. */
+export function startReasonWords(r: Pick<app.PersistentReasonView, "code" | "detail" | "names">): string {
+  let s = START_REASONS[r.code] ?? r.code;
+  if (r.names?.length) s += `: ${r.names.join(", ")}`;
+  if (r.detail) s += ` (${r.detail})`;
+  return s;
+}
+
+/** startFailureLines are what an agent's page and its Settings card say of
+ *  its last start, when it failed: the step it stopped in, the error, the
+ *  reason, and the log that has the rest. Empty while it starts or runs. */
+export function startFailureLines(a: Pick<app.PersistentAgentView, "state" | "failure">): { title: string; lines: string[] } | null {
+  const f = a.failure;
+  if (!f || (a.state !== AGENT_STATES.stopped && a.state !== AGENT_STATES.disabled)) return null;
+  const lines = [f.error];
+  if (f.reason) lines.push(startReasonWords(f.reason));
+  if (f.log) lines.push(`Its log: ${f.log}`);
+  return { title: f.stage ? `The last start failed at: ${f.stage}` : "The last start failed", lines };
 }

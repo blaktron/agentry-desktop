@@ -27,6 +27,8 @@ import {
   coderRunning,
   enableOutcome,
   termLines,
+  startFailureLines,
+  startReasonWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -180,4 +182,33 @@ test("a port opens only while the agent runs with it on and applied", () => {
   assert.equal(portOpenable({ state: "running" }, { ...port, on: false, state: "off" }), false);
   assert.equal(portOpenable({ state: "running" }, { ...port, kind: "host" }), false);
   assert.deepEqual(rosterGroups([{ id: "port:web", kind: "port" } as never]).map((g) => g.title), ["Ports"]);
+});
+
+test("a starting agent shows the step its start is on, and Starting… before the first", () => {
+  assert.equal(agentStateWords({ state: "starting" }), "Starting…");
+  assert.equal(agentStateWords({ state: "starting", stage: "Installing pypi:office-word-mcp-server" }), "Installing pypi:office-word-mcp-server…");
+  assert.equal(mainStatusLine(agent({ name: "main", state: "starting", stage: "Getting images ready" })), "Getting images ready… · 0 turns");
+});
+
+test("a failed start says where it stopped, its error, its reason in words and its log, until it starts again", () => {
+  const failure = {
+    error: "pip install exited 1",
+    stage: "Installing pypi:office-word-mcp-server",
+    reason: { code: "mcp-install-failed", names: ["pypi:office-word-mcp-server"], detail: "builder" },
+    log: "/home/p/.agentry/runner/persistent/assistant/supervisor.log",
+    at: "2026-10-21T12:00:00Z",
+  } as app.PersistentFailureView;
+  assert.deepEqual(startFailureLines({ state: "stopped", failure }), {
+    title: "The last start failed at: Installing pypi:office-word-mcp-server",
+    lines: [
+      "pip install exited 1",
+      "A server could not be installed: pypi:office-word-mcp-server (builder)",
+      "Its log: /home/p/.agentry/runner/persistent/assistant/supervisor.log",
+    ],
+  });
+  assert.equal(startFailureLines({ state: "starting", failure }), null);
+  assert.equal(startFailureLines({ state: "stopped" }), null);
+  assert.equal(startFailureLines({ state: "stopped", failure: { ...failure, stage: undefined, reason: undefined } as app.PersistentFailureView })?.title, "The last start failed");
+  // A code this build does not name is shown as it is.
+  assert.equal(startReasonWords({ code: "new-code", names: [] }), "new-code");
 });

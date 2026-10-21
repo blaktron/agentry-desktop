@@ -9,10 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
-import { sendToAgent, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, pendingChange, termLines } from "../persistentAgents";
+import { sendToAgent, startAgent, updateAgent, useAgentChat, useAgents } from "../agents";
+import { AGENT_STATES, agentStateWords, pendingChange, startFailureLines, termLines } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
-import { Button, ErrorBox } from "../ui";
+import { Button, ErrorBox, Notice } from "../ui";
 import { AgentConfigModal } from "./SettingsPersistentAgents";
 import { RosterList } from "./AgentRoster";
 
@@ -56,7 +56,21 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
     }
   };
 
+  // Start waits for the whole start, which can take minutes; Stop, while it
+  // starts, cancels it, and is not held back by the busy start.
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    setError(await startAgent(name));
+    setBusy(false);
+  };
+  const cancelStart = () => {
+    setError(null);
+    PersistentAPI.Stop(name).then(updateAgent).catch((e) => setError(String(e)));
+  };
+
   if (!agent) return <p className="muted">Reading the agent…</p>;
+  const failure = startFailureLines(agent);
   const running = agent.state === AGENT_STATES.running;
   const answering = rec.sending || rec.chat.busy;
   const send = async () => {
@@ -89,12 +103,18 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
             </span>
           </div>
           <div className="row gap">
-            {agent.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy} onClick={() => act(() => PersistentAPI.Start(name))}>Start</Button>}
-            {agent.state === AGENT_STATES.starting && <Button disabled>Starting…</Button>}
+            {agent.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy} onClick={() => void start()}>Start</Button>}
+            {agent.state === AGENT_STATES.starting && <Button data-stop-start onClick={cancelStart}>Stop</Button>}
             {running && <Button disabled={busy} onClick={() => act(() => PersistentAPI.Stop(name))}>Stop</Button>}
             <Button variant="ghost" onClick={() => setConfiguring(true)}>Configure</Button>
           </div>
         </header>
+        {failure && (
+          <Notice tone="warn">
+            <strong>{failure.title}</strong>
+            {failure.lines.map((l, i) => <div key={i} className="small">{l}</div>)}
+          </Notice>
+        )}
         <div className="agent-term-scroll" ref={scroller} role="log" aria-live="polite">
           {lines.length === 0 && !rec.chat.streaming && (
             <p className="agent-term-note">{running ? "Say hello to start the conversation." : "Start the agent to talk to it. The conversation picks up where it left off."}</p>

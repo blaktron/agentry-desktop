@@ -138,3 +138,16 @@ export function forgetChat(name: string) {
   early.delete(name);
   changed();
 }
+
+/** startAgent starts an agent and puts its view into the list. It answers
+ *  the error to show, or null: a start that failed is shown by the agent's
+ *  own view (its failure), so its error is not shown twice. */
+export async function startAgent(name: string): Promise<string | null> {
+  try {
+    updateAgent(await PersistentAPI.Start(name));
+    return null;
+  } catch (e) {
+    const now = await refreshAgents();
+    return now.find((a) => a.name === name)?.failure ? null : String(e);
+  }
+}
