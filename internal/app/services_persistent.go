@@ -75,9 +75,12 @@ type PersistentAPI struct {
 	app *App
 	run *RunAPI
 
-	mu       sync.Mutex
-	sups     map[string]agentSupervisor
-	starting map[string]context.CancelFunc
+	mu   sync.Mutex
+	sups map[string]agentSupervisor
+	// starting are the starts under way, by agent; failures the last
+	// start's failure of each agent whose last start failed.
+	starting map[string]*startingAgent
+	failures map[string]*PersistentFailureView
 	// starts are the Starts under way, which a quit cancels and waits for.
 	starts sync.WaitGroup
 	// followers are the goroutines that carry each agent's events.
@@ -199,9 +202,14 @@ type PersistentAgentView struct {
 	DisplayName string `json:"displayName"`
 	// State is disabled, stopped, starting, running, or elsewhere: running
 	// under another client (the CLI's supervisor), which Holder names.
-	State       string `json:"state"`
-	Holder      string `json:"holder,omitempty"`
-	Personality string `json:"personality,omitempty"`
+	State  string `json:"state"`
+	Holder string `json:"holder,omitempty"`
+	// Stage is the step a start is on, in a person's words ("Getting images
+	// ready"), while State is starting; empty before the first step.
+	Stage string `json:"stage,omitempty"`
+	// Failure is how the last start failed, until the next start.
+	Failure     *PersistentFailureView `json:"failure,omitempty"`
+	Personality string                 `json:"personality,omitempty"`
 	// Share is the share folder; DefaultShare says it is the agent's own
 	// default.
 	Share        string   `json:"share"`
@@ -374,7 +382,14 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	roster := persistent.BuildRoster(a, cfg, nil)
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
-	starting := p.starting[a.Name] != nil
+	st, starting := p.starting[a.Name]
+	if starting {
+		v.Stage = st.stage
+	}
+	if f := p.failures[a.Name]; f != nil {
+		cp := *f
+		v.Failure = &cp
+	}
 	p.mu.Unlock()
 	switch {
 	case ours:
@@ -485,6 +500,9 @@ func coderWarning(share string) string {
 // Start starts an agent: a roster with entries the person has not agreed to
 // on this computer asks first, in a native dialog, and records the
 // agreement. Its events then stream as runner:agent-event until it stops.
+// While it starts, its view carries the step it is on, and its progress goes
+// to its supervisor.log; a Stop cancels it. A start that fails keeps its
+// error on the agent's view until the next.
 func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -494,11 +512,11 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A quit cancels a start under way, which tears down what it made, and
-	// waits for it, so no segment's containers outlive the app. The context
-	// is the supervisor's for the agent's whole life once it starts, so it
-	// is cancelled only when the start does not succeed; a running agent is
-	// ended by Stop.
+	// A quit or a Stop cancels a start under way, which tears down what it
+	// made, and a quit waits for it, so no segment's containers outlive the
+	// app. The context is the supervisor's for the agent's whole life once
+	// it starts, so it is cancelled only when the start does not succeed; a
+	// running agent is ended by Stop.
 	ctx, cancel := context.WithCancel(context.Background())
 	started := false
 	defer func() {
@@ -512,19 +530,84 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		return p.Get(name)
 	}
 	if p.starting == nil {
-		p.starting = map[string]context.CancelFunc{}
+		p.starting = map[string]*startingAgent{}
 	}
-	p.starting[a.Name] = cancel
+	st := &startingAgent{cancel: cancel, done: make(chan struct{})}
+	p.starting[a.Name] = st
+	delete(p.failures, a.Name)
 	p.starts.Add(1)
 	p.mu.Unlock()
 	defer p.starts.Done()
 	p.stateChanged(a.Name)
 	defer func() {
-		p.mu.Lock()
-		delete(p.starting, a.Name)
-		p.mu.Unlock()
+		close(st.done)
 		p.stateChanged(a.Name)
 	}()
+	logw := newSupervisorLog(home, a.Name)
+	since := time.Now()
+	sv, err := p.launch(ctx, home, a, logw)
+	if err == nil {
+		started = true
+		p.follow(a.Name, sv, logw)
+	}
+	// The start ends here for a Stop: one that came before this reads
+	// stopped, one after finds the agent running (or not) and acts on that.
+	p.mu.Lock()
+	stopped, stage := st.stopped, st.stage
+	delete(p.starting, a.Name)
+	p.mu.Unlock()
+	if err == nil {
+		if stopped {
+			// A Stop came as the start finished: the agent stops now.
+			logw.note("The start was cancelled.")
+			p.markStopping(a.Name)
+			_, _ = sv.Stop(context.WithoutCancel(ctx))
+			p.mu.Lock()
+			if p.sups[a.Name] == sv {
+				delete(p.sups, a.Name)
+			}
+			p.mu.Unlock()
+		}
+		return p.Get(name)
+	}
+	defer logw.Close()
+	if stopped {
+		logw.note("The start was cancelled.")
+		return p.Get(name)
+	}
+	var failed *startError
+	if !errors.As(err, &failed) {
+		// A refusal before the supervisor's start: not enabled, the
+		// person's No.
+		return nil, err
+	}
+	err = failed.err
+	var held *persistent.HeldError
+	if errors.As(err, &held) || ctx.Err() != nil {
+		// Another client's agent, or a quit: neither is a failure of the
+		// start.
+		return nil, err
+	}
+	logw.note("The start failed: " + err.Error())
+	f := startFailure(home, a.Name, stage, since, err)
+	p.mu.Lock()
+	if p.failures == nil {
+		p.failures = map[string]*PersistentFailureView{}
+	}
+	p.failures[a.Name] = f
+	p.mu.Unlock()
+	return nil, err
+}
+
+// startError is a failure of the supervisor's start itself, as against a
+// refusal before it (not enabled, a No).
+type startError struct{ err error }
+
+func (e *startError) Error() string { return e.err.Error() }
+func (e *startError) Unwrap() error { return e.err }
+
+// launch readies and starts the agent's supervisor, its progress in logw.
+func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Agent, logw io.Writer) (agentSupervisor, error) {
 	cfg, err := persistent.LoadConfig(home, a.Name)
 	if err != nil {
 		return nil, err
@@ -542,13 +625,17 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
 			return nil, err
 		}
+		if err := ctx.Err(); err != nil {
+			// Stopped while the dialog was up: nothing is agreed to.
+			return nil, err
+		}
 		if err := persistent.AgreeToRoster(home, a, persistent.ClientDesktop); err != nil {
 			return nil, err
 		}
 	}
-	opts, err := p.options(home, a)
+	opts, err := p.options(home, a, logw)
 	if err != nil {
-		return nil, err
+		return nil, &startError{err}
 	}
 	sv, err := p.startSupervisor(ctx, opts)
 	var consent *persistent.ConsentError
@@ -556,11 +643,9 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		return nil, fmt.Errorf("the %s's roster changed while it started: start it again", a.Title)
 	}
 	if err != nil {
-		return nil, err
+		return nil, &startError{err}
 	}
-	started = true
-	p.follow(a.Name, sv)
-	return p.Get(name)
+	return sv, nil
 }
 
 // enable turns an agent on under its owner lock, and answers its config.
@@ -601,7 +686,7 @@ func consentText(who string, entries []persistent.RosterEntry) string {
 // options are a supervisor's options in this app: the runner home's
 // policy, the machine's engine, the local store's packs under the active
 // registry.
-func (p *PersistentAPI) options(home string, a persistent.Agent) (persistent.Options, error) {
+func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer) (persistent.Options, error) {
 	polFile, err := policy.Resolve("")
 	if err != nil {
 		return persistent.Options{}, err
@@ -613,7 +698,7 @@ func (p *PersistentAPI) options(home string, a persistent.Agent) (persistent.Opt
 	return persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
 		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(),
-		Docker: p.dockerClient(), Stderr: agentLog(), Packs: p.packs, AppLink: p.appLink(a),
+		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
 	}, nil
 }
 
@@ -643,9 +728,6 @@ func (p *PersistentAPI) dockerClient() dockerx.Client {
 	return dockerx.New()
 }
 
-// agentLog is where a segment's progress goes: the app's own stderr.
-func agentLog() io.Writer { return os.Stderr }
-
 // startSupervisor starts one, through the test's seam where there is one.
 func (p *PersistentAPI) startSupervisor(ctx context.Context, opts persistent.Options) (agentSupervisor, error) {
 	if p.start != nil {
@@ -660,8 +742,9 @@ func (p *PersistentAPI) startSupervisor(ctx context.Context, opts persistent.Opt
 }
 
 // follow keeps a started agent: its events go to the page keyed by its
-// name until it stops, by Stop or by itself, and then it is let go.
-func (p *PersistentAPI) follow(name string, sv agentSupervisor) {
+// name until it stops, by Stop or by itself, and then it is let go and its
+// log closed.
+func (p *PersistentAPI) follow(name string, sv agentSupervisor, logw *supervisorLog) {
 	events, unsubscribe := sv.Subscribe()
 	p.mu.Lock()
 	if p.sups == nil {
@@ -680,6 +763,7 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor) {
 		defer p.followers.Done()
 		<-sv.Done()
 		unsubscribe()
+		defer logw.Close()
 		p.mu.Lock()
 		if p.sups[name] == sv {
 			delete(p.sups, name)
@@ -719,11 +803,27 @@ func (p *PersistentAPI) running(name string) (agentSupervisor, bool) {
 
 // Stop stops an agent this app runs: its segment ends without a final
 // result and its volumes stay, so the next start continues the
-// conversation.
+// conversation. An agent still starting has its start cancelled, which
+// tears down what the start made, and Stop waits for it.
 func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err
+	}
+	p.mu.Lock()
+	st := p.starting[a.Name]
+	if st != nil {
+		st.stopped = true
+	}
+	p.mu.Unlock()
+	if st != nil {
+		st.cancel()
+		select {
+		case <-st.done:
+		case <-time.After(stopWait):
+			return nil, fmt.Errorf("the %s's start did not end within %s of being cancelled", a.Title, stopWait)
+		}
+		return p.Get(name)
 	}
 	sv, ok := p.running(a.Name)
 	if !ok {
@@ -989,8 +1089,8 @@ func (p *PersistentAPI) Transcript(name string) ([]SessionEventView, error) {
 // each segment ends without a final result and its volumes stay.
 func (p *PersistentAPI) stopAll() {
 	p.mu.Lock()
-	for _, cancel := range p.starting {
-		cancel()
+	for _, st := range p.starting {
+		st.cancel()
 	}
 	p.mu.Unlock()
 	p.starts.Wait()

@@ -2655,12 +2655,68 @@ export namespace app {
 	        this.port = source["port"];
 	    }
 	}
+	export class PersistentReasonView {
+	    code: string;
+	    detail?: string;
+	    names: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentReasonView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.detail = source["detail"];
+	        this.names = source["names"];
+	    }
+	}
+	export class PersistentFailureView {
+	    error: string;
+	    stage?: string;
+	    reason?: PersistentReasonView;
+	    log: string;
+	    at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentFailureView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.error = source["error"];
+	        this.stage = source["stage"];
+	        this.reason = this.convertValues(source["reason"], PersistentReasonView);
+	        this.log = source["log"];
+	        this.at = source["at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PersistentAgentView {
 	    name: string;
 	    title: string;
 	    displayName: string;
 	    state: string;
 	    holder?: string;
+	    stage?: string;
+	    failure?: PersistentFailureView;
 	    personality?: string;
 	    share: string;
 	    defaultShare: boolean;
@@ -2686,6 +2742,8 @@ export namespace app {
 	        this.displayName = source["displayName"];
 	        this.state = source["state"];
 	        this.holder = source["holder"];
+	        this.stage = source["stage"];
+	        this.failure = this.convertValues(source["failure"], PersistentFailureView);
 	        this.personality = source["personality"];
 	        this.share = source["share"];
 	        this.defaultShare = source["defaultShare"];
@@ -2783,6 +2841,8 @@ export namespace app {
 		    return a;
 		}
 	}
+	
+	
 	
 	
 	
