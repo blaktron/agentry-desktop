@@ -509,10 +509,20 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 			began <- id
 		})
 	}()
+	started := func(id string) string {
+		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", id, exact)
+	}
 	select {
 	case id := <-began:
-		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", id, exact), nil
+		return started(id), nil
 	case <-r.done:
+		// A run that began and ended at once has both channels ready, and
+		// select picks either: one that began did start.
+		select {
+		case id := <-began:
+			return started(id), nil
+		default:
+		}
 		if r.err != nil {
 			return "", fmt.Errorf("the run of %s did not start: %w", exact, r.err)
 		}
