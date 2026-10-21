@@ -285,3 +285,94 @@ func TestStopAsAStartFinishesStopsTheAgent(t *testing.T) {
 		t.Fatalf("the agent that started was stopped %d times", stopped)
 	}
 }
+
+// A Stop while a start is refused because another client runs the agent
+// leaves that client's log as it is.
+func TestStopDuringARefusedStartLeavesTheOtherClientsLog(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(persistent.LogPath(rig.home, "assistant"), []byte("the CLI's start\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	rig.p.start = func(ctx context.Context, _ persistent.Options) (agentSupervisor, error) {
+		close(entered)
+		<-ctx.Done()
+		return nil, &persistent.HeldError{Agent: "assistant"}
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := rig.p.Start("assistant")
+		errc <- err
+	}()
+	<-entered
+	if _, err := rig.p.Stop("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-errc; err != nil {
+		t.Fatalf("the cancelled start answered %v", err)
+	}
+	if log := readLog(t, rig.home, "assistant"); log != "the CLI's start\n" {
+		t.Fatalf("supervisor.log:\n%s", log)
+	}
+}
+
+// A Stop while the start's dialog is up cancels the start, and a Yes given
+// after it agrees to nothing: the next start asks again.
+func TestStopDuringTheStartsDialogAgreesToNothing(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	asking, answer := make(chan struct{}), make(chan struct{})
+	rig.p.app.confirm = func(context.Context, string, string) (bool, error) {
+		close(asking)
+		<-answer
+		return true, nil
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := rig.p.Start("assistant")
+		errc <- err
+	}()
+	<-asking
+	stopped := make(chan error, 1)
+	go func() {
+		_, err := rig.p.Stop("assistant")
+		stopped <- err
+	}()
+	// The Stop has cancelled the start once the agent's view says so.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		rig.p.mu.Lock()
+		cancelled := rig.p.starting["assistant"] != nil && rig.p.starting["assistant"].stopped
+		rig.p.mu.Unlock()
+		if cancelled {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the Stop did not reach the start")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(answer)
+	if err := <-errc; err != nil {
+		t.Fatalf("the cancelled start answered %v", err)
+	}
+	if err := <-stopped; err != nil {
+		t.Fatal(err)
+	}
+	if rig.started != 0 {
+		t.Fatal("a cancelled start started the agent")
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := persistent.Lookup("assistant")
+	if len(persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg)) == 0 {
+		t.Fatal("a Yes after the Stop was recorded as an agreement")
+	}
+}

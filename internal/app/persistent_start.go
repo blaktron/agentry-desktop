@@ -56,9 +56,10 @@ func reasonView(r *receipt.Reason) *PersistentReasonView {
 // supervisorLog is the agent's supervisor.log as this app writes it: what
 // a segment's start prints (image builds, server installs) and each step it
 // reaches, as the CLI's supervisor writes its own. It is opened, and an
-// earlier start's lines dropped, at the first write, which comes only once
-// the start holds the agent's owner lock, so a start refused because
-// another client runs the agent leaves that client's log as it is. A write
+// earlier start's lines dropped, at the segment's first write, which comes
+// only once the start holds the agent's owner lock, so a start refused
+// because another client runs the agent leaves that client's log as it is;
+// the app's own lines (note) go only to a log already opened. A write
 // never fails the segment: a log that cannot be opened is reported once on
 // the app's own log and its lines dropped.
 type supervisorLog struct {
@@ -103,6 +104,17 @@ func openLog(path string) (*os.File, error) {
 	}
 	_ = f.Chmod(0o600) // a log an earlier start left keeps its mode otherwise
 	return f, nil
+}
+
+// note adds a line of the app's own about the start to a log the start has
+// already written, so it never opens one: a start that wrote nothing may
+// not have held the owner lock, and another client's log is left as it is.
+func (l *supervisorLog) note(line string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.f != nil && !l.closed {
+		_, _ = fmt.Fprintln(l.f, line)
+	}
 }
 
 // Close ends the log; later writes are dropped.

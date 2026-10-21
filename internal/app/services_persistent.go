@@ -382,9 +382,9 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	roster := persistent.BuildRoster(a, cfg, nil)
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
-	starting := p.starting[a.Name] != nil
+	st, starting := p.starting[a.Name]
 	if starting {
-		v.Stage = p.starting[a.Name].stage
+		v.Stage = st.stage
 	}
 	if f := p.failures[a.Name]; f != nil {
 		cp := *f
@@ -540,24 +540,26 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	defer p.starts.Done()
 	p.stateChanged(a.Name)
 	defer func() {
-		p.mu.Lock()
-		delete(p.starting, a.Name)
-		p.mu.Unlock()
 		close(st.done)
 		p.stateChanged(a.Name)
 	}()
 	logw := newSupervisorLog(home, a.Name)
 	since := time.Now()
 	sv, err := p.launch(ctx, home, a, logw)
-	p.mu.Lock()
-	stopped, stage := st.stopped, st.stage
-	p.mu.Unlock()
 	if err == nil {
 		started = true
 		p.follow(a.Name, sv, logw)
+	}
+	// The start ends here for a Stop: one that came before this reads
+	// stopped, one after finds the agent running (or not) and acts on that.
+	p.mu.Lock()
+	stopped, stage := st.stopped, st.stage
+	delete(p.starting, a.Name)
+	p.mu.Unlock()
+	if err == nil {
 		if stopped {
 			// A Stop came as the start finished: the agent stops now.
-			_, _ = fmt.Fprintln(logw, "The start was cancelled.")
+			logw.note("The start was cancelled.")
 			p.markStopping(a.Name)
 			_, _ = sv.Stop(context.WithoutCancel(ctx))
 			p.mu.Lock()
@@ -570,7 +572,7 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	}
 	defer logw.Close()
 	if stopped {
-		_, _ = fmt.Fprintln(logw, "The start was cancelled.")
+		logw.note("The start was cancelled.")
 		return p.Get(name)
 	}
 	var failed *startError
@@ -586,7 +588,7 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 		// start.
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(logw, "The start failed: %v\n", err)
+	logw.note("The start failed: " + err.Error())
 	f := startFailure(home, a.Name, stage, since, err)
 	p.mu.Lock()
 	if p.failures == nil {
@@ -621,6 +623,10 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	}
 	if pending := persistent.Unconsented(persistent.BuildRoster(a, cfg, nil), cfg); len(pending) > 0 {
 		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			// Stopped while the dialog was up: nothing is agreed to.
 			return nil, err
 		}
 		if err := persistent.AgreeToRoster(home, a, persistent.ClientDesktop); err != nil {

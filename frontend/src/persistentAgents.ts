@@ -246,7 +246,7 @@ export function portOpenable(agent: Pick<app.PersistentAgentView, "state">, e: P
 
 /** What each reason code of the runner's closed list says about a start
  *  that failed; a code this build does not know is shown as it is. */
-const START_REASONS: { [code: string]: string } = {
+const START_REASONS: Record<string, string> = {
   "mcp-install-failed": "A server could not be installed",
   "mcp-not-resolved": "A server's version was not found in the registry",
   "mcp-vulnerable": "The registry's vulnerability scan refused a server",
@@ -265,7 +265,7 @@ const START_REASONS: { [code: string]: string } = {
 /** startReasonWords is a failed start's reason in words: what the code
  *  says, the names it concerns, and its detail. */
 export function startReasonWords(r: Pick<app.PersistentReasonView, "code" | "detail" | "names">): string {
-  let s = START_REASONS[r.code] ?? r.code;
+  let s = Object.hasOwn(START_REASONS, r.code) ? START_REASONS[r.code] : r.code;
   if (r.names?.length) s += `: ${r.names.join(", ")}`;
   if (r.detail) s += ` (${r.detail})`;
   return s;
