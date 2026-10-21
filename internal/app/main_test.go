@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -19,7 +21,15 @@ import (
 // needs its own overrides with t.Setenv: a run now writes the run history,
 // and no test writes into the config of the person running it. And it sets
 // the default registry a SecureAgentry build bakes in.
+//
+// The OS keychain is held in memory for the whole package, since
+// settings.TokenFor reads the keychain before the settings file, by host and
+// port: a test that reached it unmocked would read whatever token an earlier
+// run left there for 127.0.0.1 and its test server's port, and its fake
+// registry would answer that stale token with a 401 or an unreadable token
+// list.
 func TestMain(m *testing.M) {
+	keyring.MockInit()
 	emitEvent = func(*App, string, ...any) {}
 	dir, err := os.MkdirTemp("", "agentry-desktop-test-config-")
 	if err != nil {
