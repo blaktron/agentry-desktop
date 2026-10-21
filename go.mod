@@ -7,7 +7,7 @@ require (
 	fyne.io/systray v1.12.2
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.19
-	github.com/blaktron/agentry-cli v0.6.156
+	github.com/blaktron/agentry-cli v0.6.157-dev.2
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0
