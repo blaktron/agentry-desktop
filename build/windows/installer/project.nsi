@@ -90,7 +90,7 @@ FunctionEnd
 # settings and sign-in only when their box is ticked. The description box
 # names the paths before anything is hovered, spelled with %USERPROFILE% so
 # the text does not depend on variable expansion inside a language string.
-!define MUI_COMPONENTSPAGE_TEXT_TOP "${INFO_PRODUCTNAME} will be removed, with the Docker images Agentry put on this computer unless you tick Keep my Docker images. Your settings and sign-in stay unless you tick the last box."
+!define MUI_COMPONENTSPAGE_TEXT_TOP "${INFO_PRODUCTNAME} will be removed, with the Docker images Agentry put on this computer unless you tick Keep my Docker images. Your settings, sign-in and the agents' share folders stay unless you tick the last box."
 !define MUI_COMPONENTSPAGE_TEXT_COMPLIST "Remove:"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "What stays"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "By default your settings (%USERPROFILE%\.config\agentry), runner configuration (%USERPROFILE%\.agentry\runner) and sign-in (the agentry entries in Windows Credential Manager) are kept, so a reinstall finds them. The agentry CLI uses the same files, and the same Docker images."
@@ -233,7 +233,7 @@ SectionEnd
 
 # Off by default (/o), and so off under /S: a silent uninstall never touches
 # the person's configuration.
-Section /o "un.Also remove my Agentry settings and sign-in" SEC_UN_SETTINGS
+Section /o "un.Also remove my Agentry settings, sign-in and agents' share folders" SEC_UN_SETTINGS
     Push $0
     DetailPrint "Removing your Agentry settings and sign-in"
     ClearErrors
@@ -265,6 +265,10 @@ SectionEnd
 Section "-un.RemoveApplication"
     !insertmacro wails.setShellContext
 
+    # Start Agentry when you sign in (internal/loginitem): a Run value that
+    # would launch the removed application.
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Agentry Desktop"
+
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR
@@ -278,7 +282,7 @@ Section "-un.RemoveApplication"
 SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application and the agentry command from $INSTDIR, the command's entry on your Path, its Start Menu shortcut, its Apps & features entry and its WebView2 cache. Your settings and sign-in stay."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application and the agentry command from $INSTDIR, the command's entry on your Path, its Start Menu shortcut, its Apps & features entry, its WebView2 cache and Start Agentry when you sign in. Your settings, sign-in and the agents' share folders stay."
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_KEEP_IMAGES} "Leaves the Docker images Agentry downloaded and built in Docker: every image the runner built (labelled org.agentry.image, untagged leftovers included), every ghcr.io/blaktron/agentry-* image, the runner, exec, decode, host link and harness builds by name, and the exact images the runner policy pins. Unticked, those are removed, one by one; an image you labelled org.agentry.image yourself counts as Agentry's, a name you gave one of them keeps it, and no other image is selected. The agentry CLI uses the same images."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_SETTINGS} "Also deletes %USERPROFILE%\.config\agentry (settings, installed agents, pinned keys), %USERPROFILE%\.agentry\runner (runner policy and profiles) — or where AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME point — and every agentry entry in Windows Credential Manager (registry sign-ins and the model key). The agentry CLI shares all of these."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_SETTINGS} "Also deletes %USERPROFILE%\.config\agentry (settings, installed agents, pinned keys), %USERPROFILE%\.agentry\runner (runner policy and profiles) — or where AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME point — every agentry entry in Windows Credential Manager (registry sign-ins and the model key), and the folders your persistent agents share with you (%USERPROFILE%\agentry\mainshare, assistantshare and codingshare, or the ones you chose) with every file in them. The agentry CLI shares all of these."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END
