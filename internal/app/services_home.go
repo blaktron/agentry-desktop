@@ -94,7 +94,7 @@ func ThemeScript() http.Handler {
 		if err != nil || theme == settings.ThemeSystem || !slices.Contains(settings.Themes, theme) {
 			return
 		}
-		fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
+		_, _ = fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
 	})
 }
 
