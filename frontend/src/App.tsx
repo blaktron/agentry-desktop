@@ -29,7 +29,7 @@ import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import BugReportDialog from "./pages/BugReportDialog";
-import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
+import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
@@ -135,6 +135,11 @@ export default function App() {
     window.addEventListener(SCHEDULED_EVENT, opened);
     return () => window.removeEventListener(SCHEDULED_EVENT, opened);
   }, []);
+  // Main's settings_open: Go names a section of SECTIONS, and the page opens
+  // it; a name the page does not know opens nothing.
+  useEffect(() => EventsOn("applink:open-settings", (section: string) => {
+    if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
+  }), []);
   useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => {
     unsafeEvents.current++;
     setUnsafeLive(live);
@@ -314,6 +319,8 @@ export default function App() {
                   runAgent: (reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home", run: true }),
                   settings: () => nav({ page: "settings", ...SETTINGS_FOR.homeSettings }),
                   scheduled: () => nav({ page: "scheduled" }),
+                  persistentAgents: () => nav({ page: "settings", ...SETTINGS_FOR.homeMain }),
+                  provider: () => nav({ page: "settings", ...SETTINGS_FOR.mainModel }),
                 }}
               />
             )}

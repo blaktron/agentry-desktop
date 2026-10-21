@@ -163,6 +163,9 @@ export const SETTINGS_FOR = {
   reviewKey: { section: "provider", part: "ai-review-key" },
   // the sidebar's Unsafe Mode badge
   unsafeMode: { section: "run-defaults", part: "unsafe" },
+  // Home's Main card's title, and its "Set up a model" link
+  homeMain: { section: "persistent-agents" },
+  mainModel: { section: "provider", part: "provider" },
 } satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";

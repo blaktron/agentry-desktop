@@ -528,7 +528,7 @@ function engineFound(state: string) {
   return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] as string[] };
 }
 
-let homeCards: any[] = [{ kind: "deliverables", hidden: allHidden }, { kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
+let homeCards: any[] = [{ kind: "main", hidden: allHidden }, { kind: "deliverables", hidden: allHidden }, { kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
@@ -702,6 +702,18 @@ const harnessAssistant = {
   volumes: { session: "agentry-persistent-assistant-session", data: "agentry-persistent-assistant-data" },
 };
 
+// Main, stopped after a short conversation: Home's first card.
+const harnessMain = {
+  name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
+  share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [],
+  roster: [
+    { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/mainshare with you, read and write", fixed: true },
+    { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
+  ],
+  lifetime: { segments: 1, inputTokens: 0, outputTokens: 0, totalTokens: 1204, userTurns: 2, toolCalls: 3 },
+  volumes: { session: "agentry-persistent-main-session", data: "agentry-persistent-main-data" },
+};
+
 g.go = { app: {
   ScheduleAPI: {
     // The agentry command's card in Settings: not offered off macOS.
@@ -775,16 +787,19 @@ g.go = { app: {
       return { cancelled: false, sentence: `${ns}/${name} is deleted.` };
     },
   },
-  // The Assistant, enabled and stopped, named by the person; the one
-  // persistent agent the app offers.
+  // Main, and the Assistant enabled and stopped, named by the person.
   PersistentAPI: {
-    List: async () => [harnessAssistant],
-    Get: async () => harnessAssistant,
-    Transcript: async () => [
+    List: async () => [harnessMain, harnessAssistant],
+    Get: async (name: string) => (name === "main" ? harnessMain : harnessAssistant),
+    Transcript: async (name: string) => (name === "main" ? [
+      { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
+      { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },
+      { kind: "assistant_turn", time: "2026-10-20T18:00:04Z", text: "**acme/pdf-summary** summarises a PDF into a page of notes. Shall I install it?" },
+    ] : [
       { kind: "user_turn", time: "2026-10-20T19:00:00Z", text: "Could you word a note asking my neighbour to keep the hallway clear?" },
       { kind: "tool_call", time: "2026-10-20T19:00:01Z", text: "fs_read" },
       { kind: "assistant_turn", time: "2026-10-20T19:00:03Z", text: "Here is one: *Hi, could we keep the hallway clear? Thanks!*" },
-    ],
+    ]),
     SetEnabled: async () => harnessAssistant,
     Start: async () => harnessAssistant,
     Stop: async () => harnessAssistant,
@@ -1412,6 +1427,7 @@ function HomePreview() {
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
         runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"),
+        persistentAgents: mark("persistent-agents"), provider: mark("provider"),
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },

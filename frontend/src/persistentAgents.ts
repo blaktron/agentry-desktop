@@ -67,14 +67,30 @@ export function termLines(c: Chat): TermLine[] {
   });
 }
 
-/** The sidebar's entry for each enabled agent: the Assistant by the name
- *  the person gave it, and a dot for running or stopped. */
+/** Main's name: its place is its Home card, with no sidebar entry or page. */
+export const MAIN_AGENT = "main";
+
+/** The sidebar's entry for each enabled agent but Main: the Assistant by the
+ *  name the person gave it, and a dot for running or stopped. */
 export type AgentNavEntry = { id: string; label: string; running: boolean };
 
 export function agentNavEntries(agents: Pick<app.PersistentAgentView, "name" | "displayName" | "state">[]): AgentNavEntry[] {
   return agents
-    .filter((a) => a.state !== AGENT_STATES.disabled)
+    .filter((a) => a.state !== AGENT_STATES.disabled && a.name !== MAIN_AGENT)
     .map((a) => ({ id: a.name, label: a.displayName, running: a.state === AGENT_STATES.running || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere }));
+}
+
+/** The Main card's status line: "Main · 3 turns · 1,204 tokens" over its
+ *  whole life, "Running" or "Stopped" after its name, and before its first
+ *  start a line saying a message starts it. */
+export function mainStatusLine(a: Pick<app.PersistentAgentView, "state" | "lifetime" | "status">): string {
+  if (a.state === AGENT_STATES.disabled) return "Starts when you send it a message";
+  const turns = (a.lifetime?.userTurns ?? 0) + (a.status?.userTurns ?? 0);
+  const tokens = (a.lifetime?.totalTokens ?? 0) + (a.status?.totalTokens ?? 0);
+  const parts = [a.state === AGENT_STATES.running ? "Running" : agentStateWords(a as Pick<app.PersistentAgentView, "state" | "holder">)];
+  parts.push(`${turns} turn${turns === 1 ? "" : "s"}`);
+  if (tokens > 0) parts.push(`${tokens.toLocaleString("en-US")} tokens`);
+  return parts.join(" · ");
 }
 
 /** The words for an agent's state. */

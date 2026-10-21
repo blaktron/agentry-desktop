@@ -37,11 +37,15 @@ type Services struct {
 func New(notices string) *Services {
 	app := NewApp()
 	run := &RunAPI{app: app}
+	browse := &BrowseAPI{app: app}
+	installs := &InstallAPI{app: app, engine: install.NewEngine()}
+	schedule := &ScheduleAPI{app: app, run: run}
+	link := newMainLink(app, appMainOps{browse: browse, installer: installs, runner: run, scheduler: schedule}, run.runnerHome)
 	return &Services{
 		app:          app,
 		settings:     &SettingsAPI{app: app},
-		browse:       &BrowseAPI{app: app},
-		install:      &InstallAPI{app: app, engine: install.NewEngine()},
+		browse:       browse,
+		install:      installs,
 		validate:     &ValidateAPI{app: app},
 		run:          run,
 		build:        &BuildAPI{app: app, run: run},
@@ -50,10 +54,10 @@ func New(notices string) *Services {
 		home:         &HomeAPI{},
 		publisher:    &PublisherAPI{app: app},
 		selfUpdate:   newSelfUpdateAPI(app),
-		schedule:     &ScheduleAPI{app: app, run: run},
+		schedule:     schedule,
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},
-		persistent:   &PersistentAPI{app: app, run: run},
+		persistent:   &PersistentAPI{app: app, run: run, link: link},
 	}
 }
 

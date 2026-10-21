@@ -1065,6 +1065,15 @@ func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, 
 // release with no attestation, one the registry admitted without a scan,
 // or both in one dialog. Nothing to accept raises nothing.
 func (i *InstallAPI) askProvenanceConsent(unsigned, unscanned bool) error {
+	if accepting := provenanceAccepted(unsigned, unscanned); accepting != "" {
+		return i.app.askConsent("Install anyway?", accepting)
+	}
+	return nil
+}
+
+// provenanceAccepted is the provenance dialog's message, "" when the
+// install accepts nothing.
+func provenanceAccepted(unsigned, unscanned bool) string {
 	var accepting []string
 	if unsigned {
 		accepting = append(accepting, "a release with no attestation")
@@ -1073,9 +1082,9 @@ func (i *InstallAPI) askProvenanceConsent(unsigned, unscanned bool) error {
 		accepting = append(accepting, "a release the registry admitted without a scan")
 	}
 	if len(accepting) == 0 {
-		return nil
+		return ""
 	}
-	return i.app.askConsent("Install anyway?", "This install accepts "+strings.Join(accepting, ", and ")+". Continue?")
+	return "This install accepts " + strings.Join(accepting, ", and ") + ". Continue?"
 }
 
 // Cancel discards a pending plan.
@@ -1098,6 +1107,14 @@ func (i *InstallAPI) Cancel(planID string) {
 // export that cannot be written is the result's warning, not a failed
 // install.
 func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
+	return i.installRunner(reg, ref, "")
+}
+
+// installRunner is InstallRunner for whoever asked: the person at the
+// page (who is ""), or a persistent agent, whose ask is put to the person
+// in the install's first native dialog, and in a dialog of its own when the
+// install owes none.
+func (i *InstallAPI) installRunner(reg, ref, who string) (*install.Result, error) {
 	plan, err := i.engine.Prepare(i.app.ctx, reg, ref, installdir.Target, "")
 	if err != nil {
 		return nil, err
@@ -1108,7 +1125,7 @@ func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 			i.engine.Cancel(export.ID)
 		}
 	}
-	if err := i.consentForInstall(plan, export); err != nil {
+	if err := i.consentForInstall(plan, export, who); err != nil {
 		i.engine.Cancel(plan.ID)
 		cancelExport()
 		return nil, err
@@ -1176,17 +1193,28 @@ func exportLabel(target string) string {
 // it is written as; the contract dialog is raised when the runner install
 // or the export owes it, and names the export when there is one, since a
 // coding agent enforces nothing of the contract. A plan with no gate
-// raises nothing.
-func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
+// raises nothing, unless an agent asked for it (who): then its first dialog
+// says so, and an install that owes none asks in one of its own.
+func (i *InstallAPI) consentForInstall(plan, export *install.Plan, who string) error {
+	lead := ""
+	if who != "" {
+		lead = who + " asks to install " + plan.Namespace + "/" + plan.Name + "@" + plan.Version + " on this computer.\n\n"
+	}
+	ask := func(title, message string) error {
+		message, lead = lead+message, ""
+		return i.app.askConsent(title, message)
+	}
 	if plan.Changed != nil {
 		// Replacing a changed copy is the person's word, never a side effect
 		// of an install: the dialog names what changed.
-		if err := i.app.askConsent("Replace the changed copy?", repairConsentText(plan)); err != nil {
+		if err := ask("Replace the changed copy?", repairConsentText(plan)); err != nil {
 			return err
 		}
 	}
-	if err := i.askProvenanceConsent(plan.Unsigned, plan.Unscanned); err != nil {
-		return err
+	if accepting := provenanceAccepted(plan.Unsigned, plan.Unscanned); accepting != "" {
+		if err := ask("Install anyway?", accepting); err != nil {
+			return err
+		}
 	}
 	owes := func(p *install.Plan) bool {
 		return p != nil && (p.NeedsCapabilityConfirm || p.RequiresWidenedConfirm)
@@ -1196,9 +1224,12 @@ func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
 		if !owes(plan) {
 			contract = export
 		}
-		if err := i.app.askConsent("Accept what "+plan.Namespace+"/"+plan.Name+" may do?", contractConsentText(contract, export)); err != nil {
+		if err := ask("Accept what "+plan.Namespace+"/"+plan.Name+" may do?", contractConsentText(contract, export)); err != nil {
 			return err
 		}
+	}
+	if lead != "" {
+		return ask("Install "+plan.Namespace+"/"+plan.Name+"?", "Install it?")
 	}
 	return nil
 }
@@ -1213,7 +1244,7 @@ func repairConsentText(plan *install.Plan) string {
 
 // consentForRunner is consentForInstall with no export.
 func (i *InstallAPI) consentForRunner(plan *install.Plan) error {
-	return i.consentForInstall(plan, nil)
+	return i.consentForInstall(plan, nil, "")
 }
 
 // contractConsentText is the capability contract as the consent dialog
