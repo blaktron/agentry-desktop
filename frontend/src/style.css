@@ -262,6 +262,7 @@ code, pre, .mono {
   cursor: pointer;
 }
 .sidebar .foot .unsafe-badge:disabled { cursor: default; }
+.sidebar .foot .coder-badge { display: block; width: fit-content; margin: 0 0 8px; border: none; cursor: pointer; font: inherit; font-size: 12px; }
 
 /* Report bug, small, directly above the version: a
    button that opens the card over the page, drawn as the foot's quiet text. */
