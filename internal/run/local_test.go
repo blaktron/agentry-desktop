@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 )
@@ -82,6 +84,37 @@ func TestRunOfALocalInstallAsksNoRegistry(t *testing.T) {
 	rec := st.Find(installdir.ConsentKey(home, "acme", "reporter"))
 	if rec == nil || !rec.Local() || !rec.Managed || rec.Digest == "" {
 		t.Errorf("record after the run = %+v, want the local, managed install", rec)
+	}
+}
+
+// A local install's copy is held to its record as a registry release's is:
+// an edit made after the plan compiled does not run, and the way back is the
+// folder.
+func TestRunRefusesACopyOfALocalInstallChangedAfterItsChecks(t *testing.T) {
+	_, regURL, fd, home := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	rel := installLocalFixture(t, home)
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	req.PlanCompiled = func(bool) {
+		if err := os.WriteFile(filepath.Join(rel, "workspace", "SKILL.md"), []byte("# Reporter\n\nDo something else.\n"), 0o600); err != nil {
+			t.Error(err)
+		}
+	}
+	var agentStarted bool
+	fd.OnForeground = func(s dockerx.RunSpec) {
+		if strings.HasSuffix(s.Name, "-agent") {
+			agentStarted = true
+		}
+	}
+	res, err := Run(context.Background(), req, &strings.Builder{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.ExitCode != engine.ExitVerify || !strings.Contains(res.Error, "changed SKILL.md") || !strings.Contains(res.Error, localRepair) {
+		t.Fatalf("a run of a local install changed after its checks: %+v", res)
+	}
+	if agentStarted {
+		t.Fatal("the agent started on a changed copy")
 	}
 }
 
