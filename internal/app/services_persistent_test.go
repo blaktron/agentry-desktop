@@ -13,6 +13,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
+
+	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
 // fakeAgent is a running agent's supervisor: it records what it was sent and
@@ -296,7 +298,7 @@ func TestTheShareFolderComesFromThePicker(t *testing.T) {
 // An agent the app does not offer is refused by every binding.
 func TestOnlyTheOfferedAgentsAreDriven(t *testing.T) {
 	rig := newPersistentRig(t)
-	for _, name := range []string{"coder", "nobody"} {
+	for _, name := range []string{"nobody", "examiner"} {
 		if _, err := rig.p.Start(name); err == nil {
 			t.Errorf("%s started", name)
 		}
@@ -498,5 +500,49 @@ func TestAnAgentThatStopsByItselfSaysSo(t *testing.T) {
 	defer rig.mu.Unlock()
 	if len(rig.emitted) != 0 {
 		t.Fatalf("a stop the person asked for was told as its own: %v", rig.emitted)
+	}
+}
+
+// Enabling the Coding agent asks in a native dialog that says what it may
+// do; a No leaves it disabled and changes nothing, a Yes enables it. The
+// Assistant's switch asks nothing, and turning the Coding agent off asks
+// nothing either.
+func TestEnablingTheCodingAgentAsksFirst(t *testing.T) {
+	rig := newPersistentRig(t)
+	rig.answer = false
+	v, err := rig.p.SetEnabled(coderAgent, true)
+	if err != nil || v.State != agentDisabled {
+		t.Fatalf("after a No: %+v, %v", v, err)
+	}
+	asked := rig.dialogs()
+	if len(asked) != 1 || !strings.Contains(asked[0], "builds and runs software") || !strings.Contains(asked[0], "codingshare") || !strings.Contains(asked[0], "riskier") {
+		t.Fatalf("the dialog: %q", asked)
+	}
+	rig.answer = true
+	if v, err = rig.p.SetEnabled(coderAgent, true); err != nil || v.State != agentStopped {
+		t.Fatalf("after a Yes: %+v, %v", v, err)
+	}
+	if v, err = rig.p.SetEnabled(coderAgent, false); err != nil || v.State != agentDisabled {
+		t.Fatalf("off: %+v, %v", v, err)
+	}
+	if _, err = rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(rig.dialogs()); n != 2 {
+		t.Fatalf("%d dialogs, want the Coding agent's two", n)
+	}
+	// Only the Coding agent has a dev server.
+	if _, err := rig.p.SetDevHost("assistant", "me@devbox.example", run.HostSignIn{Password: "x"}); err == nil {
+		t.Fatal("the Assistant took a dev server")
+	}
+}
+
+// Run when Agentry starts is saved for an agent and read back.
+func TestRunOnStartIsSaved(t *testing.T) {
+	rig := newPersistentRig(t)
+	on := true
+	v, err := rig.p.Configure(coderAgent, PersistentChange{RunOnStart: &on})
+	if err != nil || !v.RunOnStart {
+		t.Fatalf("%+v, %v", v, err)
 	}
 }

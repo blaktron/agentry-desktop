@@ -2647,6 +2647,9 @@ export namespace app {
 	    share: string;
 	    defaultShare: boolean;
 	    knowledge: string[];
+	    runOnStart: boolean;
+	    devHost?: string;
+	    devHostKey?: string;
 	    servers: PersistentServerView[];
 	    roster: PersistentRosterEntry[];
 	    status?: PersistentStatusView;
@@ -2668,6 +2671,9 @@ export namespace app {
 	        this.share = source["share"];
 	        this.defaultShare = source["defaultShare"];
 	        this.knowledge = source["knowledge"];
+	        this.runOnStart = source["runOnStart"];
+	        this.devHost = source["devHost"];
+	        this.devHostKey = source["devHostKey"];
 	        this.servers = this.convertValues(source["servers"], PersistentServerView);
 	        this.roster = this.convertValues(source["roster"], PersistentRosterEntry);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
@@ -2711,6 +2717,8 @@ export namespace app {
 	    name?: string;
 	    personality?: string;
 	    defaultShare?: boolean;
+	    runOnStart?: boolean;
+	    clearDevHost?: boolean;
 	    addKnowledge?: string;
 	    removeKnowledge?: string;
 	    removeServer?: string;
@@ -2725,6 +2733,8 @@ export namespace app {
 	        this.name = source["name"];
 	        this.personality = source["personality"];
 	        this.defaultShare = source["defaultShare"];
+	        this.runOnStart = source["runOnStart"];
+	        this.clearDevHost = source["clearDevHost"];
 	        this.addKnowledge = source["addKnowledge"];
 	        this.removeKnowledge = source["removeKnowledge"];
 	        this.removeServer = source["removeServer"];
@@ -7477,6 +7487,26 @@ export namespace run {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.multiplier = source["multiplier"];
+	    }
+	}
+	export class HostSignIn {
+	    keyFile?: string;
+	    passphrase?: string;
+	    password?: string;
+	    sudo?: string;
+	    save?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostSignIn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.keyFile = source["keyFile"];
+	        this.passphrase = source["passphrase"];
+	        this.password = source["password"];
+	        this.sudo = source["sudo"];
+	        this.save = source["save"];
 	    }
 	}
 	export class KeptClient {

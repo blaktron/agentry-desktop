@@ -35,7 +35,7 @@ import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
 import { useAgents } from "./agents";
-import { agentNavEntries } from "./persistentAgents";
+import { agentNavEntries, CODER_AGENT, coderRunning } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
@@ -248,6 +248,13 @@ export default function App() {
             {/* Unsafe Mode in words, beside the red edge below. */}
             {unsafeShown && (
               <UnsafeBadge running={!settings?.unsafeMode} onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />
+            )}
+            {/* The Coding agent's own badge while its segment lives; the red
+                edge stays Unsafe Mode's. */}
+            {coderRunning(agents) && (
+              <button type="button" className="badge warn coder-badge" title="The Coding agent is running: it can run programs, reach the web and your dev server." onClick={() => nav({ page: "persistent", id: CODER_AGENT })}>
+                Coding agent running
+              </button>
             )}
             {/* Report bug, directly above the version: a card over the
                 page, filed with the active registry as the person signed

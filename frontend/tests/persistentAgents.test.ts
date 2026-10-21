@@ -22,6 +22,8 @@ import {
   persistentAgentsStatus,
   rosterGroups,
   rosterStateWords,
+  coderRunning,
+  enableOutcome,
   termLines,
 } from "../src/persistentAgents.ts";
 
@@ -105,6 +107,8 @@ test("the roster's panel groups its entries by kind, in the roster's order, and 
     ["Knowledge packs", ["knowledge:wiki"]],
     ["MCP servers", ["server:x"]],
   ]);
+  // The Coding agent's grant and its dev server have groups of their own.
+  assert.deepEqual(rosterGroups([e("commands", "tools"), e("egress", "tools"), e("devhost", "host")]).map((g) => g.title), ["Tools", "Dev server"]);
   assert.equal(rosterStateWords({ state: "pending" }), "Applies at the next turn");
   assert.equal(rosterStateWords({ state: "needs-sign-in" }), "Needs a sign-in");
   assert.equal(pendingChange(agent({ roster: [e("knowledge:wiki", "knowledge", "pending")] })), true);
@@ -143,4 +147,16 @@ test("a release that runs only persistent offers no run, in the runner's own wor
   assert.equal(persistentOnly(["autonomous"]), false);
   assert.equal(persistentOnly(undefined), false);
   assert.equal(PERSISTENT_ONLY_SENTENCE, "A persistent release runs only as a built-in in this version.");
+});
+
+test("the sidebar's Coding agent badge shows while its segment runs here, and not after Stop", () => {
+  assert.equal(coderRunning([agent({ name: "coder", state: "running" })]), true);
+  assert.equal(coderRunning([agent({ name: "coder", state: "stopped" })]), false);
+  assert.equal(coderRunning([agent({ name: "assistant", state: "running" })]), false);
+});
+
+test("a No in the Coding agent's dialog leaves it off, and Settings says nothing was changed", () => {
+  assert.equal(enableOutcome(true, { state: "disabled" }), "Nothing was changed.");
+  assert.equal(enableOutcome(true, { state: "stopped" }), null);
+  assert.equal(enableOutcome(false, { state: "disabled" }), null);
 });
