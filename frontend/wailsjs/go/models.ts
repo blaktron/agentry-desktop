@@ -1120,6 +1120,8 @@ export namespace app {
 	    unreadable: boolean;
 	    maxPins: number;
 	    pinsPerCard: number;
+	    maxCols: number;
+	    maxRows: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new HomeLayoutView(source);
@@ -1132,6 +1134,8 @@ export namespace app {
 	        this.unreadable = source["unreadable"];
 	        this.maxPins = source["maxPins"];
 	        this.pinsPerCard = source["pinsPerCard"];
+	        this.maxCols = source["maxCols"];
+	        this.maxRows = source["maxRows"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -8138,6 +8142,8 @@ export namespace settings {
 	    kind: string;
 	    hidden?: boolean;
 	    size?: string;
+	    cols?: number;
+	    rows?: number;
 	    pins?: HomePin[];
 	
 	    static createFrom(source: any = {}) {
@@ -8149,6 +8155,8 @@ export namespace settings {
 	        this.kind = source["kind"];
 	        this.hidden = source["hidden"];
 	        this.size = source["size"];
+	        this.cols = source["cols"];
+	        this.rows = source["rows"];
 	        this.pins = this.convertValues(source["pins"], HomePin);
 	    }
 	

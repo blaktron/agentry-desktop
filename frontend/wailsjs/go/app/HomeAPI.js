@@ -6,6 +6,10 @@ export function Layout() {
   return window['go']['app']['HomeAPI']['Layout']();
 }
 
+export function Move(arg1, arg2, arg3) {
+  return window['go']['app']['HomeAPI']['Move'](arg1, arg2, arg3);
+}
+
 export function Pin(arg1, arg2) {
   return window['go']['app']['HomeAPI']['Pin'](arg1, arg2);
 }
@@ -16,6 +20,10 @@ export function PinScheduled() {
 
 export function Reset() {
   return window['go']['app']['HomeAPI']['Reset']();
+}
+
+export function Resize(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['HomeAPI']['Resize'](arg1, arg2, arg3, arg4);
 }
 
 export function SetShown(arg1, arg2) {

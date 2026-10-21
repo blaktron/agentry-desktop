@@ -529,6 +529,24 @@ const states = [
     expectText: ["Scheduled", "October 2026", "2 schedules on this computer.", "Next", "Morning digest"],
     expectOrder: [['[data-preview="home"] .build-way-main', ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]], ['[data-preview="home"] [data-scheduled-next] li .small:first-child', ["Sat 10 Oct, 09:00", "Sun 11 Oct, 09:00", "Mon 12 Oct, 09:00"]]],
     expectSelector: '[data-preview="home"] [data-home-card="scheduled"] [data-month-grid="mini"] .cal-dot.tone-bad' },
+  // Home's grid: a card dragged onto another takes its place, a corner
+  // dragged snaps the card's size, and both handles take the arrow keys.
+  { name: "page-home-grid", url: "/pages.html", note: "Home's grid: four columns, each card two by two until it is sized, with its move and resize handles on hover", locator: '[data-preview="home"] .home-grid',
+    expectSelector: '[data-preview="home"] .home-grid[data-home-columns="4"] [data-home-card="main"][data-cols="2"][data-rows="2"]' },
+  { name: "page-home-drag", url: "/pages.html", note: "Run defaults dragged onto Agentry Helper takes its place, and Go is asked to move it there", locator: '[data-preview="home"] .home-grid',
+    drag: ['[data-preview="home"] [data-home-card="run-defaults"] .build-way-title', '[data-preview="home"] [data-home-card="main"] .build-way-title'],
+    expectSelector: '[data-preview="home"] .home-grid > .home-card-cell:first-child[data-home-card="run-defaults"]' },
+  { name: "page-home-resize", url: "/pages.html", note: "Recent runs' corner dragged right and down: it snaps one column wider and one row taller", locator: '[data-preview="home"] .home-grid',
+    dragBy: ['[data-preview="home"] [data-home-resize="recent-runs"]', 260, 200],
+    expectSelector: '[data-preview="home"] [data-home-card="recent-runs"][data-cols="3"][data-rows="3"]' },
+  { name: "page-home-keys", url: "/pages.html", note: "the keyboard: the move handle's Right arrow moves Agentry Helper one place later", locator: '[data-preview="home"] .home-grid',
+    focusPress: ['[data-preview="home"] [data-home-grip="main"]', "ArrowRight"],
+    expectSelector: 'body[data-home-moved="main 0->1"]' },
+  { name: "page-home-keys-resize", url: "/pages.html", note: "the keyboard: the resize handle's Down arrow makes Profile one row taller", locator: '[data-preview="home"] .home-grid',
+    focusPress: ['[data-preview="home"] [data-home-resize="profile"]', "ArrowDown"],
+    expectSelector: '[data-preview="home"] [data-home-card="profile"][data-cols="2"][data-rows="3"]' },
+  { name: "page-home-narrow", url: "/pages.html", note: "a narrow window: two columns, every card at most two wide", locator: '[data-preview="home"] .home-grid', width: 820,
+    expectSelector: '[data-preview="home"] .home-grid[data-home-columns="2"]' },
   { name: "page-home-scheduled-open", url: "/pages.html#home-scheduled", note: "a press anywhere on the Scheduled card opens the Scheduled page", locator: '[data-preview="home"]',
     click: '[data-preview="home"] [data-home-card="scheduled"] .build-way', expectSelector: 'body[data-open="scheduled"]' },
   { name: "page-home-scheduled-hosted", url: "/pages.html#home-scheduled-hosted", note: "the Scheduled card with a schedule In Agentry merged: both counted, the month's dots from both, the next three from both, the hosted one marked", locator: '[data-preview="home"] [data-home-card="scheduled"]',
@@ -1090,6 +1108,34 @@ try {
         await page.locator(state.focusPress[0]).first().focus();
         await page.keyboard.press(state.focusPress[1]);
         await page.waitForTimeout(300);
+      }
+      // drag: [from, to], a press on the first element's middle, moved in
+      // steps onto the second's, and released, as a person drags with a
+      // mouse; dragBy: [selector, dx, dy], the same by an offset.
+      const dragPath = async (x0, y0, x1, y1) => {
+        await page.mouse.move(x0, y0);
+        await page.mouse.down();
+        for (let i = 1; i <= 12; i++) await page.mouse.move(x0 + ((x1 - x0) * i) / 12, y0 + ((y1 - y0) * i) / 12);
+        await page.waitForTimeout(150);
+        await page.mouse.up();
+        await page.waitForTimeout(400);
+      };
+      const middle = async (sel) => {
+        const loc = page.locator(sel).first();
+        await loc.scrollIntoViewIfNeeded();
+        const b = await loc.boundingBox();
+        if (!b) throw new Error(`${state.name}: nothing to drag at ${sel}`);
+        return [b.x + b.width / 2, b.y + b.height / 2];
+      };
+      if (state.drag) {
+        const [x0, y0] = await middle(state.drag[0]);
+        const [x1, y1] = await middle(state.drag[1]);
+        await dragPath(x0, y0, x1, y1);
+      }
+      if (state.dragBy) {
+        await page.locator(state.dragBy[0]).first().hover({ force: true });
+        const [x0, y0] = await middle(state.dragBy[0]);
+        await dragPath(x0, y0, x0 + state.dragBy[1], y0 + state.dragBy[2]);
       }
       // thenClick: a click made after those, on what they opened.
       for (const sel of [state.thenClick ?? []].flat()) {

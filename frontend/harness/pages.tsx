@@ -535,7 +535,7 @@ let homeCards: any[] = [{ kind: "main", hidden: allHidden }, { kind: "deliverabl
 // one after it, an emptied one removed.
 // Reset replaces a kept (newer or unreadable) layout too.
 let homeReset = false;
-const homeView = () => ({ cards: homeCards, newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
+const homeView = () => ({ cards: homeCards, newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4, maxCols: 4, maxRows: 3 });
 function harnessPin(ref: string, registry: string) {
   const pin = { ref, registry };
   const room = homeCards.find((c) => c.kind === "pinned" && c.pins.length < 4);
@@ -550,6 +550,23 @@ function harnessSetShown(kind: string, shown: boolean) {
   homeCards = homeCards.some((c) => c.kind === kind)
     ? homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c))
     : [...homeCards, { kind, hidden: !shown, ...(kind === "scheduled" ? { size: "large" } : {}) }];
+  return homeView();
+}
+// Home's grid: a move and a resize, checked as Go checks them. Each is
+// recorded on the body, so a shot can say what the page asked for.
+function harnessMove(from: number, kind: string, to: number) {
+  if (homeCards[from]?.kind !== kind || to < 0 || to >= homeCards.length) throw new Error(`card ${from} on Home is not "${kind}"; read Home again`);
+  const cards = [...homeCards];
+  const [c] = cards.splice(from, 1);
+  cards.splice(to, 0, c);
+  homeCards = cards;
+  document.body.dataset.homeMoved = `${kind} ${from}->${to}`;
+  return homeView();
+}
+function harnessResize(index: number, kind: string, cols: number, rows: number) {
+  if (homeCards[index]?.kind !== kind) throw new Error(`card ${index} on Home is not "${kind}"; read Home again`);
+  homeCards = homeCards.map((c, i) => (i === index ? { ...c, cols, rows } : c));
+  document.body.dataset.homeResized = `${kind} ${cols}x${rows}`;
   return homeView();
 }
 // The Scheduled page's Pin to Home and Unpin.
@@ -841,6 +858,8 @@ g.go = { app: {
     SetShown: async (kind: string, shown: boolean) => harnessSetShown(kind, shown),
     Reset: async () => harnessReset(),
     PinScheduled: async () => harnessSetShown("scheduled", true),
+    Move: async (from: number, kind: string, to: number) => harnessMove(from, kind, to),
+    Resize: async (index: number, kind: string, cols: number, rows: number) => harnessResize(index, kind, cols, rows),
     UnpinScheduled: async () => harnessUnpinScheduled(),
   },
   VoiceAPI: {

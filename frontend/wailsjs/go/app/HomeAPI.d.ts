@@ -4,11 +4,15 @@ import {app} from '../models';
 
 export function Layout():Promise<app.HomeLayoutView>;
 
+export function Move(arg1:number,arg2:string,arg3:number):Promise<app.HomeLayoutView>;
+
 export function Pin(arg1:string,arg2:string):Promise<app.HomeLayoutView>;
 
 export function PinScheduled():Promise<app.HomeLayoutView>;
 
 export function Reset():Promise<app.HomeLayoutView>;
+
+export function Resize(arg1:number,arg2:string,arg3:number,arg4:number):Promise<app.HomeLayoutView>;
 
 export function SetShown(arg1:string,arg2:boolean):Promise<app.HomeLayoutView>;
 

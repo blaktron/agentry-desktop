@@ -89,7 +89,7 @@ export function HomeSettings() {
         <Card>
           <p className="muted small" style={{ marginTop: 0 }}>
             A hidden card keeps its place on Home, and shows there again when you turn it back on. A card that is not on Home
-            is added at the end.
+            is added at the end. On Home, drag a card to move it and drag its corner to resize it.
           </p>
           {switches.map((s) => (
             <div key={s.kind} className="home-card-switch" data-home-switch={s.kind}>
@@ -156,7 +156,7 @@ export function HomeSettings() {
         <h2>Reset Home</h2>
         <Card>
           <p className="small" style={{ marginTop: 0 }}>
-            Shows the {HOME_DEFAULTS.length} default cards again in their first order
+            Shows the {HOME_DEFAULTS.length} default cards again in their first order and sizes
             {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}
             {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}. It uninstalls nothing.
           </p>
@@ -168,7 +168,7 @@ export function HomeSettings() {
       {confirmReset && (
         <Modal title="Reset Home?" onClose={() => setConfirmReset(false)}>
           <p>
-            Home shows the {HOME_DEFAULTS.length} default cards again, in their first order
+            Home shows the {HOME_DEFAULTS.length} default cards again, in their first order and sizes
             {pins.length > 0
               ? <>, and <strong>every pin is removed</strong>: {pins.length === 1
                 ? "the QuickAgent pinned there stays installed, and Pin to Home puts it back"

@@ -26,6 +26,9 @@ type HomeLayoutView struct {
 	// them rather than its own copy.
 	MaxPins     int `json:"maxPins"`
 	PinsPerCard int `json:"pinsPerCard"`
+	// MaxCols and MaxRows are the grid's bounds a card is sized within.
+	MaxCols int `json:"maxCols"`
+	MaxRows int `json:"maxRows"`
 }
 
 func homeView() (*HomeLayoutView, error) {
@@ -33,7 +36,7 @@ func homeView() (*HomeLayoutView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins, PinsPerCard: settings.PinsPerCard}, nil
+	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins, PinsPerCard: settings.PinsPerCard, MaxCols: settings.HomeMaxCols, MaxRows: settings.HomeMaxRows}, nil
 }
 
 // Layout reads the layout; it never writes.
@@ -42,6 +45,24 @@ func (h *HomeAPI) Layout() (*HomeLayoutView, error) { return homeView() }
 // SetShown shows or hides one of the default cards, keeping its place.
 func (h *HomeAPI) SetShown(kind string, shown bool) (*HomeLayoutView, error) {
 	if err := settings.SetHomeCardShown(kind, shown); err != nil {
+		return nil, err
+	}
+	return homeView()
+}
+
+// Move puts the card at from, of kind, at to in Home's order. The index is
+// the layout's, hidden cards included; kind is the card the page drew there.
+func (h *HomeAPI) Move(from int, kind string, to int) (*HomeLayoutView, error) {
+	if err := settings.MoveHomeCard(from, kind, to); err != nil {
+		return nil, err
+	}
+	return homeView()
+}
+
+// Resize sets the card at index, of kind, to cols wide and rows tall on
+// Home's grid.
+func (h *HomeAPI) Resize(index int, kind string, cols, rows int) (*HomeLayoutView, error) {
+	if err := settings.SizeHomeCard(index, kind, cols, rows); err != nil {
 		return nil, err
 	}
 	return homeView()
