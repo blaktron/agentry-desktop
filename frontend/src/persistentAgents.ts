@@ -171,6 +171,84 @@ export function rosterStateWords(e: Pick<app.PersistentRosterEntry, "state">): s
   }
 }
 
+/** What a server the person added shows: its state in words, the reason
+ *  its install failed, and whether Retry is offered. */
+export type ServerState = { words: string; reason?: string; retry: boolean };
+
+/** serverState is a server entry's state as the roster says it. Its
+ *  install runs in the agent's background: installing until the server is
+ *  ready, then pending until the next turn's segment has it. Only an agent
+ *  running in this app reports that, so a server that is on reads Ready
+ *  there and On anywhere else. A failed install keeps its reason until the
+ *  person retries it. */
+export function serverState(agent: Pick<app.PersistentAgentView, "state">, e: Pick<app.PersistentRosterEntry, "state" | "on" | "reason">): ServerState {
+  const live = agent.state === AGENT_STATES.running;
+  switch (e.state) {
+    case "installing":
+      return { words: "Installing…", retry: false };
+    case "failed":
+      return { words: "Failed", reason: e.reason ?? "", retry: true };
+    case "on":
+      return { words: live ? "Ready" : "On", retry: false };
+    case "pending":
+      return { words: e.on && live ? "Ready, joins at your next message" : rosterStateWords(e), retry: false };
+    default:
+      return { words: rosterStateWords(e), retry: false };
+  }
+}
+
+/** The changes Retry makes, in order: the failed server switched off, which
+ *  clears its failure, and on again, which installs it again. */
+export function retryChanges(id: string): { switch: { id: string; on: boolean } }[] {
+  return [{ switch: { id, on: false } }, { switch: { id, on: true } }];
+}
+
+/** A server's "Can see your share folder" switch: its id and whether it is
+ *  on, or, for a server the share is never given to, disabled with the
+ *  runner's reason. */
+export type ShareSwitch = { id: string; on: boolean; disabled: boolean; reason?: string };
+
+export const SHARE_SWITCH_LABEL = "Can see your share folder";
+
+/** What the switch says while the agent's own share folder is off: the
+ *  server sees the folder only while the agent has it. */
+export const SHARE_OFF_NOTE = "Only while your share folder is on";
+
+/** shareSwitchNote is the line under a server's share switch: why it is
+ *  disabled, or that it waits for the agent's share folder to be on. */
+export function shareSwitchNote(agent: Pick<app.PersistentAgentView, "roster">, s: ShareSwitch): string | null {
+  if (s.reason) return s.reason;
+  const share = agent.roster.find((e) => e.id === "share");
+  return share && !share.on ? SHARE_OFF_NOTE : null;
+}
+
+/** serverShareSwitch is the switch a server entry shows, or null for an
+ *  entry that is not a server, or a server the runner says nothing about.
+ *  A disabled switch has no id: nothing can be switched through it. */
+export function serverShareSwitch(e: app.PersistentRosterEntry): ShareSwitch | null {
+  if (e.kind !== "server") return null;
+  if (e.shareSwitch) return { id: e.shareSwitch, on: !!e.share, disabled: false };
+  if (e.shareRefusal) return { id: "", on: false, disabled: true, reason: e.shareRefusal };
+  return null;
+}
+
+/** Whether any agent has a server installing: the list is read again
+ *  until none has, besides the notices that say an install ended. */
+export function installingAny(agents: Pick<app.PersistentAgentView, "roster">[]): boolean {
+  return agents.some((a) => a.roster.some((e) => e.kind === "server" && e.state === "installing"));
+}
+
+/** What the Configuration's share folder line says the agent does with a
+ *  file added there: the Coding agent reads it as it is; the others check
+ *  it with ClamAV first when the malware check is on, and read it
+ *  unchecked when it is off. */
+export function shareCheckWords(coder: boolean, malwareCheck: boolean): string {
+  if (coder) return ", and reads the files in it as they are";
+  return malwareCheck
+    ? ", and a file you add is checked for malware before it reads it"
+    : ", and reads a file you add unchecked: the malware check is off on this computer";
+}
+
 /** Whether a roster change is waiting for the agent's next turn. */
 export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "status">): boolean {
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");
