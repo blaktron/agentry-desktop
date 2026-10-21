@@ -1037,11 +1037,36 @@ type RunResultView struct {
 // id: each reaches that source's fetch step alone, and a source given none
 // uses the key saved for its host (services_sources.go).
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string) (*RunResultView, error) {
+	return r.runAgent(runHooks{}, reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations)
+}
+
+// runHooks are what a run Go starts on its own behalf (Main's) needs that a
+// run from the page does not.
+type runHooks struct {
+	// began is told the run's id once it has begun.
+	began func(runID string)
+	// inputsIn is the folder the run's input files were taken from in Go,
+	// a persistent agent's share folder: each must be a regular file in it,
+	// not reached through a link, in place of a picked one.
+	inputsIn string
+}
+
+// runAgent is RunAgent with its hooks.
+func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
 	unsafe := unsafeModeOn()
-	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
+	picked := inputPaths
+	if h.inputsIn != "" {
+		for _, p := range inputPaths {
+			if err := fileIn(h.inputsIn, p); err != nil {
+				return nil, err
+			}
+		}
+		picked = nil
+	}
+	if err := r.localRunGates(reg, ref, picked, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
 		return nil, err
 	}
 	if err := r.acquire(jobRun, "a run of "+ref); err != nil {
@@ -1066,6 +1091,9 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	// the page's store follows it by its id from here.
 	meter := r.runMeter(live.id, ref)
 	meter.Emit()
+	if h.began != nil {
+		h.began(live.id)
+	}
 	packs, err := r.attach(ctx, live, reg, knowledge)
 	if err != nil {
 		return nil, err

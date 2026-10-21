@@ -1,5 +1,7 @@
 // Settings → Persistent Agents: each agent the app offers, with its Enable
-// switch, Start or Stop, Configure and Reset. Configure is a card over the
+// switch, Start or Stop, Configure and Reset. Main has none of the switch,
+// Open or Configure: it is on while its Home card is, and what it is given
+// is fixed. Configure is a card over the
 // page with everything the agent is given: its name and personality, its
 // share folder, its knowledge packs and MCP servers, and its roster's
 // switches. A start, a switch or an addition that turns on what the person
@@ -10,7 +12,7 @@ import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app, build } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, canAddServer, serverRowOf, type ServerForm } from "../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, agentStateWords, canAddServer, serverRowOf, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 
@@ -50,16 +52,17 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       {agents.map((a) => {
         const enabled = a.state !== AGENT_STATES.disabled;
         const running = a.state === AGENT_STATES.running;
+        const isMain = a.name === MAIN_AGENT;
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
               <div>
                 <h3 style={{ margin: 0 }}>{a.displayName}{a.displayName !== a.title && <span className="small muted"> · {a.title}</span>}</h3>
                 <span className="small muted">
-                  <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {agentStateWords(a)}
+                  <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {isMain && !enabled ? "Starts when you message it on Home" : agentStateWords(a)}
                 </span>
               </div>
-              <label className="check-row">
+              {!isMain && <label className="check-row">
                 <input
                   type="checkbox"
                   role="switch"
@@ -69,18 +72,19 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                   onChange={(e) => void act(a.name, () => PersistentAPI.SetEnabled(a.name, e.target.checked))}
                 />
                 Enabled
-              </label>
+              </label>}
             </div>
+            {isMain && <p className="small">Its card on Home is where you talk to it; Settings → Home shows or hides the card.</p>}
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
             {a.state === AGENT_STATES.elsewhere && (
               <Notice>It is running in {a.holder || "another client"}. Stop it there to start it here.</Notice>
             )}
             <div className="row gap">
-              {a.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Start(a.name))}>Start</Button>}
+              {(a.state === AGENT_STATES.stopped || (isMain && !enabled)) && <Button variant="primary" disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Start(a.name))}>Start</Button>}
               {a.state === AGENT_STATES.starting && <Button disabled>Starting…</Button>}
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
-              {enabled && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
-              <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>
+              {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
+              {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
               <Button variant="ghost" disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere} onClick={() => setResetting(a)}>Reset</Button>
             </div>
           </Card>

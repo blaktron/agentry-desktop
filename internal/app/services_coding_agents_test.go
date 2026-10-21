@@ -199,14 +199,14 @@ func TestContractDialogNamesTheCodingAgent(t *testing.T) {
 	runner := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.1.0", PrevVersion: "1.0.0", Diff: &installed.Diff{}, Capabilities: caps}
 	export := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.1.0", Target: "claude-skill", NeedsCapabilityConfirm: true, Capabilities: caps,
 		Paths: install.Paths{Dest: "/home/me/.claude/skills/demo"}}
-	if err := i.consentForInstall(runner, export); err != nil {
+	if err := i.consentForInstall(runner, export, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(asked) != 1 || !strings.Contains(asked[0], "api.example.com") || !strings.Contains(asked[0], "Claude skill") || !strings.Contains(asked[0], "/home/me/.claude/skills/demo") || !strings.Contains(asked[0], "does not enforce") {
 		t.Fatalf("the contract dialog with an export: %v", asked)
 	}
 	asked = nil
-	if err := i.consentForInstall(runner, nil); err != nil || len(asked) != 0 {
+	if err := i.consentForInstall(runner, nil, ""); err != nil || len(asked) != 0 {
 		t.Fatalf("an unwidened update with no export raised %v (%v)", asked, err)
 	}
 
@@ -215,7 +215,7 @@ func TestContractDialogNamesTheCodingAgent(t *testing.T) {
 	asked = nil
 	widened := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.1.0", PrevVersion: "1.0.0", RequiresWidenedConfirm: true,
 		Diff: &installed.Diff{Widened: []string{"network egress: added api.example.com"}}, Capabilities: caps}
-	if err := i.consentForInstall(widened, export); err != nil {
+	if err := i.consentForInstall(widened, export, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(asked) != 1 || !strings.Contains(asked[0], "widens what it may do") || !strings.Contains(asked[0], "Version 1.1.0 declares:") || !strings.Contains(asked[0], "network egress to api.example.com") {

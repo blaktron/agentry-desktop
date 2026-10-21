@@ -60,7 +60,7 @@ func TestHomeAbsentIsTheDefaults(t *testing.T) {
 	if state != homeOK {
 		t.Fatalf("an absent layout reads as %q", state)
 	}
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
 		t.Fatalf("defaults = %s, want %s", got, want)
 	}
 	if l.Version != HomeVersion {
@@ -80,14 +80,14 @@ func TestHomeSetShownKeepsThePlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, _, _ := homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed(hidden),profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed(hidden),profile,run-defaults"; got != want {
 		t.Fatalf("after hiding = %s, want %s", got, want)
 	}
 	if err := SetHomeCardShown(HomeInstalled, true); err != nil {
 		t.Fatal(err)
 	}
 	l, _, _ = homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
 		t.Fatalf("after showing = %s, want %s", got, want)
 	}
 	s, err := Load()
@@ -108,7 +108,7 @@ func TestHomeSetShownAddsAMissingDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, _, _ := homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "profile,deliverables,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,profile,deliverables,run-defaults"; got != want {
 		t.Fatalf("layout = %s, want %s", got, want)
 	}
 }
@@ -158,6 +158,12 @@ func TestHomeKeepsWhatItDoesNotKnow(t *testing.T) {
 		t.Fatalf("the layout's own unknown field was dropped: %v", back.Home)
 	}
 	cards := back.Home["cards"].([]any)
+	// Main's card was put first when the layout was read, and saved with
+	// the change.
+	if cards[0].(map[string]any)["kind"] != HomeMain {
+		t.Fatalf("Main's card was not put first: %v", cards[0])
+	}
+	cards = cards[1:]
 	first := cards[0].(map[string]any)
 	if first["kind"] != "credits-chart" || first["size"] != "small" || first["options"].(map[string]any)["months"] != 3 {
 		t.Fatalf("the unknown card was not kept whole: %v", first)
@@ -183,7 +189,7 @@ func TestHomeNewerVersionIsKept(t *testing.T) {
 	if state != homeNewer {
 		t.Fatalf("a version 2 layout reads as %q, not newer", state)
 	}
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
 		t.Fatalf("a newer layout reads as %s, want the defaults %s", got, want)
 	}
 	if err := SetHomeCardShown(HomeInstalled, false); err == nil {
@@ -215,7 +221,7 @@ func TestHomeReset(t *testing.T) {
 		t.Fatalf("Reset left a layout:\n%s", readRaw(t))
 	}
 	l, state, _ := homeLayoutState()
-	if state != homeOK || len(l.Cards) != 5 {
+	if state != homeOK || len(l.Cards) != 6 {
 		t.Fatalf("after Reset: state=%q cards=%v", state, kinds(l))
 	}
 	if s, _ := Load(); !s.Onboarded {
@@ -258,7 +264,7 @@ func TestHomeUnreadableNeverBreaksTheFile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state != homeUnreadable || len(l.Cards) != 5 {
+			if state != homeUnreadable || len(l.Cards) != 6 {
 				t.Fatalf("state=%q cards=%v, want unreadable and the defaults", state, kinds(l))
 			}
 			s.DefaultRegistry = "https://dev.example"
@@ -309,10 +315,10 @@ func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 		}
 	}
 	l, _, _ := homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed,profile,run-defaults,scheduled"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults,scheduled"; got != want {
 		t.Fatalf("layout = %s, want %s", got, want)
 	}
-	if c := l.Cards[5]; c.Size != HomeLarge || c.Hidden || len(c.Pins) != 0 {
+	if c := l.Cards[6]; c.Size != HomeLarge || c.Hidden || len(c.Pins) != 0 {
 		t.Fatalf("the Scheduled card = %+v, want Large, shown, no pins", c)
 	}
 	if !scheduledShown(t) {
@@ -344,14 +350,14 @@ func TestScheduledCardShownHiddenAndUnpinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, _, _ := homeLayoutState()
-	if n := len(l.Cards); n != 6 || l.Cards[5].Hidden {
+	if n := len(l.Cards); n != 7 || l.Cards[6].Hidden {
 		t.Fatalf("Pin did not show the hidden card in its place: %+v", l.Cards)
 	}
 	if err := UnpinScheduledFromHome(); err != nil {
 		t.Fatal(err)
 	}
 	l, _, _ = homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
 		t.Fatalf("after Unpin = %s, want %s", got, want)
 	}
 	if err := SetHomeCardShown(HomeScheduled, true); err != nil {
@@ -432,15 +438,15 @@ func scheduledShown(t *testing.T) bool {
 	return false
 }
 
-// A Home with no stored layout has the Deliverables card first. One arranged
-// before the card existed has it appended after every card, once: the order
-// the person made never moves, hiding the card keeps its entry, and a save
-// by anything else writes it down so it is not added again.
+// A Home with no stored layout has the Deliverables card after Main's. One
+// arranged before the card existed has it appended after every card, once:
+// the order the person made never moves, hiding the card keeps its entry,
+// and a save by anything else writes it down so it is not added again.
 func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testing.T) {
 	isolate(t)
 	l, _, _ := homeLayoutState()
-	if l.Cards[0].Kind != HomeDeliverables {
-		t.Fatalf("the defaults start with %s, want the Deliverables card", l.Cards[0].Kind)
+	if l.Cards[1].Kind != HomeDeliverables {
+		t.Fatalf("the defaults' second card is %s, want the Deliverables card", l.Cards[1].Kind)
 	}
 
 	writeRaw(t, "home:\n  version: 1\n  cards:\n    - kind: profile\n    - kind: pinned\n      size: large\n      pins:\n        - ref: acme/a\n    - kind: installed\n      hidden: true\n")
@@ -448,11 +454,11 @@ func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testi
 	if state != homeOK {
 		t.Fatalf("state = %q", state)
 	}
-	if got, want := strings.Join(kinds(l), ","), "profile,pinned,installed(hidden),deliverables"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,profile,pinned,installed(hidden),deliverables"; got != want {
 		t.Fatalf("an arranged Home reads as %s, want %s", got, want)
 	}
-	if strings.Contains(readRaw(t), "deliverables") {
-		t.Fatal("reading the layout wrote the card")
+	if strings.Contains(readRaw(t), "deliverables") || strings.Contains(readRaw(t), "main") {
+		t.Fatal("reading the layout wrote a card")
 	}
 
 	// A change to something else saves the card where it was appended.
@@ -460,7 +466,7 @@ func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testi
 		t.Fatal(err)
 	}
 	l, _, _ = homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "profile(hidden),pinned,installed(hidden),deliverables"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,profile(hidden),pinned,installed(hidden),deliverables"; got != want {
 		t.Fatalf("after a change: %s, want %s", got, want)
 	}
 	// Hiding it keeps its entry and its place; showing it puts it back.
@@ -468,7 +474,7 @@ func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testi
 		t.Fatal(err)
 	}
 	l, _, _ = homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "profile(hidden),pinned,installed(hidden),deliverables(hidden)"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,profile(hidden),pinned,installed(hidden),deliverables(hidden)"; got != want {
 		t.Fatalf("after hiding: %s, want %s", got, want)
 	}
 	if n := strings.Count(readRaw(t), "kind: deliverables"); n != 1 {
@@ -478,7 +484,40 @@ func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testi
 		t.Fatal(err)
 	}
 	l, _, _ = homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "profile(hidden),pinned,installed(hidden),deliverables"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,profile(hidden),pinned,installed(hidden),deliverables"; got != want {
+		t.Fatalf("after showing: %s, want %s", got, want)
+	}
+}
+
+// Main's card is first in a Home with no stored layout, and put first, once,
+// in one arranged before the card existed: hiding it keeps its entry, so it
+// is never put back, and showing it again leaves it where it is.
+func TestMainCardIsFirstAndPrependedOnce(t *testing.T) {
+	isolate(t)
+	l, _, _ := homeLayoutState()
+	if l.Cards[0].Kind != HomeMain {
+		t.Fatalf("the defaults start with %s, want Main's card", l.Cards[0].Kind)
+	}
+	writeRaw(t, "home:\n  version: 1\n  cards:\n    - kind: installed\n    - kind: deliverables\n")
+	l, _, _ = homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "main,installed,deliverables"; got != want {
+		t.Fatalf("an arranged Home reads as %s, want %s", got, want)
+	}
+	if err := SetHomeCardShown(HomeMain, false); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "main(hidden),installed,deliverables"; got != want {
+		t.Fatalf("after hiding: %s, want %s", got, want)
+	}
+	if n := strings.Count(readRaw(t), "kind: main"); n != 1 {
+		t.Fatalf("Main's card is stored %d times", n)
+	}
+	if err := SetHomeCardShown(HomeMain, true); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "main,installed,deliverables"; got != want {
 		t.Fatalf("after showing: %s, want %s", got, want)
 	}
 }
@@ -492,7 +531,7 @@ func TestAPinOnAnArrangedHomeComesAfterTheAppendedCard(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, _, _ := homeLayoutState()
-	if got, want := strings.Join(kinds(l), ","), "run-defaults,recent-runs,deliverables,pinned"; got != want {
+	if got, want := strings.Join(kinds(l), ","), "main,run-defaults,recent-runs,deliverables,pinned"; got != want {
 		t.Fatalf("layout = %s, want %s", got, want)
 	}
 }

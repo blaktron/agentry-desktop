@@ -5,7 +5,7 @@
 // of the layout's cards the page draws. A new kind is one entry here and
 // one renderer beside the page (pages/home/).
 
-export type HomeCardKind = "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled";
+export type HomeCardKind = "main" | "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled";
 
 export type HomeCardDescriptor = {
   kind: HomeCardKind;
@@ -17,6 +17,10 @@ export type HomeCardDescriptor = {
 };
 
 export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
+  // Main: a chat with Agentry's own agent. It starts on the first message
+  // sent to it, never when Home opens.
+  main: { kind: "main", title: "Main", multiple: false,
+    line: "A chat with Main, Agentry's own agent: it finds, installs, runs and schedules QuickAgents for you, asking you first in Agentry." },
   deliverables: { kind: "deliverables", title: "Deliverables", multiple: false,
     line: "The newest files your runs were for, with Open, View and Show in folder, and a button for your Deliverables folder." },
   "recent-runs": { kind: "recent-runs", title: "Recent runs", multiple: false,
@@ -70,7 +74,7 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
  * Go shows or hides these by kind (HomeAPI.SetShown); a Pinned card goes
  * by its pins. Go's list is settings.homeDefaults: the two change
  * together. */
-export const HOME_DEFAULTS: HomeCardKind[] = ["deliverables", "recent-runs", "installed", "profile", "run-defaults"];
+export const HOME_DEFAULTS: HomeCardKind[] = ["main", "deliverables", "recent-runs", "installed", "profile", "run-defaults"];
 
 /** Settings → Home's switches: the default cards, then the Scheduled card,
  * which Go shows or hides by kind like them. */

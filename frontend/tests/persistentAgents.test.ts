@@ -8,6 +8,7 @@ import {
   MAX_EARLY,
   PERSISTENT_ONLY_SENTENCE,
   agentNavEntries,
+  mainStatusLine,
   canAddServer,
   holdEarly,
   persistentOnly,
@@ -76,6 +77,16 @@ test("the sidebar lists each enabled agent by the name the person gave it, with 
   assert.deepEqual(agentNavEntries([agent({ state: "stopped", displayName: "Sandra" })]), [{ id: "assistant", label: "Sandra", running: false }]);
   assert.deepEqual(agentNavEntries([agent({ state: "running", displayName: "Sandra" })]), [{ id: "assistant", label: "Sandra", running: true }]);
   assert.equal(agentNavEntries([agent({ state: "elsewhere" })])[0].running, true);
+  // Main's place is its Home card: no sidebar entry, running or not.
+  assert.deepEqual(agentNavEntries([agent({ name: "main", state: "running", displayName: "Main" })]), []);
+});
+
+test("the Main card's status line counts turns and tokens over Main's life, and says a message starts it", () => {
+  assert.equal(mainStatusLine(agent({ name: "main" })), "Starts when you send it a message");
+  assert.equal(mainStatusLine(agent({ name: "main", state: "stopped", lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 1204, userTurns: 3, toolCalls: 1 } })),
+    "Stopped · 3 turns · 1,204 tokens");
+  assert.equal(mainStatusLine(agent({ name: "main", state: "running", lifetime: { segments: 1, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 1, toolCalls: 0 } })),
+    "Running · 1 turn");
 });
 
 test("Settings' card counts the enabled and the running agents", () => {

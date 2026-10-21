@@ -54,8 +54,9 @@ const (
 	agentElsewhere = "elsewhere"
 )
 
-// shownAgents are the persistent agents the app offers, in their order.
-var shownAgents = []string{"assistant"}
+// shownAgents are the persistent agents the app offers, in their order:
+// Main, whose place is its Home card, then the Assistant.
+var shownAgents = []string{mainAgent, "assistant"}
 
 // transcriptLines is how much of an agent's transcript its page reloads.
 const transcriptLines = 500
@@ -85,6 +86,8 @@ type PersistentAPI struct {
 	// docker is the engine client a reset removes the volumes through; nil
 	// is the docker CLI.
 	docker dockerx.Client
+	// link answers Main's app link; nil answers its tools as unanswered.
+	link *mainLink
 }
 
 // agentSupervisor is what the app needs of a running agent: the CLI's
@@ -380,6 +383,12 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !cfg.Enabled && a.Name == mainAgent {
+		// Main is on while its Home card is: its first start enables it.
+		if cfg, err = p.enable(home, a); err != nil {
+			return nil, err
+		}
+	}
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
 	}
@@ -406,6 +415,21 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	started = true
 	p.follow(a.Name, sv)
 	return p.Get(name)
+}
+
+// enable turns an agent on under its owner lock, and answers its config.
+func (p *PersistentAPI) enable(home string, a persistent.Agent) (persistent.Config, error) {
+	owner, err := persistent.Acquire(home, a.Name, persistent.ClientDesktop)
+	if err != nil {
+		return persistent.Config{}, err
+	}
+	defer owner.Release()
+	cfg, err := persistent.LoadConfig(home, a.Name)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.Enabled = true
+	return cfg, persistent.SaveConfig(home, a.Name, cfg)
 }
 
 // called is the agent in a sentence: the name the person gave it, or "the
@@ -443,8 +467,17 @@ func (p *PersistentAPI) options(home string, a persistent.Agent) (persistent.Opt
 	return persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
 		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(),
-		Docker: p.dockerClient(), Stderr: agentLog(), Packs: p.packs,
+		Docker: p.dockerClient(), Stderr: agentLog(), Packs: p.packs, AppLink: p.appLink(a),
 	}, nil
+}
+
+// appLink is the handler of the agent's app link calls the supervisor does
+// not answer itself: Main's tools, answered by the app.
+func (p *PersistentAPI) appLink(a persistent.Agent) persistent.AppLinkHandler {
+	if a.Name != mainAgent || p.link == nil {
+		return nil
+	}
+	return p.link.answer
 }
 
 // packs opens the packs a roster has on, from the local store under the

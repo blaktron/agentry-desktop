@@ -48,10 +48,10 @@ import { HOME_DEFAULTS, cardSwitches, homeStatus } from "../src/homeCards.ts";
 test("Settings → Home has a switch for each default card, in the default order, whatever the layout's, then the Scheduled card", () => {
   const sw = cardSwitches([{ kind: "run-defaults" }, { kind: "installed", hidden: true }, { kind: "pinned", pins: [{ ref: "a/b" }] }, { kind: "recent-runs" }]);
   assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled"]);
-  assert.deepEqual(sw.map((s) => s.title), ["Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]);
+  assert.deepEqual(sw.map((s) => s.title), ["Main", "Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]);
   // A card the stored layout lacks is not drawn, so its switch is off;
   // Go adds it at the end when it is turned on.
-  assert.deepEqual(sw.map((s) => s.shown), [false, true, false, false, true, false]);
+  assert.deepEqual(sw.map((s) => s.shown), [false, false, true, false, false, true, false]);
 });
 
 test("a default card the layout names twice reads as shown while any of its entries is", () => {
@@ -64,9 +64,9 @@ const view = (cards: { kind: string; hidden?: boolean; pins?: { ref: string }[] 
 const defaults = HOME_DEFAULTS.map((kind) => ({ kind }));
 
 test("the landing's line counts the cards shown and the QuickAgents pinned", () => {
-  assert.equal(homeStatus(view(defaults)), "All 5 cards shown, nothing pinned.");
-  assert.equal(homeStatus(view([...defaults.slice(0, 4), { kind: "run-defaults", hidden: true }, { kind: "pinned", pins: [{ ref: "a/b" }] }])),
-    "4 of 5 cards shown, 1 QuickAgent pinned.");
+  assert.equal(homeStatus(view(defaults)), "All 6 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view([...defaults.slice(0, 5), { kind: "run-defaults", hidden: true }, { kind: "pinned", pins: [{ ref: "a/b" }] }])),
+    "5 of 6 cards shown, 1 QuickAgent pinned.");
   assert.equal(homeStatus(view([{ kind: "pinned", pins: [{ ref: "a/b" }, { ref: "a/c" }, { ref: "a/d" }, { ref: "a/e" }] }, { kind: "pinned", pins: [{ ref: "a/f" }] }])),
     "No card shown, 5 QuickAgents pinned.");
 });
@@ -98,27 +98,27 @@ test("the options menu offers Unpin while Home draws the Scheduled card, else Pi
 test("Settings → Home lists the Scheduled card after the defaults, on only while it is drawn", () => {
   const sw = cardSwitches([...defaults, { kind: "scheduled" }]);
   assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled"]);
-  assert.equal(sw[5].title, "Scheduled");
-  assert.equal(sw[5].shown, true);
-  assert.equal(cardSwitches(defaults)[5].shown, false);
-  assert.equal(cardSwitches([...defaults, { kind: "scheduled", hidden: true }])[5].shown, false);
+  assert.equal(sw[6].title, "Scheduled");
+  assert.equal(sw[6].shown, true);
+  assert.equal(cardSwitches(defaults)[6].shown, false);
+  assert.equal(cardSwitches([...defaults, { kind: "scheduled", hidden: true }])[6].shown, false);
 });
 
 test("the landing counts the Scheduled card only while the layout holds it", () => {
-  assert.equal(homeStatus(view(defaults)), "All 5 cards shown, nothing pinned.");
-  assert.equal(homeStatus(view([...defaults, { kind: "scheduled" }])), "All 6 cards shown, nothing pinned.");
-  assert.equal(homeStatus(view([...defaults, { kind: "scheduled", hidden: true }])), "5 of 6 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view(defaults)), "All 6 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view([...defaults, { kind: "scheduled" }])), "All 7 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view([...defaults, { kind: "scheduled", hidden: true }])), "6 of 7 cards shown, nothing pinned.");
 });
 
-// The Deliverables card: first among the defaults, drawn where the layout
+// The Deliverables card: second among the defaults, after Main's, drawn where the layout
 // puts it, and Go's list and this one change together.
-test("the Deliverables card is the first default and a layout may put it anywhere", () => {
-  assert.equal(HOME_DEFAULTS[0], "deliverables");
+test("the Deliverables card follows Main's among the defaults and a layout may put it anywhere", () => {
+  assert.equal(HOME_DEFAULTS[1], "deliverables");
   const all2 = new Set(["deliverables", "recent-runs", "installed"]);
   assert.deepEqual(kinds(cardsToDraw([{ kind: "installed" }, { kind: "deliverables" }], all2)), ["installed", "deliverables"]);
   // An older app has no renderer for it and skips it, keeping the rest.
   assert.deepEqual(kinds(cardsToDraw([{ kind: "deliverables" }, { kind: "installed" }], new Set(["installed"]))), ["installed"]);
-  assert.equal(cardSwitches([{ kind: "deliverables" }])[0].shown, true);
+  assert.equal(cardSwitches([{ kind: "deliverables" }])[1].shown, true);
 });
 
 test("the defaults here are the defaults Go keeps, in its order", async () => {
@@ -129,4 +129,13 @@ test("the defaults here are the defaults Go keeps, in its order", async () => {
   const consts = new Map([...go.matchAll(/(Home\w+)\s*=\s*"([a-z-]+)"/g)].map((x) => [x[1], x[2]]));
   const goKinds = m![1].split(",").map((n) => consts.get(n.trim())).filter(Boolean);
   assert.deepEqual(goKinds, HOME_DEFAULTS);
+});
+
+// Main's card: first among the defaults, drawn once where the layout puts
+// it, and Go's list and this one change together (settings.homeDefaults).
+test("Main's card is the first default, drawn once, and an older app skips it", () => {
+  assert.equal(HOME_DEFAULTS[0], "main");
+  assert.deepEqual(kinds(cardsToDraw([{ kind: "main" }, { kind: "installed" }, { kind: "main" }], all)), ["main", "installed"]);
+  assert.deepEqual(kinds(cardsToDraw([{ kind: "main", hidden: true }, { kind: "installed" }], all)), ["installed"]);
+  assert.deepEqual(kinds(cardsToDraw([{ kind: "main" }, { kind: "installed" }], new Set(["installed"]))), ["installed"]);
 });

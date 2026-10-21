@@ -17,6 +17,7 @@ import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
 import { DeliverablesCard } from "./home/DeliverablesCard";
 import { ScheduledCard } from "./home/ScheduledCard";
+import { MainCard } from "./home/MainCard";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
 import { localAttestation } from "./Library";
@@ -27,7 +28,9 @@ import type { Pin } from "../pins";
 // cards and in what order (HomeAPI); each card reads its own bindings and a
 // read that fails says so in its card, never the page's. Home starts
 // nothing: no run, install, update or spend happens on load, and every
-// card's action opens the page that does it.
+// card's action opens the page that does it. Main's card reads Main's
+// state and its last lines; its containers start on the first message sent
+// to it.
 
 // The default cards' places when the layout cannot be read at all.
 const FALLBACK: LayoutCard[] = HOME_DEFAULTS.map((kind) => ({ kind }));
@@ -60,6 +63,10 @@ export type HomeOpen = {
   settings: () => void;
   // The Scheduled card's page.
   scheduled: () => void;
+  // Main's card: Settings → Persistent Agents, and Settings → Provider
+  // where no model is set up.
+  persistentAgents: () => void;
+  provider: () => void;
 };
 
 // How many files the Deliverables card lists.
@@ -164,6 +171,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   // A plain object, not createFrom.
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
+    main: () => <MainCard onOpenSettings={open.persistentAgents} onSetUpModel={open.provider} />,
     deliverables: () => (
       <DeliverablesCard view={deliverables.value} error={deliverables.error} now={new Date()} onOpenSettings={open.deliverables} />
     ),
