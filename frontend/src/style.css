@@ -231,8 +231,21 @@ code, pre, .mono {
 }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+/* A row and the rows beneath it: no box of its own, so the column's gap
+   spaces every row alike. */
+.nav-row { display: contents; }
 
-/* Validate under Build: a section's sub-items sit
+/* Build: a section that opens no page. Its chevron points down while its
+   rows are shown. */
+.nav-item.nav-group { display: flex; align-items: center; justify-content: space-between; }
+.nav-chevron {
+  width: 7px; height: 7px; margin-right: 2px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform 120ms ease;
+}
+.nav-chevron.open { transform: rotate(45deg); }
+
+/* A section's sub-items sit
    indented on a rule, as the site's sub-menu does. */
 .nav-sub { margin: 0 0 2px 12px; padding-left: 6px; border-left: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 2px; }
 .nav-item.nav-sub-item { padding: 6px 10px; font-size: 13px; }
@@ -1161,9 +1174,49 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .file-icon-reveal circle { fill: var(--color-bg); stroke: var(--color-muted); stroke-width: 1.5; }
 .file-icon-reveal path { fill: var(--color-muted); }
 
-/* Home: the start pages' grid, a
-   card per cell, every card Large and as tall as its row. */
-.home-card-cell { display: flex; min-width: 0; }
+/* Home: a grid the person arranges. Four columns and rows of one height; a
+   cell spans what its card's size says (HomeGrid.tsx sets the spans). A
+   narrower window shows two columns, then one, and a wider card spans them
+   all without its stored size changing. A card's content scrolls inside it
+   when its cell is smaller than what it holds. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 172px;
+  grid-auto-flow: row dense;
+  gap: 16px;
+  margin: 16px 0;
+}
+@media (max-width: 900px) { .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+.home-card-cell { position: relative; display: flex; min-width: 0; min-height: 0; touch-action: none; }
+.home-grid .build-way { overflow: hidden; }
+.home-grid .build-way-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* The handles: a move grip at the top right and a resize corner at the
+   bottom right, shown on hover or keyboard focus, above the card's
+   stretched button. */
+.home-grip, .home-resize {
+  position: absolute; z-index: 2;
+  border: 0; padding: 0; background: none; color: var(--color-muted);
+  opacity: 0; transition: opacity 120ms ease;
+}
+.home-card-cell:hover .home-grip, .home-card-cell:hover .home-resize,
+.home-grip:focus-visible, .home-resize:focus-visible { opacity: 1; }
+.home-grip:focus-visible, .home-resize:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+.home-grip { top: 10px; right: 10px; width: 22px; height: 22px; font-size: 16px; line-height: 22px; cursor: grab; }
+.home-resize { right: 3px; bottom: 3px; width: 18px; height: 18px; cursor: nwse-resize; }
+.home-resize span {
+  position: absolute; right: 4px; bottom: 4px; width: 9px; height: 9px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  border-bottom-right-radius: 3px;
+}
+.home-grip:disabled, .home-resize:disabled { display: none; }
+/* While a card is dragged it follows the pointer above the others, which
+   move to make room. */
+.home-grid.is-arranging { cursor: grabbing; }
+.home-card-cell.is-dragged { z-index: 5; }
+.home-card-cell.is-dragged > .card { box-shadow: var(--shadow-overlay); border-color: var(--color-accent); }
+.home-card-cell.is-sizing > .card { outline: 2px dashed var(--color-accent); outline-offset: 3px; }
 /* Home's Main card: a small terminal-style chat inside the card. */
 .main-card-chat { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
 .main-card-scroll { max-height: 260px; min-height: 96px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); }
@@ -1508,8 +1561,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-roster-entry.state-pending strong { color: var(--color-warm); }
 .agent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); vertical-align: middle; }
 .agent-dot.on { background: var(--color-ok); }
-.nav-agents { display: flex; flex-direction: column; }
-.nav-item.nav-agent { display: flex; align-items: center; gap: 8px; padding-left: 22px; }
+.nav-item.nav-agent { display: flex; align-items: center; gap: 8px; }
 .nav-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .persistent-agent-card { margin-bottom: 12px; }
 .persistent-agent-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }

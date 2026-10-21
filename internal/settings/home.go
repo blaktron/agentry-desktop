@@ -86,11 +86,16 @@ func (l HomeLayout) MarshalYAML() (any, error) {
 }
 
 // HomeCard is one card. Size is "" or "large", the size of the Build,
-// Voice and Knowledge cards. Rest keeps a card's keys this app does not know.
+// Voice and Knowledge cards, kept for an older app. Cols and Rows are the
+// card's place on Home's grid, set by the person's resize: 0 is the card's
+// default, else 1 to HomeMaxCols wide and 1 to HomeMaxRows tall. Rest keeps
+// a card's keys this app does not know.
 type HomeCard struct {
 	Kind   string `yaml:"kind" json:"kind"`
 	Hidden bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 	Size   string `yaml:"size,omitempty" json:"size,omitempty"`
+	Cols   int    `yaml:"cols,omitempty" json:"cols,omitempty"`
+	Rows   int    `yaml:"rows,omitempty" json:"rows,omitempty"`
 	// Pins are a Pinned card's QuickAgents, at most PinsPerCard.
 	Pins []HomePin      `yaml:"pins,omitempty" json:"pins,omitempty"`
 	Rest map[string]any `yaml:",inline" json:"-"`
@@ -244,6 +249,72 @@ func UnpinScheduledFromHome() error {
 		return nil
 	}
 	l.Cards = cards
+	s.Home = &l
+	return Save(s)
+}
+
+// Home's grid: four columns, a card one to four of them wide and one to
+// three rows tall.
+const (
+	HomeMaxCols = 4
+	HomeMaxRows = 3
+)
+
+// cardAt is the index of the card at i in l when it is of kind, the check
+// that the page moves or sizes the card it drew, not one a change since its
+// read put in that place.
+func cardAt(l HomeLayout, i int, kind string) error {
+	if i < 0 || i >= len(l.Cards) {
+		return fmt.Errorf("there is no card %d on Home; read Home again", i)
+	}
+	if l.Cards[i].Kind != kind {
+		return fmt.Errorf("card %d on Home is %q, not %q; read Home again", i, l.Cards[i].Kind, kind)
+	}
+	return nil
+}
+
+// MoveHomeCard puts the card at from (of kind) at to in the order, the
+// others keeping theirs; hidden cards keep their places among them. A move
+// to its own place writes nothing.
+func MoveHomeCard(from int, kind string, to int) error {
+	s, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	if err := cardAt(l, from, kind); err != nil {
+		return err
+	}
+	if to < 0 || to >= len(l.Cards) {
+		return fmt.Errorf("there is no place %d on Home", to)
+	}
+	if from == to {
+		return nil
+	}
+	c := l.Cards[from]
+	cards := slices.Delete(slices.Clone(l.Cards), from, from+1)
+	l.Cards = slices.Insert(cards, to, c)
+	s.Home = &l
+	return Save(s)
+}
+
+// SizeHomeCard sets the card at i (of kind) to cols wide and rows tall on
+// Home's grid. Anything outside the grid is refused.
+func SizeHomeCard(i int, kind string, cols, rows int) error {
+	if cols < 1 || cols > HomeMaxCols || rows < 1 || rows > HomeMaxRows {
+		return fmt.Errorf("a Home card is 1 to %d columns wide and 1 to %d rows tall, not %d by %d", HomeMaxCols, HomeMaxRows, cols, rows)
+	}
+	s, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	if err := cardAt(l, i, kind); err != nil {
+		return err
+	}
+	if l.Cards[i].Cols == cols && l.Cards[i].Rows == rows {
+		return nil
+	}
+	l.Cards = slices.Clone(l.Cards)
+	l.Cards[i].Cols, l.Cards[i].Rows = cols, rows
 	s.Home = &l
 	return Save(s)
 }

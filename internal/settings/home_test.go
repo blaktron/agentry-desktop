@@ -553,3 +553,138 @@ func TestDeliverablesDefaultOn(t *testing.T) {
 		t.Fatal("a saved off switch reads as on")
 	}
 }
+
+func sizes(l HomeLayout) []string {
+	out := make([]string, 0, len(l.Cards))
+	for _, c := range l.Cards {
+		out = append(out, fmt.Sprintf("%s:%dx%d", c.Kind, c.Cols, c.Rows))
+	}
+	return out
+}
+
+// A move puts the card at its new place and keeps the others' order, hidden
+// cards included; a pinned card moves with its pins.
+func TestHomeMoveKeepsTheOthersInOrder(t *testing.T) {
+	isolate(t)
+	if err := SetHomeCardShown(HomeInstalled, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := PinToHome("acme/one", "https://dev.example"); err != nil {
+		t.Fatal(err)
+	}
+	// main,deliverables,recent-runs,installed(hidden),profile,run-defaults,pinned
+	if err := MoveHomeCard(6, HomePinned, 0); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ := homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "pinned,main,deliverables,recent-runs,installed(hidden),profile,run-defaults"; got != want {
+		t.Fatalf("after moving the pinned card first = %s, want %s", got, want)
+	}
+	if len(l.Cards[0].Pins) != 1 || l.Cards[0].Pins[0].Ref != "acme/one" {
+		t.Fatalf("the pinned card lost its pin: %+v", l.Cards[0])
+	}
+	if err := MoveHomeCard(1, HomeMain, 5); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "pinned,deliverables,recent-runs,installed(hidden),profile,main,run-defaults"; got != want {
+		t.Fatalf("after moving main = %s, want %s", got, want)
+	}
+}
+
+// A move or a size names the card it means: a card of another kind at that
+// place, or a place Home does not have, is refused and nothing is written.
+func TestHomeMoveAndSizeRefuseAStaleOrMissingCard(t *testing.T) {
+	isolate(t)
+	if err := MoveHomeCard(0, HomeProfile, 3); err == nil {
+		t.Fatal("a move naming the wrong kind was accepted")
+	}
+	if err := MoveHomeCard(0, HomeMain, 6); err == nil {
+		t.Fatal("a move past the last place was accepted")
+	}
+	if err := MoveHomeCard(-1, HomeMain, 0); err == nil {
+		t.Fatal("a move from before the first card was accepted")
+	}
+	if err := SizeHomeCard(9, HomeMain, 2, 2); err == nil {
+		t.Fatal("a size of a card Home lacks was accepted")
+	}
+	if path, _ := Path(); fileExists(path) {
+		t.Fatal("a refused change wrote the settings file")
+	}
+}
+
+// A card is 1 to 4 columns wide and 1 to 3 rows tall; its size is kept
+// through a move, and Reset puts the default sizes back.
+func TestHomeSizeIsBoundedKeptAndReset(t *testing.T) {
+	isolate(t)
+	for _, bad := range [][2]int{{0, 1}, {5, 1}, {1, 0}, {1, 4}} {
+		if err := SizeHomeCard(0, HomeMain, bad[0], bad[1]); err == nil {
+			t.Fatalf("a %dx%d card was accepted", bad[0], bad[1])
+		}
+	}
+	if err := SizeHomeCard(2, HomeRecentRuns, 4, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := MoveHomeCard(2, HomeRecentRuns, 0); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ := homeLayoutState()
+	if got, want := strings.Join(sizes(l)[:2], ","), "recent-runs:4x3,main:0x0"; got != want {
+		t.Fatalf("after size and move = %s, want %s", got, want)
+	}
+	if !strings.Contains(readRaw(t), "cols: 4") || !strings.Contains(readRaw(t), "rows: 3") {
+		t.Fatalf("the size was not written:\n%s", readRaw(t))
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	for _, c := range l.Cards {
+		if c.Cols != 0 || c.Rows != 0 {
+			t.Fatalf("Reset kept a size: %+v", c)
+		}
+	}
+}
+
+// A layout this app keeps rather than uses takes no move and no size.
+func TestHomeMoveAndSizeLeaveANewerLayoutAlone(t *testing.T) {
+	isolate(t)
+	raw := "home:\n  version: 2\n  cards:\n    - kind: main\n    - kind: installed\n"
+	writeRaw(t, raw)
+	if err := MoveHomeCard(1, HomeDeliverables, 0); err == nil {
+		t.Fatal("a move on a newer layout was accepted")
+	}
+	if err := SizeHomeCard(0, HomeMain, 2, 2); err == nil {
+		t.Fatal("a size on a newer layout was accepted")
+	}
+	if readRaw(t) != raw {
+		t.Fatalf("the newer layout was rewritten:\n%s", readRaw(t))
+	}
+}
+
+// A sized layout still reads in an app that knows no sizes: its cards'
+// order is the list's, and the unknown keys are what an older app keeps.
+func TestHomeSizeIsPlainKeysAnOlderAppKeeps(t *testing.T) {
+	isolate(t)
+	if err := SizeHomeCard(0, HomeMain, 3, 2); err != nil {
+		t.Fatal(err)
+	}
+	var older struct {
+		Home struct {
+			Version int `yaml:"version"`
+			Cards   []struct {
+				Kind string         `yaml:"kind"`
+				Rest map[string]any `yaml:",inline"`
+			} `yaml:"cards"`
+		} `yaml:"home"`
+	}
+	if err := yaml.Unmarshal([]byte(readRaw(t)), &older); err != nil {
+		t.Fatal(err)
+	}
+	if older.Home.Version != HomeVersion || older.Home.Cards[0].Kind != HomeMain {
+		t.Fatalf("an older reader sees %+v", older.Home)
+	}
+	if older.Home.Cards[0].Rest["cols"] != 3 || older.Home.Cards[0].Rest["rows"] != 2 {
+		t.Fatalf("the size is not plain keys: %+v", older.Home.Cards[0].Rest)
+	}
+}

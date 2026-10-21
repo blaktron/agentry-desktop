@@ -18,6 +18,7 @@ import { PinnedCard } from "./home/PinnedCard";
 import { DeliverablesCard } from "./home/DeliverablesCard";
 import { ScheduledCard } from "./home/ScheduledCard";
 import { MainCard } from "./home/MainCard";
+import { HomeGrid } from "./home/HomeGrid";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
 import { localAttestation } from "./Library";
@@ -175,6 +176,25 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     return () => { live = false; off?.(); };
   }, [wantsScheduled, weeks, registry]);
 
+  // A move or a resize on the grid: one change Go makes, answered with the
+  // layout as it now is, or refused, which the page says above the grid.
+  const [arrangeError, setArrangeError] = useState<string | null>(null);
+  const [arranging, setArranging] = useState(false);
+  const arrange = async (change: () => Promise<app.HomeLayoutView>) => {
+    setArranging(true);
+    setArrangeError(null);
+    try {
+      setLayout({ value: await change(), error: null });
+    } catch (e) {
+      setArrangeError(String(e));
+    } finally {
+      setArranging(false);
+    }
+  };
+  // A layout this app keeps rather than uses (newer, unreadable), or one it
+  // could not read, draws the defaults and is not arranged here.
+  const arrangeable = !!layout.value && !layout.value.newer && !layout.value.unreadable;
+
   // A pin whose QuickAgent is gone from this computer is unpinned from its
   // card; Go answers with the layout as it now is.
   const unpin = (pin: Pin) => {
@@ -234,9 +254,10 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
           Every card is hidden. <Button variant="link" onClick={open.settings}>Home settings</Button> shows them again.
         </p>
       )}
-      <div className="build-ways home-cards">
-        {cards.map((c) => <div key={c.key} className="home-card-cell" data-home-card={c.kind}>{renderers[c.kind]?.(c)}</div>)}
-      </div>
+      {arrangeError && <Notice tone="warn">Home's cards could not be arranged: {arrangeError}</Notice>}
+      <HomeGrid cards={cards} render={(c) => renderers[c.kind]?.(c)} busy={arranging || !arrangeable}
+        onMove={(from, kind, to) => arrange(() => HomeAPI.Move(from, kind, to))}
+        onResize={(index, kind, size) => arrange(() => HomeAPI.Resize(index, kind, size.cols, size.rows))} />
       {runningLocal && (
         <RunPanel registry={registry} ns={runningLocal.namespace} name={runningLocal.name} version={runningLocal.version}
           attestation={localAttestation} local onClose={() => setRunningLocal(null)} />

@@ -509,10 +509,20 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 			began <- id
 		})
 	}()
+	started := func(id string) string {
+		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", id, exact)
+	}
 	select {
 	case id := <-began:
-		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", id, exact), nil
+		return started(id), nil
 	case <-r.done:
+		// A run that began and ended at once has both channels ready, and
+		// select picks either: one that began did start.
+		select {
+		case id := <-began:
+			return started(id), nil
+		default:
+		}
 		if r.err != nil {
 			return "", fmt.Errorf("the run of %s did not start: %w", exact, r.err)
 		}
@@ -667,7 +677,7 @@ func (m *mainLink) scheduleAdd(ref, when, task string) (string, error) {
 		return "", fmt.Errorf("%s/%s is not installed on this computer: install it with quickagent_install first", ns, name)
 	}
 	if it.Local {
-		return "", fmt.Errorf("%s/%s was installed from a folder: the person schedules it from the Scheduled page", ns, name)
+		return "", fmt.Errorf("%s/%s was installed from a folder: the person schedules it from the Schedule page", ns, name)
 	}
 	w, err := parseWhen(when, time.Now())
 	if err != nil {

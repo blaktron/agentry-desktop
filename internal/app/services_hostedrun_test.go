@@ -598,6 +598,10 @@ func signIn(t *testing.T, reg string) (home, runnerHome string) {
 // collected instead.
 func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 	t.Helper()
+	// A test that makes a second RunAPI, each its own app's, first stops the
+	// follow of the earlier ones: the follow reads emitEvent as it reports,
+	// which this call writes.
+	stopRunAPIsOf(t)
 	e := &emitted{}
 	old := emitEvent
 	emitEvent = func(_ *App, name string, data ...any) {
@@ -627,6 +631,9 @@ func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 	}
 	t.Cleanup(func() { emitEvent = old })
 	r := &RunAPI{app: &App{ctx: context.Background()}}
+	runAPIsMu.Lock()
+	runAPIs[t] = append(runAPIs[t], r)
+	runAPIsMu.Unlock()
 	// Cleanups run last-registered first, so this one runs before
 	// emitEvent is put back: a follow still going when the test ends is
 	// stopped and waited for, or its next report reaches the real Wails
@@ -634,17 +641,49 @@ func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 	// own. It does not run before a cleanup registered after it (fastPoll's):
 	// a test whose follow may still be going when it ends calls fastPoll
 	// first.
-	t.Cleanup(func() {
-		if cur := r.hostedCurrent(); cur != nil && cur.done != nil {
-			cur.cancel()
-			select {
-			case <-cur.done:
-			case <-time.After(10 * time.Second):
-				t.Error("a run In Agentry's follow did not stop within 10s of the test's end")
-			}
-		}
-	})
+	t.Cleanup(func() { stopRunAPIsOf(t) })
 	return r, e
+}
+
+var (
+	runAPIsMu sync.Mutex
+	runAPIs   = map[*testing.T][]*RunAPI{}
+)
+
+// stopRunAPIsOf stops and waits for the follow of every RunAPI newRunAPI
+// made for this test so far.
+func stopRunAPIsOf(t *testing.T) {
+	t.Helper()
+	runAPIsMu.Lock()
+	rs := runAPIs[t]
+	delete(runAPIs, t)
+	runAPIsMu.Unlock()
+	for _, r := range rs {
+		stopFollow(t, r.hostedCurrent())
+	}
+}
+
+// stopFollow cancels a follow and waits for its goroutine to end.
+func stopFollow(t *testing.T, cur *hostedFollow) {
+	t.Helper()
+	if cur == nil || cur.done == nil {
+		return
+	}
+	cur.cancel()
+	select {
+	case <-cur.done:
+	case <-time.After(10 * time.Second):
+		t.Error("a follow did not stop within 10s of being cancelled")
+	}
+}
+
+// newVoiceAPI is a VoiceAPI on r whose follow is stopped, and waited for,
+// when the test ends (before fastPoll's cleanup puts hostedPoll back).
+func newVoiceAPI(t *testing.T, r *RunAPI) *VoiceAPI {
+	t.Helper()
+	v := &VoiceAPI{app: r.app, run: r}
+	t.Cleanup(func() { stopFollow(t, v.hosted.current()) })
+	return v
 }
 
 // emitted collects what the panel would have received: the run-log lines

@@ -42,6 +42,12 @@ func newBGRig(t *testing.T) *bgRig {
 		r.mu.Unlock()
 	}
 	t.Cleanup(func() {
+		// Work the app started on goroutines reads these hooks, and an agent
+		// that is stopped tells the tray: all of it ends before they are put
+		// back, or the tray this machine really has is started.
+		r.s.bg.launching.Wait()
+		r.p.stopAll()
+		r.p.followers.Wait()
 		windowShow = saved[0].(func(context.Context))
 		windowHide = saved[1].(func(context.Context))
 		appQuit = saved[2].(func(context.Context))
@@ -81,7 +87,8 @@ func TestTheCloseHidesWhileABackgroundAgentIsEnabledAndQuitQuits(t *testing.T) {
 		}
 	}
 	r.p.followers.Wait()
-	// The note is shown on a goroutine of its own.
+	// Main is stopped on a goroutine of its own, as the note is shown.
+	r.s.bg.launching.Wait()
 	var hidden int
 	var notices []string
 	for range 100 {

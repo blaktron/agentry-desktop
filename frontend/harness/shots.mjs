@@ -380,13 +380,13 @@ const states = [
   // change to the token table is seen everywhere it
   // lands, not only in the states above.
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell, a sub-item of Library shown only inside it; Validate is not listed outside Build", locator: '[data-preview="browse"]', expectOrder: [
-    ['[data-preview="browse"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="browse"] .sidebar .nav-item', ["Home", "Library", "Browse", "Schedule", "Build", "Settings"]],
     ['[data-preview="browse"] .sidebar .nav-item.active', ["Library", "Browse"]],
     ['[data-preview="browse"] .sidebar .nav-item[aria-current="page"]', ["Browse"]],
   ] },
   { name: "page-browse-query", url: "/pages.html#browse-query", note: "Browse opened from the Library's search: the words carried over and searched", locator: '[data-preview="browse"]', expectValue: ['[data-preview="browse"] input[type="search"]', "triage"], expectText: ["1 result", "acme/pr-triage"], expectNoText: "demo1/incident-summarizer" },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell: Library lit, Browse not listed", locator: '[data-preview="agent"]', expectOrder: [
-    ['[data-preview="agent"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="agent"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings"]],
     ['[data-preview="agent"] .sidebar .nav-item.active', ["Library"]],
   ] },
   // Home: the
@@ -396,7 +396,7 @@ const states = [
     expectText: ["Hello, Chris.", "4 QuickAgents on this computer.", "me/csv-quality-check", "agentry/changelog-from-git", "Standard", "40 credits", "On this computer", "15 minutes", "~/Downloads/agentry-out"],
     expectNoText: ["acme/release-notes", "Top up credits"],
     expectOrder: [
-      ['[data-preview="home"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]],
+      ['[data-preview="home"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings"]],
       ['[data-preview="home"] .sidebar .nav-item[aria-current="page"]', ["Home"]],
       ['[data-preview="home"] .build-way-main', ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults"]],
     ] },
@@ -490,8 +490,8 @@ const states = [
   { name: "page-home-pin-run-local", url: "/pages.html#home-pins-four", note: "Run on a folder install's pin opens its run setup over Home, as the Library's does", locator: ".modal",
     click: '[data-preview="home"] [data-pin="me/csv-quality-check"] button:text-is("Run")', expectText: ["Run me/csv-quality-check@0.1.0", "It was installed from a folder on this computer"] },
   { name: "page-scheduled", url: "/pages.html", note: "the Scheduled page: October's grid with dots that ran, failed, were missed and are due, the chosen day, Upcoming, each schedule's actions and the History, which says what happened and never reads as done when nothing ran", locator: '[data-preview="scheduled"]',
-    expectText: ["Scheduled", "Schedule a new run", "October 2026", "Morning digest", "every day at 09:00 (Europe/London)", "Runs while you are signed out too", "Paused", "Resume", "Run now", "Missed: the computer was off", "Failed (docker, exit 13)", "Upcoming", "History"],
-    expectOrder: [['[data-preview="scheduled"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]]],
+    expectText: ["Schedule", "Schedule a new run", "October 2026", "Morning digest", "every day at 09:00 (Europe/London)", "Runs while you are signed out too", "Paused", "Resume", "Run now", "Missed: the computer was off", "Failed (docker, exit 13)", "Upcoming", "History"],
+    expectOrder: [['[data-preview="scheduled"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings"]]],
     expectSelector: '[data-preview="scheduled"] .cal-dot.tone-bad' },
   { name: "page-scheduled-hosted", url: "/pages.html#scheduled-hosted", note: "a schedule In Agentry beside this computer's: labelled In Agentry in the list, the calendar, Upcoming and History; a fire that started a run says so, never done, and one skipped for credits says nothing ran", locator: '[data-preview="scheduled"]',
     expectText: ["Weekly report", "In Agentry", "Runs In Agentry, whether or not this computer is on", "Run started", "Skipped: there were not enough credits. Nothing ran."], expectSelector: '[data-preview="scheduled"] [data-hosted-schedule] button:text-is("Run now")' },
@@ -529,12 +529,30 @@ const states = [
     expectText: ["Scheduled", "October 2026", "2 schedules on this computer.", "Next", "Morning digest"],
     expectOrder: [['[data-preview="home"] .build-way-main', ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]], ['[data-preview="home"] [data-scheduled-next] li .small:first-child', ["Sat 10 Oct, 09:00", "Sun 11 Oct, 09:00", "Mon 12 Oct, 09:00"]]],
     expectSelector: '[data-preview="home"] [data-home-card="scheduled"] [data-month-grid="mini"] .cal-dot.tone-bad' },
+  // Home's grid: a card dragged onto another takes its place, a corner
+  // dragged snaps the card's size, and both handles take the arrow keys.
+  { name: "page-home-grid", url: "/pages.html", note: "Home's grid: four columns, each card two by two until it is sized, with its move and resize handles on hover", locator: '[data-preview="home"] .home-grid',
+    expectSelector: '[data-preview="home"] .home-grid[data-home-columns="4"] [data-home-card="main"][data-cols="2"][data-rows="2"]' },
+  { name: "page-home-drag", url: "/pages.html", note: "Run defaults dragged onto Agentry Helper takes its place, and Go is asked to move it there", locator: '[data-preview="home"] .home-grid',
+    drag: ['[data-preview="home"] [data-home-card="run-defaults"] .build-way-title', '[data-preview="home"] [data-home-card="main"] .build-way-title'],
+    expectSelector: '[data-preview="home"] .home-grid > .home-card-cell:first-child[data-home-card="run-defaults"]' },
+  { name: "page-home-resize", url: "/pages.html", note: "Recent runs' corner dragged right and down: it snaps one column wider and one row taller", locator: '[data-preview="home"] .home-grid',
+    dragBy: ['[data-preview="home"] [data-home-resize="recent-runs"]', 260, 200],
+    expectSelector: '[data-preview="home"] [data-home-card="recent-runs"][data-cols="3"][data-rows="3"]' },
+  { name: "page-home-keys", url: "/pages.html", note: "the keyboard: the move handle's Right arrow moves Agentry Helper one place later", locator: '[data-preview="home"] .home-grid',
+    focusPress: ['[data-preview="home"] [data-home-grip="main"]', "ArrowRight"],
+    expectSelector: 'body[data-home-moved="main 0->1"]' },
+  { name: "page-home-keys-resize", url: "/pages.html", note: "the keyboard: the resize handle's Down arrow makes Profile one row taller", locator: '[data-preview="home"] .home-grid',
+    focusPress: ['[data-preview="home"] [data-home-resize="profile"]', "ArrowDown"],
+    expectSelector: '[data-preview="home"] [data-home-card="profile"][data-cols="2"][data-rows="3"]' },
+  { name: "page-home-narrow", url: "/pages.html", note: "a narrow window: two columns, every card at most two wide", locator: '[data-preview="home"] .home-grid', width: 820,
+    expectSelector: '[data-preview="home"] .home-grid[data-home-columns="2"]' },
   { name: "page-home-scheduled-open", url: "/pages.html#home-scheduled", note: "a press anywhere on the Scheduled card opens the Scheduled page", locator: '[data-preview="home"]',
     click: '[data-preview="home"] [data-home-card="scheduled"] .build-way', expectSelector: 'body[data-open="scheduled"]' },
   { name: "page-home-scheduled-hosted", url: "/pages.html#home-scheduled-hosted", note: "the Scheduled card with a schedule In Agentry merged: both counted, the month's dots from both, the next three from both, the hosted one marked", locator: '[data-preview="home"] [data-home-card="scheduled"]',
     expectText: ["2 schedules on this computer, 1 In Agentry.", "Weekly report"], expectSelector: '[data-preview="home"] [data-home-card="scheduled"] [data-in-agentry]' },
   { name: "page-home-scheduled-empty", url: "/pages.html#home-scheduled-empty", note: "the Scheduled card with nothing scheduled: an empty month and where to start", locator: '[data-preview="home"] [data-home-card="scheduled"]',
-    expectText: ["Nothing is scheduled on this computer yet.", "Schedule a run from the Scheduled page."] },
+    expectText: ["Nothing is scheduled on this computer yet.", "Schedule a run from the Schedule page."] },
   { name: "page-home-scheduled-nocli", url: "/pages.html#home-scheduled-nocli", note: "no agentry command on this computer: the card says why, not just an empty month", locator: '[data-preview="home"] [data-home-card="scheduled"]',
     expectText: "Scheduling a run on this computer needs the agentry command, which was not found." },
   { name: "page-library-pin", url: "/pages.html", note: "Pin to Home on a Library row: Go places the pin, and the button turns to Unpin from Home", locator: '[data-preview="library"]',
@@ -544,7 +562,7 @@ const states = [
   { name: "page-home-pins-sixteen", url: "/pages.html#home-pins-sixteen", note: "four Pinned cards of four: the most Home holds", locator: '[data-preview="home"]',
     expectSelector: '[data-preview="home"] [data-home-card="pinned"] >> nth=3', expectNone: '[data-preview="home"] [data-home-card="pinned"] >> nth=4' },
   { name: "page-library", url: "/pages.html", note: "the Library under the shell (Installed and Browse in one section): what is installed on this computer, with a QuickAgent installed from a folder (local and unsigned, Run in place of Details), the search and the way on to Browse", locator: '[data-preview="library"]', expectText: ["The QuickAgents installed on this computer.", "Installed on this computer", "me/csv-quality-check", "local, unsigned", "from a folder on this computer; no registry holds it", "Find more QuickAgents"], expectOrder: [
-    ['[data-preview="library"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="library"] .sidebar .nav-item', ["Home", "Library", "Browse", "Schedule", "Build", "Settings"]],
     ['[data-preview="library"] .sidebar .nav-item[aria-current="page"]', ["Library"]],
   ] },
   { name: "page-library-run-local", url: "/pages.html", note: "Run on the QuickAgent installed from a folder opens its run setup over the Library, from its own contract", locator: ".modal", click: '[data-preview="library"] button:text-is("Run")', expectText: ["Run me/csv-quality-check@0.1.0", "Step 1 of 4: Before you start", "It was installed from a folder on this computer"] },
@@ -561,7 +579,7 @@ const states = [
     expectText: ["The QuickAgents you publish", "4 QuickAgents · 2 private · 1 retired", "pat/incident-digest", "Fork of demo1/incident-summarizer@1.0.0", "stays private", "A fork stays private for good, so it cannot be made public.", "Make private", "Make public", "Restore", "Retire"],
     expectNoText: ["archive", "Archive"],
     expectOrder: [
-      ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Publisher", "Settings"]],
+      ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Browse", "Publisher", "Schedule", "Build", "Settings"]],
       ['[data-preview="publisher"] .sidebar .nav-item[aria-current="page"]', ["Publisher"]],
       ['[data-preview="publisher"] .agent-row:has-text("pat/incident-summarizer") .badge', ["Private", "Fork"]],
     ] },
@@ -584,7 +602,7 @@ const states = [
     expectNone: '[data-preview="publisher"] .agent-row button:text-is("Retire")' },
   { name: "page-publisher-signed-out", url: "/pages.html#publisher-signed-out", note: "signed out: no Publisher in the sidebar, and the page says to sign in", locator: '[data-preview="publisher"]',
     expectText: "Sign in to manage what you publish",
-    expectOrder: [['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]]] },
+    expectOrder: [['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings"]]] },
   // Fork in the desktop: Fork and the fork count on a
   // public QuickAgent's page, the dialog with the site's three facts, a
   // taken name asking for another, a fork's own page, and the Publisher
@@ -608,8 +626,8 @@ const states = [
   { name: "page-library-empty", url: "/pages.html#fresh", note: "nothing installed on this computer: the way to Browse", locator: '[data-preview="library"]', expectText: ["Nothing installed on this computer yet", "Find more QuickAgents"] },
   { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page's two cards, Describe it to AI first, then Build it by hand, with the same words and tagline as the site's /build", locator: '[data-preview="build"]', expectText: [BUILD_TAGLINE, DESCRIBE_COPY, BY_HAND_COPY, "Switch to Advanced"], expectOrder: [
     ['[data-preview="build"] .build-way-main', ["Describe it to AI", "Build it by hand"]],
-    ['[data-preview="build"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
-    ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
+    ['[data-preview="build"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "QuickAgent", "Validate", "Voice", "Knowledge", "Settings"]],
+    ['[data-preview="build"] .sidebar .nav-item.active', ["Build", "QuickAgent"]],
   ] },
   // The cards open their views: a press anywhere on Build it by hand
   // opens Step by step, and its Switch to Advanced opens Advanced.
@@ -682,7 +700,7 @@ const states = [
   { name: "page-voice", url: "/pages.html", note: "the Voice page as two cards: Local Voice and Cloud Voice, each a figure over its words and its status line; no Voice Writer card", locator: '[data-preview="voice"]',
     expectText: ["Local Voice", "Cloud Voice", "The voice kept on this computer. Edit it by hand or with AI for free", "AI Review checks every version before it goes live", "Voice set · updated", "· used by default.", "Live since", "a new version was flagged by AI Review"],
     expectNoText: ["Start the Voice Writer", "Submit to Agentry"],
-    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]] },
+    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "QuickAgent", "Voice", "Knowledge", "Settings"]] },
   { name: "page-voice-none", url: "/pages.html#voice-none", note: "the two cards with no voice in either place", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "No voice in your account yet."] },
   { name: "page-voice-signed-out", url: "/pages.html#voice-signed-out", note: "the two cards signed out: Cloud Voice asks for a sign-in", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "Sign in to keep a voice in your account."] },
   { name: "page-voice-local", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "the Local Voice page: Download is Already the same (the digests match), Upload says it asks first because the account's flagged version is newer and costs 1 credit, Edit with AI, the switch shared with Run defaults, the editor and Delete", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
@@ -723,8 +741,8 @@ const states = [
   { name: "page-voice-standard", url: "/pages.html#voice-standard", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], note: "the Cloud Voice page on Standard with this cycle's Voice Writer run used: Edit with AI held, the date the next is theirs, and the upgrade", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
     expectText: ["this cycle's runs are used. The next is yours on 28 October 2026.", "Upgrade"] },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it", locator: '[data-preview="validate"]', expectOrder: [
-    ['[data-preview="validate"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
-    ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],
+    ['[data-preview="validate"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "QuickAgent", "Validate", "Voice", "Knowledge", "Settings"]],
+    ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "QuickAgent", "Validate"]],
     ['[data-preview="validate"] .sidebar [aria-current="page"]', ["Validate"]],
   ] },
   // Settings as five cards: the landing with each
@@ -737,6 +755,25 @@ const states = [
   // active registry holds a token, first on the landing.
   { name: "settings-landing-profile", url: "/pages.html", note: "signed in: the Profile card first on the landing", locator: '[data-preview="settings"]',
     expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Profile", "Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
+  // The sidebar on Settings: the landing lights Settings and lists every
+  // section beneath it; a section's row opens it and is the one marked open.
+  { name: "sidebar-settings-sections", url: "/pages.html", note: "the sidebar on the Settings landing: Settings lit with its twelve sections beneath it", locator: '[data-preview="settings"] .sidebar',
+    expectOrder: [
+      ['[data-preview="settings"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings", "Profile", "Report design", "Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Destinations", "Home", "Licences"]],
+      ['[data-preview="settings"] .sidebar .nav-item[aria-current="page"]', ["Settings"]],
+    ] },
+  { name: "sidebar-settings-section-open", url: "/pages.html", note: "a section's row in the sidebar opens that section, and only it is marked open", locator: '[data-preview="settings"]', click: '[data-preview="settings"] .sidebar [data-nav="section:run-defaults"]',
+    expectSelector: '[data-preview="settings"] [data-settings-section="run-defaults"]',
+    expectOrder: [
+      ['[data-preview="settings"] .sidebar .nav-item[aria-current="page"]', ["Run defaults"]],
+      ['[data-preview="settings"] .sidebar .nav-item.active', ["Settings", "Run defaults"]],
+    ] },
+  { name: "sidebar-build-collapse", url: "/pages.html", note: "Build is a section, not a page: on QuickAgent a click on Build collapses its rows and Build stays lit", locator: '[data-preview="build"] .sidebar', click: '[data-preview="build"] .sidebar [data-nav="build"]',
+    expectSelector: '[data-preview="build"] .sidebar [data-nav="build"][aria-expanded="false"]',
+    expectOrder: [
+      ['[data-preview="build"] .sidebar .nav-item', ["Home", "Library", "Schedule", "Build", "Settings"]],
+      ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
+    ] },
   { name: "settings-landing-signed-out", url: "/pages.html?active=anon", note: "the active registry not signed in: no Profile card", locator: '[data-preview="settings"]',
     expectOrder: ['[data-preview="settings"] .settings-card-link strong', ["Registry settings", "Update settings", "Coding tools", "Persistent Agents", "Run defaults", "Provider settings", "Connections", "Home"]] },
   { name: "settings-profile", url: "/pages.html?settings=profile", note: "Profile: the handle, the verified email, signed up with Google, the display name; Standard's credits, allowance, private QuickAgents, knowledge, hosted-run caps, Upgrade", locator: '[data-preview="settings"]',
@@ -1071,6 +1108,34 @@ try {
         await page.locator(state.focusPress[0]).first().focus();
         await page.keyboard.press(state.focusPress[1]);
         await page.waitForTimeout(300);
+      }
+      // drag: [from, to], a press on the first element's middle, moved in
+      // steps onto the second's, and released, as a person drags with a
+      // mouse; dragBy: [selector, dx, dy], the same by an offset.
+      const dragPath = async (x0, y0, x1, y1) => {
+        await page.mouse.move(x0, y0);
+        await page.mouse.down();
+        for (let i = 1; i <= 12; i++) await page.mouse.move(x0 + ((x1 - x0) * i) / 12, y0 + ((y1 - y0) * i) / 12);
+        await page.waitForTimeout(150);
+        await page.mouse.up();
+        await page.waitForTimeout(400);
+      };
+      const middle = async (sel) => {
+        const loc = page.locator(sel).first();
+        await loc.scrollIntoViewIfNeeded();
+        const b = await loc.boundingBox();
+        if (!b) throw new Error(`${state.name}: nothing to drag at ${sel}`);
+        return [b.x + b.width / 2, b.y + b.height / 2];
+      };
+      if (state.drag) {
+        const [x0, y0] = await middle(state.drag[0]);
+        const [x1, y1] = await middle(state.drag[1]);
+        await dragPath(x0, y0, x1, y1);
+      }
+      if (state.dragBy) {
+        await page.locator(state.dragBy[0]).first().hover({ force: true });
+        const [x0, y0] = await middle(state.dragBy[0]);
+        await dragPath(x0, y0, x0 + state.dragBy[1], y0 + state.dragBy[2]);
       }
       // thenClick: a click made after those, on what they opened.
       for (const sel of [state.thenClick ?? []].flat()) {

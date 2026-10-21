@@ -34,7 +34,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // Pinned from the Scheduled page's options menu. Not a default:
   // Reset Home removes it.
   scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
-    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Scheduled page adds it." },
+    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Schedule page adds it." },
 };
 
 import type { settings } from "../wailsjs/go/models";
@@ -42,9 +42,15 @@ import type { settings } from "../wailsjs/go/models";
 // The one size today, the Build, Voice and Knowledge cards'.
 export type HomeCardSize = "large";
 
-export type LayoutCard = Pick<settings.HomeCard, "kind" | "hidden" | "size"> & { pins?: Pick<settings.HomePin, "ref" | "registry">[] };
+export type LayoutCard = Pick<settings.HomeCard, "kind" | "hidden" | "size" | "cols" | "rows"> & { pins?: Pick<settings.HomePin, "ref" | "registry">[] };
 // pins: a Pinned card's, in their rows' order; empty for every other kind.
-export type DrawnCard = { kind: HomeCardKind; key: string; size: HomeCardSize; pins: Pick<settings.HomePin, "ref" | "registry">[] };
+// index: the card's place in the layout, hidden cards counted, which a move
+// or a resize names. cols and rows: its stored size on the grid, absent
+// until the person sizes it.
+export type DrawnCard = {
+  kind: HomeCardKind; key: string; size: HomeCardSize; pins: Pick<settings.HomePin, "ref" | "registry">[];
+  index: number; cols?: number; rows?: number;
+};
 
 const isKind = (k: string): k is HomeCardKind => Object.prototype.hasOwnProperty.call(HOME_CARDS, k);
 
@@ -62,13 +68,22 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
       if (seen.has(c.kind)) return;
       seen.add(c.kind);
     }
-    out.push({ kind: c.kind, key: HOME_CARDS[c.kind].multiple ? `${c.kind}-${i}` : c.kind, size: "large", pins: c.pins ?? [] });
+    // A Pinned card's key is its first pin, so it keeps its key, and its
+    // cell, when a move changes its place; its place too, in a layout that
+    // names that pin twice.
+    let key: string = c.kind;
+    if (HOME_CARDS[c.kind].multiple) {
+      key = `${c.kind}-${c.pins?.[0] ? `${c.pins[0].registry ?? ""} ${c.pins[0].ref}` : i}`;
+      if (seen.has(key)) key += `-${i}`;
+      seen.add(key);
+    }
+    out.push({ kind: c.kind, key, size: "large", pins: c.pins ?? [], index: i, cols: c.cols || undefined, rows: c.rows || undefined });
   });
   return out;
 }
 
-// Settings → Home: a switch per default card, the pins, Reset Home.
-// The stored list carries an order and sizes; Settings offers neither yet.
+// Settings → Home: a switch per default card, the pins, Reset Home. The
+// order and the sizes are set on Home itself, by dragging.
 
 /** The default cards, in their default order: Settings → Home's switches.
  * Go shows or hides these by kind (HomeAPI.SetShown); a Pinned card goes

@@ -917,8 +917,10 @@ func (p *PersistentAPI) ChooseShare(name string) (*PersistentAgentView, error) {
 	return p.Get(name)
 }
 
-// Reset wipes a stopped agent's conversation and files, after a native
-// confirmation: its two volumes and its transcript. Its receipts stay.
+// Reset puts an agent back to its defaults after a native confirmation:
+// its conversation, its files and everything the person chose for it. One
+// running here is stopped first; one another client runs is refused. Its
+// share folder's files and its receipts stay.
 func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -928,14 +930,29 @@ func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
+	starting := p.starting[a.Name] != nil
+	p.mu.Unlock()
+	if starting {
+		return nil, fmt.Errorf("the %s is starting: wait for it, then reset it", a.Title)
+	}
 	_, here := p.running(a.Name)
-	if held, _ := persistent.Held(home, a.Name); held || here {
-		return nil, fmt.Errorf("the %s is running: stop it first", a.Title)
+	if held, _ := persistent.Held(home, a.Name); held && !here {
+		return nil, fmt.Errorf("the %s is running in another client: stop it there first", a.Title)
 	}
 	cfg, _ := persistent.LoadConfig(home, a.Name)
 	who := called(a, cfg)
-	if err := p.app.askConsent("Reset "+who+"?", "This wipes "+who+"'s conversation and its own files (its two volumes). Its share folder and the receipts of its segments are kept. Its next start begins a new conversation."); err != nil {
+	body := "This puts " + who + " back to its defaults. It wipes its conversation, its own files (its two volumes), its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept."
+	if here {
+		body += " It is running: it is stopped first."
+	}
+	if err := p.app.askConsent("Reset "+who+"?", body); err != nil {
 		return nil, err
+	}
+	if here {
+		if _, err := p.Stop(a.Name); err != nil {
+			return nil, err
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

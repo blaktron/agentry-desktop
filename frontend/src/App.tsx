@@ -72,7 +72,7 @@ export type Route =
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
-const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Scheduled" } as const;
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Schedule" } as const;
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app.
@@ -247,6 +247,9 @@ export default function App() {
             agents={agentNavEntries(agents)}
             agent={route.page === "persistent" ? route.id : undefined}
             onOpenAgent={(id) => nav({ page: "persistent", id })}
+            sections={SECTIONS}
+            section={route.page === "settings" ? route.section : undefined}
+            onOpenSection={(id) => nav({ page: "settings", section: id as SettingsSection })}
           />
           <div className="foot">
             {/* Unsafe Mode in words, beside the red edge below. */}
