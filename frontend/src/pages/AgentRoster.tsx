@@ -8,7 +8,7 @@
 import { useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
-import { SHARE_SWITCH_LABEL, portOpenable, retryChanges, rosterGroups, rosterStateWords, serverShareSwitch, serverState } from "../persistentAgents";
+import { SHARE_SWITCH_LABEL, portOpenable, retryChanges, rosterGroups, rosterStateWords, serverShareSwitch, serverState, shareSwitchNote } from "../persistentAgents";
 
 /** The roster's entries grouped by kind, a switch on each the person may
  *  change. A switch on what they have not agreed to on this computer asks
@@ -19,32 +19,27 @@ export function RosterList({ agent, onChanged, onError }: {
   onError: (e: string | null) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const flip = async (id: string, on: boolean) => {
+  // One change at a time: every switch waits while one is applied.
+  const withBusy = async (id: string, f: () => Promise<app.PersistentAgentView>) => {
     setBusy(id);
     onError(null);
     try {
-      onChanged(await PersistentAPI.Configure(agent.name, { switch: { id, on } } as app.PersistentChange));
+      onChanged(await f());
     } catch (e) {
       onError(String(e));
     } finally {
       setBusy(null);
     }
   };
+  const flip = (id: string, on: boolean) => withBusy(id, () => PersistentAPI.Configure(agent.name, { switch: { id, on } } as app.PersistentChange));
   // Retry switches the failed server off, then on: its install starts
   // again, at once while the agent runs, else at its next start.
-  const retry = async (id: string) => {
-    setBusy(id);
-    onError(null);
-    try {
-      let v: app.PersistentAgentView | null = null;
-      for (const c of retryChanges(id)) v = await PersistentAPI.Configure(agent.name, c as app.PersistentChange);
-      if (v) onChanged(v);
-    } catch (e) {
-      onError(String(e));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const retry = (id: string) =>
+    withBusy(id, async () => {
+      const [off, on] = retryChanges(id);
+      await PersistentAPI.Configure(agent.name, off as app.PersistentChange);
+      return PersistentAPI.Configure(agent.name, on as app.PersistentChange);
+    });
   const open = (id: string) => {
     onError(null);
     PersistentAPI.OpenPort(agent.name, id.replace(/^port:/, "")).catch((e) => onError(String(e)));
@@ -57,6 +52,7 @@ export function RosterList({ agent, onChanged, onError }: {
           {g.entries.map((e) => {
             const server = e.kind === "server" ? serverState(agent, e) : null;
             const share = serverShareSwitch(e);
+            const note = share && shareSwitchNote(agent, share);
             return (
               <div key={e.id} className={`agent-roster-entry state-${e.state}`}>
                 <label className="check-row">
@@ -94,10 +90,10 @@ export function RosterList({ agent, onChanged, onError }: {
                     />
                     <span>
                       {SHARE_SWITCH_LABEL}
-                      {share.reason && (
+                      {note && (
                         <>
                           <br />
-                          <span className="small muted">{share.reason}</span>
+                          <span className="small muted">{note}</span>
                         </>
                       )}
                     </span>

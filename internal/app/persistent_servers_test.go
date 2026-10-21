@@ -174,3 +174,39 @@ func TestAStoppedAgentsShareSentenceFollowsTheMalwareCheck(t *testing.T) {
 		}
 	}
 }
+
+// A failed install shows on a stopped agent with its reason, and Retry's
+// two changes, the server off and on again, clear the failure without
+// asking anything the person had agreed to.
+func TestRetryingAFailedServerClearsItsFailure(t *testing.T) {
+	rig := newPersistentRig(t)
+	v, err := rig.p.AddServer("assistant", wordServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := serverEntry(t, v).ID
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ServerFailures = map[string]persistent.ServerFailure{id: {Reason: "not found in the configured registry"}}
+	if err := persistent.SaveConfig(rig.home, "assistant", cfg); err != nil {
+		t.Fatal(err)
+	}
+	v, err = rig.p.Get("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := serverEntry(t, v); e.State != "failed" || e.Reason != "not found in the configured registry" {
+		t.Fatalf("the failed entry: %+v", e)
+	}
+	asked := len(rig.dialogs())
+	for _, on := range []bool{false, true} {
+		if v, err = rig.p.Configure("assistant", PersistentChange{Switch: &PersistentSwitch{ID: id, On: on}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if e := serverEntry(t, v); e.State != "on" || e.Reason != "" || len(rig.dialogs()) != asked {
+		t.Fatalf("after Retry: %+v, %d dialogs", e, len(rig.dialogs())-asked)
+	}
+}

@@ -33,6 +33,7 @@ import {
   serverShareSwitch,
   retryChanges,
   installingAny,
+  shareSwitchNote,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -258,6 +259,13 @@ test("the share switch is offered on a server that may see the share, and shown 
   // Not a server, or a server the runner says nothing about: no switch.
   assert.equal(serverShareSwitch({ ...srv({}), kind: "knowledge" } as app.PersistentRosterEntry), null);
   assert.equal(serverShareSwitch(srv({})), null);
+  // Under the switch: the refusal, or, while the agent's own share folder
+  // is off, that the server sees it only while it is on.
+  const on = { id: "server:pypi-x:share", on: true, disabled: false };
+  const shareEntry = (state: string) => ({ id: "share", kind: "files", name: "Your share folder", grantedBy: "built-in", state, on: state !== "off", line: "" }) as app.PersistentRosterEntry;
+  assert.equal(shareSwitchNote(agent({ roster: [shareEntry("on")] }), on), null);
+  assert.equal(shareSwitchNote(agent({ roster: [shareEntry("off")] }), on), "Only while your share folder is on");
+  assert.equal(shareSwitchNote(agent({}), { id: "", on: false, disabled: true, reason: "why" }), "why");
 });
 
 test("the list is read again while a server installs", () => {

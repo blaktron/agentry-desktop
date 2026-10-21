@@ -210,6 +210,21 @@ export type ShareSwitch = { id: string; on: boolean; disabled: boolean; reason?:
 
 export const SHARE_SWITCH_LABEL = "Can see your share folder";
 
+/** What the switch says while the agent's own share folder is off: the
+ *  server sees the folder only while the agent has it. */
+export const SHARE_OFF_NOTE = "Only while your share folder is on";
+
+/** shareSwitchNote is the line under a server's share switch: why it is
+ *  disabled, or that it waits for the agent's share folder to be on. */
+export function shareSwitchNote(agent: Pick<app.PersistentAgentView, "roster">, s: ShareSwitch): string | null {
+  if (s.reason) return s.reason;
+  const share = agent.roster.find((e) => e.id === "share");
+  return share && !share.on ? SHARE_OFF_NOTE : null;
+}
+
+/** serverShareSwitch is the switch a server entry shows, or null for an
+ *  entry that is not a server, or a server the runner says nothing about.
+ *  A disabled switch has no id: nothing can be switched through it. */
 export function serverShareSwitch(e: app.PersistentRosterEntry): ShareSwitch | null {
   if (e.kind !== "server") return null;
   if (e.shareSwitch) return { id: e.shareSwitch, on: !!e.share, disabled: false };

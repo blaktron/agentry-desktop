@@ -172,7 +172,7 @@ func (p *PersistentAPI) startOnLaunch() {
 		if err != nil || !cfg.Enabled || !cfg.RunOnStart {
 			continue
 		}
-		if len(persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheck()), cfg)) > 0 {
+		if len(persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn()), cfg)) > 0 {
 			log.Printf("agentry-desktop: %s is set to run when Agentry starts, but its roster needs your agreement: start it from its page", a.Title)
 			continue
 		}
@@ -390,7 +390,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	if u, err := persistent.LoadUsage(home, a.Name); err == nil {
 		v.Lifetime = PersistentUsageView{Segments: u.Segments, InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, TotalTokens: u.TotalTokens, UserTurns: u.UserTurns, ToolCalls: u.ToolCalls}
 	}
-	roster := persistent.BuildRosterUnder(a, cfg, nil, malwareCheck())
+	roster := persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn())
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
 	st, starting := p.starting[a.Name]
@@ -459,6 +459,7 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer) []PersistentR
 				if err := persistent.ServerMaySeeShare(srv); err != nil {
 					v.ShareRefusal = err.Error()
 				}
+				break
 			}
 		}
 		out = append(out, v)
@@ -466,11 +467,12 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer) []PersistentR
 	return out
 }
 
-// malwareCheck is the malware-check setting of the runner policy the app
+// malwareCheckOn is the malware-check setting of the runner policy the app
 // starts its agents under, for a roster built while the agent does not run
 // here: the share's sentence says whether ClamAV checks its files. Off
 // when the policy is missing or unreadable, as a new one has it.
-func malwareCheck() bool {
+// It only reads: a Get never writes the default policy, which a start does.
+func malwareCheckOn() bool {
 	polFile, err := policy.Resolve("")
 	if err != nil {
 		return false
@@ -660,7 +662,7 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
 	}
-	if pending := persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheck()), cfg); len(pending) > 0 {
+	if pending := persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn()), cfg); len(pending) > 0 {
 		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {
 			return nil, err
 		}
