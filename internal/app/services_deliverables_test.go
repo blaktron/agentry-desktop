@@ -507,6 +507,9 @@ func TestTheHomeCardExaminesABoundedNumberOfBytes(t *testing.T) {
 // Every QuickAgent run and chat on this computer is given the folder while
 // the switch is on, and none when it is off.
 func TestARunAndAChatAreGivenTheDeliverablesFolderWhileTheSwitchIsOn(t *testing.T) {
+	// The test saves the chosen folder and the switch: its own settings, so
+	// a repeat of the test starts from a fresh install.
+	freshConfig(t)
 	f := newKnowledgeFixture(t)
 	r := f.k.run
 	var asked []string

@@ -43,7 +43,9 @@ type background struct {
 	quitting atomic.Bool
 	// hidden: the app was launched with loginitem.HiddenFlag.
 	hidden bool
-	// launching is the start of the agents set to run when Agentry starts.
+	// launching is the work the app starts on goroutines of its own: the
+	// start of the agents set to run when Agentry starts, and the stop of
+	// Main as the window closes. A caller that needs it over waits for it.
 	launching sync.WaitGroup
 }
 
@@ -129,7 +131,9 @@ func (s *Services) closeToBackground(ctx context.Context) bool {
 	}
 	windowHide(ctx)
 	s.followAgents(ctx)
+	s.bg.launching.Add(1)
 	go func() {
+		defer s.bg.launching.Done()
 		if _, err := s.persistent.Stop(mainAgent); err != nil {
 			log.Printf("agentry-desktop: stopping Agentry Helper as the window closed: %v", err)
 		}

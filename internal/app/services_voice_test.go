@@ -518,7 +518,7 @@ func TestTheVoiceWriterInAgentrySendsWebAddresses(t *testing.T) {
 	signIn(t, reg)
 	fastPoll(t)
 	r, _ := newRunAPI(t)
-	v := &VoiceAPI{app: r.app, run: r}
+	v := newVoiceAPI(t, r)
 	urls := []string{" https://paulgraham.com/greatwork.html", "", "https://paulgraham.com/hwh.html"}
 
 	if _, err := v.StartHosted(reg, "create", nil, urls, ""); err == nil || !strings.Contains(err.Error(), "does not read web addresses") {
@@ -574,7 +574,7 @@ func TestTheCloudPageFollowsAVoiceWriterRunAlreadyInFlight(t *testing.T) {
 	signIn(t, reg)
 	fastPoll(t)
 	r, _ := newRunAPI(t)
-	v := &VoiceAPI{app: r.app, run: r}
+	v := newVoiceAPI(t, r)
 
 	none, err := v.AttachHosted(reg)
 	if err != nil || none.Run != nil {
