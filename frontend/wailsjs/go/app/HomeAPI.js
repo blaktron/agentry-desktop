@@ -30,6 +30,14 @@ export function SetShown(arg1, arg2) {
   return window['go']['app']['HomeAPI']['SetShown'](arg1, arg2);
 }
 
+export function SetTheme(arg1) {
+  return window['go']['app']['HomeAPI']['SetTheme'](arg1);
+}
+
+export function Theme() {
+  return window['go']['app']['HomeAPI']['Theme']();
+}
+
 export function Unpin(arg1, arg2) {
   return window['go']['app']['HomeAPI']['Unpin'](arg1, arg2);
 }

@@ -16,6 +16,10 @@ export function Resize(arg1:number,arg2:string,arg3:number,arg4:number):Promise<
 
 export function SetShown(arg1:string,arg2:boolean):Promise<app.HomeLayoutView>;
 
+export function SetTheme(arg1:string):Promise<void>;
+
+export function Theme():Promise<string>;
+
 export function Unpin(arg1:string,arg2:string):Promise<app.HomeLayoutView>;
 
 export function UnpinScheduled():Promise<app.HomeLayoutView>;

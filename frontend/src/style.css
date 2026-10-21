@@ -1,7 +1,8 @@
 /* Agentry Desktop — the website's design tokens. One product:
    cream paper, brown-black ink, sand hairlines, one deep viridian for every
    action, one earth secondary (sienna), a tuned severity/syntax palette, a
-   light base with a prefers-color-scheme dark override. Deliberately
+   light base with a prefers-color-scheme dark override (and the person's
+   other themes beside it, in themes.css). Deliberately
    restrained — a trust product reads as calm and legible — and deliberately
    NOT the framework-default indigo/slate.
 
@@ -112,8 +113,9 @@
   color-scheme: light dark;
 }
 
+/* The dark table, unless the person fixed the light one (themes.css). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg: #16110d;
     --color-fg: #ece4d8;
     --color-lead: #d6cbbb;
@@ -1247,6 +1249,19 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .home-pins-card .home-card-list { gap: 10px; }
 .home-pins-card li { overflow-wrap: anywhere; }
 .home-said { margin: 8px 0 0; color: var(--color-ok); }
+/* Settings → Home → Theme: a tile per theme, its swatch and its line. */
+.theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.theme-choice {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-raised); cursor: pointer;
+}
+.theme-choice:hover { border-color: var(--color-border-strong); }
+.theme-choice.is-chosen { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+.theme-choice input { margin: 3px 0 0; accent-color: var(--color-accent); }
+.theme-choice:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.theme-swatch { display: flex; flex: none; gap: 3px; padding: 5px; border: 1px solid; border-radius: var(--radius-sm); }
+.theme-swatch span { width: 10px; height: 22px; border-radius: 2px; }
+.theme-choice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
 /* The figures' light lines (BuildWays.tsx), the site's convergence
    language: a beam pulses, a

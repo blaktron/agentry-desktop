@@ -57,7 +57,7 @@ export type SettingsPart =
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations"
-  | "home-cards" | "pins" | "reset-home" | "licences";
+  | "theme" | "home-cards" | "pins" | "reset-home" | "licences";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -122,8 +122,8 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "home", title: "Home",
-    sentence: "Which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
-    parts: [{ id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
+    sentence: "Which cards Home shows, the QuickAgents pinned to it, Reset Home, and the theme Agentry Desktop is drawn in.",
+    parts: [{ id: "theme", label: "Theme" }, { id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
   },
   {
     id: "licences", title: "Licences",

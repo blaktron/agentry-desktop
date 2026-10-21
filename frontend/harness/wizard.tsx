@@ -20,6 +20,7 @@
 // up, so the ending is still Nothing set up.
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
+import "../src/themes.css";
 
 // wizard.html#3-pendingRestart (or #6-pendingRestart) previews the runtime
 // step's container engine card, and the done recap, in that engine state:

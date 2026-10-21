@@ -68,6 +68,12 @@ func (h *HomeAPI) Resize(index int, kind string, cols, rows int) (*HomeLayoutVie
 	return homeView()
 }
 
+// Theme is the theme the app is drawn in: one of settings.Themes.
+func (h *HomeAPI) Theme() (string, error) { return settings.ThemeNow() }
+
+// SetTheme keeps the person's theme in desktop.yaml; the page applies it.
+func (h *HomeAPI) SetTheme(name string) error { return settings.SetTheme(name) }
+
 // Reset puts Home back to the default cards.
 func (h *HomeAPI) Reset() (*HomeLayoutView, error) {
 	if err := settings.ResetHome(); err != nil {

@@ -122,6 +122,93 @@ func Parse(raw string) Palettes {
 	return Palettes{Light: light, Dark: dark}
 }
 
+// Theme is one data-theme block of a themes stylesheet: what it declares
+// outside the dark media query (Light) and inside it (Dark). Scheme is the
+// color-scheme a theme fixes, "light" or "dark", whatever the operating
+// system says; empty for a theme that follows it.
+type Theme struct {
+	Name        string
+	Light, Dark Tokens
+	Scheme      string
+}
+
+var (
+	themeBlockRe  = regexp.MustCompile(`:root\[data-theme="([\w-]+)"\]\s*\{([^{}]*)\}`)
+	colorSchemeRe = regexp.MustCompile(`color-scheme\s*:\s*(light|dark)\s*;`)
+)
+
+// ParseThemes reads every :root[data-theme="name"] block of a themes
+// stylesheet, in the order the file first names each theme.
+func ParseThemes(raw string) []Theme {
+	css := commentRe.ReplaceAllString(raw, " ")
+	var darkParts []string
+	for {
+		body, start, end, ok := blockSpan(css, darkMediaRe)
+		if !ok {
+			break
+		}
+		darkParts = append(darkParts, body)
+		css = css[:start] + css[end:]
+	}
+	var out []Theme
+	at := map[string]int{}
+	get := func(name string) *Theme {
+		i, ok := at[name]
+		if !ok {
+			i = len(out)
+			at[name] = i
+			out = append(out, Theme{Name: name, Light: Tokens{}, Dark: Tokens{}})
+		}
+		return &out[i]
+	}
+	for _, m := range themeBlockRe.FindAllStringSubmatch(css, -1) {
+		t := get(m[1])
+		for k, v := range declarations(m[2]) {
+			t.Light[k] = v
+		}
+		if cs := colorSchemeRe.FindStringSubmatch(m[2]); cs != nil {
+			t.Scheme = cs[1]
+		}
+	}
+	for _, part := range darkParts {
+		for _, m := range themeBlockRe.FindAllStringSubmatch(part, -1) {
+			t := get(m[1])
+			for k, v := range declarations(m[2]) {
+				t.Dark[k] = v
+			}
+		}
+	}
+	return out
+}
+
+// Over is base with a theme laid over it in each scheme, as the cascade
+// lays them. A theme that fixes its scheme lays its block over the table
+// the base gives in each: the light table wherever the theme is light (the
+// base's dark block skips data-theme="light"), the base's own otherwise. A
+// theme that follows the system lays its light block over both tables and
+// its dark block over the dark one.
+func (t Theme) Over(base Palettes) Palettes {
+	lay := func(dst Tokens, srcs ...Tokens) Tokens {
+		out := Tokens{}
+		for k, v := range dst {
+			out[k] = v
+		}
+		for _, src := range srcs {
+			for k, v := range src {
+				out[k] = v
+			}
+		}
+		return out
+	}
+	switch t.Scheme {
+	case "light":
+		return Palettes{Light: lay(base.Light, t.Light), Dark: lay(base.Light, t.Light)}
+	case "dark":
+		return Palettes{Light: lay(base.Light, t.Light), Dark: lay(base.Dark, t.Light)}
+	}
+	return Palettes{Light: lay(base.Light, t.Light), Dark: lay(base.Dark, t.Light, t.Dark)}
+}
+
 // RGB is a colour in gamma-encoded sRGB, 0-255 per channel.
 type RGB [3]float64
 

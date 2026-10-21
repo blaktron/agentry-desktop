@@ -6,11 +6,16 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
+import "../src/themes.css";
 import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 import { HOME_DEFAULTS } from "../src/homeCards";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
+
+// ?theme=<id> draws the page in that theme, as Settings → Home sets it.
+const harnessTheme = new URLSearchParams(window.location.search).get("theme");
+if (harnessTheme) document.documentElement.dataset.theme = harnessTheme;
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -860,6 +865,9 @@ g.go = { app: {
     PinScheduled: async () => harnessSetShown("scheduled", true),
     Move: async (from: number, kind: string, to: number) => harnessMove(from, kind, to),
     Resize: async (index: number, kind: string, cols: number, rows: number) => harnessResize(index, kind, cols, rows),
+    Theme: async () => harnessTheme ?? "system",
+    // Recorded on the body, so a shot can say what was kept.
+    SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
     UnpinScheduled: async () => harnessUnpinScheduled(),
   },
   VoiceAPI: {

@@ -5,6 +5,7 @@
 // backend.
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
+import "../src/themes.css";
 import {
   Button, Card, PageHeader, Field, Input, Select, Textarea, Toolbar,
   EmptyState, Spinner, ErrorBox, Notice, Modal,
