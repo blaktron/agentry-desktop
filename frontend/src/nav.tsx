@@ -1,47 +1,13 @@
-import { Fragment } from "react";
+import { useEffect, useState } from "react";
+import { inBuild, navRows, type NavAgent, type NavPage, type NavRow, type NavSection } from "./navTree";
 
-// The sidebar's pages, one list shared by the app and the design harness so
-// the harness shows the navigation the app has.
-//
-// Validate is a sub-item of Build, shown only while the person is in Build
-// or on Validate, and Build stays lit on both: the site's sub-menu
-// convention, where a section's children show only inside it. Browse is a
-// sub-item of Library the same way.
-//
-// Publisher is shown only while the active registry is signed in: what it
-// lists is the signed-in person's own.
+// The sidebar, one component shared by the app and the design harness so
+// the harness shows the navigation the app has. Which rows there are, and
+// which is lit, is navTree.ts's.
 
-// The pages a sidebar item can open or stay lit on: App's Route["page"],
-// spelled out here because App imports this file.
-export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+export type { NavAgent, NavPage, NavSection };
 
-/** A persistent agent's entry, after Scheduled: the Assistant by the name
- *  the person gave it, with a dot for running or stopped. */
-export type NavAgent = { id: string; label: string; running: boolean };
-
-// needsSignIn: shown only while the active registry holds a token.
-type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
-
-const ITEMS: Item[] = [
-  // The page the app opens on.
-  // A run page is opened from Home's Recent runs, so Home stays lit on it.
-  { label: "Home", page: "home", also: ["run"] },
-  // Runs on this computer for later or on repeat.
-  { label: "Scheduled", page: "scheduled" },
-  // The QuickAgents installed on this computer, with Browse beneath it for
-  // finding more. An agent's page is reached from either, so Library stays
-  // lit on it.
-  { label: "Library", page: "library", also: ["agent"], sub: [{ label: "Browse", page: "browse" }] },
-  { label: "Knowledge", page: "knowledge" },
-  // The Writing Voice.
-  { label: "Voice", page: "voice" },
-  { label: "Build", page: "build", sub: [{ label: "Validate", page: "validate" }] },
-  // The QuickAgents the person publishes, with the owner actions.
-  { label: "Publisher", page: "publisher", needsSignIn: true },
-  { label: "Settings", page: "settings" },
-];
-
-export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false, agents = [], agent, onOpenAgent }: {
+export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false, agents = [], agent, onOpenAgent, sections = [], section, onOpenSection }: {
   page: NavPage;
   onNav?: (page: NavPage) => void;
   installedUpdates?: number;
@@ -51,57 +17,66 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
   agents?: NavAgent[];
   agent?: string;
   onOpenAgent?: (id: string) => void;
+  /** Settings' sections, listed beneath Settings while it is open; section
+   *  the one open. */
+  sections?: NavSection[];
+  section?: string;
+  onOpenSection?: (id: string) => void;
 }) {
-  const button = (item: Item, className: string, lit: boolean) => (
-    <button
-      key={item.page}
-      className={`nav-item ${className}${lit ? " active" : ""}`}
-      aria-current={item.page === page ? "page" : undefined}
-      onClick={() => onNav?.(item.page)}
-    >
-      {item.label}
-      {item.page === "library" && installedUpdates > 0 && (
-        <span className="badge warn nav-count" title={`${installedUpdates} installed QuickAgent${installedUpdates === 1 ? " has" : "s have"} a newer version`}>{installedUpdates}</span>
-      )}
-    </button>
-  );
+  // Build is expanded by the person, and by opening one of its pages; it
+  // stays as they left it while they move around the rest of the app.
+  const [buildOpen, setBuildOpen] = useState(() => inBuild(page));
+  useEffect(() => { if (inBuild(page)) setBuildOpen(true); }, [page]);
+
+  const click = (r: NavRow) => {
+    const t = r.target;
+    if (t.kind === "page") onNav?.(t.page);
+    else if (t.kind === "agent") onOpenAgent?.(t.id);
+    else if (t.kind === "section") onOpenSection?.(t.id);
+    else setBuildOpen((o) => !o);
+  };
+
+  const draw = (r: NavRow, depth: number) => {
+    const agentRow = r.target.kind === "agent";
+    const toggle = r.target.kind === "toggle";
+    const className = [
+      "nav-item",
+      depth > 0 ? "nav-sub-item" : "",
+      agentRow ? "nav-agent" : "",
+      toggle ? "nav-group" : "",
+      r.lit ? "active" : "",
+      r.parent ? "parent" : "",
+    ].filter(Boolean).join(" ");
+    return (
+      <div key={r.key} className="nav-row">
+        <button
+          className={className}
+          aria-current={r.current ? "page" : undefined}
+          aria-expanded={toggle ? r.expanded : undefined}
+          title={agentRow ? `${r.label}: ${r.running ? "running" : "stopped"}` : undefined}
+          data-nav={r.key}
+          onClick={() => click(r)}
+        >
+          {agentRow && <span className={`agent-dot${r.running ? " on" : ""}`} aria-hidden="true" />}
+          {agentRow ? <span className="nav-agent-label">{r.label}</span> : r.label}
+          {toggle && <span className={`nav-chevron${r.expanded ? " open" : ""}`} aria-hidden="true" />}
+          {r.key === "library" && installedUpdates > 0 && (
+            <span className="badge warn nav-count" title={`${installedUpdates} installed QuickAgent${installedUpdates === 1 ? " has" : "s have"} a newer version`}>{installedUpdates}</span>
+          )}
+        </button>
+        {r.children && (
+          <div className="nav-sub" role="group" aria-label={r.childrenLabel}>
+            {r.children.map((c) => draw(c, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const rows = navRows({ page, signedIn, agents, agent, sections, section, buildOpen });
   return (
     <nav className="sidebar-nav" aria-label="Pages">
-      {ITEMS.filter((item) => !item.needsSignIn || signedIn).map((item) => {
-        // A parent whose sub-item is open stays lit in its colour without
-        // the fill the open page carries (style.css .nav-item.parent).
-        const subOpen = item.sub?.some((s) => s.page === page) ?? false;
-        const lit = item.page === page || (item.also?.includes(page) ?? false) || subOpen;
-        return (
-          <Fragment key={item.page}>
-            {button(item, subOpen ? "parent" : "", lit)}
-            {item.sub && (item.page === page || subOpen) && (
-              <div className="nav-sub" role="group" aria-label={`${item.label} sections`}>
-                {item.sub.map((s) => button(s, "nav-sub-item", s.page === page))}
-              </div>
-            )}
-            {item.page === "scheduled" && agents.length > 0 && (
-              <div className="nav-agents" role="group" aria-label="Persistent agents">
-                {agents.map((a) => {
-                  const open = page === "persistent" && agent === a.id;
-                  return (
-                    <button
-                      key={a.id}
-                      className={`nav-item nav-agent${open ? " active" : ""}`}
-                      aria-current={open ? "page" : undefined}
-                      title={`${a.label}: ${a.running ? "running" : "stopped"}`}
-                      onClick={() => onOpenAgent?.(a.id)}
-                    >
-                      <span className={`agent-dot${a.running ? " on" : ""}`} aria-hidden="true" />
-                      <span className="nav-agent-label">{a.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </Fragment>
-        );
-      })}
+      {rows.map((r) => draw(r, 0))}
     </nav>
   );
 }

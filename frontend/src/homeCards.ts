@@ -34,7 +34,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // Pinned from the Scheduled page's options menu. Not a default:
   // Reset Home removes it.
   scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
-    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Scheduled page adds it." },
+    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Schedule page adds it." },
 };
 
 import type { settings } from "../wailsjs/go/models";

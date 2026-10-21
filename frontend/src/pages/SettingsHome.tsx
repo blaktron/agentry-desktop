@@ -175,7 +175,7 @@ export function HomeSettings() {
                 : `the ${pins.length} QuickAgents pinned there stay installed, and Pin to Home puts them back`}</>
               : null}
             {kept ? <>. The arrangement the settings file holds now is replaced, with any pins it holds</> : null}.
-            {hasScheduled ? <> The Scheduled card goes too: Pin to Home on the Scheduled page puts it back. Your schedules stay as they are.</> : null}
+            {hasScheduled ? <> The Scheduled card goes too: Pin to Home on the Schedule page puts it back. Your schedules stay as they are.</> : null}
           </p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmReset(false)}>Cancel</Button>

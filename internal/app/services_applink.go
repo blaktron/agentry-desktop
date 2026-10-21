@@ -667,7 +667,7 @@ func (m *mainLink) scheduleAdd(ref, when, task string) (string, error) {
 		return "", fmt.Errorf("%s/%s is not installed on this computer: install it with quickagent_install first", ns, name)
 	}
 	if it.Local {
-		return "", fmt.Errorf("%s/%s was installed from a folder: the person schedules it from the Scheduled page", ns, name)
+		return "", fmt.Errorf("%s/%s was installed from a folder: the person schedules it from the Schedule page", ns, name)
 	}
 	w, err := parseWhen(when, time.Now())
 	if err != nil {

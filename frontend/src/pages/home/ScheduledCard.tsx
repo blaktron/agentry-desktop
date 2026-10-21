@@ -32,7 +32,7 @@ export function ScheduledCard({ view, error, weeks, title, onOpen }: {
           <div className="home-scheduled-next">
             <p className="muted small home-scheduled-title">Next</p>
             {next.length === 0 ? (
-              <p className="muted small" data-scheduled-next-none>{view.schedules === 0 && !view.hostedSchedules ? "Schedule a run from the Scheduled page." : "Nothing is due."}</p>
+              <p className="muted small" data-scheduled-next-none>{view.schedules === 0 && !view.hostedSchedules ? "Schedule a run from the Schedule page." : "Nothing is due."}</p>
             ) : (
               <ul className="home-card-list" data-scheduled-next>
                 {next.map((f, k) => (
