@@ -109,8 +109,10 @@ func build() {
 	mu.Unlock()
 	systray.SetTooltip(m.Tooltip)
 	systray.SetOnTapped(async(m.OnOpen))
+	// The agents' items follow Open Agentry directly, and one separator
+	// stands before Quit, so a menu with no agent running has no empty
+	// section.
 	open := systray.AddMenuItem("Open Agentry", "Show the Agentry window")
-	systray.AddSeparator()
 	items := map[string]*systray.MenuItem{}
 	for _, name := range m.Agents {
 		it := systray.AddMenuItem(name, "Open this agent's page")
