@@ -522,6 +522,13 @@ type ScheduleMadeView struct {
 // saved, is kept in the system keychain, where the schedule's fires read it.
 // The command then finds both, and pins the key.
 func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.HostSignIn) (*ScheduleMadeView, error) {
+	return s.add(req, hostSignIns, "")
+}
+
+// add is Add for whoever asked: the person at the page (who is ""), or a
+// persistent agent, whose ask is put to the person in the schedule's native
+// dialog, which is then always raised.
+func (s *ScheduleAPI) add(req schedules.Request, hostSignIns map[string]run.HostSignIn, who string) (*ScheduleMadeView, error) {
 	unsafe := unsafeModeOn()
 	if err := s.gates(&req, unsafe); err != nil {
 		return nil, err
@@ -543,7 +550,7 @@ func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.Host
 	if !ck.Ready {
 		return nil, fmt.Errorf("a scheduled run of %s would not have what it needs:\n  - %s", req.Ref, strings.Join(ck.Gaps, "\n  - "))
 	}
-	yes, err := s.askScheduleConsent(req, ck, unsafe)
+	yes, err := s.askScheduleConsent(req, ck, unsafe, who)
 	if err != nil {
 		return nil, err
 	}
@@ -601,9 +608,13 @@ func (s *ScheduleAPI) readyHosts(ctx context.Context, c *schedules.CLI, req sche
 // the schedule takes: the release's capabilities when this version needs
 // them confirmed, the refusals the person lifted in the setup (each run
 // will carry them), and turning linger on. It reports whether one was
-// given, which the command takes as --yes; nothing to ask asks nothing.
-func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Check, unsafe bool) (bool, error) {
+// given, which the command takes as --yes; nothing to ask asks nothing,
+// unless an agent asked for the schedule (who).
+func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Check, unsafe bool, who string) (bool, error) {
 	var lines []string
+	if who != "" {
+		lines = append(lines, who+" asks to schedule "+req.Ref+" on this computer: "+describeWhen(req.When)+". Each scheduled run uses your model and your output folder with nobody there.")
+	}
 	if ck.NeedsConsent {
 		why := ck.ConsentReason
 		if why == "" {
@@ -692,7 +703,17 @@ func (s *ScheduleAPI) Resume(id string) error { return s.act("resume", id) }
 // Remove deletes a schedule after a native Yes/No (the rule for what cannot
 // be undone); its runs' folders are kept. A No is no error.
 func (s *ScheduleAPI) Remove(id, name string) (bool, error) {
-	if err := s.app.askConsent("Delete the schedule "+name+"?", "It will not run again, and its alarm goes from this computer's scheduler. The folders its runs wrote are kept.\n\nDelete it?"); err != nil {
+	return s.remove(id, name, "")
+}
+
+// remove is Remove for whoever asked: the person, or a persistent agent
+// (who), which the dialog then names.
+func (s *ScheduleAPI) remove(id, name, who string) (bool, error) {
+	lead := ""
+	if who != "" {
+		lead = who + " asks to delete this schedule. "
+	}
+	if err := s.app.askConsent("Delete the schedule "+name+"?", lead+"It will not run again, and its alarm goes from this computer's scheduler. The folders its runs wrote are kept.\n\nDelete it?"); err != nil {
 		if errors.Is(err, errNotConfirmed) {
 			return false, nil
 		}

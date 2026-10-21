@@ -1,12 +1,12 @@
 module github.com/blaktron/agentry-desktop
 
-go 1.27.2
+go 1.27.3
 
 require (
 	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.19
-	github.com/blaktron/agentry-cli v0.6.155
+	github.com/blaktron/agentry-cli v0.6.156
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0

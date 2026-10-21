@@ -36,13 +36,17 @@ const (
 	// → Home. It is a card, not one of the 16 QuickAgent pins, and it is no
 	// default: Reset Home removes it.
 	HomeScheduled = "scheduled"
+	// HomeMain is Main's card: a chat with Agentry's own persistent agent,
+	// first on Home. It starts nothing until the person sends a message.
+	HomeMain = "main"
 )
 
-// homeDefaults are the default cards, in their order: the Deliverables card
-// first, because the files a run was for are what a person comes back to.
+// homeDefaults are the default cards, in their order: Main's card first, the
+// place to ask Agentry for something, then the Deliverables card, because
+// the files a run was for are what a person comes back to.
 // Each is one card of its kind, shown or hidden by kind. The page's list is
 // HOME_DEFAULTS in frontend/src/homeCards.ts: the two change together.
-var homeDefaults = []string{HomeDeliverables, HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults}
+var homeDefaults = []string{HomeMain, HomeDeliverables, HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults}
 
 // HomeLayout is the stored layout. Rest keeps the keys this app does not
 // know.
@@ -140,7 +144,7 @@ func homeOf(s Settings) (HomeLayout, homeState) {
 	}
 	l := *s.Home
 	l.Version = HomeVersion
-	l.Cards = withDeliverables(l.Cards)
+	l.Cards = withMain(withDeliverables(l.Cards))
 	return l, homeOK
 }
 
@@ -157,6 +161,19 @@ func withDeliverables(cards []HomeCard) []HomeCard {
 		}
 	}
 	return append(slices.Clone(cards), HomeCard{Kind: HomeDeliverables})
+}
+
+// withMain is cards with Main's card put first when a stored layout holds
+// none, a Home arranged before the card existed. As with the Deliverables
+// card, once the layout is saved with it the card is the person's to hide,
+// and its hidden entry keeps it from being put back.
+func withMain(cards []HomeCard) []HomeCard {
+	for _, c := range cards {
+		if c.Kind == HomeMain {
+			return cards
+		}
+	}
+	return append([]HomeCard{{Kind: HomeMain}}, cards...)
 }
 
 func homeLayoutState() (HomeLayout, homeState, error) {

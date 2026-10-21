@@ -296,7 +296,7 @@ func TestTheShareFolderComesFromThePicker(t *testing.T) {
 // An agent the app does not offer is refused by every binding.
 func TestOnlyTheOfferedAgentsAreDriven(t *testing.T) {
 	rig := newPersistentRig(t)
-	for _, name := range []string{"main", "coder", "nobody"} {
+	for _, name := range []string{"coder", "nobody"} {
 		if _, err := rig.p.Start(name); err == nil {
 			t.Errorf("%s started", name)
 		}
