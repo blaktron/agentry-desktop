@@ -106,11 +106,23 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
 
+  // Read again when an install or a run Agentry Helper asked for ends.
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    // The harness has no runtime.
+    try { return EventsOn("applink:home-changed", () => setChanges((n) => n + 1)); } catch { return undefined; }
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    InstallAPI.ListInstalled().then(...settle(() => live)(setRecords));
+    return () => { live = false; };
+  }, [changes]);
+
   useEffect(() => {
     let live = true;
     const put = settle(() => live);
     HomeAPI.Layout().then(...put(setLayout));
-    InstallAPI.ListInstalled().then(...put(setRecords));
     // The launch check's snapshot: reading it never starts a check.
     InstallAPI.UpdatesStatus().then((v) => { if (live) { setUpdates(v.updates ?? []); setUpdateCount(v.available); } }).catch(() => {});
     SettingsAPI.RunDefaults().then(...put(setDefaults));
@@ -125,7 +137,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     let live = true;
     RunAPI.RecentRuns(registry, RUNS_READ).then(...settle(() => live)(setRecent));
     return () => { live = false; };
-  }, [registry, signedIn]);
+  }, [registry, signedIn, changes]);
 
   // The Deliverables card: the runs this computer remembers and each one's
   // envelope, read when Home opens and only while the layout holds the card.
@@ -137,7 +149,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     let live = true;
     RunAPI.RecentDeliverables(DELIVERABLE_ROWS).then(...settle(() => live)(setDeliverables));
     return () => { live = false; };
-  }, [wantsDeliverables]);
+  }, [wantsDeliverables, changes]);
 
   useEffect(() => {
     if (!signedIn) { setProfile(pending); return; }

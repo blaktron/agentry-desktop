@@ -48,7 +48,7 @@ import { HOME_DEFAULTS, cardSwitches, homeStatus } from "../src/homeCards.ts";
 test("Settings → Home has a switch for each default card, in the default order, whatever the layout's, then the Scheduled card", () => {
   const sw = cardSwitches([{ kind: "run-defaults" }, { kind: "installed", hidden: true }, { kind: "pinned", pins: [{ ref: "a/b" }] }, { kind: "recent-runs" }]);
   assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled"]);
-  assert.deepEqual(sw.map((s) => s.title), ["Main", "Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]);
+  assert.deepEqual(sw.map((s) => s.title), ["Agentry Helper", "Deliverables", "Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]);
   // A card the stored layout lacks is not drawn, so its switch is off;
   // Go adds it at the end when it is turned on.
   assert.deepEqual(sw.map((s) => s.shown), [false, false, true, false, false, true, false]);

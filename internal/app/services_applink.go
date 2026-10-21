@@ -48,11 +48,15 @@ import (
 // settings_open does.
 const eventOpenSettings = "applink:open-settings"
 
+// eventHomeChanged tells Home that an install or a run the agent asked for
+// changed what its cards read, so it reads them again.
+const eventHomeChanged = "applink:home-changed"
+
 // mainAgent is Main's name, its built-in's.
 const mainAgent = "main"
 
 // mainAsks is how a dialog names Main as the one asking.
-const mainAsks = "Main"
+const mainAsks = "Agentry Helper"
 
 // docsBase is the documentation site docs_read reads from, and nothing else.
 const docsBase = "https://docs.secureagentry.net"
@@ -401,6 +405,7 @@ func (m *mainLink) install(ref string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	emitEvent(m.app, eventHomeChanged)
 	out := "Installed: " + res.Message
 	if res.Warning != "" {
 		out += " (" + res.Warning + ")"
@@ -493,6 +498,7 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 	r := &mainRun{ref: exact, done: make(chan struct{})}
 	go func() {
 		defer close(r.done)
+		defer emitEvent(m.app, eventHomeChanged)
 		r.res, r.err = m.ops.run(it.Origin, ns+"/"+name+"@"+it.Version, task, inputs, share, m.ops.outputDir(), func(id string) {
 			m.mu.Lock()
 			if m.runs == nil {
@@ -537,17 +543,17 @@ func (m *mainLink) agreeToRun(exact, task string, files []string) error {
 		return nil
 	}
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "Main asks to run %s on this computer", exact)
+	fmt.Fprintf(&msg, "%s asks to run %s on this computer", mainAsks, exact)
 	if len(files) > 0 {
 		fmt.Fprintf(&msg, " on %s from its share folder", strings.Join(files, ", "))
 	}
 	msg.WriteString(".")
 	if t := strings.TrimSpace(task); t != "" {
 		// Main's words, quoted, so they cannot pass for the dialog's own.
-		fmt.Fprintf(&msg, "\n\nThe task Main wrote for it: %s", quoted(cut(t, 500)))
+		fmt.Fprintf(&msg, "\n\nThe task %s wrote for it: %s", mainAsks, quoted(cut(t, 500)))
 	}
-	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. Main may run this version again without asking.\n\nRun it?")
-	if err := m.app.askConsent("Run "+exact+" for Main?", msg.String()); err != nil {
+	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. " + mainAsks + " may run this version again without asking.\n\nRun it?")
+	if err := m.app.askConsent("Run "+exact+" for "+mainAsks+"?", msg.String()); err != nil {
 		return err
 	}
 	rec.Version = 1

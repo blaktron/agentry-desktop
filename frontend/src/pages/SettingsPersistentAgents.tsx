@@ -1,5 +1,5 @@
 // Settings → Persistent Agents: each agent the app offers, with its Enable
-// switch, Start or Stop, Configure and Reset. Main has none of the switch,
+// switch, Start or Stop, Configure and Reset. Agentry Helper (main) has none of the switch,
 // Open or Configure: it is on while its Home card is, and what it is given
 // is fixed. Configure is a card over the
 // page with everything the agent is given: its name and personality, its

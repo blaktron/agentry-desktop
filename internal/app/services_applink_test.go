@@ -179,7 +179,7 @@ func TestMainsInstallGoesThroughTheAppsInstall(t *testing.T) {
 	if a := rig.call(t, "quickagent_install", map[string]string{"ref": "acme/pdf-summary"}); a.IsError {
 		t.Fatal(a.Text)
 	}
-	if len(rig.ops.installs) != 1 || rig.ops.installs[0] != "Main acme/pdf-summary" {
+	if len(rig.ops.installs) != 1 || rig.ops.installs[0] != "Agentry Helper acme/pdf-summary" {
 		t.Fatalf("installs: %v", rig.ops.installs)
 	}
 	rig.installedHere("acme", "pdf-summary", "1.0.0")
@@ -205,7 +205,7 @@ func TestAnAgentsInstallAsksInOneNativeDialog(t *testing.T) {
 	if err := i.consentForInstall(plain, nil, mainAsks); err != nil {
 		t.Fatal(err)
 	}
-	if len(asked) != 1 || !strings.Contains(asked[0], "Main asks to install acme/demo@1.0.0") {
+	if len(asked) != 1 || !strings.Contains(asked[0], "Agentry Helper asks to install acme/demo@1.0.0") {
 		t.Fatalf("a plain install for Main asked %v", asked)
 	}
 	asked = nil
@@ -217,7 +217,7 @@ func TestAnAgentsInstallAsksInOneNativeDialog(t *testing.T) {
 	if err := i.consentForInstall(contract, nil, mainAsks); err != nil {
 		t.Fatal(err)
 	}
-	if len(asked) != 1 || !strings.Contains(asked[0], "|Main asks to install") || !strings.Contains(asked[0], "api.example.com") {
+	if len(asked) != 1 || !strings.Contains(asked[0], "|Agentry Helper asks to install") || !strings.Contains(asked[0], "api.example.com") {
 		t.Fatalf("a contract install for Main asked %v", asked)
 	}
 	// A No installs nothing.
@@ -246,7 +246,7 @@ func TestMainsFirstRunAsksOnceAndTakesItsFilesFromTheShare(t *testing.T) {
 	if a := rig.call(t, "quickagent_run", run); !a.IsError || !strings.Contains(a.Text, "said no") || len(rig.ops.runs) != 0 {
 		t.Fatalf("a declined run: %+v, runs %v", a, rig.ops.runs)
 	}
-	if len(rig.asked) != 1 || !strings.Contains(rig.asked[0], "Main asks to run acme/pdf-summary@1.0.0") || !strings.Contains(rig.asked[0], "share/report.pdf") {
+	if len(rig.asked) != 1 || !strings.Contains(rig.asked[0], "Agentry Helper asks to run acme/pdf-summary@1.0.0") || !strings.Contains(rig.asked[0], "share/report.pdf") {
 		t.Fatalf("the dialog: %v", rig.asked)
 	}
 
@@ -331,7 +331,7 @@ func TestMainsSchedulesGoThroughTheApp(t *testing.T) {
 		t.Fatalf("the request: %+v", req)
 	}
 	rig.ops.scheds = []schedules.Item{{ID: "k3m9x2p7qa", Name: "PDFs", Ref: "acme/pdf-summary", Version: "1.0.0", When: schedules.When{Kind: "daily", Time: "09:00"}}}
-	if a := rig.call(t, "schedule_remove", map[string]string{"schedule": "k3m9x2p7qa"}); a.IsError || rig.ops.removed[0] != "Main k3m9x2p7qa" {
+	if a := rig.call(t, "schedule_remove", map[string]string{"schedule": "k3m9x2p7qa"}); a.IsError || rig.ops.removed[0] != "Agentry Helper k3m9x2p7qa" {
 		t.Fatalf("schedule_remove: %+v, %v", a, rig.ops.removed)
 	}
 	if a := rig.call(t, "schedule_remove", map[string]string{"schedule": "nope"}); !a.IsError {

@@ -66,12 +66,12 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
 
   const noModel = modelSet === false;
   return (
-    <CardFrame title="Main" onOpen={onOpenSettings} className="home-card main-card" status={agent ? mainStatusLine(agent) : "Reading Main…"}>
+    <CardFrame title="Agentry Helper" onOpen={onOpenSettings} className="home-card main-card" status={agent ? mainStatusLine(agent) : "Reading Agentry Helper…"}>
       <div className="build-way-part main-card-chat">
-        <div className="main-card-scroll" ref={scroller} role="log" aria-live="polite" aria-label="Chat with Main">
+        <div className="main-card-scroll" ref={scroller} role="log" aria-live="polite" aria-label="Chat with Agentry Helper">
           {lines.length === 0 && !starting && !rec.chat.streaming && (
             <p className="agent-term-note">
-              {noModel ? "" : "Ask Main to find a QuickAgent, run one on a file in your mainshare folder, or schedule one."}
+              {noModel ? "" : "Ask Agentry Helper to find a QuickAgent, run one on a file in your mainshare folder, or schedule one."}
             </p>
           )}
           {lines.map((l, i) => {
@@ -88,16 +88,16 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
                 return <div key={i} className="agent-term-note">{l.text}</div>;
             }
           })}
-          {starting && <div className="agent-term-note">Starting Main…</div>}
+          {starting && <div className="agent-term-note">Starting Agentry Helper…</div>}
           {rec.chat.streaming && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
           {!starting && answering && !rec.chat.streaming && <div className="agent-term-note">thinking…</div>}
         </div>
         {noModel && (
           <p className="small" data-main-no-model>
-            Set up a model to talk to Main. <Button variant="link" onClick={onSetUpModel}>Settings → Provider</Button>
+            Set up a model to talk to Agentry Helper. <Button variant="link" onClick={onSetUpModel}>Settings → Provider</Button>
           </p>
         )}
-        {elsewhere && <p className="small muted">Main is running in {agent?.holder || "another client"}.</p>}
+        {elsewhere && <p className="small muted">Agentry Helper is running in {agent?.holder || "another client"}.</p>}
         {(error || rec.error) && <p className="small agent-term-warn" role="alert">{error || rec.error}</p>}
         <form
           className="agent-term-prompt main-card-prompt"
@@ -109,10 +109,10 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
           <span aria-hidden="true">&gt;</span>
           <input
             type="text"
-            aria-label="Message Main"
+            aria-label="Message Agentry Helper"
             value={draft}
             disabled={noModel || elsewhere || !agent}
-            placeholder={noModel ? "Set up a model first" : "Message Main"}
+            placeholder={noModel ? "Set up a model first" : "Message Agentry Helper"}
             onChange={(e) => setDraft(e.target.value)}
           />
           <Button type="submit" variant="primary" disabled={noModel || elsewhere || answering || !draft.trim()}>Send</Button>

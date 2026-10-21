@@ -704,7 +704,7 @@ const harnessAssistant = {
 
 // Main, stopped after a short conversation: Home's first card.
 const harnessMain = {
-  name: "main", title: "Main", displayName: "Main", state: "stopped",
+  name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
   share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/mainshare with you, read and write", fixed: true },
