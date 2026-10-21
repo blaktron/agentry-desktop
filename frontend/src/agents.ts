@@ -124,6 +124,11 @@ export function useAgentChat(name: string): AgentRecord {
   return record(name);
 }
 
+/** agentNamed is the agent's view as the list last read it. */
+export function agentNamed(name: string): app.PersistentAgentView | undefined {
+  return list.find((a) => a.name === name);
+}
+
 /** updateAgent puts a view a binding returned into the list. */
 export function updateAgent(v: app.PersistentAgentView) {
   const i = list.findIndex((a) => a.name === v.name);
@@ -137,4 +142,28 @@ export function forgetChat(name: string) {
   records.delete(name);
   early.delete(name);
   changed();
+}
+
+/** stopStart cancels an agent's start under way, and answers the error to
+ *  show, or null. */
+export async function stopStart(name: string): Promise<string | null> {
+  try {
+    updateAgent(await PersistentAPI.Stop(name));
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}
+
+/** startAgent starts an agent and puts its view into the list. It answers
+ *  the error to show, or null: a start that failed is shown by the agent's
+ *  own view (its failure), so its error is not shown twice. */
+export async function startAgent(name: string): Promise<string | null> {
+  try {
+    updateAgent(await PersistentAPI.Start(name));
+    return null;
+  } catch (e) {
+    const now = await refreshAgents();
+    return now.find((a) => a.name === name)?.failure ? null : String(e);
+  }
 }

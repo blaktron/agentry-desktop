@@ -57,14 +57,16 @@ export type SettingsPart =
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations"
-  | "home-cards" | "pins" | "reset-home" | "licences";
+  | "theme" | "home-cards" | "pins" | "reset-home" | "licences";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
 // the anchor its section page scrolls to when the landing's link names it.
-export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
+// needsSignIn: the landing offers the card, and the sidebar the row, only
+// while the active registry is signed in.
+export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[]; needsSignIn?: boolean }[] = [
   {
-    id: "profile", title: "Profile",
+    id: "profile", title: "Profile", needsSignIn: true,
     sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
     parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
   },
@@ -122,8 +124,8 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "home", title: "Home",
-    sentence: "Which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
-    parts: [{ id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
+    sentence: "Which cards Home shows, the QuickAgents pinned to it, Reset Home, and the theme Agentry Desktop is drawn in.",
+    parts: [{ id: "theme", label: "Theme" }, { id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
   },
   {
     id: "licences", title: "Licences",
@@ -341,7 +343,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
       <div className="settings-cards">
-        {SECTIONS.filter((s) => s.id !== "profile" || signedInTo(settings, activeRegistry)).map((s) => (
+        {SECTIONS.filter((s) => !s.needsSignIn || signedInTo(settings, activeRegistry)).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}

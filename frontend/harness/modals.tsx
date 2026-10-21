@@ -158,6 +158,7 @@
 //                                the browser and the start waits
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
+import "../src/themes.css";
 
 // In Agentry. The view is the panel's: what a run holds,
 // where it stands, and what it produced — the registry's numbers.

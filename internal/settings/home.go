@@ -319,6 +319,46 @@ func SizeHomeCard(i int, kind string, cols, rows int) error {
 	return Save(s)
 }
 
+// The themes Settings → Home offers, in its order. System follows the
+// operating system's light or dark setting with the base palette; each
+// other is a block of frontend/src/themes.css (internal/designtokens holds
+// the two lists together and audits every block's contrast).
+const ThemeSystem = "system"
+
+var Themes = []string{ThemeSystem, "light", "dark", "slate", "forest", "midnight", "contrast"}
+
+// ThemeNow is the stored theme, System when none is stored or the stored
+// one is not a theme this app has (a newer app's).
+func ThemeNow() (string, error) {
+	s, err := Load()
+	if err != nil {
+		return "", err
+	}
+	if s.Theme == "" || !slices.Contains(Themes, s.Theme) {
+		return ThemeSystem, nil
+	}
+	return s.Theme, nil
+}
+
+// SetTheme stores one of Themes; System is stored as none.
+func SetTheme(name string) error {
+	if !slices.Contains(Themes, name) {
+		return fmt.Errorf("%q is not a theme Agentry Desktop has", name)
+	}
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	if name == ThemeSystem {
+		name = ""
+	}
+	if s.Theme == name {
+		return nil
+	}
+	s.Theme = name
+	return Save(s)
+}
+
 // ResetHome removes the stored layout, so Home is the defaults again. It
 // is the one change a newer layout takes, because the person asked for it.
 func ResetHome() error {

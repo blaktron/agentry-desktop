@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import * as PersistentAPI from "../../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
 import { AgentMarkdown } from "../../AgentMarkdown";
-import { sendToAgent, updateAgent, useAgentChat, useAgents } from "../../agents";
+import { agentNamed, sendToAgent, startAgent, useAgentChat, useAgents } from "../../agents";
 import { CardFrame } from "../../cards";
-import { AGENT_STATES, MAIN_AGENT, mainStatusLine, termLines } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, mainStatusLine, startFailureLines, termLines } from "../../persistentAgents";
 import { Button } from "../../ui";
 
 // Home's Main card: a chat with Main, Agentry's own agent, in a terminal's
@@ -51,14 +50,16 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
       // The first message starts Main; Go asks natively first where its
       // folders have not been agreed to on this computer.
       setStarting(true);
-      try {
-        updateAgent(await PersistentAPI.Start(MAIN_AGENT));
-      } catch (e) {
-        setError(String(e));
-        setStarting(false);
+      const failed = await startAgent(MAIN_AGENT);
+      setStarting(false);
+      const now = agentNamed(MAIN_AGENT);
+      if (failed !== null || now?.state !== AGENT_STATES.running) {
+        // A start that failed says why; one stopped from Settings sends
+        // nothing, and the message stays to send again.
+        const why = now ? startFailureLines(now) : null;
+        setError(failed ?? (why ? [why.title, ...why.lines].join("\n") : null));
         return;
       }
-      setStarting(false);
     }
     setDraft("");
     await sendToAgent(MAIN_AGENT, text);
@@ -88,7 +89,7 @@ export function MainCard({ onOpenSettings, onSetUpModel }: {
                 return <div key={i} className="agent-term-note">{l.text}</div>;
             }
           })}
-          {starting && <div className="agent-term-note">Starting Agentry Helper…</div>}
+          {starting && <div className="agent-term-note">{agent?.stage ? `${agent.stage}…` : "Starting Agentry Helper…"}</div>}
           {rec.chat.streaming && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
           {!starting && answering && !rec.chat.streaming && <div className="agent-term-note">thinking…</div>}
         </div>

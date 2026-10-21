@@ -95,3 +95,11 @@ test("Settings opens its landing and lists every section beneath it while a Sett
   // Elsewhere the sections are not listed.
   assert.equal(rows({ page: "home" }).find((r) => r.key === "settings")?.children, undefined);
 });
+
+test("a section that needs a sign-in is listed only while signed in, as the landing shows its card", () => {
+  const sections = [{ id: "profile", title: "Profile", needsSignIn: true }, { id: "home", title: "Home" }];
+  const out = navRows({ page: "settings", buildOpen: false, sections });
+  assert.deepEqual(labels(out), ["Home", "Library", "Schedule", "Build", "Settings", "Home"]);
+  const inn = navRows({ page: "settings", buildOpen: false, sections, signedIn: true });
+  assert.deepEqual(labels(inn), ["Home", "Library", "Schedule", "Build", "Settings", "Profile", "Home"]);
+});
