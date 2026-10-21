@@ -212,8 +212,12 @@ type PersistentAgentView struct {
 	Personality string                 `json:"personality,omitempty"`
 	// Share is the share folder; DefaultShare says it is the agent's own
 	// default.
-	Share        string   `json:"share"`
-	DefaultShare bool     `json:"defaultShare"`
+	Share        string `json:"share"`
+	DefaultShare bool   `json:"defaultShare"`
+	// MalwareCheck says the runner policy's malware check is on: a file
+	// added to the share of an agent that checks it is checked with ClamAV
+	// before the agent reads it.
+	MalwareCheck bool     `json:"malwareCheck"`
 	Knowledge    []string `json:"knowledge"`
 	// RunOnStart says the agent starts when the app does.
 	RunOnStart bool `json:"runOnStart"`
@@ -390,7 +394,8 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	if u, err := persistent.LoadUsage(home, a.Name); err == nil {
 		v.Lifetime = PersistentUsageView{Segments: u.Segments, InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, TotalTokens: u.TotalTokens, UserTurns: u.UserTurns, ToolCalls: u.ToolCalls}
 	}
-	roster := persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn())
+	v.MalwareCheck = malwareCheckOn()
+	roster := persistent.BuildRosterUnder(a, cfg, nil, v.MalwareCheck)
 	p.mu.Lock()
 	sv, ours := p.sups[a.Name]
 	st, starting := p.starting[a.Name]

@@ -34,6 +34,7 @@ import {
   retryChanges,
   installingAny,
   shareSwitchNote,
+  shareCheckWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -271,4 +272,10 @@ test("the share switch is offered on a server that may see the share, and shown 
 test("the list is read again while a server installs", () => {
   assert.equal(installingAny([agent({ state: "running", roster: [srv({ state: "installing" })] })]), true);
   assert.equal(installingAny([agent({ state: "running", roster: [srv({ state: "on" }), srv({ state: "failed" })] })]), false);
+});
+
+test("the share folder's line says whether a file added there is checked for malware", () => {
+  assert.equal(shareCheckWords(false, true), ", and a file you add is checked for malware before it reads it");
+  assert.equal(shareCheckWords(false, false), ", and reads a file you add unchecked: the malware check is off on this computer");
+  assert.equal(shareCheckWords(true, true), ", and reads the files in it as they are");
 });

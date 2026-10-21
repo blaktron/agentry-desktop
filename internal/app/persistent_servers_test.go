@@ -164,6 +164,9 @@ func TestAStoppedAgentsShareSentenceFollowsTheMalwareCheck(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if v.MalwareCheck != on {
+			t.Fatalf("malwareCheck %v, the view says %v", on, v.MalwareCheck)
+		}
 		if v.Roster[0].ID != persistent.EntryShare || !strings.Contains(v.Roster[0].Line, want) {
 			t.Fatalf("malwareCheck %v, the stopped view's share: %q", on, v.Roster[0].Line)
 		}

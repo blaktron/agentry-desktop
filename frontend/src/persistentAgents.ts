@@ -238,6 +238,17 @@ export function installingAny(agents: Pick<app.PersistentAgentView, "roster">[])
   return agents.some((a) => a.roster.some((e) => e.kind === "server" && e.state === "installing"));
 }
 
+/** What the Configuration's share folder line says the agent does with a
+ *  file added there: the Coding agent reads it as it is; the others check
+ *  it with ClamAV first when the malware check is on, and read it
+ *  unchecked when it is off. */
+export function shareCheckWords(coder: boolean, malwareCheck: boolean): string {
+  if (coder) return ", and reads the files in it as they are";
+  return malwareCheck
+    ? ", and a file you add is checked for malware before it reads it"
+    : ", and reads a file you add unchecked: the malware check is off on this computer";
+}
+
 /** Whether a roster change is waiting for the agent's next turn. */
 export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "status">): boolean {
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");

@@ -2728,6 +2728,7 @@ export namespace app {
 	    personality?: string;
 	    share: string;
 	    defaultShare: boolean;
+	    malwareCheck: boolean;
 	    knowledge: string[];
 	    runOnStart: boolean;
 	    devHost?: string;
@@ -2755,6 +2756,7 @@ export namespace app {
 	        this.personality = source["personality"];
 	        this.share = source["share"];
 	        this.defaultShare = source["defaultShare"];
+	        this.malwareCheck = source["malwareCheck"];
 	        this.knowledge = source["knowledge"];
 	        this.runOnStart = source["runOnStart"];
 	        this.devHost = source["devHost"];
