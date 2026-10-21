@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -172,6 +173,47 @@ func TestStartSessionLifecycle(t *testing.T) {
 	}
 	if len(fake.Leftover) != 0 {
 		t.Errorf("leftovers: %v", fake.Leftover)
+	}
+}
+
+// TestStartSessionRefusesACopyOfAnInstallChangedAfterItsChecks drives the
+// copy check through StartSession: the install is edited after the plan
+// compiled, so the session's own copy of the release differs from the
+// install's record, and the session is refused in the verify class before the
+// agent starts.
+func TestStartSessionRefusesACopyOfAnInstallChangedAfterItsChecks(t *testing.T) {
+	regURL, fake := sessionFixture(t)
+	home, err := Home()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var agentStarted bool
+	fake.Foreground["-agent"].Handler = func(ctx context.Context, r dockerx.RunSpec, in io.Reader, out, errw io.Writer) (int, error) {
+		agentStarted = true
+		return fakeACPHarness(ctx, r, in, out, errw)
+	}
+	req := Request{AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: -1}
+	req.PlanCompiled = func(bool) {
+		files, err := filepath.Glob(filepath.Join(home, "agents", "acme", "chatty", "*", "workspace", "AGENT.md"))
+		if err != nil || len(files) != 1 {
+			t.Errorf("the installed AGENT.md = %v, %v", files, err)
+			return
+		}
+		if err := os.WriteFile(files[0], []byte("Do something else.\n"), 0o600); err != nil {
+			t.Error(err)
+		}
+	}
+	s, err := StartSession(context.Background(), req, &strings.Builder{})
+	var classified *engine.ClassifiedError
+	var changed *ChangedInstallError
+	if s != nil || !errors.As(err, &classified) || classified.Code != engine.ExitVerify || !errors.As(err, &changed) {
+		t.Fatalf("a session on a changed copy = %v, %v; want the verify class (exit %d) naming the changed install", s, err, engine.ExitVerify)
+	}
+	if !slices.Equal(changed.Changed, []string{"AGENT.md"}) {
+		t.Errorf("changed = %v, want AGENT.md", changed.Changed)
+	}
+	if agentStarted {
+		t.Fatal("the agent started on a changed copy")
 	}
 }
 
