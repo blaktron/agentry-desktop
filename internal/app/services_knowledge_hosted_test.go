@@ -214,6 +214,25 @@ func (f *buildFake) apply(t *testing.T, name string) {
 	}
 }
 
+// waitForScanRead returns once the app has read the pack list while the pack
+// was being scanned.
+func (f *buildFake) waitForScanRead(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		f.mu.Lock()
+		n := f.scanning
+		f.mu.Unlock()
+		if n > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the app never read the pack while it was being scanned")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 // finish ends the build: with applied, the pack took the tree and the
 // settlement carries the scan's credit.
 func (f *buildFake) finish(outcome string, applied bool, note string, settled int64) {
@@ -399,8 +418,11 @@ func TestHostedBuildCreatesPollsWaitsForTheScanAndDownloads(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	f.apply(t, "runbooks")
 	f.finish("succeeded", true, "", 2)
-	// The pack is scanning in Agentry: the app waits, then downloads.
-	time.Sleep(100 * time.Millisecond)
+	// The pack is scanning in Agentry: the app waits, then downloads. The
+	// scan ends only once the app has read the pack while it was scanning, so
+	// the wait is always the one under test, however slow the app is to get
+	// there.
+	f.waitForScanRead(t)
 	f.reg.Finish()
 
 	v := ev.final(t)
