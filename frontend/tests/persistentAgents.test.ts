@@ -29,6 +29,12 @@ import {
   termLines,
   startFailureLines,
   startReasonWords,
+  serverState,
+  serverShareSwitch,
+  retryChanges,
+  installingAny,
+  shareSwitchNote,
+  shareCheckWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -211,4 +217,65 @@ test("a failed start says where it stopped, its error, its reason in words and i
   assert.equal(startFailureLines({ state: "stopped", failure: { ...failure, stage: undefined, reason: undefined } as app.PersistentFailureView })?.title, "The last start failed");
   // A code this build does not name is shown as it is.
   assert.equal(startReasonWords({ code: "new-code", names: [] }), "new-code");
+});
+
+// A server the person added: installing, then ready, or failed with the
+// runner's reason and a Retry; and its "Can see your share folder" switch.
+const srv = (over: Partial<app.PersistentRosterEntry>) =>
+  ({ id: "server:pypi-office-word-mcp-server", kind: "server", name: "pypi:office-word-mcp-server@1.1.11", grantedBy: "you", state: "on", on: true, line: "", ...over }) as app.PersistentRosterEntry;
+
+test("a server's install state reads Installing…, Ready, or Failed with its reason and a Retry", () => {
+  const running = agent({ state: "running" });
+  assert.deepEqual(serverState(running, srv({ state: "installing" })), { words: "Installing…", retry: false });
+  assert.deepEqual(serverState(running, srv({ state: "on" })), { words: "Ready", retry: false });
+  assert.deepEqual(serverState(running, srv({ state: "pending" })), { words: "Ready, joins at your next message", retry: false });
+  assert.deepEqual(serverState(running, srv({ state: "failed", reason: "resolve pypi:x@9: not found in the configured registry" })), {
+    words: "Failed", reason: "resolve pypi:x@9: not found in the configured registry", retry: true,
+  });
+  // A failed install is shown, and retried, while the agent is stopped too.
+  assert.equal(serverState(agent({ state: "stopped" }), srv({ state: "failed", reason: "x" })).retry, true);
+  // Only the supervisor in this app knows a server is installed: elsewhere
+  // and stopped, a server that is on is only on.
+  assert.equal(serverState(agent({ state: "stopped" }), srv({ state: "on" })).words, "On");
+  assert.equal(serverState(agent({ state: "elsewhere" }), srv({ state: "on" })).words, "On");
+  assert.equal(serverState(running, srv({ state: "off", on: false })).words, "Off");
+  assert.equal(serverState(running, srv({ state: "pending", on: false })).words, "Applies at the next turn");
+  assert.equal(serverState(running, srv({ state: "needs-sign-in", on: false })).words, "Needs a sign-in");
+});
+
+test("Retry switches the failed server off and on, in that order", () => {
+  assert.deepEqual(retryChanges("server:pypi-x"), [{ switch: { id: "server:pypi-x", on: false } }, { switch: { id: "server:pypi-x", on: true } }]);
+});
+
+test("the share switch is offered on a server that may see the share, and shown disabled with the reason on one that may not", () => {
+  assert.deepEqual(serverShareSwitch(srv({ shareSwitch: "server:pypi-x:share" })), { id: "server:pypi-x:share", on: false, disabled: false });
+  assert.deepEqual(serverShareSwitch(srv({ shareSwitch: "server:pypi-x:share", share: true })), { id: "server:pypi-x:share", on: true, disabled: false });
+  for (const why of [
+    "https://mcp.example.com/mcp (remote) is a remote server, another party's: it is never given your share folder",
+    "npm:fetcher@1.0.0 reaches api.example.com, so it could send your files there: a server that reaches the network is never given your share folder",
+    "npm:signs@1.0.0 signs in by OAuth, which a persistent agent cannot do in this version",
+  ]) {
+    assert.deepEqual(serverShareSwitch(srv({ shareRefusal: why })), { id: "", on: false, disabled: true, reason: why });
+  }
+  // Not a server, or a server the runner says nothing about: no switch.
+  assert.equal(serverShareSwitch({ ...srv({}), kind: "knowledge" } as app.PersistentRosterEntry), null);
+  assert.equal(serverShareSwitch(srv({})), null);
+  // Under the switch: the refusal, or, while the agent's own share folder
+  // is off, that the server sees it only while it is on.
+  const on = { id: "server:pypi-x:share", on: true, disabled: false };
+  const shareEntry = (state: string) => ({ id: "share", kind: "files", name: "Your share folder", grantedBy: "built-in", state, on: state !== "off", line: "" }) as app.PersistentRosterEntry;
+  assert.equal(shareSwitchNote(agent({ roster: [shareEntry("on")] }), on), null);
+  assert.equal(shareSwitchNote(agent({ roster: [shareEntry("off")] }), on), "Only while your share folder is on");
+  assert.equal(shareSwitchNote(agent({}), { id: "", on: false, disabled: true, reason: "why" }), "why");
+});
+
+test("the list is read again while a server installs", () => {
+  assert.equal(installingAny([agent({ state: "running", roster: [srv({ state: "installing" })] })]), true);
+  assert.equal(installingAny([agent({ state: "running", roster: [srv({ state: "on" }), srv({ state: "failed" })] })]), false);
+});
+
+test("the share folder's line says whether a file added there is checked for malware", () => {
+  assert.equal(shareCheckWords(false, true), ", and a file you add is checked for malware before it reads it");
+  assert.equal(shareCheckWords(false, false), ", and reads a file you add unchecked: the malware check is off on this computer");
+  assert.equal(shareCheckWords(true, true), ", and reads the files in it as they are");
 });

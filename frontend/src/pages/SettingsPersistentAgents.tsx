@@ -13,7 +13,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, build, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, type ServerForm } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, shareCheckWords, type ServerForm } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
 import { RosterList } from "./AgentRoster";
 import { StartFailure } from "./StartFailure";
@@ -337,7 +337,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
       <h3>Share folder</h3>
       <p className="small">
         <span className="mono">{agent.share}</span>{agent.defaultShare && " (its default)"}. The agent reads and writes it as you
-        do{isCoder ? ", and reads the files in it as they are" : ", and a file you add is checked for malware before it reads it"}.
+        do{shareCheckWords(isCoder, agent.malwareCheck)}.
       </p>
       <div className="row gap">
         <Button disabled={busy} onClick={() => void call(() => PersistentAPI.ChooseShare(name), "The share folder")}>Choose a folder…</Button>

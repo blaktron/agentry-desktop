@@ -2610,6 +2610,10 @@ export namespace app {
 	    on: boolean;
 	    line: string;
 	    fixed?: boolean;
+	    reason?: string;
+	    shareSwitch?: string;
+	    share?: boolean;
+	    shareRefusal?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2625,6 +2629,10 @@ export namespace app {
 	        this.on = source["on"];
 	        this.line = source["line"];
 	        this.fixed = source["fixed"];
+	        this.reason = source["reason"];
+	        this.shareSwitch = source["shareSwitch"];
+	        this.share = source["share"];
+	        this.shareRefusal = source["shareRefusal"];
 	    }
 	}
 	export class PersistentServerView {
@@ -2720,6 +2728,7 @@ export namespace app {
 	    personality?: string;
 	    share: string;
 	    defaultShare: boolean;
+	    malwareCheck: boolean;
 	    knowledge: string[];
 	    runOnStart: boolean;
 	    devHost?: string;
@@ -2747,6 +2756,7 @@ export namespace app {
 	        this.personality = source["personality"];
 	        this.share = source["share"];
 	        this.defaultShare = source["defaultShare"];
+	        this.malwareCheck = source["malwareCheck"];
 	        this.knowledge = source["knowledge"];
 	        this.runOnStart = source["runOnStart"];
 	        this.devHost = source["devHost"];
