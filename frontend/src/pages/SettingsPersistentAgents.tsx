@@ -27,9 +27,13 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Start Agentry when you sign in: read when the page opens, as the login
+  // item stands (null until read).
+  const [atSignIn, setAtSignIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     void refreshAgents();
+    PersistentAPI.StartsAtSignIn().then(setAtSignIn).catch((e) => { setAtSignIn(false); setError(String(e)); });
   }, []);
 
   const act = async (name: string, f: () => Promise<app.PersistentAgentView>, asked = false) => {
@@ -101,6 +105,27 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           </Card>
         );
       })}
+      <Card className="persistent-agent-card">
+        <label className="check-row">
+          <input
+            type="checkbox"
+            role="switch"
+            data-start-at-sign-in
+            checked={!!atSignIn}
+            disabled={atSignIn === null || busy !== null}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setError(null);
+              PersistentAPI.SetStartsAtSignIn(on).then(setAtSignIn).catch((err) => setError(String(err)));
+            }}
+          />
+          Start Agentry when you sign in
+        </label>
+        <p className="small muted">
+          Agentry starts with its window hidden, and the agents set to run when Agentry starts run in the background. While
+          the Assistant or the Coding agent is on, closing the window keeps Agentry running; its icon opens the window or quits.
+        </p>
+      </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
       {resetting && (
         <Modal title={`Reset ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}?`} onClose={() => setResetting(null)}>
@@ -204,6 +229,11 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
     <Modal title={`Configure the ${agent.title}`} onClose={onClose} wide>
       <ErrorBox error={error} />
       {saved && <p className="small ok" role="status">{saved}</p>}
+      <label className="check-row">
+        <input type="checkbox" role="switch" checked={agent.runOnStart} disabled={busy}
+          onChange={(e) => void change({ runOnStart: e.target.checked }, "Run when Agentry starts")} />
+        Run when Agentry starts
+      </label>
       {isCoder && (
         <>
           <h3>Dev server</h3>

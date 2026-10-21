@@ -137,6 +137,10 @@ export default function App() {
   }, []);
   // Main's settings_open: Go names a section of SECTIONS, and the page opens
   // it; a name the page does not know opens nothing.
+  // The tray's item for a running agent opens its page.
+  useEffect(() => EventsOn("tray:open-agent", (name: string) => {
+    if (typeof name === "string" && name) setRoute({ page: "persistent", id: name });
+  }), []);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
     if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
   }), []);

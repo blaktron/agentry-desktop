@@ -42,8 +42,16 @@ export function SetEnabled(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetEnabled'](arg1, arg2);
 }
 
+export function SetStartsAtSignIn(arg1) {
+  return window['go']['app']['PersistentAPI']['SetStartsAtSignIn'](arg1);
+}
+
 export function Start(arg1) {
   return window['go']['app']['PersistentAPI']['Start'](arg1);
+}
+
+export function StartsAtSignIn() {
+  return window['go']['app']['PersistentAPI']['StartsAtSignIn']();
 }
 
 export function Stop(arg1) {

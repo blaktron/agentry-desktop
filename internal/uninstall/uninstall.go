@@ -15,16 +15,21 @@
 // (desktop.yaml, the CLI's config.yaml, installed.yaml, pinned keys), the
 // runner home (policy.yaml, profiles, the image context), and every entry
 // under the `agentry` keychain service (registry tokens of both clients,
-// the model keys the CLI stores as provider:<name>). The CLI shares all
-// three, and the uninstaller's page says so.
+// the model keys the CLI stores as provider:<name>), and the folders the
+// persistent agents share with the person (their defaults under ~/agentry,
+// or the ones chosen), each held to the share folders' guards. The CLI
+// shares all of these, and the uninstaller's page says so, the share
+// folders' files included.
 package uninstall
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-desktop/internal/pathguard"
 
@@ -63,6 +68,9 @@ func Remove() (removed []string, problems []error) {
 		return nil, []error{fmt.Errorf("locate home directory: %w", err)}
 	}
 
+	// The share folders first: where they are is in the runner home.
+	removed, problems = removeShares(home)
+
 	trees := []struct {
 		what string
 		dir  func() (string, error)
@@ -91,6 +99,44 @@ func Remove() (removed []string, problems []error) {
 		problems = append(problems, fmt.Errorf("keychain entries under service %q: %w", settings.KeyringService, err))
 	} else {
 		removed = append(removed, fmt.Sprintf("keychain entries under service %q", settings.KeyringService))
+	}
+	return removed, problems
+}
+
+// removeShares deletes each persistent agent's share folder that exists,
+// held to the guards a share folder is chosen under.
+func removeShares(home string) (removed []string, problems []error) {
+	runnerHome, err := policy.Home()
+	if err != nil {
+		return nil, []error{fmt.Errorf("runner home: %w", err)}
+	}
+	for _, a := range persistent.Agents() {
+		cfg, err := persistent.LoadConfig(runnerHome, a.Name)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("%s's share folder: %w", a.Title, err))
+			continue
+		}
+		dir, err := persistent.ShareFolder(a, cfg)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("%s's share folder: %w", a.Title, err))
+			continue
+		}
+		if _, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err := persistent.CheckShareFolder(runnerHome, dir); err != nil {
+			problems = append(problems, fmt.Errorf("%s's share folder %s: refused: %w", a.Title, dir, err))
+			continue
+		}
+		if err := guard(dir, home); err != nil {
+			problems = append(problems, fmt.Errorf("%s's share folder %s: refused: %w", a.Title, dir, err))
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			problems = append(problems, fmt.Errorf("%s's share folder %s: %w", a.Title, dir, err))
+			continue
+		}
+		removed = append(removed, fmt.Sprintf("%s's share folder %s", a.Title, dir))
 	}
 	return removed, problems
 }

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/zalando/go-keyring"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 )
 
 // fakeMachine gives the test a home of its own with the two configuration
@@ -15,7 +17,12 @@ import (
 // mocked keychain holding both clients' entries plus one of another program.
 func fakeMachine(t *testing.T) (home, confDir, runnerHome string) {
 	t.Helper()
-	home = t.TempDir()
+	// Resolved: on macOS the temporary folder is reached through /var, a
+	// link, which a share folder's guards refuse.
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	confDir = filepath.Join(home, ".config", "agentry")
@@ -160,5 +167,44 @@ func TestAFailedKeychainIsReportedNotHidden(t *testing.T) {
 	}
 	if !bytes.Contains(out.Bytes(), []byte("no credential store")) {
 		t.Errorf("the keychain error is not in the report:\n%s", out.String())
+	}
+}
+
+// The persistent agents' share folders go with the settings, the defaults
+// under ~/agentry and one the person chose, and nothing beside them.
+func TestRemoveTakesTheAgentsShareFolders(t *testing.T) {
+	home, _, runnerHome := fakeMachine(t)
+	t.Setenv("AGENTRY_CONFIG_DIR", "")
+	t.Setenv("AGENTRY_RUNNER_HOME", "")
+	chosen := filepath.Join(home, "Documents", "assistant-files")
+	for _, f := range []string{
+		filepath.Join(home, "agentry", "mainshare", "report.pdf"),
+		filepath.Join(chosen, "notes.md"),
+		filepath.Join(home, "agentry", "my-own-folder", "keep.txt"),
+		filepath.Join(home, "Documents", "keep.txt"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := persistent.SaveConfig(runnerHome, "assistant", persistent.Config{Version: persistent.ConfigVersion, Share: chosen}); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if code := Main(&out); code != 0 {
+		t.Fatalf("exit %d, output:\n%s", code, out.String())
+	}
+	for _, gone := range []string{filepath.Join(home, "agentry", "mainshare"), chosen} {
+		if exists(gone) {
+			t.Errorf("%s still exists", gone)
+		}
+	}
+	for _, kept := range []string{filepath.Join(home, "agentry", "my-own-folder", "keep.txt"), filepath.Join(home, "Documents", "keep.txt")} {
+		if !exists(kept) {
+			t.Errorf("%s was removed", kept)
+		}
 	}
 }
