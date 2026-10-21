@@ -14,10 +14,15 @@ import { OpenExternal } from "../../wailsjs/go/app/App";
 import { run } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice } from "../ui";
+import { AuthorHelp } from "../KeyHelp";
 import { connectionLine, hostOf, pastedProblem, scopeWords, sharedGrantWarning, type ServerConn } from "../connections";
 
-/** The own-client ask: Agentry's steps for the vendor, then the form. */
-export function OwnClientSteps({ guide }: { guide: run.OwnClientGuide }) {
+/**
+ * The own-client ask: Agentry's steps for the vendor, then the release's own
+ * help for signing in to that server where it carries some, framed as the
+ * author's, then the form.
+ */
+export function OwnClientSteps({ guide, server }: { guide: run.OwnClientGuide; server?: string }) {
   return (
     <>
       <p style={{ marginTop: 0 }}>
@@ -33,6 +38,7 @@ export function OwnClientSteps({ guide }: { guide: run.OwnClientGuide }) {
           <Button variant="link" onClick={() => void OpenExternal(guide.docs!)}>The same steps on the docs page</Button>
         </p>
       )}
+      {guide.help && <AuthorHelp name={server || hostOf(guide.issuer)} help={guide.help} />}
     </>
   );
 }
@@ -202,7 +208,7 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
             )}
             {own && own.server === c.server && busy === null && (
               <div className="own-client">
-                <OwnClientSteps guide={own.guide} />
+                <OwnClientSteps guide={own.guide} server={c.server} />
                 <label className="small">
                   Client ID
                   <Input aria-label="Client ID" type="text" autoComplete="off" value={clientID} onChange={(e) => setClientID(e.target.value)} />

@@ -348,6 +348,39 @@ func TestRemoveConnectionsOfTakesEveryVersionOfThatQuickAgentAlone(t *testing.T)
 	}
 }
 
+func TestTheOwnClientAskCarriesThePublishersHelpForThatServer(t *testing.T) {
+	v := mcpauthtest.New(t)
+	keys := &memKeys{m: map[string]string{}}
+	home := fakeVendorSeams(t, v, keys)
+
+	m := remoteOAuthManifest(v.ServerURL())
+	m.Guide = &manifest.Guide{Connect: map[string]string{
+		"url:" + v.ServerURL(): "Make a **native** client under Developer apps.\nThen copy its id.\u202e\u0007\t",
+		"LINEAR_TOKEN":         "a secret's help is not this server's",
+	}}
+	_, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+	var own *NeedsOwnClient
+	if !errors.As(err, &own) {
+		t.Fatalf("want the own-client ask, got %v", err)
+	}
+	if want := "Make a **native** client under Developer apps.\nThen copy its id."; own.Guide.Help != want {
+		t.Fatalf("the publisher's help = %q, want %q (control and format characters removed)", own.Guide.Help, want)
+	}
+	if len(own.Guide.Steps) == 0 {
+		t.Fatal("Agentry's own steps are gone")
+	}
+
+	// A release with no help for this server, or help under its bare
+	// address rather than its source id, carries none.
+	for _, g := range []*manifest.Guide{nil, {Connect: map[string]string{v.ServerURL(): "bare address"}}} {
+		m.Guide = g
+		_, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+		if !errors.As(err, &own) || own.Guide.Help != "" {
+			t.Fatalf("guide %+v: want the ask with no help, got %v (%+v)", g, err, own)
+		}
+	}
+}
+
 func TestGooglesStepsAreAgentrysAndCarryTheTestUsersStep(t *testing.T) {
 	gmail := manifest.MCPServer{URL: "https://gmailmcp.googleapis.com/mcp/v1", Auth: manifest.AuthOAuth,
 		Scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}}
