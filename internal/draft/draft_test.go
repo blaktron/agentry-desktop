@@ -421,6 +421,42 @@ func TestACheckFlagSendsALocalDraftToItsRepairTurnWithTheTask(t *testing.T) {
 	}
 }
 
+// A description of 20 KiB, well past what the check once read and within
+// what the Builder accepts, is sent to AI Review's check whole, with the
+// finished package, and the check is counted.
+func TestALongDescriptionIsSentToTheCheck(t *testing.T) {
+	isolate(t)
+	saveKey(t)
+	long := strings.Repeat("Summarize my meeting notes. ", 20<<10/28)
+	long += strings.Repeat("x", 20<<10-len(long))
+	if len(long) != 20<<10 {
+		t.Fatalf("the description is %d bytes", len(long))
+	}
+	p, err := Prepare("https://registry.example", long, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runs []localrun.Run
+	checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
+	res, err := Run(context.Background(), Request{Plan: p, RunID: "run-long", Namespace: "alice",
+		Scanner: func(string) (webscan.Scanner, error) {
+			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+		},
+		Runner: fakeRun(t, &runs, answer, nil), Checker: checks.build})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(checks.asked) != 1 {
+		t.Fatalf("%d asked, check %+v", len(checks.asked), res.Draft.AIReview.Check)
+	}
+	if got := checks.asked[0].Description; got != long {
+		t.Fatalf("a description of %d bytes was sent, want %d", len(got), len(long))
+	}
+	if c := res.Draft.AIReview.Check; c == nil || c.Checks != 1 || c.Unanswered != "" {
+		t.Fatalf("the check %+v", c)
+	}
+}
+
 func TestAnAnswerThatIsNotADraftSaysWhereItsReceiptsAre(t *testing.T) {
 	isolate(t)
 	saveKey(t)
