@@ -6,8 +6,8 @@ require (
 	aead.dev/minisign v0.3.0
 	fyne.io/systray v1.12.2
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.6.20
-	github.com/blaktron/agentry-cli v0.6.166
+	github.com/blaktron/agentry v0.6.22
+	github.com/blaktron/agentry-cli v0.6.169
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0
