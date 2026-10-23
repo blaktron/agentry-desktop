@@ -15,7 +15,7 @@ import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
 import { AgentConfigModal } from "./SettingsPersistentAgents";
-import { RosterList } from "./AgentRoster";
+import { ConfigCards } from "./ConfigCards";
 
 export default function PersistentAgentPage({ name, registry }: { name: string; registry: string }) {
   const agents = useAgents();
@@ -175,9 +175,9 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
           <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
         </dl>
       </aside>
-      <aside className="agent-roster" aria-label="Tools and servers">
-        <h2>Tools and servers</h2>
-        <RosterList agent={agent} onChanged={updateAgent} onError={setError} />
+      <aside className="agent-roster" aria-label="What it has">
+        <h2>What it has</h2>
+        <ConfigCards agent={agent} onChanged={updateAgent} onError={setError} withAdds={false} />
       </aside>
       {configuring && <AgentConfigModal name={name} registry={registry} onClose={() => setConfiguring(false)} />}
     </div>

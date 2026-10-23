@@ -11,11 +11,11 @@ import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import type { app, build, run } from "../../wailsjs/go/models";
+import type { app, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, canAddServer, enableOutcome, portFormOK, serverRowOf, shareCheckWords, type ServerForm } from "../persistentAgents";
-import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Select, Textarea } from "../ui";
-import { RosterList } from "./AgentRoster";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
+import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
+import { ConfigCards } from "./ConfigCards";
 import { StartFailure } from "./StartFailure";
 
 /** The longest personality the agent takes, as the CLI holds it. */
@@ -182,7 +182,6 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [displayName, setDisplayName] = useState("");
   const [personality, setPersonality] = useState("");
   const [packs, setPacks] = useState<string[] | null>(null);
-  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", url: "", tools: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -236,10 +235,6 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
     }
   };
   const personalityBytes = new TextEncoder().encode(personality).length;
-  const addServer = () => {
-    void call(() => PersistentAPI.AddServer(name, serverRowOf(server) as build.MCPServerRow), "The server").then(() =>
-      setServer({ source: server.source, package: "", version: "", url: "", tools: "" }));
-  };
 
   const isCoder = agent.name === CODER_AGENT;
   const saveDev = () => {
@@ -362,36 +357,8 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
         );
       })}
 
-      <h3>MCP servers</h3>
-      {agent.servers.length === 0 && <p className="small muted">None added.</p>}
-      {agent.servers.map((s) => (
-        <div key={s.id} className="row between">
-          <span className="mono small">{s.name}</span>
-          <Button variant="ghost" disabled={busy} onClick={() => void change({ removeServer: s.id }, "The server's removal")}>Remove</Button>
-        </div>
-      ))}
-      <div className="persistent-server-form">
-        <Field label="Source">
-          <Select value={server.source} onChange={(e) => setServer({ ...server, source: e.target.value })}>
-            <option value="npm">npm package</option>
-            <option value="pypi">PyPI package</option>
-            <option value="url">Remote server (https)</option>
-          </Select>
-        </Field>
-        {server.source === "url" ? (
-          <Field label="Address"><Input value={server.url} placeholder="https://…" onChange={(e) => setServer({ ...server, url: e.target.value })} /></Field>
-        ) : (
-          <>
-            <Field label="Package"><Input value={server.package} onChange={(e) => setServer({ ...server, package: e.target.value })} /></Field>
-            <Field label="Version" hint="An exact version, as a QuickAgent pins it."><Input value={server.version} onChange={(e) => setServer({ ...server, version: e.target.value })} /></Field>
-          </>
-        )}
-        <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>
-        <Button disabled={busy || !canAddServer(server)} onClick={addServer}>Add server</Button>
-      </div>
-
-      <h3>What it has</h3>
-      <RosterList agent={agent} onChanged={updateAgent} onError={setError} />
+      <ConfigCards agent={agent} onChanged={updateAgent} onError={setError}
+        onSaved={(what) => setSaved(agent.state === AGENT_STATES.running ? `${what} saved. The agent takes it at its next turn.` : `${what} saved.`)} />
       <div className="row gap" style={{ marginTop: 16 }}>
         <Button variant="primary" onClick={onClose}>Done</Button>
       </div>

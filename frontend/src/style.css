@@ -1574,14 +1574,55 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-usage-row dt { color: var(--color-muted); }
 .agent-usage-row dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .agent-roster h3 { font-size: 12px; margin: 10px 0 4px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.agent-roster-entry { padding: 4px 0; overflow-wrap: anywhere; min-width: 0; }
-.agent-roster-entry .check-row { align-items: flex-start; }
-.agent-roster-entry.state-pending strong { color: var(--color-warm); }
-.agent-roster-entry.state-installing strong { color: var(--color-warm); }
-.agent-roster-entry.state-failed strong { color: var(--color-sev-high); }
-.agent-roster-failed { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 0 24px; }
-.agent-roster-failed [role="alert"] { color: var(--color-sev-high); }
-.agent-roster-share { margin: 2px 0 0 24px; align-items: flex-start; }
+/* The Configuration's cards (ConfigCards.tsx): four grids, each card an
+   icon, a name, one line and a state. Off is greyed and desaturated, on is
+   in full colour; the states that want something are tinted. */
+.config-grids { display: flex; flex-direction: column; gap: 4px; }
+.config-grid-section h3 { font-size: 12px; margin: 12px 0 6px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.agent-roster .config-grid { grid-template-columns: 1fr; gap: 6px; }
+/* The agent page's narrow panel: a compact card, its line left to Details. */
+.agent-roster .config-card { padding: 6px 8px; gap: 4px; }
+.agent-roster .config-card-main { gap: 8px; padding-right: 44px; }
+.agent-roster .config-icon { width: 22px; height: 22px; border-radius: 6px; }
+.agent-roster .config-glyph { padding: 3px; stroke-width: 1.8; }
+.agent-roster .config-icon-monogram { font-size: 10px; }
+.agent-roster .config-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-roster .config-card-line { display: none; }
+.agent-roster .config-card-menu { top: 4px; right: 4px; }
+.config-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 10px 10px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-raised); }
+.config-card-main { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 0 52px 0 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.config-card-main:disabled { cursor: default; opacity: 1; }
+.config-card-main:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; border-radius: 4px; }
+.config-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.config-card-name { font-weight: 600; overflow-wrap: anywhere; }
+.config-card-line { font-size: 12px; color: var(--color-lead); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.config-card-state { font-size: 11px; color: var(--color-muted); }
+.config-card-menu { position: absolute; top: 6px; right: 6px; }
+.config-card-menu .options-menu > button { padding: 0 6px; min-height: 0; line-height: 20px; }
+.config-card-menu .options-menu-list { right: 0; left: auto; }
+.config-icon { flex: none; width: 32px; height: 32px; border-radius: 8px; }
+.config-glyph { fill: none; stroke: var(--color-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; padding: 4px; background: var(--color-accent-soft); box-sizing: border-box; }
+.config-icon-image { object-fit: contain; background: var(--color-surface); }
+.config-icon-monogram { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: var(--color-accent-fg); background: var(--color-accent); }
+.config-card.off .config-icon, .config-card.off .config-card-name, .config-card.off .config-card-line { filter: grayscale(1); opacity: 0.55; }
+.config-card.off { background: var(--color-surface); }
+.config-card.tone-on { border-color: var(--color-accent); }
+.config-card.tone-busy .config-card-state { color: var(--color-warm); }
+.config-card.tone-attention { border-color: var(--color-warm); }
+.config-card.tone-attention .config-card-state { color: var(--color-warm); font-weight: 600; }
+.config-card.tone-failed { border-color: var(--color-sev-high); }
+.config-card.tone-failed .config-card-state, .config-card-failed [role="alert"] { color: var(--color-sev-high); }
+.config-card-failed, .config-card-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.config-card-share { margin: 0; }
+.config-card-details { border-top: 1px solid var(--color-border); padding-top: 6px; overflow-wrap: anywhere; }
+.config-card-details p { margin: 0 0 4px; }
+.config-card-add { flex-direction: row; align-items: flex-start; gap: 10px; border-style: dashed; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.config-card-add.open { border-style: solid; border-color: var(--color-accent); }
+.config-add-panel { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+.config-suggestions h4 { margin: 0 0 6px; font-size: 13px; }
+.config-suggestion { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.config-suggestion .config-card-text { flex: 1; }
 .agent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); vertical-align: middle; }
 .agent-dot.on { background: var(--color-ok); }
 .nav-item.nav-agent { display: flex; align-items: center; gap: 8px; }
