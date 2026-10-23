@@ -432,6 +432,11 @@ jobs:
       # round trip through this job's keychain.
       - name: Keychain round trip
         run: AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v -count=1
+      # A persistent agent's stored secret through the bindings its card
+      # calls: set, read as a segment reads it, switched off, removed. Run
+      # alone, since its switch leaves the keychain real for the package.
+      - name: Stored secret through the keychain
+        run: AGENTRY_LIVE_KEYCHAIN=1 go test ./internal/app/ -run TestLiveStoredSecretInTheSystemKeychain -v -count=1
       # Runs whatever happened above. Every command is attempted and a failure
       # is remembered rather than ending the step, so the keychain is always
       # deleted; the end checks, with security itself, that nothing of it is
