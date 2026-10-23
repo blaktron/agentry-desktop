@@ -196,3 +196,24 @@ func TestAGitHostAccountKeepsItsTokenInTheKeychain(t *testing.T) {
 		t.Errorf("kind of gitlab.com: %q", k)
 	}
 }
+
+// A keychain entry left under an account's name before the account was
+// given is put back, not deleted, when the change that would give it is
+// refused.
+func TestARefusedAccountPutsBackWhatTheKeychainHeld(t *testing.T) {
+	rig := newPersistentRig(t)
+	keys := &memSecrets{}
+	rig.p.secrets = keys
+	account := persistent.AccountKeychainAccount("github.com", "my-coder-bot")
+	if err := keys.Set(account, "left-there-before"); err != nil {
+		t.Fatal(err)
+	}
+	rig.answer = false
+	form := PersistentAccountForm{Host: "github.com", Own: true, User: "my-coder-bot", Email: "bot@example.com", Token: "planted-token-1"}
+	if _, err := rig.p.SetAccount(coderAgent, form); !errors.Is(err, errNotConfirmed) {
+		t.Fatalf("a No: %v", err)
+	}
+	if got, _ := keys.Get(account); got != "left-there-before" {
+		t.Fatalf("the entry held before is %q", got)
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -33,7 +34,7 @@ type PersistentTaskView struct {
 	Cron        string `json:"cron"`
 	Zone        string `json:"zone"`
 	Instruction string `json:"instruction"`
-	// State is active or paused.
+	// State is on or paused.
 	State string `json:"state"`
 	// MadeBy says who made it: the agent, at the person's asking.
 	MadeBy string `json:"madeBy"`
@@ -149,7 +150,10 @@ func (p *PersistentAPI) ExportMemory(name string) (*PersistentExportView, error)
 	d := p.dockerClient()
 	tag := pol.RunnerImageTag(runnerimage.ContentVersion())
 	if p.exportMemory == nil {
-		if err := gateway.EnsureRunnerImage(ctx, d, pol, tag, filepath.Join(home, "image"), discardLog{}); err != nil {
+		if err := d.Available(ctx); err != nil {
+			return nil, err
+		}
+		if err := gateway.EnsureRunnerImage(ctx, d, pol, tag, filepath.Join(home, "image"), io.Discard); err != nil {
 			return nil, err
 		}
 	}
@@ -181,11 +185,6 @@ func (p *PersistentAPI) pickExportFolder() (string, error) {
 	}
 	return runtime.OpenDirectoryDialog(p.app.ctx, runtime.OpenDialogOptions{Title: "Choose where the memory's copy goes"})
 }
-
-// discardLog drops the runner image build's progress.
-type discardLog struct{}
-
-func (discardLog) Write(b []byte) (int, error) { return len(b), nil }
 
 // PersistentAccountView is one of the Coding agent's git host accounts, as
 // its form shows it: never its token.
@@ -266,29 +265,39 @@ func (p *PersistentAPI) SetAccount(name string, f PersistentAccountForm) (*Persi
 	}
 	keys := p.secretStore()
 	account := persistent.AccountKeychainAccount(g.Host, g.User)
-	previous := ""
-	if slices.ContainsFunc(cfg.Accounts, func(x persistent.GitAccount) bool { return x.Host == g.Host && x.User == g.User }) {
+	if slices.ContainsFunc(cfg.Accounts, func(x persistent.GitAccount) bool { return x.Host == g.Host && strings.EqualFold(x.User, g.User) }) {
 		// A token set again widens nothing, so the change asks nothing:
-		// the native dialog asks here.
-		if err := p.app.askConsent("Replace the token for "+g.User+" on "+g.Host+"?", "This replaces the token "+called(a, cfg)+" signs in to "+g.Host+" with, in your system keychain. The old token is not kept."); err != nil {
+		// the native dialog asks here, and says when it also switches the
+		// account back on.
+		body := "This replaces the token " + called(a, cfg) + " signs in to " + g.Host + " with, in your system keychain. The old token is not kept."
+		if on, set := cfg.Switches[persistent.AccountEntryID(g.Host)]; set && !on {
+			body += " The account is switched off now, and this switches it on again."
+		}
+		if err := p.app.askConsent("Replace the token for "+g.User+" on "+g.Host+"?", body); err != nil {
 			return nil, err
 		}
-		if previous, err = keys.Get(account); err != nil {
-			return nil, fmt.Errorf("the keychain's token for %s on %s could not be read, so it is left as it is: %w", g.User, g.Host, err)
-		}
+	}
+	// What the keychain holds under this name already, the account's or
+	// one left there before, is put back if the change does not stand.
+	previous, hadPrevious := "", false
+	if v, err := keys.Get(account); err == nil {
+		previous, hadPrevious = v, true
 	}
 	if err := keys.Set(account, f.Token); err != nil {
 		return nil, err
 	}
 	if err := p.configure(a, persistent.Change{SetAccount: &g}); err != nil {
-		if previous != "" {
+		if hadPrevious {
 			_ = keys.Set(account, previous)
 		} else {
 			_ = keys.Delete(account)
 		}
 		return nil, err
 	}
-	if i := slices.IndexFunc(cfg.Accounts, func(x persistent.GitAccount) bool { return x.Host == g.Host }); i >= 0 && cfg.Accounts[i].User != g.User {
+	// The earlier user's token, when the user name changed; a name that
+	// differs only in case is the same keychain entry where the keychain
+	// ignores case, so it is left.
+	if i := slices.IndexFunc(cfg.Accounts, func(x persistent.GitAccount) bool { return x.Host == g.Host }); i >= 0 && !strings.EqualFold(cfg.Accounts[i].User, g.User) {
 		_ = keys.Delete(persistent.AccountKeychainAccount(g.Host, cfg.Accounts[i].User))
 	}
 	return p.Get(name)
@@ -336,6 +345,7 @@ func readyAccount(cfg persistent.Config, f PersistentAccountForm) (persistent.Gi
 // RemoveAccount takes one of the Coding agent's accounts away, then its
 // token out of the keychain.
 func (p *PersistentAPI) RemoveAccount(name, host string) (*PersistentAgentView, error) {
+	host = strings.ToLower(strings.TrimSpace(host))
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err

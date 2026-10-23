@@ -57,9 +57,9 @@ export function TasksView({ agent, onClose }: { agent: app.PersistentAgentView; 
                 </span>
               </div>
               <div className="small">
-                {r.schedule} · <span className="mono">{r.cron}</span> · {r.zone}
+                {r.schedule} · <span className="mono">{r.cron}</span> · in {r.zone}
               </div>
-              <div className="small muted">Next: {r.next} · Last: {r.last} · {r.madeBy}</div>
+              <div className="small muted">Next: {r.next} · Last: {r.last} (your clock) · {r.madeBy}</div>
               {r.answer && <div className="small tasks-row-answer">{r.answer}</div>}
               <details className="small">
                 <summary>What it does</summary>
@@ -76,7 +76,7 @@ export function TasksView({ agent, onClose }: { agent: app.PersistentAgentView; 
           );
         })}
       </ul>
-      <div className="row gap" style={{ marginTop: 12 }}>
+      <div className="row gap tasks-foot">
         <Button variant="primary" onClick={onClose}>Done</Button>
       </div>
     </Modal>

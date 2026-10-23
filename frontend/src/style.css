@@ -1629,6 +1629,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .tasks-row-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .tasks-row-ops { display: flex; gap: 4px; }
 .tasks-row-answer { margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--color-border-strong); }
+.tasks-foot { margin-top: 12px; }
 .tasks-row-instruction { white-space: pre-wrap; margin: 4px 0 0; }
 .config-add-panel { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
 .config-suggestions h4 { margin: 0 0 6px; font-size: 13px; }

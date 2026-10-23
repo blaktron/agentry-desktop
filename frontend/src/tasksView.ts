@@ -44,7 +44,10 @@ export function cronWords(expr: string): string | null {
   if (mon !== "*") return null;
   const step = /^\*\/(\d+)$/.exec(mi);
   if (step && ho === "*" && dom === "*" && dow === "*") {
+    // A step that does not divide the hour restarts at each hour, so its
+    // gaps are not all n minutes: it is read as written alone.
     const n = Number(step[1]);
+    if (n < 1 || n >= 60 || 60 % n !== 0) return null;
     return n === 1 ? "every minute" : `every ${n} minutes`;
   }
   if (mi === "*" && ho === "*" && dom === "*" && dow === "*") return "every minute";

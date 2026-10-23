@@ -29,6 +29,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
   const [exported, setExported] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // Start Agentry when you sign in: read when the page opens, as the login
   // item stands (null until read).
@@ -157,11 +158,13 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           {resetting.keepsMemory && (
             <div className="row gap">
               <p className="small">Its memory goes with its files. Export it first to keep a copy.</p>
-              <Button disabled={busy !== null} onClick={() => {
+              <Button disabled={busy !== null || exporting} busy={exporting} busyLabel="Exporting…" onClick={() => {
                 setExported(null);
+                setExporting(true);
                 PersistentAPI.ExportMemory(resetting.name)
                   .then((v) => setExported(v.folder ? exportWords(v) : null))
-                  .catch((e) => setExported(String(e)));
+                  .catch((e) => setExported(String(e)))
+                  .finally(() => setExporting(false));
               }}>Export memory…</Button>
             </div>
           )}
@@ -169,6 +172,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           <div className="row gap">
             <Button
               variant="danger"
+              disabled={exporting}
               onClick={() => {
                 const name = resetting.name;
                 setResetting(null);
@@ -182,7 +186,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
             >
               Reset
             </Button>
-            <Button variant="ghost" onClick={() => { setResetting(null); setExported(null); }}>Cancel</Button>
+            <Button variant="ghost" disabled={exporting} onClick={() => { setResetting(null); setExported(null); }}>Cancel</Button>
           </div>
         </Modal>
       )}
