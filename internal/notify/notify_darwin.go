@@ -2,7 +2,7 @@ package notify
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Foundation -weak_framework UserNotifications
+#cgo LDFLAGS: -framework Foundation -framework UserNotifications
 #include <stdlib.h>
 int agentryNotifyInit(void);
 int agentryNotifyShow(const char *title, const char *body, const char *key);
