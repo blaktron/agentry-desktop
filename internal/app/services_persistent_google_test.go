@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 )
@@ -85,7 +86,7 @@ func TestTheGoogleSetUpRefusesBeforeAnythingRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	pick = big
-	if _, err := rig.p.SetGoogleClient("assistant"); err == nil || !strings.Contains(err.Error(), "bytes") {
+	if _, err := rig.p.SetGoogleClient("assistant"); err == nil || !strings.Contains(err.Error(), "64 KiB") {
 		t.Errorf("a big file: %v", err)
 	}
 	pick = dir
@@ -95,8 +96,10 @@ func TestTheGoogleSetUpRefusesBeforeAnythingRuns(t *testing.T) {
 	if ran {
 		t.Error("the engine was reached for a file that is not a client")
 	}
-	if _, err := rig.p.GoogleSignIn("assistant", "not an address"); err == nil || !strings.Contains(err.Error(), "not an email address") {
-		t.Errorf("a bad address: %v", err)
+	for _, bad := range []string{"not an address", "--readonly=x@example.com", "-x@example.com"} {
+		if _, err := rig.p.GoogleSignIn("assistant", bad); err == nil || !strings.Contains(err.Error(), "not an email address") {
+			t.Errorf("%q: %v", bad, err)
+		}
 	}
 	if _, err := rig.p.SetGoogleClient(coderAgent); err == nil || !strings.Contains(err.Error(), "no Google Workspace") {
 		t.Errorf("the Coding agent: %v", err)
@@ -105,4 +108,26 @@ func TestTheGoogleSetUpRefusesBeforeAnythingRuns(t *testing.T) {
 		t.Error("the Coding agent signed in to Google")
 	}
 	rig.p.CancelGoogleSignIn("assistant")
+}
+
+// The view says the sign-in must be made again once the client changed
+// after it, and never more than the client's presence and the account.
+func TestTheGoogleViewSaysWhenTheClientChangedAfterTheSignIn(t *testing.T) {
+	a, err := persistent.Lookup("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	cfg := persistent.Config{SignIns: map[string]persistent.ImageSignIn{"gog": {Client: at.Add(-time.Hour), Account: "me@example.com", At: at}}}
+	if v := googleView(a, cfg); v == nil || !v.Client || v.Account != "me@example.com" || v.Stale {
+		t.Errorf("signed in: %+v", v)
+	}
+	cfg.SignIns["gog"] = persistent.ImageSignIn{Client: at.Add(time.Hour), Account: "me@example.com", At: at}
+	if v := googleView(a, cfg); v == nil || !v.Stale {
+		t.Errorf("a client changed after the sign-in: %+v", v)
+	}
+	cfg.SignIns["gog"] = persistent.ImageSignIn{Client: at}
+	if v := googleView(a, cfg); v == nil || !v.Client || v.Account != "" || v.Stale {
+		t.Errorf("a client, no sign-in: %+v", v)
+	}
 }

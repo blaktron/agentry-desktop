@@ -4,16 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/persistent/assistant"
-	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
-	"github.com/blaktron/agentry-cli/runnerimage"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -30,6 +26,20 @@ import (
 // and persistent.CheckGoogleClient refuses one past its own bound.
 const maxGoogleClientFile = 64 << 10
 
+// googleSignInPage is where Google's sign-in starts; nothing else is opened.
+const googleSignInPage = "https://accounts.google.com/"
+
+// eventGoogleSignIn tells the page the address of a sign-in that is
+// waiting for the browser.
+const eventGoogleSignIn = "persistent:google-sign-in"
+
+// PersistentGoogleSignInView is a waiting sign-in's address, for the page
+// to show as text when the browser did not open.
+type PersistentGoogleSignInView struct {
+	Agent string `json:"agent"`
+	URL   string `json:"url"`
+}
+
 // PersistentGoogleView is an agent's Google Workspace set-up, as far as the
 // app shows it: whether its client is kept and when, and the account it is
 // signed in to, as gog named it. Never the client or a token.
@@ -38,6 +48,10 @@ type PersistentGoogleView struct {
 	ClientAt string `json:"clientAt,omitempty"`
 	Account  string `json:"account,omitempty"`
 	At       string `json:"at,omitempty"`
+	// Stale says the client was changed after the sign-in, which must be
+	// made again; Waiting that a sign-in is waiting for the browser.
+	Stale   bool `json:"stale,omitempty"`
+	Waiting bool `json:"waiting,omitempty"`
 }
 
 // imageServerKey is the agent's Google Workspace server's key, "" for an
@@ -66,6 +80,7 @@ func googleView(a persistent.Agent, cfg persistent.Config) *PersistentGoogleView
 	if !in.At.IsZero() {
 		v.At = in.At.Format(time.RFC3339)
 	}
+	v.Stale = v.Account != "" && in.Client.After(in.At)
 	return v
 }
 
@@ -75,24 +90,8 @@ func (p *PersistentAPI) google(ctx context.Context, a persistent.Agent) (persist
 	if p.googleSetUp != nil {
 		return p.googleSetUp(ctx, a)
 	}
-	home, err := p.home()
+	home, pol, d, tag, err := p.oneShotReady(ctx, true)
 	if err != nil {
-		return persistent.Google{}, err
-	}
-	polFile, err := policy.Resolve("")
-	if err != nil {
-		return persistent.Google{}, err
-	}
-	pol, _, err := policy.EnsureDefault(polFile.Path)
-	if err != nil {
-		return persistent.Google{}, fmt.Errorf("operator policy: %w", err)
-	}
-	d := p.dockerClient()
-	if err := d.Available(ctx); err != nil {
-		return persistent.Google{}, err
-	}
-	tag := pol.RunnerImageTag(runnerimage.ContentVersion())
-	if err := gateway.EnsureRunnerImage(ctx, d, pol, tag, filepath.Join(home, "image"), io.Discard); err != nil {
 		return persistent.Google{}, err
 	}
 	return persistent.Google{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore()}, nil
@@ -136,20 +135,20 @@ func (p *PersistentAPI) SetGoogleClient(name string) (*PersistentAgentView, erro
 		return nil, err
 	}
 	path, err := p.pickGoogleClient()
-	if err != nil || path == "" {
-		if err != nil {
-			return nil, err
-		}
-		return p.Get(name)
-	}
-	b, err := readBounded(path, maxGoogleClientFile)
 	if err != nil {
 		return nil, err
+	}
+	if path == "" {
+		return p.Get(name)
+	}
+	b, ok := readRegular(path, maxGoogleClientFile)
+	if !ok {
+		return nil, errors.New("that is not a Google Cloud client file: pick the .json file Google's console downloaded, at most 64 KiB")
 	}
 	if err := persistent.CheckGoogleClient(b); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), oneShotWait)
 	defer cancel()
 	g, err := p.google(ctx, a)
 	if err != nil {
@@ -159,26 +158,6 @@ func (p *PersistentAPI) SetGoogleClient(name string) (*PersistentAgentView, erro
 		return nil, err
 	}
 	return p.Get(name)
-}
-
-// readBounded reads a regular file of at most max bytes.
-func readBounded(path string, max int64) ([]byte, error) {
-	f, err := os.Open(path) //nolint:gosec // a file the person picked natively
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-	st, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if !st.Mode().IsRegular() {
-		return nil, errors.New("that is not a file")
-	}
-	if st.Size() > max {
-		return nil, fmt.Errorf("the file is %d bytes; a Google Cloud client file is under %d", st.Size(), max)
-	}
-	return io.ReadAll(io.LimitReader(f, max+1))
 }
 
 // GoogleSignIn signs the agent's Google Workspace in to email: Google's
@@ -191,7 +170,12 @@ func (p *PersistentAPI) GoogleSignIn(name, email string) (*PersistentAgentView, 
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), persistent.GoogleSignInTimeout+5*time.Minute)
+	// The address is one argument of the server's sign-in: one that reads
+	// as an option is no address.
+	if email = strings.TrimSpace(email); strings.HasPrefix(email, "-") {
+		return nil, fmt.Errorf("%q is not an email address a Google account signs in with", email)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), oneShotWait+persistent.GoogleSignInTimeout)
 	defer cancel()
 	p.mu.Lock()
 	if p.googleSignIns == nil {
@@ -212,12 +196,21 @@ func (p *PersistentAPI) GoogleSignIn(name, email string) (*PersistentAgentView, 
 	if err != nil {
 		return nil, err
 	}
-	browse := p.browse
-	if browse == nil {
-		browse = func(u string) error {
+	open := p.browse
+	if open == nil {
+		open = func(u string) error {
 			runtime.BrowserOpenURL(p.app.ctx, u)
 			return nil
 		}
+	}
+	// Google's own sign-in page alone is opened, and the page is told its
+	// address, as text, for when the browser does not open.
+	browse := func(u string) error {
+		if !strings.HasPrefix(u, googleSignInPage) {
+			return fmt.Errorf("the sign-in's address is not Google's: %q", u)
+		}
+		emitEvent(p.app, eventGoogleSignIn, PersistentGoogleSignInView{Agent: a.Name, URL: u})
+		return open(u)
 	}
 	if _, err := g.SignIn(ctx, email, browse); err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {

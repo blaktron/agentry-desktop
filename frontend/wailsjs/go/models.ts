@@ -2652,6 +2652,8 @@ export namespace app {
 	    clientAt?: string;
 	    account?: string;
 	    at?: string;
+	    stale?: boolean;
+	    waiting?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentGoogleView(source);
@@ -2663,6 +2665,8 @@ export namespace app {
 	        this.clientAt = source["clientAt"];
 	        this.account = source["account"];
 	        this.at = source["at"];
+	        this.stale = source["stale"];
+	        this.waiting = source["waiting"];
 	    }
 	}
 	export class PersistentSuggestionView {

@@ -16,6 +16,7 @@ import {
   SECRET_NAME,
   setUpOf,
   googleWords,
+  googleScopeWords,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -140,4 +141,11 @@ test("the Google set-up says what it holds: no client, a client, then the accoun
   assert.equal(googleWords({ client: false, account: "" }), "No Google Cloud client yet.");
   assert.equal(googleWords({ client: true, account: "" }), "Your Google Cloud client is kept. Sign in next.");
   assert.equal(googleWords({ client: true, account: "me@example.com" }), "Signed in as me@example.com.");
+  assert.equal(googleWords({ client: true, account: "me@example.com", stale: true }), "Signed in as me@example.com with your earlier client: sign in again with the new one.");
+});
+
+test("the sign-in asks for read-only access unless Allow changes is on", () => {
+  assert.match(googleScopeWords([{ id: "server:gog:writes", on: false }]), /read-only/);
+  assert.match(googleScopeWords([]), /read-only/);
+  assert.match(googleScopeWords([{ id: "server:gog:writes", on: true }]), /change things/);
 });

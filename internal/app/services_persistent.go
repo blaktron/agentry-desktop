@@ -491,6 +491,11 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
 	v.Accounts = accountViews(cfg.Accounts)
 	v.Google = googleView(a, cfg)
+	if v.Google != nil {
+		p.mu.Lock()
+		_, v.Google.Waiting = p.googleSignIns[a.Name]
+		p.mu.Unlock()
+	}
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})

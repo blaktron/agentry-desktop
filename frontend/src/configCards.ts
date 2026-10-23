@@ -205,10 +205,21 @@ export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecre
 
 /** googleWords is what the Google Workspace set-up says it holds: the client,
  *  then the account gog named, never anything of the client itself. */
-export function googleWords(g: Pick<app.PersistentGoogleView, "client" | "account"> | undefined): string {
+export function googleWords(g: Pick<app.PersistentGoogleView, "client" | "account" | "stale"> | undefined): string {
   if (!g || !g.client) return "No Google Cloud client yet.";
   if (!g.account) return "Your Google Cloud client is kept. Sign in next.";
+  if (g.stale) return `Signed in as ${g.account} with your earlier client: sign in again with the new one.`;
   return `Signed in as ${g.account}.`;
+}
+
+/** googleScopeWords says what a sign-in asks Google for: read-only unless
+ *  the server's "allow changes" switch is on, so switching it on later
+ *  needs a new sign-in. */
+export function googleScopeWords(roster: Pick<app.PersistentRosterEntry, "id" | "on">[]): string {
+  const writes = roster.some((e) => e.id === "server:gog:writes" && e.on);
+  return writes
+    ? "The sign-in asks Google to let it change things as well as read them, since Allow changes is on."
+    : "The sign-in asks Google for read-only access. To let it change things, switch Allow changes on first, then sign in again.";
 }
 
 /** A card's menu: Set up where it needs one, Details always, Remove where

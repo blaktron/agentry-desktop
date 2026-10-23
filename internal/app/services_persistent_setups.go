@@ -19,6 +19,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -133,29 +134,11 @@ func (p *PersistentAPI) ExportMemory(name string) (*PersistentExportView, error)
 	if err != nil || parent == "" {
 		return &PersistentExportView{}, err
 	}
-	home, err := p.home()
-	if err != nil {
-		return nil, err
-	}
-	polFile, err := policy.Resolve("")
-	if err != nil {
-		return nil, err
-	}
-	pol, _, err := policy.EnsureDefault(polFile.Path)
-	if err != nil {
-		return nil, fmt.Errorf("operator policy: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), oneShotWait)
 	defer cancel()
-	d := p.dockerClient()
-	tag := pol.RunnerImageTag(runnerimage.ContentVersion())
-	if p.exportMemory == nil {
-		if err := d.Available(ctx); err != nil {
-			return nil, err
-		}
-		if err := gateway.EnsureRunnerImage(ctx, d, pol, tag, filepath.Join(home, "image"), io.Discard); err != nil {
-			return nil, err
-		}
+	home, pol, d, tag, err := p.oneShotReady(ctx, p.exportMemory == nil)
+	if err != nil {
+		return nil, err
 	}
 	dir := filepath.Join(filepath.Clean(parent), exportFolderName(a.Name, time.Now()))
 	export := p.exportMemory
@@ -369,4 +352,38 @@ func (p *PersistentAPI) RemoveAccount(name, host string) (*PersistentAgentView, 
 		}
 	}
 	return p.Get(name)
+}
+
+// oneShotWait bounds a set-up's one-shots: the engine's check, the runner
+// image's build or pull, and the one-shot itself.
+const oneShotWait = 10 * time.Minute
+
+// oneShotReady is what a set-up's one-shot needs: the runner home, the
+// operator policy (made with its defaults when there is none), the engine
+// and the runner image's tag. With engine set, the engine must answer and
+// the runner image is put in place; a test's seam leaves both alone.
+func (p *PersistentAPI) oneShotReady(ctx context.Context, engine bool) (string, *policy.Policy, dockerx.Client, string, error) {
+	home, err := p.home()
+	if err != nil {
+		return "", nil, nil, "", err
+	}
+	polFile, err := policy.Resolve("")
+	if err != nil {
+		return "", nil, nil, "", err
+	}
+	pol, _, err := policy.EnsureDefault(polFile.Path)
+	if err != nil {
+		return "", nil, nil, "", fmt.Errorf("operator policy: %w", err)
+	}
+	d := p.dockerClient()
+	tag := pol.RunnerImageTag(runnerimage.ContentVersion())
+	if engine {
+		if err := d.Available(ctx); err != nil {
+			return "", nil, nil, "", err
+		}
+		if err := gateway.EnsureRunnerImage(ctx, d, pol, tag, filepath.Join(home, "image"), io.Discard); err != nil {
+			return "", nil, nil, "", err
+		}
+	}
+	return home, pol, d, tag, nil
 }
