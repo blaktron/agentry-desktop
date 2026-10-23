@@ -40,29 +40,29 @@ export function gridOf(e: Pick<app.PersistentRosterEntry, "kind">): GridKey {
 }
 
 /** What an Add card adds. */
-export type AddKind = "server" | "skill" | "secret";
+export type AddKind = "server" | "skill" | "secret" | "account";
 
 /** One grid as the Configuration draws it: its entries in the roster's
- *  order and its Add card, or none where the agent takes nothing of that
+ *  order and its Add cards, none where the agent takes nothing of that
  *  kind from the person. */
-export type Grid = { key: GridKey; title: string; entries: app.PersistentRosterEntry[]; add: AddKind | null };
+export type Grid = { key: GridKey; title: string; entries: app.PersistentRosterEntry[]; adds: AddKind[] };
 
 /** configGrids are the agent's four grids. A grid with no entry and no Add
  *  card is left out. withAdds is false where the cards are only shown, as
  *  on the agent's page. */
-export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills">, withAdds = true): Grid[] {
-  const adds: Record<GridKey, AddKind | null> = {
-    apps: "server",
-    accounts: agent.keepsSecrets ? "secret" : null,
-    skills: agent.takesSkills ? "skill" : null,
-    abilities: null,
+export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes">, withAdds = true): Grid[] {
+  const adds: Record<GridKey, AddKind[]> = {
+    apps: ["server"],
+    accounts: [...(agent.codes ? (["account"] as const) : []), ...(agent.keepsSecrets ? (["secret"] as const) : [])],
+    skills: agent.takesSkills ? ["skill"] : [],
+    abilities: [],
   };
   return GRID_ORDER.map((key) => ({
     key,
     title: GRID_TITLES[key],
     entries: agent.roster.filter((e) => gridOf(e) === key),
-    add: withAdds ? adds[key] : null,
-  })).filter((g) => g.entries.length > 0 || g.add !== null);
+    adds: withAdds ? adds[key] : [],
+  })).filter((g) => g.entries.length > 0 || g.adds.length > 0);
 }
 
 /** What a card is drawn with: one of Agentry's own glyphs, a kept icon of a
@@ -151,7 +151,8 @@ export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state
 export type RemoveAction =
   | { kind: "change"; change: { removeServer?: string; removeKnowledge?: string; removePort?: string }; what: string }
   | { kind: "skill"; name: string; what: string }
-  | { kind: "secret"; name: string; what: string };
+  | { kind: "secret"; name: string; what: string }
+  | { kind: "account"; host: string; what: string };
 
 // after is what an entry's id holds after its kind's prefix.
 const after = (id: string, prefix: string) => (id.startsWith(prefix) ? id.slice(prefix.length) : "");
@@ -179,13 +180,17 @@ export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | 
       const name = after(e.id, "secret:");
       return name ? { kind: "secret", name, what: `The secret ${name}` } : null;
     }
+    case "account": {
+      const host = after(e.id, "account:");
+      return host ? { kind: "account", host, what: `The account on ${host}` } : null;
+    }
   }
   return null;
 }
 
-/** What an entry's Set up asks for: the secret an offered server needs
- *  (the secret's Add form, its name filled in), or an account on a host,
- *  which is set up in the terminal until the app's account form exists. */
+/** What an entry's Set up asks for: the secret an offered server needs, or
+ *  an account on a host: the secret's or the account's Add form, its name
+ *  or its host filled in. */
 export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: string };
 
 /** setUpOf is what an entry's Set up asks for, or null for one that

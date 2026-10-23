@@ -315,7 +315,6 @@ func (p *PersistentAPI) SetSecret(name, secret, value string) (*PersistentAgentV
 	}
 	keys := p.secretStore()
 	account := persistent.SecretAccount(a.Name, secret)
-	previous := ""
 	if slices.ContainsFunc(cfg.Secrets, func(s persistent.StoredSecret) bool { return s.Name == secret }) {
 		// A value set again widens nothing, so the change asks nothing: the
 		// native dialog asks here, so the page cannot replace a value the
@@ -323,15 +322,18 @@ func (p *PersistentAPI) SetSecret(name, secret, value string) (*PersistentAgentV
 		if err := p.app.askConsent("Replace the value of "+secret+"?", "This replaces the value of your secret "+secret+" that "+called(a, cfg)+" has, in your system keychain. The old value is not kept."); err != nil {
 			return nil, err
 		}
-		if previous, err = keys.Get(account); err != nil {
-			return nil, fmt.Errorf("the keychain's value of %s could not be read, so it is left as it is: %w", secret, err)
-		}
+	}
+	// What the keychain holds under this name already, the secret's or one
+	// left there before, is put back if the change does not stand.
+	previous, hadPrevious := "", false
+	if v, err := keys.Get(account); err == nil {
+		previous, hadPrevious = v, true
 	}
 	if err := keys.Set(account, value); err != nil {
 		return nil, err
 	}
 	if err := p.configure(a, persistent.Change{SetSecret: &persistent.StoredSecret{Name: secret, Set: time.Now().UTC()}}); err != nil {
-		if previous != "" {
+		if hadPrevious {
 			_ = keys.Set(account, previous)
 		} else {
 			_ = keys.Delete(account)

@@ -7,7 +7,7 @@
 // Retry) are drawn on it. Each grid ends in its Add card: a server (the
 // agent's suggestions first, one click each), a skill from a folder or a
 // .zip, a secret whose value goes to Go and is never read back.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app, build } from "../../wailsjs/go/models";
 import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
@@ -27,7 +27,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   withAdds?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState<{ kind: AddKind; secretName?: string } | null>(null);
+  const [adding, setAdding] = useState<{ kind: AddKind; secretName?: string; host?: string } | null>(null);
   // One change at a time: every card waits while one is applied.
   const act: Act = async (f, what) => {
     setBusy(true);
@@ -43,9 +43,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
       setBusy(false);
     }
   };
-  const setUp = (s: SetUp) => {
-    if (s.kind === "secret") setAdding({ kind: "secret", secretName: s.name });
-  };
+  const setUp = (s: SetUp) => setAdding(s.kind === "secret" ? { kind: "secret", secretName: s.name } : { kind: "account", host: s.host });
   return (
     <div className="config-grids">
       {configGrids(agent, withAdds).map((g) => (
@@ -55,22 +53,23 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
             {g.entries.map((e) => (
               <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={setUp} />
             ))}
-            {g.add && (
-              <button type="button" className={`config-card config-card-add${adding?.kind === g.add ? " open" : ""}`} disabled={busy}
-                aria-expanded={adding?.kind === g.add} onClick={() => setAdding(adding?.kind === g.add ? null : { kind: g.add as AddKind })}>
+            {g.adds.map((kind) => (
+              <button key={kind} type="button" className={`config-card config-card-add${adding?.kind === kind ? " open" : ""}`} disabled={busy}
+                aria-expanded={adding?.kind === kind} onClick={() => setAdding(adding?.kind === kind ? null : { kind })}>
                 <AddGlyph />
                 <span className="config-card-text">
-                  <span className="config-card-name">{ADD_TITLES[g.add]}</span>
-                  <span className="config-card-line">{ADD_LINES[g.add]}</span>
+                  <span className="config-card-name">{ADD_TITLES[kind]}</span>
+                  <span className="config-card-line">{ADD_LINES[kind]}</span>
                 </span>
               </button>
-            )}
+            ))}
           </div>
-          {adding && adding.kind === g.add && (
+          {adding && g.adds.includes(adding.kind) && (
             <div className="config-add-panel">
               {adding.kind === "server" && <AddServer agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "skill" && <AddSkill agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "secret" && <AddSecret agent={agent} busy={busy} act={act} name={adding.secretName ?? ""} onDone={() => setAdding(null)} />}
+              {adding.kind === "account" && <AddAccount key={adding.host ?? ""} agent={agent} busy={busy} act={act} host={adding.host ?? ""} onDone={() => setAdding(null)} />}
             </div>
           )}
         </section>
@@ -79,8 +78,9 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   );
 }
 
-const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret" };
+const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret", account: "Add an account" };
 const ADD_LINES: Record<AddKind, string> = {
+  account: "An account on GitHub, GitLab or another git host, its own or yours",
   server: "A suggested one, or an npm or PyPI package, or a remote address",
   skill: "From a folder or a .zip holding a SKILL.md",
   secret: "A key or token it may give a server or a command",
@@ -112,7 +112,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
       return PersistentAPI.Configure(agent.name, on as app.PersistentChange);
     });
   const items = [
-    ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => (menu.setUp?.kind === "secret" ? onSetUp(menu.setUp) : setDetails(true)) }] : []),
+    ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => menu.setUp && onSetUp(menu.setUp) }] : []),
     { key: "details", label: details ? "Hide details" : "Details", onSelect: () => setDetails(!details) },
     ...(menu.remove ? [{ key: "remove", label: "Remove", onSelect: () => setRemoving(true), disabled: busy }] : []),
   ];
@@ -157,9 +157,6 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
           <p className="muted">{grantedWords(e)} · {state.words}</p>
           {state.reason && !state.retry && <p>{state.reason}</p>}
           {shareRefused && <p>Never given your share folder: {shareRefused}</p>}
-          {menu.setUp?.kind === "account" && (
-            <p>It signs in with your account on <span className="mono">{menu.setUp.host}</span>. Add it in a terminal: <span className="mono">agentry agent configure {agent.name} --account {menu.setUp.host}</span></p>
-          )}
         </div>
       )}
       {removing && menu.remove && <RemoveConfirm agent={agent} action={menu.remove} busy={busy} act={act} onCancel={() => setRemoving(false)} />}
@@ -178,11 +175,17 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
         return act(() => PersistentAPI.RemoveSkill(agent.name, action.name), `${action.what}'s removal`);
       case "secret":
         return act(() => PersistentAPI.RemoveSecret(agent.name, action.name), `${action.what}'s removal`);
+      case "account":
+        return act(() => PersistentAPI.RemoveAccount(agent.name, action.host), `${action.what}'s removal`);
     }
   };
   return (
     <div className="config-card-confirm small" role="group" aria-label="Remove">
-      <span>{action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?` : `Remove ${action.what.toLowerCase()}?`}</span>
+      <span>
+        {action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?`
+          : action.kind === "account" ? `Remove ${action.what.toLowerCase()} and its token from your keychain?`
+            : `Remove ${action.what.toLowerCase()}?`}
+      </span>
       <Button variant="danger" className="small" disabled={busy} onClick={() => void run()}>Remove</Button>
       <Button variant="ghost" className="small" onClick={onCancel}>Cancel</Button>
     </div>
@@ -277,6 +280,82 @@ function AddSecret({ agent, busy, act, name: given, onDone }: { agent: app.Persi
       }}>
         Keep the secret
       </Button>
+    </div>
+  );
+}
+
+/** The account Add card's panel: whose account it is first, with what that
+ *  means (Go's own words for the host's kind), then the host, the user, the
+ *  commit identity and the token. The token goes to Go, into your system
+ *  keychain, and the field is emptied; it never comes back to the page. */
+function AddAccount({ agent, busy, act, host: given, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; host: string; onDone: () => void }) {
+  const existing = (agent.accounts ?? []).find((g) => g.host === given);
+  const [own, setOwn] = useState<boolean | null>(existing ? existing.own : null);
+  const [host, setHost] = useState(given || "github.com");
+  const [known, setKnown] = useState("");
+  const [kind, setKind] = useState(existing?.kind ?? "");
+  const [user, setUser] = useState(existing?.user ?? "");
+  const [name, setName] = useState(existing && existing.name !== existing.user ? existing.name : "");
+  const [email, setEmail] = useState(existing?.email ?? "");
+  const [token, setToken] = useState("");
+  const [guidance, setGuidance] = useState("");
+  const theKind = known || kind;
+  useEffect(() => {
+    let on = true;
+    PersistentAPI.AccountKind(host).then((k) => on && setKnown(k)).catch(() => on && setKnown(""));
+    return () => { on = false; };
+  }, [host]);
+  useEffect(() => {
+    let on = true;
+    if (own === null) { setGuidance(""); return; }
+    PersistentAPI.AccountGuidance(theKind, own).then((g) => on && setGuidance(g)).catch(() => on && setGuidance(""));
+    return () => { on = false; };
+  }, [own, theKind]);
+  const ready = own !== null && host.trim() !== "" && theKind !== "" && user.trim() !== "" && email.trim() !== "" && secretValueOK(token);
+  return (
+    <div className="config-account-form">
+      <fieldset className="config-account-whose">
+        <legend className="small">Whose account is it?</legend>
+        <label className="check-row"><input type="radio" name="account-whose" checked={own === true} onChange={() => setOwn(true)} /> Its own account (recommended)</label>
+        <label className="check-row"><input type="radio" name="account-whose" checked={own === false} onChange={() => setOwn(false)} /> Your account</label>
+      </fieldset>
+      {guidance && <p className="small">{guidance}</p>}
+      <div className="persistent-server-form">
+        <Field label="Host" hint="github.com, gitlab.com, or your own host's name.">
+          <Input value={host} disabled={!!existing} spellCheck={false} onChange={(e) => setHost(e.target.value)} />
+        </Field>
+        {!known && (
+          <Field label="Kind of host">
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">Choose…</option>
+              <option value="github">GitHub Enterprise Server</option>
+              <option value="gitlab">GitLab, self-managed</option>
+              <option value="gitea">Gitea or Forgejo</option>
+              <option value="git">Another git host</option>
+            </Select>
+          </Field>
+        )}
+        <Field label="User name" hint="The account's user name on the host.">
+          <Input value={user} autoComplete="off" spellCheck={false} onChange={(e) => setUser(e.target.value)} />
+        </Field>
+        <Field label="Commit name" hint="Empty is the user name.">
+          <Input value={name} autoComplete="off" onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Commit email" hint="The account's own, or the host's private address for it.">
+          <Input value={email} autoComplete="off" spellCheck={false} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Token" hint="Kept in your system keychain, never shown again.">
+          <Input type="password" value={token} autoComplete="off" onChange={(e) => setToken(e.target.value)} />
+        </Field>
+        <Button disabled={busy || !ready} onClick={() => {
+          const t = token;
+          setToken("");
+          const form = { host: host.trim(), kind: known ? "" : kind, own: own === true, user: user.trim(), name: name.trim(), email: email.trim(), token: t };
+          void act(() => PersistentAPI.SetAccount(agent.name, form as app.PersistentAccountForm), `The account on ${form.host}`).then((ok) => ok && onDone());
+        }}>
+          Keep the account
+        </Button>
+      </div>
     </div>
   );
 }

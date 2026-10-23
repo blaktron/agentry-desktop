@@ -23,6 +23,7 @@ const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry
 const coder = {
   keepsSecrets: true,
   takesSkills: true,
+  codes: true,
   roster: [
     entry({ id: "share", kind: "files", name: "Your share folder" }),
     entry({ id: "data", kind: "files", name: "Its own files", fixed: true }),
@@ -33,24 +34,26 @@ const coder = {
     entry({ id: "secret:API_KEY", kind: "secret", name: "Your secret API_KEY", grantedBy: "you" }),
     entry({ id: "port:web", kind: "port", name: "web", grantedBy: "you" }),
   ],
-} as Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills">;
+} as Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes">;
 
 test("each entry is drawn in its grid, the grids in their order, each ending in its Add card", () => {
   const grids = configGrids(coder);
-  assert.deepEqual(grids.map((g) => [g.title, g.entries.map((e) => e.id), g.add]), [
-    ["Apps and servers", ["server:gh", "server:gh:writes"], "server"],
-    ["Accounts and secrets", ["secret:API_KEY"], "secret"],
-    ["Skills", ["skill:code-review"], "skill"],
-    ["Abilities and folders", ["share", "data", "commands", "port:web"], null],
+  assert.deepEqual(grids.map((g) => [g.title, g.entries.map((e) => e.id), g.adds]), [
+    ["Apps and servers", ["server:gh", "server:gh:writes"], ["server"]],
+    ["Accounts and secrets", ["secret:API_KEY"], ["account", "secret"]],
+    ["Skills", ["skill:code-review"], ["skill"]],
+    ["Abilities and folders", ["share", "data", "commands", "port:web"], []],
   ]);
   assert.equal(gridOf({ kind: "something-new" }), "abilities");
 });
 
 test("an agent that keeps no secrets and takes no skills has no Add card for them, and a grid left empty is left out", () => {
-  const main = { keepsSecrets: false, takesSkills: false, roster: [entry({ id: "share", kind: "files", name: "Your share folder" })] };
-  assert.deepEqual(configGrids(main).map((g) => [g.key, g.add]), [["apps", "server"], ["abilities", null]]);
+  const main = { keepsSecrets: false, takesSkills: false, codes: false, roster: [entry({ id: "share", kind: "files", name: "Your share folder" })] };
+  assert.deepEqual(configGrids(main).map((g) => [g.key, g.adds]), [["apps", ["server"]], ["abilities", []]]);
+  // The Assistant keeps secrets and has no accounts.
+  assert.deepEqual(configGrids({ ...main, keepsSecrets: true }).map((g) => [g.key, g.adds])[1], ["accounts", ["secret"]]);
   // On the agent's page the cards are only shown: no Add card.
-  assert.deepEqual(configGrids(coder, false).map((g) => g.add), [null, null, null, null]);
+  assert.deepEqual(configGrids(coder, false).map((g) => g.adds), [[], [], [], []]);
 });
 
 test("a card's icon: a kept image, a glyph of Agentry's own, or a monogram, and nothing loaded from anywhere", () => {
@@ -110,6 +113,7 @@ test("Remove is offered on what the person added, never on a built-in's entry", 
   assert.deepEqual(removeAction(entry({ id: "secret:API_KEY", kind: "secret", grantedBy: "you" })), { kind: "secret", name: "API_KEY", what: "The secret API_KEY" });
   assert.deepEqual(removeAction(entry({ id: "port:web", kind: "port", grantedBy: "you" })), { kind: "change", change: { removePort: "web" }, what: "The port web" });
   assert.deepEqual(removeAction(entry({ id: "knowledge:docs", kind: "knowledge", grantedBy: "you" })), { kind: "change", change: { removeKnowledge: "docs" }, what: "The pack docs" });
+  assert.deepEqual(removeAction(entry({ id: "account:github.com", kind: "account", grantedBy: "you" })), { kind: "account", host: "github.com", what: "The account on github.com" });
 });
 
 test("Set up asks for what an offered server needs, only while it needs it", () => {

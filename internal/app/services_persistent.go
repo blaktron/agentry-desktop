@@ -108,6 +108,10 @@ type PersistentAPI struct {
 	pickSkillSource func(from string) (string, error)
 	checkSkill      persistent.SkillCheck
 	secrets         persistent.Secrets
+	// pickFolder and exportMemory stand in for the native folder picker
+	// and the memory's one-shot copy in a test.
+	pickFolder   func() (string, error)
+	exportMemory func(ctx context.Context, home string, a persistent.Agent, dir string) (persistent.Exported, error)
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -242,11 +246,17 @@ type PersistentAgentView struct {
 	Suggested []PersistentSuggestionView `json:"suggested"`
 	// KeepsSecrets says the agent stores secrets of the person's;
 	// TakesSkills that it takes skills of the person's.
-	KeepsSecrets bool                  `json:"keepsSecrets"`
-	TakesSkills  bool                  `json:"takesSkills"`
-	Status       *PersistentStatusView `json:"status,omitempty"`
-	Lifetime     PersistentUsageView   `json:"lifetime"`
-	Volumes      PersistentVolumesView `json:"volumes"`
+	KeepsSecrets bool `json:"keepsSecrets"`
+	TakesSkills  bool `json:"takesSkills"`
+	// KeepsTime says it has tasks and a heartbeat; KeepsMemory a memory to
+	// export; Codes git host accounts, listed in Accounts (never a token).
+	KeepsTime   bool                    `json:"keepsTime"`
+	KeepsMemory bool                    `json:"keepsMemory"`
+	Codes       bool                    `json:"codes"`
+	Accounts    []PersistentAccountView `json:"accounts"`
+	Status      *PersistentStatusView   `json:"status,omitempty"`
+	Lifetime    PersistentUsageView     `json:"lifetime"`
+	Volumes     PersistentVolumesView   `json:"volumes"`
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -454,6 +464,8 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
+	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
+	v.Accounts = accountViews(cfg.Accounts)
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})

@@ -2525,6 +2525,52 @@ export namespace app {
 	        this.via = source["via"];
 	    }
 	}
+	export class PersistentAccountForm {
+	    host: string;
+	    kind?: string;
+	    own: boolean;
+	    user: string;
+	    name?: string;
+	    email: string;
+	    token: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentAccountForm(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.kind = source["kind"];
+	        this.own = source["own"];
+	        this.user = source["user"];
+	        this.name = source["name"];
+	        this.email = source["email"];
+	        this.token = source["token"];
+	    }
+	}
+	export class PersistentAccountView {
+	    host: string;
+	    kind: string;
+	    own: boolean;
+	    user: string;
+	    name: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentAccountView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.kind = source["kind"];
+	        this.own = source["own"];
+	        this.user = source["user"];
+	        this.name = source["name"];
+	        this.email = source["email"];
+	    }
+	}
 	export class PersistentVolumesView {
 	    session: string;
 	    data: string;
@@ -2765,6 +2811,10 @@ export namespace app {
 	    suggested: PersistentSuggestionView[];
 	    keepsSecrets: boolean;
 	    takesSkills: boolean;
+	    keepsTime: boolean;
+	    keepsMemory: boolean;
+	    codes: boolean;
+	    accounts: PersistentAccountView[];
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -2796,6 +2846,10 @@ export namespace app {
 	        this.suggested = this.convertValues(source["suggested"], PersistentSuggestionView);
 	        this.keepsSecrets = source["keepsSecrets"];
 	        this.takesSkills = source["takesSkills"];
+	        this.keepsTime = source["keepsTime"];
+	        this.keepsMemory = source["keepsMemory"];
+	        this.codes = source["codes"];
+	        this.accounts = this.convertValues(source["accounts"], PersistentAccountView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -2883,6 +2937,24 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class PersistentExportView {
+	    folder: string;
+	    files: number;
+	    bytes: number;
+	    skipped?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentExportView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folder = source["folder"];
+	        this.files = source["files"];
+	        this.bytes = source["bytes"];
+	        this.skipped = source["skipped"];
+	    }
+	}
 	
 	
 	
@@ -2891,6 +2963,36 @@ export namespace app {
 	
 	
 	
+	export class PersistentTaskView {
+	    id: string;
+	    name: string;
+	    cron: string;
+	    zone: string;
+	    instruction: string;
+	    state: string;
+	    madeBy: string;
+	    next?: string;
+	    lastFire?: string;
+	    lastResult?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentTaskView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.cron = source["cron"];
+	        this.zone = source["zone"];
+	        this.instruction = source["instruction"];
+	        this.state = source["state"];
+	        this.madeBy = source["madeBy"];
+	        this.next = source["next"];
+	        this.lastFire = source["lastFire"];
+	        this.lastResult = source["lastResult"];
+	    }
+	}
 	
 	
 	export class PrereqView {
