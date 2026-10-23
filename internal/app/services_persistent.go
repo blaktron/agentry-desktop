@@ -35,6 +35,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/notify"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -112,6 +113,15 @@ type PersistentAPI struct {
 	// and the memory's one-shot copy in a test.
 	pickFolder   func() (string, error)
 	exportMemory func(ctx context.Context, home string, a persistent.Agent, dir string) (persistent.Exported, error)
+	// viewing is the agent whose page the window shows while it has the
+	// focus ("" for none), as the page reports it: its tasks raise no
+	// notification then.
+	viewing string
+	// showNotice raises a desktop notification, and minimised reports
+	// whether the window is minimised; nil is the platform's own. A test
+	// puts its own here.
+	showNotice func(notify.Notice) error
+	minimised  func() bool
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -842,6 +852,7 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor, logw *supervisor
 		defer p.followers.Done()
 		for ev := range events {
 			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
+			p.noticeTask(name, ev, logw)
 		}
 	}()
 	go func() {

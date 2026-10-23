@@ -70,6 +70,14 @@ export function termLines(c: Chat): TermLine[] {
 /** Main's name: its place is its Home card, with no sidebar entry or page. */
 export const MAIN_AGENT = "main";
 
+/** viewingAgent is the persistent agent whose page the person is looking at,
+ *  for Go: its page shown while the window is visible and has the focus, or
+ *  "" for anything else. A task of that agent raises no desktop notification
+ *  then, since its answer is already in front of them. */
+export function viewingAgent(route: { page: string; id?: string }, focused: boolean, visible: boolean): string {
+  return route.page === "persistent" && focused && visible && route.id ? route.id : "";
+}
+
 /** The Coding agent's name. */
 export const CODER_AGENT = "coder";
 

@@ -94,6 +94,14 @@ export function SetStartsAtSignIn(arg1) {
   return window['go']['app']['PersistentAPI']['SetStartsAtSignIn'](arg1);
 }
 
+export function SetTaskNotifications(arg1) {
+  return window['go']['app']['PersistentAPI']['SetTaskNotifications'](arg1);
+}
+
+export function SetViewing(arg1) {
+  return window['go']['app']['PersistentAPI']['SetViewing'](arg1);
+}
+
 export function Start(arg1) {
   return window['go']['app']['PersistentAPI']['Start'](arg1);
 }
@@ -104,6 +112,10 @@ export function StartsAtSignIn() {
 
 export function Stop(arg1) {
   return window['go']['app']['PersistentAPI']['Stop'](arg1);
+}
+
+export function TaskNotifications() {
+  return window['go']['app']['PersistentAPI']['TaskNotifications']();
 }
 
 export function Tasks(arg1) {
