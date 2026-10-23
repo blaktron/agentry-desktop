@@ -99,7 +99,10 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const state = cardState(agent, e);
   const switches = cardSwitches(e);
   const menu = cardMenu(e);
-  const share = serverShareSwitch(e);
+  // A server never given the share draws no switch; why is in Details.
+  const shareSwitch = serverShareSwitch(e);
+  const share = shareSwitch && !shareSwitch.disabled ? shareSwitch : null;
+  const shareRefused = shareSwitch?.disabled ? shareSwitch.reason : undefined;
   const note = share && shareSwitchNote(agent, share);
   const flip = (id: string, on: boolean) => act(() => PersistentAPI.Configure(agent.name, { switch: { id, on } } as app.PersistentChange));
   const retry = () =>
@@ -136,7 +139,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
       {share && (
         <label className="check-row config-card-share">
           <input type="checkbox" role="switch" aria-label={`${e.name}: ${SHARE_SWITCH_LABEL}: ${share.on ? "on" : "off"}`}
-            checked={share.on} disabled={busy || share.disabled} onChange={(ev) => void flip(share.id, ev.target.checked)} />
+            checked={share.on} disabled={busy} onChange={(ev) => void flip(share.id, ev.target.checked)} />
           <span className="small">
             {SHARE_SWITCH_LABEL}
             {note && <><br /><span className="muted">{note}</span></>}
@@ -153,6 +156,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
           <p>{e.line}</p>
           <p className="muted">{grantedWords(e)} · {state.words}</p>
           {state.reason && !state.retry && <p>{state.reason}</p>}
+          {shareRefused && <p>Never given your share folder: {shareRefused}</p>}
           {menu.setUp?.kind === "account" && (
             <p>It signs in with your account on <span className="mono">{menu.setUp.host}</span>. Add it in a terminal: <span className="mono">agentry agent configure {agent.name} --account {menu.setUp.host}</span></p>
           )}
@@ -227,7 +231,7 @@ function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentVie
           onClick={() => void act(() => PersistentAPI.AddServer(agent.name, serverRowOf(server) as build.MCPServerRow), "The server").then((ok) => ok && onDone())}>
           Add server
         </Button>
-        <p className="small muted">Its card's icon is looked up once in the MCP Registry, by the package's name or a public address's host, when you add it.</p>
+        <p className="small muted config-add-note">Its card's icon is looked up once in the MCP Registry, by the package's name or a public address's host, when you add it.</p>
       </div>
     </>
   );

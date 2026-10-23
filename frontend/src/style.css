@@ -1619,6 +1619,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .config-card-details p { margin: 0 0 4px; }
 .config-card-add { flex-direction: row; align-items: flex-start; gap: 10px; border-style: dashed; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .config-card-add.open { border-style: solid; border-color: var(--color-accent); }
+.persistent-server-form > .config-add-note { grid-column: 1 / -1; margin: 0; }
 .config-add-panel { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
 .config-suggestions h4 { margin: 0 0 6px; font-size: 13px; }
 .config-suggestion { display: flex; align-items: center; gap: 10px; padding: 6px 0; }

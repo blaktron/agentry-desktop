@@ -91,10 +91,14 @@ test("a card's state: off greyed, on in colour, an install busy, a sign-in or se
   assert.equal(cardState(running, entry({ kind: "skill", state: "pending", on: false })).words, "Off at the next turn");
 });
 
-test("a click switches a card, but not a fixed one or one waiting on an install, a sign-in or a set-up", () => {
+test("a click switches a card, but not a fixed one, nor one that is off and waits on an install, a sign-in or a set-up", () => {
   assert.equal(cardSwitches(entry({ state: "on" })), true);
   assert.equal(cardSwitches(entry({ state: "failed" })), true);
-  for (const state of ["installing", "needs-sign-in", "needs-set-up"]) assert.equal(cardSwitches(entry({ state })), false, state);
+  for (const state of ["installing", "needs-sign-in", "needs-set-up"]) {
+    assert.equal(cardSwitches(entry({ state, on: false })), false, state);
+    // On and waiting: it can always be turned off.
+    assert.equal(cardSwitches(entry({ state, on: true })), true, state);
+  }
   assert.equal(cardSwitches(entry({ fixed: true })), false);
 });
 

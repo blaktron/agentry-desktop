@@ -138,10 +138,12 @@ export function cardState(agent: Pick<app.PersistentAgentView, "state">, e: Pick
   }
 }
 
-/** Whether a click on the card switches it: not a fixed entry, and not one
- *  waiting on an install, a sign-in or a set-up. */
-export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state">): boolean {
-  return !e.fixed && e.state !== "installing" && e.state !== "needs-sign-in" && e.state !== "needs-set-up";
+/** Whether a click on the card switches it: never a fixed entry; one that
+ *  is on always, so it can be turned off whatever it waits for; one that is
+ *  off unless it waits on an install, a sign-in or a set-up. */
+export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state" | "on">): boolean {
+  if (e.fixed) return false;
+  return e.on || (e.state !== "installing" && e.state !== "needs-sign-in" && e.state !== "needs-set-up");
 }
 
 /** What Remove does to an entry the person added, or null where it has
