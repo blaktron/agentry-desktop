@@ -122,6 +122,14 @@ type PersistentAPI struct {
 	// puts its own here.
 	showNotice func(notify.Notice) error
 	minimised  func() bool
+	// googleSignIns cancel the Google sign-ins waiting for the browser, by
+	// agent. googleSetUp, pickFile and browse stand in for the CLI's
+	// sign-in with its engine, the native file picker and the browser in a
+	// test.
+	googleSignIns map[string]context.CancelFunc
+	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
+	pickFile      func() (string, error)
+	browse        func(url string) error
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -264,9 +272,12 @@ type PersistentAgentView struct {
 	KeepsMemory bool                    `json:"keepsMemory"`
 	Codes       bool                    `json:"codes"`
 	Accounts    []PersistentAccountView `json:"accounts"`
-	Status      *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime    PersistentUsageView     `json:"lifetime"`
-	Volumes     PersistentVolumesView   `json:"volumes"`
+	// Google is the agent's Google Workspace set-up, for an agent that has
+	// that server.
+	Google   *PersistentGoogleView `json:"google,omitempty"`
+	Status   *PersistentStatusView `json:"status,omitempty"`
+	Lifetime PersistentUsageView   `json:"lifetime"`
+	Volumes  PersistentVolumesView `json:"volumes"`
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -312,6 +323,9 @@ type PersistentRosterEntry struct {
 	// asks for: the stored secret it needs, or an account on a host.
 	SetUpSecret  string `json:"setUpSecret,omitempty"`
 	SetUpAccount string `json:"setUpAccount,omitempty"`
+	// SetUpGoogle says the entry's Set up is Google Workspace's: its
+	// client file and sign-in.
+	SetUpGoogle bool `json:"setUpGoogle,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -470,12 +484,13 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 			v.State = agentDisabled
 		}
 	}
-	v.Roster = rosterView(roster, cfg.Servers, factsOf(a))
+	v.Roster = rosterView(roster, cfg.Servers, factsOf(a, cfg))
 	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
 	v.Accounts = accountViews(cfg.Accounts)
+	v.Google = googleView(a, cfg)
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})
@@ -504,6 +519,7 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer, f cardFacts) 
 			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
 			ShareSwitch: e.ShareSwitch, Share: e.Share,
 			IconKey: f.glyph[e.ID], SetUpSecret: f.secret[e.ID], SetUpAccount: f.account[e.ID],
+			SetUpGoogle: f.google[e.ID],
 		}
 		if e.Kind == persistent.KindServer && e.ShareSwitch == "" {
 			for _, srv := range servers {

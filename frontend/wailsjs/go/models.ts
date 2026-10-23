@@ -2647,6 +2647,24 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	    }
 	}
+	export class PersistentGoogleView {
+	    client: boolean;
+	    clientAt?: string;
+	    account?: string;
+	    at?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentGoogleView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.client = source["client"];
+	        this.clientAt = source["clientAt"];
+	        this.account = source["account"];
+	        this.at = source["at"];
+	    }
+	}
 	export class PersistentSuggestionView {
 	    key: string;
 	    name: string;
@@ -2682,6 +2700,7 @@ export namespace app {
 	    icon?: string;
 	    setUpSecret?: string;
 	    setUpAccount?: string;
+	    setUpGoogle?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2705,6 +2724,7 @@ export namespace app {
 	        this.icon = source["icon"];
 	        this.setUpSecret = source["setUpSecret"];
 	        this.setUpAccount = source["setUpAccount"];
+	        this.setUpGoogle = source["setUpGoogle"];
 	    }
 	}
 	export class PersistentServerView {
@@ -2815,6 +2835,7 @@ export namespace app {
 	    keepsMemory: boolean;
 	    codes: boolean;
 	    accounts: PersistentAccountView[];
+	    google?: PersistentGoogleView;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -2850,6 +2871,7 @@ export namespace app {
 	        this.keepsMemory = source["keepsMemory"];
 	        this.codes = source["codes"];
 	        this.accounts = this.convertValues(source["accounts"], PersistentAccountView);
+	        this.google = this.convertValues(source["google"], PersistentGoogleView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -2955,6 +2977,7 @@ export namespace app {
 	        this.skipped = source["skipped"];
 	    }
 	}
+	
 	
 	
 	
