@@ -843,13 +843,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <div className="row">
               <Button
                 type="button"
-                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [], env: [] })] })}
+                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", args: [], tools: [], secrets: [], egress: [], env: [] })] })}
               >
                 + add server
               </Button>
               <Button
                 type="button"
-                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "url", package: "", version: "", url: "", auth: "", scopes: [], tools: [], secrets: [], egress: [], env: [] })] })}
+                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "url", package: "", version: "", args: [], url: "", auth: "", scopes: [], tools: [], secrets: [], egress: [], env: [] })] })}
               >
                 + add remote server
               </Button>
@@ -866,6 +866,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             const patch = (row: Partial<build.MCPServerRow>) =>
               set({ mcpServers: m.mcpServers.map((r, j) => (j === i ? new build.MCPServerRow({ ...r, ...row }) : r)) });
             const env = srv.env ?? [];
+            const args = srv.args ?? [];
             const sourceSelect = (
               <label className="small">source
                 <select value={srv.source} onChange={(e) => patch({ source: e.target.value })}>
@@ -889,6 +890,20 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                     <input type="text" className="mono" style={{ width: 120 }} placeholder="1.2.3" value={srv.version} onChange={(e) => patch({ version: e.target.value })} />
                   </label>
                   {remove}
+                </div>
+                {/* One field per argument, not a comma list: an argument may hold a comma. */}
+                <div style={{ marginTop: 6 }}>
+                  <span className="small">arguments its command starts with, in order (for a server that is a subcommand, such as <span className="mono">mcp</span>)</span>
+                  <div className="row" style={{ marginTop: 4, flexWrap: "wrap" }}>
+                    {args.map((a, k) => (
+                      <span className="row" key={k} style={{ gap: 2 }}>
+                        <input type="text" className="mono" aria-label={`argument ${k + 1}`} placeholder="word" style={{ width: 140 }} value={a}
+                          onChange={(ev) => patch({ args: args.map((x, j) => (j === k ? ev.target.value : x)) })} />
+                        <Button type="button" aria-label={`remove argument ${k + 1}`} onClick={() => patch({ args: args.filter((_, j) => j !== k) })}>remove</Button>
+                      </span>
+                    ))}
+                    <Button type="button" className="small" onClick={() => patch({ args: [...args, ""] })}>+ add argument</Button>
+                  </div>
                 </div>
                 <div className="row" style={{ marginTop: 6 }}>
                   <label className="small grow">tools it may call (empty = all it offers)

@@ -8,6 +8,7 @@ export interface ServerRow {
   source?: string;
   package?: string;
   version?: string;
+  args?: string[];
   url?: string;
   auth?: string;
   scopes?: string[];
@@ -74,9 +75,11 @@ export function reachRow(s: ServerRow): { what: string; value: string } {
   const keys = serverKeys(s);
   const tools = names(s.tools);
   const env = remote ? [] : (s.env ?? []).map((e) => e.name.trim()).filter(Boolean);
+  const args = remote ? [] : s.args ?? [];
   return {
     what,
     value: [
+      args.length ? `starts with ${args.join(" ")}` : "",
       remote ? `runs at its vendor, reached at ${hosts.join(", ") || "its address"}` : hosts.length ? `reaches ${hosts.join(", ")}` : "reaches no host",
       tools.length ? `tools ${tools.join(", ")}` : "all its tools",
       keys.length ? `keys ${keys.join(", ")}` : "",
