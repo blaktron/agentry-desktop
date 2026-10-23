@@ -8,6 +8,10 @@ export function AddFiles(arg1:string):Promise<Array<string>>;
 
 export function AddServer(arg1:string,arg2:build.MCPServerRow):Promise<app.PersistentAgentView>;
 
+export function AddSkill(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
+export function AddSuggested(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
 export function ChooseShare(arg1:string):Promise<app.PersistentAgentView>;
 
 export function Configure(arg1:string,arg2:app.PersistentChange):Promise<app.PersistentAgentView>;
@@ -18,6 +22,10 @@ export function List():Promise<Array<app.PersistentAgentView>>;
 
 export function OpenPort(arg1:string,arg2:string):Promise<void>;
 
+export function RemoveSecret(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
+export function RemoveSkill(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
 export function Reset(arg1:string):Promise<app.PersistentAgentView>;
 
 export function Send(arg1:string,arg2:string):Promise<void>;
@@ -25,6 +33,8 @@ export function Send(arg1:string,arg2:string):Promise<void>;
 export function SetDevHost(arg1:string,arg2:string,arg3:run.HostSignIn):Promise<app.PersistentAgentView>;
 
 export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgentView>;
+
+export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
 export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
 
