@@ -2601,6 +2601,24 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	    }
 	}
+	export class PersistentSuggestionView {
+	    key: string;
+	    name: string;
+	    line: string;
+	    iconKey?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentSuggestionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.line = source["line"];
+	        this.iconKey = source["iconKey"];
+	    }
+	}
 	export class PersistentRosterEntry {
 	    id: string;
 	    kind: string;
@@ -2614,6 +2632,10 @@ export namespace app {
 	    shareSwitch?: string;
 	    share?: boolean;
 	    shareRefusal?: string;
+	    iconKey?: string;
+	    icon?: string;
+	    setUpSecret?: string;
+	    setUpAccount?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2633,6 +2655,10 @@ export namespace app {
 	        this.shareSwitch = source["shareSwitch"];
 	        this.share = source["share"];
 	        this.shareRefusal = source["shareRefusal"];
+	        this.iconKey = source["iconKey"];
+	        this.icon = source["icon"];
+	        this.setUpSecret = source["setUpSecret"];
+	        this.setUpAccount = source["setUpAccount"];
 	    }
 	}
 	export class PersistentServerView {
@@ -2736,6 +2762,9 @@ export namespace app {
 	    ports: PersistentPort[];
 	    servers: PersistentServerView[];
 	    roster: PersistentRosterEntry[];
+	    suggested: PersistentSuggestionView[];
+	    keepsSecrets: boolean;
+	    takesSkills: boolean;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -2764,6 +2793,9 @@ export namespace app {
 	        this.ports = this.convertValues(source["ports"], PersistentPort);
 	        this.servers = this.convertValues(source["servers"], PersistentServerView);
 	        this.roster = this.convertValues(source["roster"], PersistentRosterEntry);
+	        this.suggested = this.convertValues(source["suggested"], PersistentSuggestionView);
+	        this.keepsSecrets = source["keepsSecrets"];
+	        this.takesSkills = source["takesSkills"];
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -2851,6 +2883,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -6602,6 +6635,7 @@ export namespace installed {
 	    egress?: string[];
 	    secrets?: string[];
 	    tools?: string[];
+	    args?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ServerCapsSnapshot(source);
@@ -6612,6 +6646,7 @@ export namespace installed {
 	        this.egress = source["egress"];
 	        this.secrets = source["secrets"];
 	        this.tools = source["tools"];
+	        this.args = source["args"];
 	    }
 	}
 	export class RemoteSnapshot {

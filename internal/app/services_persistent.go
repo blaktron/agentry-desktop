@@ -100,6 +100,14 @@ type PersistentAPI struct {
 	// onState is told whenever an agent starts, stops or is turned on or
 	// off: the tray follows it.
 	onState func()
+	// iconLookups are the servers whose icon this process has looked up.
+	iconLookups map[string]bool
+	// pickSkillSource, checkSkill and secrets stand in for the native
+	// picker, the skill's malware check and the keychain in a test; nil is
+	// the real one.
+	pickSkillSource func(from string) (string, error)
+	checkSkill      persistent.SkillCheck
+	secrets         persistent.Secrets
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -227,12 +235,18 @@ type PersistentAgentView struct {
 	DevHost    string `json:"devHost,omitempty"`
 	DevHostKey string `json:"devHostKey,omitempty"`
 	// Ports are the Coding agent's published ports.
-	Ports    []PersistentPort        `json:"ports"`
-	Servers  []PersistentServerView  `json:"servers"`
-	Roster   []PersistentRosterEntry `json:"roster"`
-	Status   *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime PersistentUsageView     `json:"lifetime"`
-	Volumes  PersistentVolumesView   `json:"volumes"`
+	Ports   []PersistentPort        `json:"ports"`
+	Servers []PersistentServerView  `json:"servers"`
+	Roster  []PersistentRosterEntry `json:"roster"`
+	// Suggested are the servers the agent suggests and does not have.
+	Suggested []PersistentSuggestionView `json:"suggested"`
+	// KeepsSecrets says the agent stores secrets of the person's;
+	// TakesSkills that it takes skills of the person's.
+	KeepsSecrets bool                  `json:"keepsSecrets"`
+	TakesSkills  bool                  `json:"takesSkills"`
+	Status       *PersistentStatusView `json:"status,omitempty"`
+	Lifetime     PersistentUsageView   `json:"lifetime"`
+	Volumes      PersistentVolumesView `json:"volumes"`
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -269,6 +283,15 @@ type PersistentRosterEntry struct {
 	ShareSwitch  string `json:"shareSwitch,omitempty"`
 	Share        bool   `json:"share,omitempty"`
 	ShareRefusal string `json:"shareRefusal,omitempty"`
+	// IconKey names the bundled glyph a built-in's server is drawn with;
+	// Icon is the kept icon of a server the person added, as a data: URL
+	// (a PNG, JPEG or WebP of at most 256 KiB); neither for a monogram.
+	IconKey string `json:"iconKey,omitempty"`
+	Icon    string `json:"icon,omitempty"`
+	// SetUpSecret and SetUpAccount are what an offered server's Set up
+	// asks for: the stored secret it needs, or an account on a host.
+	SetUpSecret  string `json:"setUpSecret,omitempty"`
+	SetUpAccount string `json:"setUpAccount,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -427,7 +450,10 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 			v.State = agentDisabled
 		}
 	}
-	v.Roster = rosterView(roster, cfg.Servers)
+	v.Roster = rosterView(roster, cfg.Servers, factsOf(a))
+	serverIcons(cfg, v.Roster)
+	v.Suggested = suggestionsView(a, cfg)
+	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})
@@ -448,13 +474,14 @@ func statusView(st persistent.Status) *PersistentStatusView {
 // rosterView is the roster as the page draws it; servers are the agent's
 // servers as its config declares them, which say why a server may not see
 // the share.
-func rosterView(r persistent.Roster, servers []manifest.MCPServer) []PersistentRosterEntry {
+func rosterView(r persistent.Roster, servers []manifest.MCPServer, f cardFacts) []PersistentRosterEntry {
 	out := make([]PersistentRosterEntry, 0, len(r))
 	for _, e := range r {
 		v := PersistentRosterEntry{
 			ID: e.ID, Kind: string(e.Kind), Name: e.Name, GrantedBy: e.GrantedBy,
 			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
 			ShareSwitch: e.ShareSwitch, Share: e.Share,
+			IconKey: f.glyph[e.ID], SetUpSecret: f.secret[e.ID], SetUpAccount: f.account[e.ID],
 		}
 		if e.Kind == persistent.KindServer && e.ShareSwitch == "" {
 			for _, srv := range servers {
@@ -1176,6 +1203,7 @@ func (p *PersistentAPI) AddServer(name string, row build.MCPServerRow) (*Persist
 	if err := p.configure(a, persistent.Change{AddServer: &srv}); err != nil {
 		return nil, err
 	}
+	p.lookUpIcon(a.Name, srv)
 	return p.Get(name)
 }
 

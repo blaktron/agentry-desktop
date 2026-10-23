@@ -198,8 +198,10 @@ export function Recap({ rows }: { rows: { label: string; value: React.ReactNode;
  *  button that opens a short list of actions under it. It closes on a
  *  choice, on Escape and on a press outside it, and the first item takes
  *  the focus when it opens. */
-export function OptionsMenu({ label = "Options", items }: {
+export function OptionsMenu({ label = "Options", ariaLabel, items }: {
   label?: string;
+  // The button's name for a screen reader, where its label is a symbol.
+  ariaLabel?: string;
   items: { label: string; onSelect: () => void; disabled?: boolean; key?: string }[];
 }) {
   const [open, setOpen] = React.useState(false);
@@ -215,7 +217,7 @@ export function OptionsMenu({ label = "Options", items }: {
   }, [open]);
   return (
     <div className="options-menu" ref={box}>
-      <button type="button" aria-haspopup="menu" aria-expanded={open} data-options-menu onClick={() => setOpen((o) => !o)}>
+      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ariaLabel} data-options-menu onClick={() => setOpen((o) => !o)}>
         {label} <span aria-hidden>▾</span>
       </button>
       {open && (

@@ -1,10 +1,13 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/blaktron/agentry/pkg/manifest"
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
@@ -45,6 +48,10 @@ func TestMain(m *testing.M) {
 	// Deliverables folder none chose is a scratch one.
 	docs := filepath.Join(dir, "documents", "Agentry")
 	defaultDeliverablesRoot = func() (string, error) { return docs, nil }
+	// No test looks a server's icon up in the MCP Registry.
+	findIcon = func(context.Context, manifest.MCPServer) ([]byte, string, error) {
+		return nil, "", errors.New("no network in tests")
+	}
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
