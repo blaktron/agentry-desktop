@@ -83,7 +83,7 @@ jobs:
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.4
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.
@@ -176,7 +176,7 @@ jobs:
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.4
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.
@@ -328,7 +328,7 @@ jobs:
           cache: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.4
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.
@@ -432,6 +432,11 @@ jobs:
       # round trip through this job's keychain.
       - name: Keychain round trip
         run: AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v -count=1
+      # A persistent agent's stored secret through the bindings its card
+      # calls: set, read as a segment reads it, switched off, removed. Run
+      # alone, since its switch leaves the keychain real for the package.
+      - name: Stored secret through the keychain
+        run: AGENTRY_LIVE_KEYCHAIN=1 go test ./internal/app/ -run TestLiveStoredSecretInTheSystemKeychain -v -count=1
       # Runs whatever happened above. Every command is attempted and a failure
       # is remembered rather than ending the step, so the keychain is always
       # deleted; the end checks, with security itself, that nothing of it is

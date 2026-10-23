@@ -1,10 +1,13 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/blaktron/agentry/pkg/manifest"
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
@@ -27,9 +30,12 @@ import (
 // port: a test that reached it unmocked would read whatever token an earlier
 // run left there for 127.0.0.1 and its test server's port, and its fake
 // registry would answer that stale token with a 401 or an unreadable token
-// list.
+// list. The keychain's live test (keychain_live_test.go) asks for the real
+// one with AGENTRY_LIVE_KEYCHAIN=1, and is then run alone.
 func TestMain(m *testing.M) {
-	keyring.MockInit()
+	if os.Getenv(liveKeychainEnv) != "1" {
+		keyring.MockInit()
+	}
 	emitEvent = func(*App, string, ...any) {}
 	dir, err := os.MkdirTemp("", "agentry-desktop-test-config-")
 	if err != nil {
@@ -45,6 +51,10 @@ func TestMain(m *testing.M) {
 	// Deliverables folder none chose is a scratch one.
 	docs := filepath.Join(dir, "documents", "Agentry")
 	defaultDeliverablesRoot = func() (string, error) { return docs, nil }
+	// No test looks a server's icon up in the MCP Registry.
+	findIcon = func(context.Context, manifest.MCPServer) ([]byte, string, error) {
+		return nil, "", errors.New("no network in tests")
+	}
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)

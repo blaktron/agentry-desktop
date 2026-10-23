@@ -157,6 +157,9 @@ var leftOut = map[string]bool{
 	// The withdrawn v1 mcp-server kind's launch spec: decodeManifest
 	// refuses that kind, and it is never valid for publish.
 	"entrypoints.mcp": true,
+	// A package server's arguments: the form's server row does not carry
+	// them, so a manifest that declares them loses them in the form.
+	"capabilities.mcpServers.args": true,
 }
 
 // TestDraftFieldsCoverTheCoresSchema walks the core's manifest types and

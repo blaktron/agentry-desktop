@@ -16,11 +16,12 @@ import (
 // share.
 var wordServer = build.MCPServerRow{Source: "pypi", Package: "office-word-mcp-server", Version: "1.1.11"}
 
-// serverEntry is the view's roster entry for the agent's one server.
+// serverEntry is the view's roster entry for the one server the person
+// added, past the servers the agent's built-in offers.
 func serverEntry(t *testing.T, v *PersistentAgentView) PersistentRosterEntry {
 	t.Helper()
 	for _, e := range v.Roster {
-		if e.Kind == string(persistent.KindServer) {
+		if e.Kind == string(persistent.KindServer) && e.GrantedBy == persistent.GrantedByYou {
 			return e
 		}
 	}

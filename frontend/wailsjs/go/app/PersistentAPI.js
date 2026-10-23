@@ -10,6 +10,14 @@ export function AddServer(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['AddServer'](arg1, arg2);
 }
 
+export function AddSkill(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['AddSkill'](arg1, arg2);
+}
+
+export function AddSuggested(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['AddSuggested'](arg1, arg2);
+}
+
 export function ChooseShare(arg1) {
   return window['go']['app']['PersistentAPI']['ChooseShare'](arg1);
 }
@@ -30,6 +38,14 @@ export function OpenPort(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['OpenPort'](arg1, arg2);
 }
 
+export function RemoveSecret(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['RemoveSecret'](arg1, arg2);
+}
+
+export function RemoveSkill(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['RemoveSkill'](arg1, arg2);
+}
+
 export function Reset(arg1) {
   return window['go']['app']['PersistentAPI']['Reset'](arg1);
 }
@@ -44,6 +60,10 @@ export function SetDevHost(arg1, arg2, arg3) {
 
 export function SetEnabled(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetEnabled'](arg1, arg2);
+}
+
+export function SetSecret(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['SetSecret'](arg1, arg2, arg3);
 }
 
 export function SetStartsAtSignIn(arg1) {

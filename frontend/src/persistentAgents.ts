@@ -138,65 +138,6 @@ export function persistentAgentsStatus(agents: Pick<app.PersistentAgentView, "st
   return `${enabled} enabled, ${running} running`;
 }
 
-/** The roster's panel: its entries grouped by kind, in the roster's order. */
-export type RosterGroup = { title: string; entries: app.PersistentRosterEntry[] };
-
-const GROUP_TITLES: Record<string, string> = { files: "Folders", tools: "Tools", host: "Dev server", port: "Ports", knowledge: "Knowledge packs", server: "MCP servers" };
-
-export function rosterGroups(roster: app.PersistentRosterEntry[]): RosterGroup[] {
-  const out: RosterGroup[] = [];
-  for (const e of roster) {
-    const title = GROUP_TITLES[e.kind] ?? "Other";
-    let g = out.find((x) => x.title === title);
-    if (!g) {
-      g = { title, entries: [] };
-      out.push(g);
-    }
-    g.entries.push(e);
-  }
-  return out;
-}
-
-/** The words for an entry's state. */
-export function rosterStateWords(e: Pick<app.PersistentRosterEntry, "state">): string {
-  switch (e.state) {
-    case "on":
-      return "On";
-    case "pending":
-      return "Applies at the next turn";
-    case "needs-sign-in":
-      return "Needs a sign-in";
-    default:
-      return "Off";
-  }
-}
-
-/** What a server the person added shows: its state in words, the reason
- *  its install failed, and whether Retry is offered. */
-export type ServerState = { words: string; reason?: string; retry: boolean };
-
-/** serverState is a server entry's state as the roster says it. Its
- *  install runs in the agent's background: installing until the server is
- *  ready, then pending until the next turn's segment has it. Only an agent
- *  running in this app reports that, so a server that is on reads Ready
- *  there and On anywhere else. A failed install keeps its reason until the
- *  person retries it. */
-export function serverState(agent: Pick<app.PersistentAgentView, "state">, e: Pick<app.PersistentRosterEntry, "state" | "on" | "reason">): ServerState {
-  const live = agent.state === AGENT_STATES.running;
-  switch (e.state) {
-    case "installing":
-      return { words: "Installing…", retry: false };
-    case "failed":
-      return { words: "Failed", reason: e.reason ?? "", retry: true };
-    case "on":
-      return { words: live ? "Ready" : "On", retry: false };
-    case "pending":
-      return { words: e.on && live ? "Ready, joins at your next message" : rosterStateWords(e), retry: false };
-    default:
-      return { words: rosterStateWords(e), retry: false };
-  }
-}
-
 /** The changes Retry makes, in order: the failed server switched off, which
  *  clears its failure, and on again, which installs it again. */
 export function retryChanges(id: string): { switch: { id: string; on: boolean } }[] {

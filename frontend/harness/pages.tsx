@@ -713,12 +713,27 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
   };
 };
 
+// A kept server icon: a 1 by 1 PNG, as the Configuration is given one.
+const keptIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGf4DwADgQGAiPkb6AAAAABJRU5ErkJggg==";
+
 const harnessAssistant = {
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
-  share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [],
+  share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/assistantshare with you, read and write" },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
+    { id: "memory", kind: "memory", name: "Its memory", grantedBy: "built-in", state: "on", on: true, line: "Keeps a wiki of what it learns on a volume of its own", fixed: true },
+    { id: "heartbeat", kind: "tasks", name: "Its heartbeat and tasks", grantedBy: "built-in", state: "off", on: false, line: "Wakes every minute to run the tasks you set it, and reminds you" },
+    { id: "server:wikipedia", kind: "server", name: "Wikipedia", grantedBy: "built-in", state: "on", on: true, iconKey: "encyclopedia", line: "Wikipedia's articles, from en.wikipedia.org" },
+    { id: "server:pdf", kind: "server", name: "npm:@acme/pdf-tools@1.2.0", grantedBy: "you", state: "on", on: true, icon: keptIcon, line: "npm @acme/pdf-tools 1.2.0, reaching nothing", shareSwitch: "server:pdf:share", share: false },
+    { id: "server:notes", kind: "server", name: "pypi:notes-mcp@0.4.1", grantedBy: "you", state: "failed", on: true, reason: "PyPI has no notes-mcp 0.4.1", line: "PyPI notes-mcp 0.4.1, reaching nothing" },
+    { id: "secret:OPENWEATHER_KEY", kind: "secret", name: "Your secret OPENWEATHER_KEY", grantedBy: "you", state: "on", on: true, line: "Given to the servers that declare it" },
+    { id: "skill:remember", kind: "skill", name: "remember", grantedBy: "built-in", state: "on", on: true, line: "Files what you ask it to remember in its memory" },
+    { id: "skill:meeting-notes", kind: "skill", name: "meeting-notes", grantedBy: "you", state: "off", on: false, line: "Turns a transcript into notes with actions (ClamAV found nothing)" },
+  ],
+  suggested: [
+    { key: "weather", name: "Weather (Open-Meteo)", line: "Forecasts for a named place, from Open-Meteo", iconKey: "weather" },
+    { key: "maps", name: "Maps (OpenStreetMap)", line: "Places and routes, from OpenStreetMap", iconKey: "map" },
   ],
   lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 1 },
   volumes: { session: "agentry-persistent-assistant-session", data: "agentry-persistent-assistant-data" },
@@ -736,7 +751,13 @@ const harnessCoder = {
     { id: "egress", kind: "tools", name: "Open egress", grantedBy: "built-in", state: "on", on: true, line: "Reaches any address from its tools and the programs it runs" },
     { id: "browser", kind: "tools", name: "Browser", grantedBy: "built-in", state: "off", on: false, line: "Drives a headless browser to any public website" },
     { id: "devhost", kind: "host", name: "Dev server deploy@devbox.lan", grantedBy: "you", state: "on", on: true, line: "Reaches your dev server deploy@devbox.lan over SSH" },
+    { id: "server:context7", kind: "server", name: "Library docs (Context7)", grantedBy: "built-in", state: "on", on: true, iconKey: "docs", line: "Up-to-date library documentation, from context7.com" },
+    { id: "server:github", kind: "server", name: "GitHub", grantedBy: "built-in", state: "needs-set-up", on: true, iconKey: "git", setUpAccount: "github.com", reason: "it needs an account on github.com", line: "GitHub's own server, signed in with its github.com account's token, read only" },
+    { id: "server:github:writes", kind: "server-writes", name: "GitHub: changes", grantedBy: "built-in", state: "off", on: false, iconKey: "git", line: "Lets GitHub change what its token can change on api.githubcopilot.com, while GitHub is on" },
+    { id: "server:semgrep", kind: "server", name: "pypi:semgrep@1.182.0", grantedBy: "you", state: "installing", on: true, iconKey: "scan", line: "Code scanning, run against its share" },
+    { id: "skill:code-review", kind: "skill", name: "code-review", grantedBy: "built-in", state: "on", on: true, line: "Reviews a change for bugs and the project's own rules" },
   ],
+  keepsSecrets: true, takesSkills: true, suggested: [],
   status: { since: "2026-10-20T19:00:00Z", segment: 2, run: "c0de0001", adapter: "docker-agent", model: "qwen3.8-flash-next", resumed: true, busy: false, pending: false, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, userTurns: 1, toolCalls: 4 },
   lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 9 },
   volumes: { session: "agentry-persistent-coder-session", data: "agentry-persistent-coder-data" },
@@ -745,7 +766,7 @@ const harnessCoder = {
 // Main, stopped after a short conversation: Home's first card.
 const harnessMain = {
   name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
-  share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [],
+  share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: false, takesSkills: false, suggested: [],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/mainshare with you, read and write", fixed: true },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
@@ -850,6 +871,11 @@ g.go = { app: {
     Configure: async () => harnessAssistant,
     ChooseShare: async () => harnessAssistant,
     AddServer: async () => harnessAssistant,
+    AddSuggested: async () => harnessAssistant,
+    AddSkill: async () => harnessAssistant,
+    RemoveSkill: async () => harnessAssistant,
+    SetSecret: async () => harnessAssistant,
+    RemoveSecret: async () => harnessAssistant,
     AddFiles: async () => [],
     Reset: async () => harnessAssistant,
   },
