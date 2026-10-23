@@ -50,11 +50,17 @@ export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.Persi
 
 export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
 
+export function SetTaskNotifications(arg1:boolean):Promise<boolean>;
+
+export function SetViewing(arg1:string):Promise<void>;
+
 export function Start(arg1:string):Promise<app.PersistentAgentView>;
 
 export function StartsAtSignIn():Promise<boolean>;
 
 export function Stop(arg1:string):Promise<app.PersistentAgentView>;
+
+export function TaskNotifications():Promise<boolean>;
 
 export function Tasks(arg1:string):Promise<Array<app.PersistentTaskView>>;
 

@@ -29,12 +29,13 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/loginitem"
 	"github.com/blaktron/agentry-desktop/internal/macquit"
+	"github.com/blaktron/agentry-desktop/internal/notify"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/tray"
 )
 
 // eventTrayOpenAgent asks the page to open a persistent agent's page, from
-// the tray's menu.
+// the tray's menu or a click on one of its task's notifications.
 const eventTrayOpenAgent = "tray:open-agent"
 
 // background is the app's background state.
@@ -84,6 +85,14 @@ func (s *Services) startBackground(ctx context.Context) {
 		s.quit(ctx)
 	}()
 	s.persistent.onState = func() { s.followAgents(ctx) }
+	// A click on a task's notification opens its agent's page.
+	notify.SetOnClick(func(name string) {
+		windowShow(ctx)
+		emitEvent(s.app, eventTrayOpenAgent, name)
+	})
+	if err := notify.Init(); err != nil {
+		log.Printf("desktop notifications: %v", err)
+	}
 	s.followAgents(ctx)
 	// Launched hidden at sign-in with nothing to run in the background, the
 	// app would be invisible with no icon: it shows its window.

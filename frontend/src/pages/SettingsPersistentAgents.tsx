@@ -34,10 +34,13 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   // Start Agentry when you sign in: read when the page opens, as the login
   // item stands (null until read).
   const [atSignIn, setAtSignIn] = useState<boolean | null>(null);
+  // Notify me when a task runs: read when the page opens (null until read).
+  const [taskNotes, setTaskNotes] = useState<boolean | null>(null);
 
   useEffect(() => {
     void refreshAgents();
     PersistentAPI.StartsAtSignIn().then(setAtSignIn).catch((e) => { setAtSignIn(false); setError(String(e)); });
+    PersistentAPI.TaskNotifications().then(setTaskNotes).catch((e) => { setTaskNotes(true); setError(String(e)); });
   }, []);
 
   const act = async (name: string, f: () => Promise<app.PersistentAgentView>, asked = false) => {
@@ -143,6 +146,28 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         <p className="small muted">
           Agentry starts with its window hidden, and the agents set to run when Agentry starts run in the background. While
           the Assistant or the Coding agent is on, closing the window keeps Agentry running; its icon opens the window or quits.
+        </p>
+      </Card>
+      <Card className="persistent-agent-card">
+        <label className="check-row">
+          <input
+            type="checkbox"
+            role="switch"
+            data-task-notifications
+            checked={!!taskNotes}
+            disabled={taskNotes === null}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setError(null);
+              PersistentAPI.SetTaskNotifications(on).then(setTaskNotes).catch((err) => setError(String(err)));
+            }}
+          />
+          Notify me when a task runs
+        </label>
+        <p className="small muted">
+          When a task the Assistant runs on its own answers, your computer shows a notification with the task's name and the
+          first line of the answer, unless the Assistant's page is in front of you. Clicking it opens that page. It shows only
+          while the Assistant runs in this app.
         </p>
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
