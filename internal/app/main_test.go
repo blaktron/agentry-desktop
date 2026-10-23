@@ -30,9 +30,12 @@ import (
 // port: a test that reached it unmocked would read whatever token an earlier
 // run left there for 127.0.0.1 and its test server's port, and its fake
 // registry would answer that stale token with a 401 or an unreadable token
-// list.
+// list. The keychain's live test (keychain_live_test.go) asks for the real
+// one with AGENTRY_LIVE_KEYCHAIN=1, and is then run alone.
 func TestMain(m *testing.M) {
-	keyring.MockInit()
+	if os.Getenv(liveKeychainEnv) != "1" {
+		keyring.MockInit()
+	}
 	emitEvent = func(*App, string, ...any) {}
 	dir, err := os.MkdirTemp("", "agentry-desktop-test-config-")
 	if err != nil {
