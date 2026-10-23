@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 )
@@ -156,5 +158,39 @@ func TestStoreKeepsOnceAndRereads(t *testing.T) {
 	}
 	if err := s.Put(b, svg, "image/png"); !errors.Is(err, ErrNotAnImage) {
 		t.Errorf("an SVG was kept as a PNG: %v", err)
+	}
+}
+
+// TestClientReachesPublicAddressesAlone: the client's connections are
+// refused at a loopback, private, link-local or shared address, whatever
+// name or redirect led there.
+func TestClientReachesPublicAddressesAlone(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(png) }))
+	defer srv.Close()
+	if _, _, err := Fetch(context.Background(), Client(5*time.Second), srv.URL+"/i.png"); !errors.Is(err, errNotPublic) {
+		t.Fatalf("a loopback address: %v", err)
+	}
+	for _, a := range []string{"127.0.0.1", "10.1.2.3", "192.168.1.20", "172.16.0.9", "169.254.169.254", "100.64.0.7", "::1", "fd7a:115c:a1e0::1", "0.0.0.0"} {
+		if publicIP(net.ParseIP(a)) {
+			t.Errorf("%s reads as public", a)
+		}
+	}
+	for _, a := range []string{"140.82.112.3", "2606:4700::6810:22"} {
+		if !publicIP(net.ParseIP(a)) {
+			t.Errorf("%s reads as not public", a)
+		}
+	}
+}
+
+// TestAPrivateHostIsNeverSearchedFor: a remote server on an address, a
+// single label or a private network's name is not sent to the registry.
+func TestAPrivateHostIsNeverSearchedFor(t *testing.T) {
+	for _, u := range []string{"https://10.0.0.5/mcp", "https://mcp/mcp", "https://mcp.corp.internal/mcp", "https://nas.local/mcp", "https://box.lan/mcp"} {
+		if got := searchTerm(manifest.MCPServer{URL: u}); got != "" {
+			t.Errorf("%s searched as %q", u, got)
+		}
+	}
+	if got := searchTerm(manifest.MCPServer{URL: "https://mcp.linear.app/mcp"}); got != "mcp.linear.app" {
+		t.Errorf("a public host searched as %q", got)
 	}
 }

@@ -10,9 +10,9 @@
 import { useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app, build } from "../../wailsjs/go/models";
-import { cardIcon, cardMenu, cardShareSwitch, cardState, cardSwitches, configGrids, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
+import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
-import { SHARE_SWITCH_LABEL, canAddServer, portOpenable, retryChanges, serverRowOf, shareSwitchNote, type ServerForm } from "../persistentAgents";
+import { SHARE_SWITCH_LABEL, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, OptionsMenu, Select } from "../ui";
 
 type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
@@ -99,7 +99,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const state = cardState(agent, e);
   const switches = cardSwitches(e);
   const menu = cardMenu(e);
-  const share = cardShareSwitch(e);
+  const share = serverShareSwitch(e);
   const note = share && shareSwitchNote(agent, share);
   const flip = (id: string, on: boolean) => act(() => PersistentAPI.Configure(agent.name, { switch: { id, on } } as app.PersistentChange));
   const retry = () =>
@@ -227,6 +227,7 @@ function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentVie
           onClick={() => void act(() => PersistentAPI.AddServer(agent.name, serverRowOf(server) as build.MCPServerRow), "The server").then((ok) => ok && onDone())}>
           Add server
         </Button>
+        <p className="small muted">Its card's icon is looked up once in the MCP Registry, by the package's name or a public address's host, when you add it.</p>
       </div>
     </>
   );

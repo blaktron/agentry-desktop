@@ -4,7 +4,8 @@
 // server's own. One icon is fetched once and kept, never again; a server
 // with none is remembered as having none.
 //
-// What is kept is held to rules a card can draw safely: fetched over https
+// What is kept is held to these rules, so a card draws an image and nothing
+// else: fetched over https
 // only, at most MaxBytes, and a PNG, JPEG or WebP by its own first bytes,
 // whatever its address or its declared type says. SVG is refused, since an
 // SVG can carry script. The page draws what is kept as a data: URL, so no
@@ -21,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,12 +30,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
 // MaxBytes is the most an icon is.
 const MaxBytes = 256 << 10
+
+// UserAgent is what the registry and an icon's host are told is asking.
+const UserAgent = "agentry-desktop"
 
 // RegistryBase is the official MCP Registry's API.
 const RegistryBase = "https://registry.modelcontextprotocol.io/v0.1"
@@ -144,6 +151,7 @@ func Lookup(ctx context.Context, c *http.Client, base string, srv manifest.MCPSe
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", UserAgent)
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
@@ -186,7 +194,9 @@ func Lookup(ctx context.Context, c *http.Client, base string, srv manifest.MCPSe
 }
 
 // searchTerm is what the registry's name search is asked for: a package's
-// last name part, or a remote address's host.
+// last name part, or a remote address's host. A host that is not a public
+// name (an address, a single label, a name of a private network) is never
+// sent: it would tell the registry about a network of the person's own.
 func searchTerm(srv manifest.MCPServer) string {
 	switch {
 	case srv.NPM != "":
@@ -194,11 +204,66 @@ func searchTerm(srv manifest.MCPServer) string {
 	case srv.PyPI != "":
 		return srv.PyPI
 	case srv.URL != "":
-		if u, err := url.Parse(srv.URL); err == nil {
+		if u, err := url.Parse(srv.URL); err == nil && PublicName(u.Hostname()) {
 			return u.Hostname()
 		}
 	}
 	return ""
+}
+
+// privateSuffixes are the name suffixes of private networks.
+var privateSuffixes = []string{".local", ".lan", ".internal", ".home", ".corp", ".localhost", ".home.arpa", ".intranet", ".private"}
+
+// PublicName says host is a name of the public internet by its shape: not
+// an address, more than one label, and no private network's suffix.
+func PublicName(host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(host, "."))
+	if h == "" || net.ParseIP(h) != nil || !strings.Contains(h, ".") {
+		return false
+	}
+	for _, s := range privateSuffixes {
+		if strings.HasSuffix(h, s) {
+			return false
+		}
+	}
+	return true
+}
+
+// publicIP says an address is one of the public internet: not loopback,
+// private, link-local, shared (CGNAT), multicast or unspecified.
+func publicIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() || ip.IsUnspecified() || ip.IsInterfaceLocalMulticast() {
+		return false
+	}
+	if v4 := ip.To4(); v4 != nil && v4[0] == 100 && v4[1]&0xc0 == 64 {
+		return false
+	}
+	return true
+}
+
+// errNotPublic is a connection refused because its address is not public.
+var errNotPublic = errors.New("an icon is fetched from a public address only")
+
+// Client is the HTTP client the registry and the icons are read with: it
+// connects to public addresses alone, checked as each connection is made,
+// so neither an icon's address, a redirect nor a name that resolves to an
+// address on the person's own network reaches that network.
+func Client(timeout time.Duration) *http.Client {
+	d := &net.Dialer{Timeout: 10 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return err
+		}
+		if ip := net.ParseIP(host); ip == nil || !publicIP(ip) {
+			return errNotPublic
+		}
+		return nil
+	}}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.Proxy = nil
+	t.DialContext = d.DialContext
+	return &http.Client{Timeout: timeout, Transport: t}
 }
 
 // ErrNotAnImage is a fetched icon that is not a PNG, JPEG or WebP, or is
@@ -226,6 +291,7 @@ func Fetch(ctx context.Context, c *http.Client, src string) ([]byte, string, err
 	if err != nil {
 		return nil, "", err
 	}
+	req.Header.Set("User-Agent", UserAgent)
 	resp, err := cc.Do(req)
 	if err != nil {
 		return nil, "", err

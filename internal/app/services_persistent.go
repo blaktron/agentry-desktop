@@ -451,7 +451,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		}
 	}
 	v.Roster = rosterView(roster, cfg.Servers, factsOf(a))
-	p.serverIcons(a.Name, cfg, v.Roster)
+	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	for _, e := range roster {
@@ -1203,6 +1203,7 @@ func (p *PersistentAPI) AddServer(name string, row build.MCPServerRow) (*Persist
 	if err := p.configure(a, persistent.Change{AddServer: &srv}); err != nil {
 		return nil, err
 	}
+	p.lookUpIcon(a.Name, srv)
 	return p.Get(name)
 }
 

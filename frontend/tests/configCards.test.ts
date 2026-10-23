@@ -79,6 +79,10 @@ test("a card's state: off greyed, on in colour, an install busy, a sign-in or se
   assert.deepEqual(cardState(stopped, entry({ state: "off", on: false })), { words: "Off", tone: "off", retry: false });
   assert.deepEqual(cardState(stopped, entry({ state: "on" })), { words: "On", tone: "on", retry: false });
   assert.deepEqual(cardState(running, entry({ state: "on" })), { words: "Ready", tone: "on", retry: false });
+  // Only the supervisor in this app knows a server is installed: an agent
+  // running elsewhere has its server only on.
+  assert.equal(cardState({ state: "elsewhere" }, entry({ state: "on" })).words, "On");
+  assert.equal(cardState(running, entry({ state: "needs-sign-in", on: false })).words, "Needs a sign-in");
   assert.equal(cardState(running, entry({ state: "installing" })).tone, "busy");
   assert.deepEqual(cardState(stopped, entry({ state: "failed", reason: "npm answered 404" })), { words: "Failed", tone: "failed", retry: true, reason: "npm answered 404" });
   assert.equal(cardState(stopped, entry({ state: "needs-sign-in" })).tone, "attention");

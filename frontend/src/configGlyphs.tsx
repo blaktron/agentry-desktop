@@ -4,10 +4,10 @@
 // fetched by the page and no icon font is used; the stroke is the page's
 // own token (style.css, .config-glyph), so a glyph reads in either theme.
 import type { ReactNode } from "react";
-import type { CardIcon } from "./configCards";
+import type { CardIcon, GlyphKey } from "./configCards";
 
 // Each glyph on a 24 by 24 grid, as stroked paths.
-const PATHS: Record<string, ReactNode> = {
+const PATHS: Record<GlyphKey, ReactNode> = {
   // A branch: two commits and a merge.
   git: <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="8" r="2" /><path d="M6 7v10M18 10c0 5-6 4-11 8" /></>,
   // An open book with a letter.
@@ -59,7 +59,7 @@ export function ConfigIcon({ icon }: { icon: CardIcon }) {
   }
   return (
     <svg className="config-icon config-glyph" viewBox="0 0 24 24" width={32} height={32} aria-hidden="true" focusable="false">
-      {PATHS[icon.key] ?? PATHS.server}
+      {PATHS[icon.key as GlyphKey] ?? PATHS.server}
     </svg>
   );
 }

@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -101,8 +100,9 @@ func iconStore() (servericon.Store, error) {
 	return servericon.Store{Dir: filepath.Join(base, "server-icons")}, nil
 }
 
-// iconClient fetches the registry's entries and the icons they name.
-var iconClient = &http.Client{Timeout: 20 * time.Second}
+// iconClient fetches the registry's entries and the icons they name, from
+// public addresses alone.
+var iconClient = servericon.Client(20 * time.Second)
 
 // findIcon looks a server's icon up in the official MCP Registry; tests
 // put their own here, so none reaches the network.
@@ -110,10 +110,10 @@ var findIcon = func(ctx context.Context, srv manifest.MCPServer) ([]byte, string
 	return servericon.Find(ctx, iconClient, servericon.RegistryBase, srv)
 }
 
-// serverIcons fills in the kept icon of each server the person added, and
-// looks up, once, the icon of any it has never looked up: in the
-// background, the page told when it is kept.
-func (p *PersistentAPI) serverIcons(agent string, cfg persistent.Config, entries []PersistentRosterEntry) {
+// serverIcons fills in the kept icon of each server the person added. It
+// only reads what is kept: a server's icon is looked up when the person
+// adds it (lookUpIcon), never because a page was drawn.
+func serverIcons(cfg persistent.Config, entries []PersistentRosterEntry) {
 	store, err := iconStore()
 	if err != nil {
 		return
@@ -124,24 +124,26 @@ func (p *PersistentAPI) serverIcons(agent string, cfg persistent.Config, entries
 			continue
 		}
 		for _, srv := range cfg.Servers {
-			if persistent.ServerEntryID(srv) != e.ID {
-				continue
+			if persistent.ServerEntryID(srv) == e.ID {
+				e.Icon, _ = store.Get(srv)
+				break
 			}
-			icon, known := store.Get(srv)
-			e.Icon = icon
-			if !known {
-				p.lookUpIcon(agent, store, srv)
-			}
-			break
 		}
 	}
 }
 
-// lookUpIcon looks up and keeps srv's icon in the background, once a
-// process: a failure to reach the registry or the icon is tried again at
-// the next launch, and a server whose entry has no icon it may draw is
-// kept as having none.
-func (p *PersistentAPI) lookUpIcon(agent string, store servericon.Store, srv manifest.MCPServer) {
+// lookUpIcon looks up and keeps the icon of a server the person just
+// added, in the background: once kept (an icon, or none it may draw), it
+// is never looked up again; a failure to reach the registry or the icon is
+// tried again when the server is next added.
+func (p *PersistentAPI) lookUpIcon(agent string, srv manifest.MCPServer) {
+	store, err := iconStore()
+	if err != nil {
+		return
+	}
+	if _, known := store.Get(srv); known {
+		return
+	}
 	p.mu.Lock()
 	if p.iconLookups == nil {
 		p.iconLookups = map[string]bool{}
@@ -160,6 +162,9 @@ func (p *PersistentAPI) lookUpIcon(agent string, store servericon.Store, srv man
 		case errors.Is(err, servericon.ErrNotAnImage):
 			b = nil
 		case err != nil:
+			p.mu.Lock()
+			delete(p.iconLookups, srv.SourceID())
+			p.mu.Unlock()
 			return
 		}
 		if store.Put(srv, b, mt) == nil && b != nil {
@@ -182,6 +187,7 @@ func (p *PersistentAPI) AddSuggested(name, key string) (*PersistentAgentView, er
 	if err := p.configure(a, persistent.Change{AddServer: &srv}); err != nil {
 		return nil, err
 	}
+	p.lookUpIcon(a.Name, srv)
 	return p.Get(name)
 }
 
@@ -311,7 +317,15 @@ func (p *PersistentAPI) SetSecret(name, secret, value string) (*PersistentAgentV
 	account := persistent.SecretAccount(a.Name, secret)
 	previous := ""
 	if slices.ContainsFunc(cfg.Secrets, func(s persistent.StoredSecret) bool { return s.Name == secret }) {
-		previous, _ = keys.Get(account)
+		// A value set again widens nothing, so the change asks nothing: the
+		// native dialog asks here, so the page cannot replace a value the
+		// person kept without them.
+		if err := p.app.askConsent("Replace the value of "+secret+"?", "This replaces the value of your secret "+secret+" that "+called(a, cfg)+" has, in your system keychain. The old value is not kept."); err != nil {
+			return nil, err
+		}
+		if previous, err = keys.Get(account); err != nil {
+			return nil, fmt.Errorf("the keychain's value of %s could not be read, so it is left as it is: %w", secret, err)
+		}
 	}
 	if err := keys.Set(account, value); err != nil {
 		return nil, err

@@ -5,7 +5,7 @@
 // their tests share it. Every name and line is data the runner, the agent
 // or the person wrote, drawn as text.
 import type { app } from "../wailsjs/go/models";
-import { AGENT_STATES, serverShareSwitch, type ShareSwitch } from "./persistentAgents.ts";
+import { AGENT_STATES } from "./persistentAgents.ts";
 
 /** The four grids, in their order. */
 export type GridKey = "apps" | "accounts" | "skills" | "abilities";
@@ -69,11 +69,14 @@ export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "kee
  *  server the person added, or a monogram. */
 export type CardIcon = { kind: "glyph"; key: string } | { kind: "image"; src: string } | { kind: "monogram"; text: string };
 
-/** The glyph keys this build draws (configGlyphs.tsx). */
-export const GLYPHS = new Set([
+/** The glyphs this build draws: configGlyphs.tsx draws each of them, and
+ *  its table is typed by this list, so neither can lack one. */
+export const GLYPH_KEYS = [
   "git", "encyclopedia", "docs", "scan", "weather", "map", "mail", "search", "server",
   "folder", "box", "memory", "clock", "terminal", "globe", "browser", "host", "plug", "book", "skill", "key", "person",
-]);
+] as const;
+export type GlyphKey = (typeof GLYPH_KEYS)[number];
+const GLYPHS: ReadonlySet<string> = new Set(GLYPH_KEYS);
 
 // A kept icon is a data: URL of a PNG, JPEG or WebP and nothing else: the
 // page loads no image from anywhere.
@@ -85,7 +88,7 @@ const IMAGE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 export function cardIcon(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "name" | "icon" | "iconKey">): CardIcon {
   if (e.icon && IMAGE.test(e.icon)) return { kind: "image", src: e.icon };
   if (e.iconKey && GLYPHS.has(e.iconKey)) return { kind: "glyph", key: e.iconKey };
-  const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", commands: "terminal", egress: "globe", browser: "browser" };
+  const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser" };
   if (Object.hasOwn(byID, e.id)) return { kind: "glyph", key: byID[e.id] };
   const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person" };
   if (Object.hasOwn(byKind, e.kind)) return { kind: "glyph", key: byKind[e.kind] };
@@ -148,8 +151,11 @@ export type RemoveAction =
   | { kind: "skill"; name: string; what: string }
   | { kind: "secret"; name: string; what: string };
 
+// after is what an entry's id holds after its kind's prefix.
 const after = (id: string, prefix: string) => (id.startsWith(prefix) ? id.slice(prefix.length) : "");
 
+/** removeAction is what Remove does to an entry, or null for one the
+ *  person did not add. */
 export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "name" | "grantedBy">): RemoveAction | null {
   if (e.grantedBy !== "you") return null;
   switch (e.kind) {
@@ -180,6 +186,8 @@ export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | 
  *  which is set up in the terminal until the app's account form exists. */
 export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: string };
 
+/** setUpOf is what an entry's Set up asks for, or null for one that
+ *  needs none now. */
 export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecret" | "setUpAccount">): SetUp | null {
   if (e.state !== "needs-set-up") return null;
   if (e.setUpSecret) return { kind: "secret", name: e.setUpSecret };
@@ -198,11 +206,6 @@ export function cardMenu(e: app.PersistentRosterEntry): CardMenu {
 /** Who granted an entry, in words. */
 export function grantedWords(e: Pick<app.PersistentRosterEntry, "grantedBy">): string {
   return e.grantedBy === "you" ? "Added by you" : "Built in";
-}
-
-/** The card's secondary switch: a server's "Can see your share folder". */
-export function cardShareSwitch(e: app.PersistentRosterEntry): ShareSwitch | null {
-  return serverShareSwitch(e);
 }
 
 /** A secret's name as the CLI takes it: an upper-case letter, then

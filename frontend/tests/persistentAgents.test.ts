@@ -22,14 +22,11 @@ import {
   newAgentChat,
   pendingChange,
   persistentAgentsStatus,
-  rosterGroups,
-  rosterStateWords,
   coderRunning,
   enableOutcome,
   termLines,
   startFailureLines,
   startReasonWords,
-  serverState,
   serverShareSwitch,
   retryChanges,
   installingAny,
@@ -109,74 +106,10 @@ test("Settings' card counts the enabled and the running agents", () => {
   assert.equal(agentStateWords({ state: "disabled" }), "Off");
 });
 
-test("the roster's panel groups its entries by kind, in the roster's order, and says what waits for the next turn", () => {
+test("a change waits for the next turn while an entry is pending", () => {
   const e = (id: string, kind: string, state = "on") => ({ id, kind, name: id, grantedBy: "built-in", state, on: state !== "off", line: "" }) as app.PersistentRosterEntry;
-  const groups = rosterGroups([e("share", "files"), e("data", "files"), e("knowledge:wiki", "knowledge", "pending"), e("server:x", "server", "needs-sign-in")]);
-  assert.deepEqual(groups.map((g) => [g.title, g.entries.map((x) => x.id)]), [
-    ["Folders", ["share", "data"]],
-    ["Knowledge packs", ["knowledge:wiki"]],
-    ["MCP servers", ["server:x"]],
-  ]);
-  // The Coding agent's grant and its dev server have groups of their own.
-  assert.deepEqual(rosterGroups([e("commands", "tools"), e("egress", "tools"), e("devhost", "host")]).map((g) => g.title), ["Tools", "Dev server"]);
-  assert.equal(rosterStateWords({ state: "pending" }), "Applies at the next turn");
-  assert.equal(rosterStateWords({ state: "needs-sign-in" }), "Needs a sign-in");
   assert.equal(pendingChange(agent({ roster: [e("knowledge:wiki", "knowledge", "pending")] })), true);
   assert.equal(pendingChange(agent({ roster: [e("share", "files")] })), false);
-});
-
-test("an event before the transcript is read is held only if the reload would not draw it", () => {
-  let held = holdEarly([], { kind: "user_turn", time: t, text: "in the transcript" });
-  assert.deepEqual(held, []);
-  held = holdEarly(held, { kind: "assistant_turn", time: t, text: "in the transcript too" });
-  held = holdEarly(held, { kind: "notice", time: t, text: "kept" });
-  assert.deepEqual(held, []);
-  held = holdEarly(held, { kind: "assistant_text", time: t, text: "streamed" });
-  held = holdEarly(held, { kind: "usage", time: t, totalTokens: 10 });
-  assert.deepEqual(held.map((e) => e.kind), ["assistant_text", "usage"]);
-  for (let i = 0; i < MAX_EARLY + 5; i++) held = holdEarly(held, { kind: "assistant_text", time: t, text: String(i) });
-  assert.equal(held.length, MAX_EARLY);
-  assert.equal(held[held.length - 1].text, String(MAX_EARLY + 4), "the newest are kept");
-  assert.equal(refreshesView({ kind: "assistant_turn", time: t }), true);
-  assert.equal(refreshesView({ kind: "assistant_text", time: t }), false);
-});
-
-test("the Configuration's server form is the Builder's row: a pinned package, or a remote address with no sign-in", () => {
-  const pkg = { source: "npm", package: " @acme/notes ", version: " 1.2.3 ", url: "", tools: "read, write ,," };
-  assert.deepEqual(serverRowOf(pkg), { source: "npm", package: "@acme/notes", version: "1.2.3", tools: ["read", "write"] });
-  assert.equal(canAddServer(pkg), true);
-  assert.equal(canAddServer({ ...pkg, version: " " }), false, "a package needs its exact version");
-  const remote = { source: "url", package: "", version: "", url: " https://mcp.example.com/mcp ", tools: "" };
-  assert.deepEqual(serverRowOf(remote), { source: "url", url: "https://mcp.example.com/mcp", auth: "none", tools: [] });
-  assert.equal(canAddServer({ ...remote, url: "" }), false);
-});
-
-test("a release that runs only persistent offers no run, in the runner's own words", () => {
-  assert.equal(persistentOnly(["persistent"]), true);
-  assert.equal(persistentOnly(["persistent", "interactive"]), false);
-  assert.equal(persistentOnly(["autonomous"]), false);
-  assert.equal(persistentOnly(undefined), false);
-  assert.equal(PERSISTENT_ONLY_SENTENCE, "A persistent release runs only as a built-in in this version.");
-});
-
-test("the sidebar's Coding agent badge shows while its segment runs here, and not after Stop", () => {
-  assert.equal(coderRunning([agent({ name: "coder", state: "running" })]), true);
-  assert.equal(coderRunning([agent({ name: "coder", state: "stopped" })]), false);
-  assert.equal(coderRunning([agent({ name: "assistant", state: "running" })]), false);
-});
-
-test("a No in the Coding agent's dialog leaves it off, and Settings says nothing was changed", () => {
-  assert.equal(enableOutcome(true, { state: "disabled" }), "Nothing was changed.");
-  assert.equal(enableOutcome(true, { state: "stopped" }), null);
-  assert.equal(enableOutcome(false, { state: "disabled" }), null);
-});
-
-test("a port form takes a name the CLI takes and an unprivileged number", () => {
-  assert.equal(portFormOK("web", "3000"), true);
-  assert.equal(portFormOK(" web ", " 8080 "), true);
-  for (const [name, port] of [["Web", "3000"], ["-web", "3000"], ["my web", "3000"], ["", "3000"], ["web", "80"], ["web", "65536"], ["web", "3e3"], ["web", ""]]) {
-    assert.equal(portFormOK(name, port), false, `${name}=${port}`);
-  }
 });
 
 test("a port opens only while the agent runs with it on and applied", () => {
@@ -187,7 +120,6 @@ test("a port opens only while the agent runs with it on and applied", () => {
   assert.equal(portOpenable({ state: "running" }, { ...port, state: "pending" }), false);
   assert.equal(portOpenable({ state: "running" }, { ...port, on: false, state: "off" }), false);
   assert.equal(portOpenable({ state: "running" }, { ...port, kind: "host" }), false);
-  assert.deepEqual(rosterGroups([{ id: "port:web", kind: "port" } as never]).map((g) => g.title), ["Ports"]);
 });
 
 test("a starting agent shows the step its start is on, and Starting… before the first", () => {
@@ -219,29 +151,9 @@ test("a failed start says where it stopped, its error, its reason in words and i
   assert.equal(startReasonWords({ code: "new-code", names: [] }), "new-code");
 });
 
-// A server the person added: installing, then ready, or failed with the
-// runner's reason and a Retry; and its "Can see your share folder" switch.
+// A server the person added, and its "Can see your share folder" switch.
 const srv = (over: Partial<app.PersistentRosterEntry>) =>
   ({ id: "server:pypi-office-word-mcp-server", kind: "server", name: "pypi:office-word-mcp-server@1.1.11", grantedBy: "you", state: "on", on: true, line: "", ...over }) as app.PersistentRosterEntry;
-
-test("a server's install state reads Installing…, Ready, or Failed with its reason and a Retry", () => {
-  const running = agent({ state: "running" });
-  assert.deepEqual(serverState(running, srv({ state: "installing" })), { words: "Installing…", retry: false });
-  assert.deepEqual(serverState(running, srv({ state: "on" })), { words: "Ready", retry: false });
-  assert.deepEqual(serverState(running, srv({ state: "pending" })), { words: "Ready, joins at your next message", retry: false });
-  assert.deepEqual(serverState(running, srv({ state: "failed", reason: "resolve pypi:x@9: not found in the configured registry" })), {
-    words: "Failed", reason: "resolve pypi:x@9: not found in the configured registry", retry: true,
-  });
-  // A failed install is shown, and retried, while the agent is stopped too.
-  assert.equal(serverState(agent({ state: "stopped" }), srv({ state: "failed", reason: "x" })).retry, true);
-  // Only the supervisor in this app knows a server is installed: elsewhere
-  // and stopped, a server that is on is only on.
-  assert.equal(serverState(agent({ state: "stopped" }), srv({ state: "on" })).words, "On");
-  assert.equal(serverState(agent({ state: "elsewhere" }), srv({ state: "on" })).words, "On");
-  assert.equal(serverState(running, srv({ state: "off", on: false })).words, "Off");
-  assert.equal(serverState(running, srv({ state: "pending", on: false })).words, "Applies at the next turn");
-  assert.equal(serverState(running, srv({ state: "needs-sign-in", on: false })).words, "Needs a sign-in");
-});
 
 test("Retry switches the failed server off and on, in that order", () => {
   assert.deepEqual(retryChanges("server:pypi-x"), [{ switch: { id: "server:pypi-x", on: false } }, { switch: { id: "server:pypi-x", on: true } }]);

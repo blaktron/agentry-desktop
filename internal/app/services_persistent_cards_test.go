@@ -226,16 +226,27 @@ func TestASecretIsKeptInTheKeychainAndNeverReadBack(t *testing.T) {
 	if e, ok := rosterEntry(v, "Your secret WEATHER_KEY"); !ok || e.Kind != "secret" || !e.On {
 		t.Fatalf("the secret's entry: %+v (found %v)", e, ok)
 	}
-	// Set again, and the change refused: the first value is put back. A
-	// value set again turns nothing new on, so the refusal is forced by
-	// switching the secret off first and answering No to turning it on.
-	if _, err := rig.p.Configure("assistant", PersistentChange{Switch: &PersistentSwitch{ID: persistent.SecretEntryID("WEATHER_KEY"), On: false}}); err != nil {
+	// Set again: the native dialog asks, since the change widens nothing,
+	// and a No leaves the keychain as it was.
+	asked := len(rig.dialogs())
+	rig.answer = false
+	if _, err := rig.p.SetSecret("assistant", "WEATHER_KEY", "planted-value-2"); !errors.Is(err, errNotConfirmed) || len(rig.dialogs()) != asked+1 {
+		t.Fatalf("a value set again: %v, dialogs %d then %d", err, asked, len(rig.dialogs()))
+	}
+	if got, _ := keys.Get(account); got != "planted-value-1" {
+		t.Fatalf("a refused value set again changed the keychain: %q", got)
+	}
+	rig.answer = true
+	if _, err := rig.p.SetSecret("assistant", "WEATHER_KEY", "planted-value-2"); err != nil {
 		t.Fatal(err)
+	}
+	if got, _ := keys.Get(account); got != "planted-value-2" {
+		t.Fatalf("the value set again: %q", got)
 	}
 	if _, err := rig.p.SetSecret("assistant", "WEATHER_KEY", "short"); err == nil {
 		t.Fatal("a value under the bound was stored")
 	}
-	if got, _ := keys.Get(account); got != "planted-value-1" {
+	if got, _ := keys.Get(account); got != "planted-value-2" {
 		t.Fatalf("a refused value changed the keychain: %q", got)
 	}
 	if _, err := rig.p.RemoveSecret("assistant", "WEATHER_KEY"); err != nil {

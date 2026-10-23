@@ -1590,7 +1590,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-roster .config-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-roster .config-card-line { display: none; }
 .agent-roster .config-card-menu { top: 4px; right: 4px; }
-.config-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 10px 10px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-raised); }
+.config-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-raised); }
 .config-card-main { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 0 52px 0 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .config-card-main:disabled { cursor: default; opacity: 1; }
 .config-card-main:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; border-radius: 4px; }
