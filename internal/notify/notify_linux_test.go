@@ -47,8 +47,9 @@ func (f *fakeServer) last(t *testing.T) fakeCall {
 }
 
 // privateBus starts a dbus-daemon of the test's own, serves f on it as the
-// notification server, and points this package at it.
-func privateBus(t *testing.T, f *fakeServer) *dbus.Conn {
+// notification server, and points this package at it. It answers the
+// server's connection and the bus's address.
+func privateBus(t *testing.T, f *fakeServer) (*dbus.Conn, string) {
 	t.Helper()
 	daemon, err := exec.LookPath("dbus-daemon")
 	if err != nil {
@@ -99,12 +100,12 @@ func privateBus(t *testing.T, f *fakeServer) *dbus.Conn {
 		session.conn, session.keys, session.order = nil, nil, nil
 		session.Unlock()
 	})
-	return server
+	return server, addr
 }
 
 func TestANotificationReachesTheServerAndItsClickComesBack(t *testing.T) {
 	f := &fakeServer{caps: []string{"actions", "body"}}
-	server := privateBus(t, f)
+	server, addr := privateBus(t, f)
 	clicks := make(chan string, 1)
 	SetOnClick(func(key string) { clicks <- key })
 	t.Cleanup(func() { SetOnClick(nil) })
@@ -126,7 +127,16 @@ func TestANotificationReachesTheServerAndItsClickComesBack(t *testing.T) {
 		t.Errorf("desktop-entry %q", e)
 	}
 
-	// Another action, and another notification's click, open nothing.
+	// Another program's signal, another action, and another notification's
+	// click open nothing.
+	other, err := dbus.Connect(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Close() }()
+	if err := other.Emit(busPath, busIface+".ActionInvoked", uint32(1), actionKey); err != nil {
+		t.Fatal(err)
+	}
 	if err := server.Emit(busPath, busIface+".ActionInvoked", uint32(1), "Open"); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +173,7 @@ func TestANotificationReachesTheServerAndItsClickComesBack(t *testing.T) {
 
 func TestABodyIsEscapedWhereTheServerReadsMarkup(t *testing.T) {
 	f := &fakeServer{caps: []string{"actions", "body", "body-markup", "body-hyperlinks", "body-images"}}
-	privateBus(t, f)
+	_, _ = privateBus(t, f)
 	if err := Show(Notice{Title: "<b>t</b>", Body: `<a href="https://example.com">x</a> & <img src="https://example.com/i.png"/>`, Key: "assistant"}); err != nil {
 		t.Fatal(err)
 	}

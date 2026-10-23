@@ -117,9 +117,11 @@ type PersistentAPI struct {
 	// focus ("" for none), as the page reports it: its tasks raise no
 	// notification then.
 	viewing string
-	// notify raises a desktop notification; nil is the platform's own. A
-	// test puts its own here.
-	notify func(notify.Notice) error
+	// showNotice raises a desktop notification, and minimised reports
+	// whether the window is minimised; nil is the platform's own. A test
+	// puts its own here.
+	showNotice func(notify.Notice) error
+	minimised  func() bool
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,7 +41,9 @@ func TestTaskNoticeReadsTheRunnersNoticeAndNothingElse(t *testing.T) {
 func TestATasksAnswerRaisesADesktopNotification(t *testing.T) {
 	rig := newPersistentRig(t)
 	got := make(chan notify.Notice, 8)
-	rig.p.notify = func(n notify.Notice) error { got <- n; return nil }
+	rig.p.showNotice = func(n notify.Notice) error { got <- n; return nil }
+	var minimised atomic.Bool
+	rig.p.minimised = minimised.Load
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +109,13 @@ func TestATasksAnswerRaisesADesktopNotification(t *testing.T) {
 	rig.p.SetViewing("assistant")
 	send(`Task "While looking" ran: seen already`)
 	settle()
+	// Minimised, the page in front is not in front of the person.
+	minimised.Store(true)
+	send(`Task "Minimised" ran: shown`)
+	if n := next(); n.Body != "shown" {
+		t.Errorf("a minimised window's agent: %+v", n)
+	}
+	minimised.Store(false)
 	rig.p.SetViewing("coder")
 	send(`Task "Empty" ran: `)
 	if n := next(); n.Body != emptyAnswer {

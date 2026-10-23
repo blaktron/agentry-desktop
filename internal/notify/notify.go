@@ -75,7 +75,7 @@ func Clean(n Notice) Notice {
 	return Notice{Title: plain(n.Title, maxTitle), Body: plain(n.Body, maxBody), Key: n.Key}
 }
 
-func plain(s string, max int) string {
+func plain(s string, limit int) string {
 	if !utf8.ValidString(s) {
 		s = strings.ToValidUTF8(s, "\uFFFD")
 	}
@@ -86,9 +86,9 @@ func plain(s string, max int) string {
 		return r
 	}, s)
 	s = strings.Join(strings.Fields(s), " ")
-	if utf8.RuneCountInString(s) <= max {
+	if utf8.RuneCountInString(s) <= limit {
 		return s
 	}
 	r := []rune(s)
-	return strings.TrimSpace(string(r[:max-1])) + "…"
+	return strings.TrimSpace(string(r[:limit-1])) + "…"
 }

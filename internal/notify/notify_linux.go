@@ -98,7 +98,9 @@ func connection() (*dbus.Conn, bool, error) {
 		return nil, false, fmt.Errorf("no desktop notification service answers on the session bus: %w", err)
 	}
 	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
-		if err := c.AddMatchSignal(dbus.WithMatchObjectPath(busPath), dbus.WithMatchInterface(busIface), dbus.WithMatchMember(member)); err != nil {
+		// From the notification server alone: another program on the bus
+		// cannot click a notification for the person.
+		if err := c.AddMatchSignal(dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(busPath), dbus.WithMatchInterface(busIface), dbus.WithMatchMember(member)); err != nil {
 			_ = c.Close()
 			return nil, false, err
 		}

@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 	"github.com/blaktron/agentry-desktop/internal/notify"
@@ -54,18 +56,20 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 	if !ok || !taskNotificationsOn() || p.isViewing(name) {
 		return
 	}
+	// Only an agent that keeps tasks has a page a click can open for them.
+	a, err := p.agent(name)
+	if err != nil || !a.Builtin.KeepsTime() {
+		return
+	}
 	title := task
-	if a, err := p.agent(name); err == nil {
-		if home, err := p.home(); err == nil {
-			if cfg, err := persistent.LoadConfig(home, a.Name); err == nil {
-				title = a.DisplayName(cfg) + ": " + task
-			}
-		}
+	if home, err := p.home(); err == nil {
+		cfg, _ := persistent.LoadConfig(home, a.Name)
+		title = a.DisplayName(cfg) + ": " + task
 	}
 	if strings.TrimSpace(line) == "" {
 		line = emptyAnswer
 	}
-	show := p.notify
+	show := p.showNotice
 	if show == nil {
 		show = notify.Show
 	}
@@ -83,11 +87,20 @@ func taskNotificationsOn() bool {
 	return err != nil || !st.TaskNotificationsOff
 }
 
-// isViewing reports whether the window is in front showing the agent named.
+// isViewing reports whether the window is in front showing the agent named:
+// the page's report, unless the window is minimised, which a page cannot
+// always tell.
 func (p *PersistentAPI) isViewing(name string) bool {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.viewing != "" && p.viewing == name
+	viewing, minimised := p.viewing, p.minimised
+	p.mu.Unlock()
+	if viewing == "" || viewing != name {
+		return false
+	}
+	if minimised == nil {
+		minimised = func() bool { return p.app != nil && p.app.ctx != nil && runtime.WindowIsMinimised(p.app.ctx) }
+	}
+	return !minimised()
 }
 
 // SetViewing is the page's report of what the person is looking at: the

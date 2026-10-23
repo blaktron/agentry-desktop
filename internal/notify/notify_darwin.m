@@ -5,6 +5,10 @@
 
 extern void goAgentryNotifyClicked(char *key);
 
+// The answers to Go (notify_darwin.go): ready, no bundle, a macOS without
+// UserNotifications, a value that is not text.
+enum { agentryNotifyOK = 0, agentryNotifyNoBundle = 1, agentryNotifyTooOld = 2, agentryNotifyNotText = 3 };
+
 // The notification center's delegate: a notification shows while the app is
 // in front too (the Go side decides when not to raise one), and a click on
 // one hands its key to Go.
@@ -43,16 +47,16 @@ static id agentryNotifyDelegate;
 static int agentryNotifyReady(void) {
   if (@available(macOS 10.14, *)) {
     if ([[NSBundle mainBundle] bundleIdentifier] == nil) {
-      return 1;
+      return agentryNotifyNoBundle;
     }
     static dispatch_once_t once;
     dispatch_once(&once, ^{
       agentryNotifyDelegate = [AgentryNotifyDelegate new];
       [UNUserNotificationCenter currentNotificationCenter].delegate = agentryNotifyDelegate;
     });
-    return 0;
+    return agentryNotifyOK;
   }
-  return 2;
+  return agentryNotifyTooOld;
 }
 
 int agentryNotifyInit(void) {
@@ -61,7 +65,7 @@ int agentryNotifyInit(void) {
 
 int agentryNotifyShow(const char *title, const char *body, const char *key) {
   int rc = agentryNotifyReady();
-  if (rc != 0) {
+  if (rc != agentryNotifyOK) {
     return rc;
   }
   if (@available(macOS 10.14, *)) {
@@ -69,7 +73,7 @@ int agentryNotifyShow(const char *title, const char *body, const char *key) {
     NSString *b = [NSString stringWithUTF8String:body];
     NSString *k = [NSString stringWithUTF8String:key];
     if (t == nil || b == nil || k == nil) {
-      return 3;
+      return agentryNotifyNotText;
     }
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
     // The first time, the system asks the person whether Agentry may notify
@@ -77,6 +81,7 @@ int agentryNotifyShow(const char *title, const char *body, const char *key) {
     [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
                           completionHandler:^(BOOL granted, NSError *error) {
       if (!granted) {
+        NSLog(@"Agentry: a task's notification was not shown: notifications for Agentry are off in System Settings");
         return;
       }
       UNMutableNotificationContent *content = [UNMutableNotificationContent new];
@@ -89,7 +94,7 @@ int agentryNotifyShow(const char *title, const char *body, const char *key) {
                                                                             trigger:nil];
       [center addNotificationRequest:request withCompletionHandler:nil];
     }];
-    return 0;
+    return agentryNotifyOK;
   }
-  return 2;
+  return agentryNotifyTooOld;
 }

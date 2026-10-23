@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -87,6 +88,9 @@ func (s *Services) startBackground(ctx context.Context) {
 	s.persistent.onState = func() { s.followAgents(ctx) }
 	// A click on a task's notification opens its agent's page.
 	notify.SetOnClick(func(name string) {
+		if !slices.Contains(shownAgents, name) {
+			return
+		}
 		windowShow(ctx)
 		emitEvent(s.app, eventTrayOpenAgent, name)
 	})
@@ -138,6 +142,9 @@ func (s *Services) closeToBackground(ctx context.Context) bool {
 	if s.bg.quitting.Load() || !s.persistent.keepsRunning() {
 		return false
 	}
+	// Hidden, the window shows no agent, whatever the page last said: a
+	// hide does not always reach the page as a blur.
+	s.persistent.SetViewing("")
 	windowHide(ctx)
 	s.followAgents(ctx)
 	s.bg.launching.Add(1)

@@ -14,14 +14,18 @@ import (
 	"unsafe"
 )
 
-// The answers of the Objective-C side (notify_darwin.m).
+// The answers of the Objective-C side, its enum in notify_darwin.m.
 const (
 	darwinOK       = 0
 	darwinNoBundle = 1
 	darwinTooOld   = 2
+	darwinNotText  = 3
 )
 
-var errNoBundle = errors.New("notifications need the app's bundle: this binary runs outside Agentry Desktop.app")
+var (
+	errNoBundle = errors.New("notifications need the app's bundle: this binary runs outside Agentry Desktop.app")
+	errNotText  = errors.New("the notification's text is not UTF-8")
+)
 
 // Init makes the app the delegate of its notification center, so a click on
 // a notification reaches it. It asks the person nothing: the first
@@ -44,8 +48,8 @@ func darwinErr(rc C.int) error {
 		return nil
 	case darwinNoBundle:
 		return errNoBundle
-	case darwinTooOld:
-		return ErrUnsupported
+	case darwinNotText:
+		return errNotText
 	}
 	return ErrUnsupported
 }
