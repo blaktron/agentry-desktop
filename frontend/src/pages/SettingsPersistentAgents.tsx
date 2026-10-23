@@ -16,6 +16,7 @@ import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgent
 import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
+import { TasksView } from "./TasksView";
 import { StartFailure } from "./StartFailure";
 
 /** The longest personality the agent takes, as the CLI holds it. */
@@ -27,6 +28,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [error, setError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
+  const [exported, setExported] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // Start Agentry when you sign in: read when the page opens, as the login
   // item stands (null until read).
@@ -152,12 +154,25 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           </p>
           <p>The files in the share folder you chose, the receipts of what it did and a dev server's sign-in in your keychain are kept.</p>
           {resetting.state === AGENT_STATES.running && <p>It is running: Reset stops it first.</p>}
+          {resetting.keepsMemory && (
+            <div className="row gap">
+              <p className="small">Its memory goes with its files. Export it first to keep a copy.</p>
+              <Button disabled={busy !== null} onClick={() => {
+                setExported(null);
+                PersistentAPI.ExportMemory(resetting.name)
+                  .then((v) => setExported(v.folder ? exportWords(v) : null))
+                  .catch((e) => setExported(String(e)));
+              }}>Export memory…</Button>
+            </div>
+          )}
+          {exported && <p className="small" role="status">{exported}</p>}
           <div className="row gap">
             <Button
               variant="danger"
               onClick={() => {
                 const name = resetting.name;
                 setResetting(null);
+                setExported(null);
                 void act(name, async () => {
                   const v = await PersistentAPI.Reset(name);
                   forgetChat(name);
@@ -167,12 +182,19 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
             >
               Reset
             </Button>
-            <Button variant="ghost" onClick={() => setResetting(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setResetting(null); setExported(null); }}>Cancel</Button>
           </div>
         </Modal>
       )}
     </section>
   );
+}
+
+/** What an export of the memory says it did. */
+function exportWords(v: app.PersistentExportView): string {
+  const files = `${v.files.toLocaleString("en-US")} file${v.files === 1 ? "" : "s"}`;
+  const left = v.skipped ? `; ${v.skipped} entr${v.skipped === 1 ? "y" : "ies"} that were neither a file nor a folder left out` : "";
+  return `Its memory is copied into ${v.folder}: ${files}${left}.`;
 }
 
 /** The agent's Configuration, over the page. Each change is saved as it is
@@ -187,6 +209,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [saved, setSaved] = useState<string | null>(null);
   const [dev, setDev] = useState<{ host: string; keyFile: string; passphrase: string; password: string }>({ host: "", keyFile: "", passphrase: "", password: "" });
   const [port, setPort] = useState<{ name: string; port: string }>({ name: "", port: "" });
+  const [showTasks, setShowTasks] = useState(false);
 
   useEffect(() => {
     if (!agent) return;
@@ -253,6 +276,27 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
           onChange={(e) => void change({ runOnStart: e.target.checked }, "Run when Agentry starts")} />
         Run when Agentry starts
       </label>
+      {(agent.keepsTime || agent.keepsMemory) && (
+        <div className="row gap">
+          {agent.keepsTime && <Button disabled={busy} onClick={() => setShowTasks(true)}>Tasks…</Button>}
+          {agent.keepsMemory && (
+            <Button disabled={busy} onClick={() => void (async () => {
+              setBusy(true);
+              setError(null);
+              setSaved(null);
+              try {
+                const v = await PersistentAPI.ExportMemory(name);
+                if (v.folder) setSaved(exportWords(v));
+              } catch (e) {
+                setError(String(e));
+              } finally {
+                setBusy(false);
+              }
+            })()}>Export memory…</Button>
+          )}
+        </div>
+      )}
+      {showTasks && <TasksView agent={agent} onClose={() => setShowTasks(false)} />}
       {isCoder && (
         <>
           <h3>Dev server</h3>

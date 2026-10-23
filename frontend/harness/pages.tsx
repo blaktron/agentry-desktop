@@ -719,6 +719,7 @@ const keptIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAf
 const harnessAssistant = {
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
   share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
+  keepsTime: true, keepsMemory: true, codes: false, accounts: [],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/assistantshare with you, read and write" },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
@@ -743,6 +744,7 @@ const harnessAssistant = {
 const harnessCoder = {
   name: "coder", title: "Coding agent", displayName: "Coding agent", state: "running", runOnStart: true,
   share: "/home/me/agentry/codingshare", defaultShare: true, knowledge: [], servers: [],
+  ports: [{ name: "web", port: 3000 }],
   devHost: "deploy@devbox.lan", devHostKey: "SHA256:7cVzL3yXqk1rQm0Hd2pWb9sA4tEuN6fGjKoP8iZxY5w",
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/codingshare with you, read and write" },
@@ -757,16 +759,25 @@ const harnessCoder = {
     { id: "server:semgrep", kind: "server", name: "pypi:semgrep@1.182.0", grantedBy: "you", state: "installing", on: true, iconKey: "scan", line: "Code scanning, run against its share" },
     { id: "skill:code-review", kind: "skill", name: "code-review", grantedBy: "built-in", state: "on", on: true, line: "Reviews a change for bugs and the project's own rules" },
   ],
-  keepsSecrets: true, takesSkills: true, suggested: [],
+  keepsSecrets: true, takesSkills: true, suggested: [], keepsTime: false, keepsMemory: false, codes: true,
+  accounts: [{ host: "github.com", kind: "github", own: true, user: "my-coder-bot", name: "my-coder-bot", email: "bot@example.com" }],
   status: { since: "2026-10-20T19:00:00Z", segment: 2, run: "c0de0001", adapter: "docker-agent", model: "qwen3.8-flash-next", resumed: true, busy: false, pending: false, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, userTurns: 1, toolCalls: 4 },
   lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 9 },
   volumes: { session: "agentry-persistent-coder-session", data: "agentry-persistent-coder-data" },
 };
 
+// The Assistant's tasks: one on, one paused.
+let harnessTasks = [
+  { id: "t1", name: "Morning summary", cron: "0 8 * * 1-5", zone: "Europe/Oslo", instruction: "Summarise my calendar for the day, and say what to prepare.", state: "on", madeBy: "agent",
+    next: "2026-10-26T07:00:00Z", lastFire: "2026-10-23T06:00:00Z", lastResult: "Three meetings today; the first at 9:30 with the landlord." },
+  { id: "t2", name: "Water the plants", cron: "0 18 * * 0", zone: "Europe/Oslo", instruction: "Remind me to water the plants.", state: "paused", madeBy: "agent" },
+];
+
 // Main, stopped after a short conversation: Home's first card.
 const harnessMain = {
   name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
   share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: false, takesSkills: false, suggested: [],
+  keepsTime: false, keepsMemory: false, codes: false, accounts: [],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/mainshare with you, read and write", fixed: true },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
@@ -876,6 +887,19 @@ g.go = { app: {
     RemoveSkill: async () => harnessAssistant,
     SetSecret: async () => harnessAssistant,
     RemoveSecret: async () => harnessAssistant,
+    Tasks: async () => harnessTasks,
+    ChangeTask: async (_n: string, id: string, op: string) => {
+      harnessTasks = op === "remove" ? harnessTasks.filter((t) => t.id !== id)
+        : harnessTasks.map((t) => (t.id === id ? { ...t, state: op === "pause" ? "paused" : "on" } : t));
+      return harnessTasks;
+    },
+    ExportMemory: async () => ({ folder: "/home/me/Documents/assistant-memory-2026-10-23-201500", files: 12, bytes: 48213 }),
+    SetAccount: async () => harnessCoder,
+    RemoveAccount: async () => harnessCoder,
+    AccountKind: async (host: string) => ({ "github.com": "github", "gitlab.com": "gitlab", "codeberg.org": "gitea" } as Record<string, string>)[host.trim().toLowerCase()] ?? "",
+    AccountGuidance: async (_kind: string, own: boolean) => own
+      ? "Its own account (recommended). The agent reaches only the repositories you share with that account, its commits, pull requests and comments are its own, and taking access away is removing a collaborator."
+      : "Your account. The agent can do whatever the token can do as you.",
     AddFiles: async () => [],
     Reset: async () => harnessAssistant,
   },
