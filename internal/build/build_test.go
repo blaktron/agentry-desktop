@@ -28,7 +28,7 @@ func model() *Model {
 	m.FSWritePaths = []string{"out"}
 	m.ExecCommands = []string{"jq"}
 	m.Secrets = []string{"EXAMPLE_TOKEN"}
-	m.MCPServers = []MCPServerRow{{Source: "npm", Package: "@scope/server-x", Version: "1.2.3",
+	m.MCPServers = []MCPServerRow{{Source: "npm", Package: "@scope/server-x", Version: "1.2.3", Args: []string{},
 		Tools: []string{"list_issues"}, Secrets: []string{"GITHUB_PAT"}, Egress: []string{"api.github.com"}}}
 	m.Tags = []string{"fixture", "build"}
 	m.Instructions = "# hello-build\n\nDo the one job.\n"
@@ -404,6 +404,7 @@ func TestEveryFieldRoundTrips(t *testing.T) {
 	}
 	m.RuntimeModels = []string{"claude-*"}
 	m.MCPServers[0].Env = []EnvRow{{Name: "LOG_LEVEL", Value: "debug # not a comment"}}
+	m.MCPServers[0].Args = []string{"mcp", "--transport=stdio,quiet", "#not-a-comment"}
 	m.Dependencies = []DependencyRow{{Ref: "acme/helper", Version: "^1.2.0"}}
 	m.PublishChannel = "beta"
 	m.Intake = []IntakeRow{{ID: "region", Prompt: "Which region?", Type: "choice", Choices: []string{"emea", "apac"}, Required: true}}
@@ -959,5 +960,74 @@ func TestOnlyPublishRevisionSendsDraftRun(t *testing.T) {
 		if got != c.draftRun || seen != (c.draftRun != "") {
 			t.Fatalf("draftRun sent %q (field present %v), want %q", got, seen, c.draftRun)
 		}
+	}
+}
+
+// A package server's args go from a loaded manifest to the saved one as
+// they were written: in order, each word whole, none dropped or trimmed.
+func TestAPackageServersArgsComeThroughTheForm(t *testing.T) {
+	src := "schemaVersion: \"2\"\nname: scan\nnamespace: acme\nversion: 0.1.0\nsummary: s\nmodes: [autonomous]\n" +
+		"capabilities:\n  mcpServers:\n    - pypi: semgrep\n      version: 1.140.0\n      args: [mcp, --transport, stdio]\n"
+	m, err := decodeManifest([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"mcp", "--transport", "stdio"}
+	if got := m.MCPServers[0].Args; !reflect.DeepEqual(got, want) {
+		t.Fatalf("read %q, want %q", got, want)
+	}
+	m.Instructions = "# scan\n"
+	dir := t.TempDir()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	p, err := manifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("does not parse: %v\n%s", err, raw)
+	}
+	if got := p.Capabilities.MCPServers[0].Args; !reflect.DeepEqual(got, want) {
+		t.Errorf("saved %q, want %q:\n%s", got, want, raw)
+	}
+	if s := m.Summarize(nil); !reflect.DeepEqual(s.Servers[0].Args, want) {
+		t.Errorf("the summary names %q, want %q", s.Servers[0].Args, want)
+	}
+}
+
+// The form holds args to the core's rules before a save, and a server's
+// row that is switched to remote writes none.
+func TestTheFormChecksAServersArgs(t *testing.T) {
+	cases := map[string]struct {
+		args []string
+		want string
+	}{
+		"empty":         {[]string{"mcp", ""}, "arg 2 is empty"},
+		"two words":     {[]string{"mcp --stdio"}, "arg 1 must be one word"},
+		"a tab":         {[]string{"mcp\t"}, "arg 1 must be one word"},
+		"a format char": {[]string{"mc\u200bp"}, "arg 1 must be one word"},
+		"expanded":      {[]string{"--home=$HOME"}, "arg 1 holds a $"},
+		"a template":    {[]string{"{{.token}}"}, "arg 1 holds a $ or a {{ }}"},
+		"too long":      {[]string{strings.Repeat("a", manifest.MaxMCPServerArgLen+1)}, "longer than 256"},
+		"too many":      {make([]string, manifest.MaxMCPServerArgs+1), "at most 16 args"},
+	}
+	for name, c := range cases {
+		m := model()
+		m.MCPServers[0].Args = c.args
+		err := m.Validate()
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: want %q, got %v", name, c.want, err)
+		}
+	}
+	m := model()
+	m.MCPServers[0].Args = []string{"mcp", "--port=8080", "a,b"}
+	if err := m.Validate(); err != nil {
+		t.Errorf("literal words pass: %v", err)
+	}
+	if res := m.Check(); res.First != nil {
+		t.Errorf("and the core's rules pass them: %+v", res.First)
+	}
+	m.MCPServers[0].Source, m.MCPServers[0].URL, m.MCPServers[0].Auth = "url", "https://mcp.example.com/mcp", "none"
+	if strings.Contains(m.manifestYAML(), "args") {
+		t.Errorf("a remote row wrote its args:\n%s", m.manifestYAML())
 	}
 }

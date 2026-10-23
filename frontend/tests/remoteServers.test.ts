@@ -49,3 +49,12 @@ test("the reach rows say where each server runs and how it signs in, in the site
   assert.equal(signInPhrase({ source: "npm", package: "x", version: "1.0.0" }), "");
   assert.equal(reachRow({ source: "url", url: "" }).what, "a remote server, no address yet");
 });
+
+test("a package server's args are named in its reach row, in order; a remote row's are not", () => {
+  const semgrep = { source: "pypi", package: "semgrep", version: "1.140.0", args: ["mcp", "--transport", "stdio"], egress: ["semgrep.dev"] };
+  assert.deepEqual(reachRow(semgrep), {
+    what: "pypi:semgrep@1.140.0",
+    value: "starts with mcp --transport stdio; reaches semgrep.dev; all its tools",
+  });
+  assert.doesNotMatch(reachRow({ ...linear, args: ["mcp"] }).value, /starts with/);
+});
