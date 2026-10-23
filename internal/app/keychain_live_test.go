@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -30,7 +31,15 @@ func TestLiveStoredSecretInTheSystemKeychain(t *testing.T) {
 	if os.Getenv(liveKeychainEnv) != "1" {
 		t.Skip("set " + liveKeychainEnv + "=1 to run the stored secret against this computer's keychain")
 	}
+	realHome := os.Getenv("HOME")
 	rig := newPersistentRig(t)
+	if runtime.GOOS == "darwin" {
+		// macOS finds the user's default keychain through the preferences
+		// under HOME; under the rig's temp HOME there is none, and the
+		// keychain write waits on a prompt. The runner home and the config
+		// directory stay the rig's own, and nothing here makes a share.
+		t.Setenv("HOME", realHome)
+	}
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		t.Fatal(err)
