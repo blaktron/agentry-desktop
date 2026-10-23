@@ -2,6 +2,7 @@ package build
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1001,14 +1002,14 @@ func TestTheFormChecksAServersArgs(t *testing.T) {
 		args []string
 		want string
 	}{
-		"empty":         {[]string{"mcp", ""}, "arg 2 is empty"},
-		"two words":     {[]string{"mcp --stdio"}, "arg 1 must be one word"},
-		"a tab":         {[]string{"mcp\t"}, "arg 1 must be one word"},
-		"a format char": {[]string{"mc\u200bp"}, "arg 1 must be one word"},
-		"expanded":      {[]string{"--home=$HOME"}, "arg 1 holds a $"},
-		"a template":    {[]string{"{{.token}}"}, "arg 1 holds a $ or a {{ }}"},
-		"too long":      {[]string{strings.Repeat("a", manifest.MaxMCPServerArgLen+1)}, "longer than 256"},
-		"too many":      {make([]string, manifest.MaxMCPServerArgs+1), "at most 16 args"},
+		"empty":         {[]string{"mcp", ""}, "argument 2 is empty"},
+		"two words":     {[]string{"mcp --stdio"}, "argument 1 must be one word"},
+		"a tab":         {[]string{"mcp\t"}, "argument 1 must be one word"},
+		"a format char": {[]string{"mc\u200bp"}, "argument 1 must be one word"},
+		"expanded":      {[]string{"--home=$HOME"}, "argument 1 holds a $"},
+		"a template":    {[]string{"{{.token}}"}, "argument 1 holds a $ or a {{ }}"},
+		"too long":      {[]string{strings.Repeat("a", manifest.MaxMCPServerArgLen+1)}, fmt.Sprintf("longer than %d", manifest.MaxMCPServerArgLen)},
+		"too many":      {make([]string, manifest.MaxMCPServerArgs+1), fmt.Sprintf("at most %d arguments", manifest.MaxMCPServerArgs)},
 	}
 	for name, c := range cases {
 		m := model()
@@ -1019,12 +1020,21 @@ func TestTheFormChecksAServersArgs(t *testing.T) {
 		}
 	}
 	m := model()
-	m.MCPServers[0].Args = []string{"mcp", "--port=8080", "a,b"}
+	m.MCPServers[0].Args = []string{"mcp", "--port=8080", "a,b", "true", "null", "1", "-", "-x", "~", "&a", "*a", "!x", "'q'"}
 	if err := m.Validate(); err != nil {
 		t.Errorf("literal words pass: %v", err)
 	}
 	if res := m.Check(); res.First != nil {
 		t.Errorf("and the core's rules pass them: %+v", res.First)
+	}
+	// Words YAML would read as another type or node pass through as text.
+	dir := t.TempDir()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	if p, err := manifest.Parse(raw); err != nil || !reflect.DeepEqual(p.Capabilities.MCPServers[0].Args, m.MCPServers[0].Args) {
+		t.Errorf("read back %v (%v), want %q:\n%s", p, err, m.MCPServers[0].Args, raw)
 	}
 	m.MCPServers[0].Source, m.MCPServers[0].URL, m.MCPServers[0].Auth = "url", "https://mcp.example.com/mcp", "none"
 	if strings.Contains(m.manifestYAML(), "args") {

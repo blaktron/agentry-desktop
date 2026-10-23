@@ -122,7 +122,7 @@ export function SummaryView({
             {s.servers.map((sv, i) => (
               <li key={i}>
                 <span className="mono selectable"><RevealText text={sv.ref} /></span>
-                {(sv.args ?? []).length > 0 && <div><RevealText text={`Starts with: ${sv.args.join(" ")}`} /></div>}
+                {sv.args.length > 0 && <div><RevealText text={`Starts with: ${sv.args.join(" ")}`} /></div>}
                 <div>{sv.tools.length === 0 ? "May call all of its tools." : <RevealText text={`Tools: ${sv.tools.join(", ")}.`} />}</div>
                 {sv.keys.length > 0 && <div><RevealText text={`Keys: ${sv.keys.join(", ")}.`} /></div>}
                 {sv.config.length > 0 && <div><RevealText text={`Configuration: ${sv.config.join(", ")}.`} /></div>}

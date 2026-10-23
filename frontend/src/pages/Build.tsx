@@ -891,6 +891,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                   </label>
                   {remove}
                 </div>
+                {/* One field per argument, not a comma list: an argument may hold a comma. */}
                 <div style={{ marginTop: 6 }}>
                   <span className="small">arguments its command starts with, in order (for a server that is a subcommand, such as <span className="mono">mcp</span>)</span>
                   <div className="row" style={{ marginTop: 4, flexWrap: "wrap" }}>

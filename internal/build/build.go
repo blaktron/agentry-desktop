@@ -1367,25 +1367,25 @@ func Load(dir string) (*Model, error) {
 func argProblems(args []string) []string {
 	var out []string
 	if len(args) > manifest.MaxMCPServerArgs {
-		out = append(out, fmt.Sprintf("at most %d args (it has %d)", manifest.MaxMCPServerArgs, len(args)))
+		out = append(out, fmt.Sprintf("at most %d arguments (it has %d)", manifest.MaxMCPServerArgs, len(args)))
 	}
 	for j, arg := range args {
 		n := j + 1
 		switch {
 		case arg == "":
-			out = append(out, fmt.Sprintf("arg %d is empty; remove it or write the word", n))
+			out = append(out, fmt.Sprintf("argument %d is empty; remove it or write the word", n))
 			continue
 		case utf8.RuneCountInString(arg) > manifest.MaxMCPServerArgLen:
-			out = append(out, fmt.Sprintf("arg %d is longer than %d characters", n, manifest.MaxMCPServerArgLen))
+			out = append(out, fmt.Sprintf("argument %d is longer than %d characters", n, manifest.MaxMCPServerArgLen))
 		}
 		for _, r := range arg {
 			if unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-				out = append(out, fmt.Sprintf("arg %d must be one word, with no space, control or format character (found %U); give each word its own arg", n, r))
+				out = append(out, fmt.Sprintf("argument %d must be one word, with no space, control or format character (found %U); give each word its own argument", n, r))
 				break
 			}
 		}
 		if !manifest.LiteralEnvValue(arg) {
-			out = append(out, fmt.Sprintf("arg %d holds a $ or a {{ }} the runner would expand; write the literal word", n))
+			out = append(out, fmt.Sprintf("argument %d holds a $ or a {{ }} the runner would expand; write the literal word", n))
 		}
 	}
 	return out
@@ -1409,7 +1409,7 @@ func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets,
 	case named > 1:
 		return fmt.Errorf("%s names more than one of npm, pypi and url", where)
 	case address != "" && (version != "" || len(egress) > 0 || config || oauth):
-		return fmt.Errorf("%s is a remote server and also carries a package's version, hosts, args, configuration or sign-in", where)
+		return fmt.Errorf("%s is a remote server and also carries a package's version, hosts, arguments, configuration or sign-in", where)
 	case address == "" && (auth != "" || len(scopes) > 0):
 		return fmt.Errorf("%s is a package server and carries a remote server's auth or scopes", where)
 	case address != "" && auth != "" && auth != string(manifest.AuthOAuth) && auth != string(manifest.AuthSecret) && auth != string(manifest.AuthNone):
