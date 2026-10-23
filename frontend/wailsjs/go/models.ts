@@ -5799,6 +5799,7 @@ export namespace build {
 	    source: string;
 	    package: string;
 	    version: string;
+	    args: string[];
 	    url: string;
 	    auth: string;
 	    scopes: string[];
@@ -5817,6 +5818,7 @@ export namespace build {
 	        this.source = source["source"];
 	        this.package = source["package"];
 	        this.version = source["version"];
+	        this.args = source["args"];
 	        this.url = source["url"];
 	        this.auth = source["auth"];
 	        this.scopes = source["scopes"];
@@ -6043,6 +6045,7 @@ export namespace build {
 	    tools: string[];
 	    hosts: SummaryHost[];
 	    keys: string[];
+	    args: string[];
 	    config: string[];
 	    remote: boolean;
 	    signIn: string[];
@@ -6057,6 +6060,7 @@ export namespace build {
 	        this.tools = source["tools"];
 	        this.hosts = this.convertValues(source["hosts"], SummaryHost);
 	        this.keys = source["keys"];
+	        this.args = source["args"];
 	        this.config = source["config"];
 	        this.remote = source["remote"];
 	        this.signIn = source["signIn"];

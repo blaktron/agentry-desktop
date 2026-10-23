@@ -18,12 +18,12 @@ import (
 // says how each server signs in in the site's words.
 
 func linearRow() MCPServerRow {
-	return MCPServerRow{Source: "url", URL: "https://mcp.linear.app/mcp", Auth: "oauth", Scopes: []string{"read", "write"},
+	return MCPServerRow{Source: "url", URL: "https://mcp.linear.app/mcp", Auth: "oauth", Scopes: []string{"read", "write"}, Args: []string{},
 		Tools: []string{"list_issues"}, Secrets: []string{}, Egress: []string{}, Env: []EnvRow{}}
 }
 
 func workspaceRow() MCPServerRow {
-	return MCPServerRow{Source: "pypi", Package: "workspace-mcp", Version: "2.0.1", Tools: []string{}, Secrets: []string{},
+	return MCPServerRow{Source: "pypi", Package: "workspace-mcp", Version: "2.0.1", Args: []string{}, Tools: []string{}, Secrets: []string{},
 		Egress: []string{"gmail.googleapis.com"}, Env: []EnvRow{{Name: "MCP_SINGLE_USER_MODE", Value: "1"}},
 		OAuth: &OAuthRow{
 			Issuer: "https://accounts.google.com",
@@ -40,9 +40,9 @@ func withServers(rows ...MCPServerRow) *Model {
 }
 
 func TestRemoteServersAndSignInsRoundTripAndPassTheCore(t *testing.T) {
-	gh := MCPServerRow{Source: "url", URL: "https://api.githubcopilot.com/mcp/", Auth: "secret", Scopes: []string{},
+	gh := MCPServerRow{Source: "url", URL: "https://api.githubcopilot.com/mcp/", Auth: "secret", Scopes: []string{}, Args: []string{},
 		Tools: []string{}, Secrets: []string{"GITHUB_TOKEN"}, Egress: []string{}, Env: []EnvRow{}}
-	none := MCPServerRow{Source: "url", URL: "https://mcp.deepwiki.com/mcp", Auth: "none", Scopes: []string{},
+	none := MCPServerRow{Source: "url", URL: "https://mcp.deepwiki.com/mcp", Auth: "none", Scopes: []string{}, Args: []string{},
 		Tools: []string{}, Secrets: []string{}, Egress: []string{}, Env: []EnvRow{}}
 	m := withServers(workspaceRow(), linearRow(), gh, none)
 	if res := m.Check(); res.First != nil {
@@ -295,6 +295,7 @@ func TestLoadRefusesAServerTheFormCannotHoldWhole(t *testing.T) {
 		"scopes under a key":             "    - url: https://api.githubcopilot.com/mcp/\n      auth: secret\n      secrets: [TOKEN]\n      scopes: [repo]\n",
 		"an address beside a package":    "    - npm: x\n      url: https://mcp.linear.app/mcp\n",
 		"an auth outside the three":      "    - url: https://mcp.linear.app/mcp\n      auth: basic\n",
+		"a remote server with args":      "    - url: https://mcp.linear.app/mcp\n      auth: oauth\n      args: [mcp]\n",
 	}
 	for name, entry := range cases {
 		if _, err := decodeManifest([]byte(head + entry)); err == nil || !strings.Contains(err.Error(), "capabilities.mcpServers[0]") {

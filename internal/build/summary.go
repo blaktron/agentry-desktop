@@ -70,6 +70,9 @@ type SummaryServer struct {
 	Tools []string      `json:"tools"`
 	Hosts []SummaryHost `json:"hosts"`
 	Keys  []string      `json:"keys"`
+	// Args are the arguments a package server's command starts with, in
+	// order; empty for none.
+	Args []string `json:"args"`
 	// Config is the names of its plain configuration (env); the values
 	// are in the form.
 	Config []string `json:"config"`
@@ -183,7 +186,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	for _, row := range m.MCPServers {
 		srv := row.Declared()
 		ref := srv.Ref()
-		sv := SummaryServer{Ref: ref, Tools: compact(srv.Tools), Hosts: []SummaryHost{}, Keys: compact(srv.Secrets), Config: []string{},
+		sv := SummaryServer{Ref: ref, Tools: compact(srv.Tools), Hosts: []SummaryHost{}, Keys: compact(srv.Secrets), Args: orEmpty(srv.Args), Config: []string{},
 			Remote: srv.IsRemote(), SignIn: srv.SignInLines()}
 		for _, h := range srv.Hosts() {
 			sv.Hosts = append(sv.Hosts, host(h))

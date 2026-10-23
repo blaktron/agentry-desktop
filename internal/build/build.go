@@ -203,6 +203,10 @@ type MCPServerRow struct {
 	Package string `json:"package"`
 	// Version is the exact pin (no ranges, V5).
 	Version string `json:"version"`
+	// Args are the arguments a package server's command starts with, in
+	// order, after the package's own entry: each one literal word the
+	// program receives as it is written. A remote server takes none.
+	Args []string `json:"args"`
 	// URL is a remote server's https:// address; its host is the server's
 	// one network destination.
 	URL string `json:"url"`
@@ -253,7 +257,7 @@ func (r MCPServerRow) IsRemote() bool { return r.Source == "url" }
 // Declared is the row as the manifest declares it: only the fields of its
 // own shape. A remote server keeps its address, auth, tools, and its key
 // with auth secret or its scopes with auth oauth; a package server keeps
-// its package, version, tools, keys, hosts, configuration and sign-in.
+// its package, version, args, tools, keys, hosts, configuration and sign-in.
 // What the source or the auth hides is not written, so a value the page no
 // longer shows can never reach agent.yaml.
 func (r MCPServerRow) Declared() MCPServerRow {
@@ -446,6 +450,9 @@ func (m *Model) formProblems() []SectionProblem {
 		}
 		if strings.TrimSpace(srv.Version) == "" {
 			add(SectionTools, "mcp server %d (%s): an exact version is required (no ranges)", i+1, pkg)
+		}
+		for _, msg := range argProblems(srv.Args) {
+			add(SectionTools, "mcp server %s: %s", pkg, msg)
 		}
 		if id := srv.Source + ":" + pkg; seen[id] {
 			add(SectionTools, "mcp server %s is declared twice", id)
@@ -964,6 +971,11 @@ func (m *Model) serverLines() []string {
 			continue
 		}
 		out = append(out, "    - "+srv.Source+": "+q(strings.TrimSpace(srv.Package)), "      version: "+q(strings.TrimSpace(srv.Version)))
+		if len(srv.Args) > 0 {
+			// Written as given, never compacted: an argument's place and
+			// its exact text are what the program receives.
+			out = append(out, "      args: "+seq(srv.Args))
+		}
 		if tools := compact(srv.Tools); len(tools) > 0 {
 			out = append(out, "      tools: "+seq(tools))
 		}
@@ -1346,13 +1358,46 @@ func Load(dir string) (*Model, error) {
 	return m, nil
 }
 
+// argProblems says what is wrong with a package server's args under the
+// core's rules, so the form names it before a save: at most
+// manifest.MaxMCPServerArgs arguments, each one non-empty word of at most
+// manifest.MaxMCPServerArgLen characters with no whitespace, control or
+// format character, and literal, since the runner's gateway expands a
+// command's arguments as it does a server's env.
+func argProblems(args []string) []string {
+	var out []string
+	if len(args) > manifest.MaxMCPServerArgs {
+		out = append(out, fmt.Sprintf("at most %d arguments (it has %d)", manifest.MaxMCPServerArgs, len(args)))
+	}
+	for j, arg := range args {
+		n := j + 1
+		switch {
+		case arg == "":
+			out = append(out, fmt.Sprintf("argument %d is empty; remove it or write the word", n))
+			continue
+		case utf8.RuneCountInString(arg) > manifest.MaxMCPServerArgLen:
+			out = append(out, fmt.Sprintf("argument %d is longer than %d characters", n, manifest.MaxMCPServerArgLen))
+		}
+		for _, r := range arg {
+			if unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+				out = append(out, fmt.Sprintf("argument %d must be one word, with no space, control or format character (found %U); give each word its own argument", n, r))
+				break
+			}
+		}
+		if !manifest.LiteralEnvValue(arg) {
+			out = append(out, fmt.Sprintf("argument %d holds a $ or a {{ }} the runner would expand; write the literal word", n))
+		}
+	}
+	return out
+}
+
 // heldWhole refuses a server entry the form cannot hold whole: a row keeps
 // only the fields of its own shape (MCPServerRow.Declared), so an entry
 // mixing a remote server's fields with a package's, or a key or scopes its
 // auth does not use, would be narrowed by the next save without a word.
 // The core refuses each of these too; the site's importer refuses them
 // alike.
-func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets, egress []string, env, oauth bool) error {
+func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets, egress []string, config, oauth bool) error {
 	where := fmt.Sprintf("capabilities.mcpServers[%d]", i)
 	named := 0
 	for _, s := range []string{npm, pypi, address} {
@@ -1363,8 +1408,8 @@ func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets,
 	switch {
 	case named > 1:
 		return fmt.Errorf("%s names more than one of npm, pypi and url", where)
-	case address != "" && (version != "" || len(egress) > 0 || env || oauth):
-		return fmt.Errorf("%s is a remote server and also carries a package's version, hosts, configuration or sign-in", where)
+	case address != "" && (version != "" || len(egress) > 0 || config || oauth):
+		return fmt.Errorf("%s is a remote server and also carries a package's version, hosts, arguments, configuration or sign-in", where)
 	case address == "" && (auth != "" || len(scopes) > 0):
 		return fmt.Errorf("%s is a package server and carries a remote server's auth or scopes", where)
 	case address != "" && auth != "" && auth != string(manifest.AuthOAuth) && auth != string(manifest.AuthSecret) && auth != string(manifest.AuthNone):
@@ -1453,6 +1498,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 				Auth    string            `yaml:"auth"`
 				Scopes  []string          `yaml:"scopes"`
 				Version string            `yaml:"version"`
+				Args    []string          `yaml:"args"`
 				Tools   []string          `yaml:"tools"`
 				Secrets []string          `yaml:"secrets"`
 				Egress  []string          `yaml:"egress"`
@@ -1547,10 +1593,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 		m.Browser = &BrowserRow{Sites: orEmpty(b.Sites), Hosts: orEmpty(b.Hosts), Scope: b.Scope, Secrets: orEmpty(b.Secrets)}
 	}
 	for i, srv := range doc.Capabilities.MCPServers {
-		if err := heldWhole(i, srv.NPM, srv.PyPI, srv.URL, strings.TrimSpace(srv.Auth), srv.Version, srv.Scopes, srv.Secrets, srv.Egress, len(srv.Env) > 0, srv.OAuth != nil); err != nil {
+		if err := heldWhole(i, srv.NPM, srv.PyPI, srv.URL, strings.TrimSpace(srv.Auth), srv.Version, srv.Scopes, srv.Secrets, srv.Egress, len(srv.Args) > 0 || len(srv.Env) > 0, srv.OAuth != nil); err != nil {
 			return nil, err
 		}
-		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version,
+		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version, Args: orEmpty(srv.Args),
 			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress), Env: []EnvRow{}}
 		switch {
 		case srv.PyPI != "":
