@@ -18,6 +18,8 @@ export function AddSuggested(arg1:string,arg2:string):Promise<app.PersistentAgen
 
 export function CancelGoogleSignIn(arg1:string):Promise<void>;
 
+export function CancelMicrosoftSignIn(arg1:string):Promise<void>;
+
 export function ChangeTask(arg1:string,arg2:string,arg3:string):Promise<Array<app.PersistentTaskView>>;
 
 export function ChooseShare(arg1:string):Promise<app.PersistentAgentView>;
@@ -31,6 +33,8 @@ export function Get(arg1:string):Promise<app.PersistentAgentView>;
 export function GoogleSignIn(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function List():Promise<Array<app.PersistentAgentView>>;
+
+export function MicrosoftSignIn(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function OpenPort(arg1:string,arg2:string):Promise<void>;
 
@@ -55,6 +59,10 @@ export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgent
 export function SetGoogleClient(arg1:string):Promise<app.PersistentAgentView>;
 
 export function SetMailProvider(arg1:string,arg2:string,arg3:boolean):Promise<app.PersistentAgentView>;
+
+export function SetMicrosoftClient(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
+
+export function SetMicrosoftSignoff(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 

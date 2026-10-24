@@ -207,7 +207,7 @@ export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | 
 /** What an entry's Set up asks for: the secret an offered server needs, or
  *  an account on a host: the secret's or the account's Add form, its name
  *  or its host filled in. */
-export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: string } | { kind: "google" };
+export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: string } | { kind: "google" } | { kind: "microsoft" };
 
 /** An open Add form: what it adds, what it is filled in with, and the grid
  *  it is drawn under. A Set up's form is drawn under the grid of the card
@@ -216,7 +216,8 @@ export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: 
 export type AddForm = { kind: AddKind; secretName?: string; host?: string; grid: GridKey };
 
 /** setUpForm is the form a Set up opens from a card in grid, or null for
- *  Google Workspace, whose set-up is a panel of its own. */
+ *  Google Workspace and Microsoft 365, whose set-ups are panels of their
+ *  own. */
 export function setUpForm(s: SetUp, grid: GridKey): AddForm | null {
   switch (s.kind) {
     case "secret":
@@ -235,11 +236,12 @@ export function addFormOf(kind: AddKind, grid: GridKey): AddForm {
 
 /** setUpOf is what an entry's Set up asks for, or null for one that
  *  needs none now. */
-export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecret" | "setUpAccount" | "setUpGoogle">): SetUp | null {
+export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecret" | "setUpAccount" | "setUpGoogle" | "setUpMicrosoft">): SetUp | null {
   if (e.state !== "needs-set-up") return null;
   if (e.setUpSecret) return { kind: "secret", name: e.setUpSecret };
   if (e.setUpAccount) return { kind: "account", host: e.setUpAccount };
   if (e.setUpGoogle) return { kind: "google" };
+  if (e.setUpMicrosoft) return { kind: "microsoft" };
   return null;
 }
 
@@ -300,4 +302,34 @@ export function secretValueOK(v: string): boolean {
   const n = new TextEncoder().encode(v).length;
   // eslint-disable-next-line no-control-regex
   return n >= 8 && n <= 16 * 1024 && !/[\u0000-\u001f\u007f]/.test(v);
+}
+
+/** An Entra application (client) id, as the CLI takes it: a GUID. The CLI
+ *  also refuses the server's own default client. */
+export const ENTRA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The tenants the set-up offers: "" asks Microsoft which kind the address
+ *  is; a tenant's own id is typed instead. */
+export const MICROSOFT_TENANTS: { value: string; label: string }[] = [
+  { value: "", label: "Ask Microsoft (from my address)" },
+  { value: "consumers", label: "A personal account (Outlook.com, Hotmail, Live)" },
+  { value: "organizations", label: "A work or school account" },
+];
+
+/** microsoftWords is what the Microsoft 365 set-up says it holds: the app,
+ *  then the account the server named, never anything secret. */
+export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale"> | undefined): string {
+  if (!m || !m.clientID) return "No Entra app yet.";
+  if (!m.account) return "Your Entra app is kept. Sign in next.";
+  if (m.stale) return `Signed in as ${m.account} with your earlier app: sign in again with the new one.`;
+  return `Signed in as ${m.account}.`;
+}
+
+/** microsoftScopeWords says what a sign-in asks Microsoft for: reading
+ *  alone unless Allow changes is on. */
+export function microsoftScopeWords(roster: Pick<app.PersistentRosterEntry, "id" | "on">[]): string {
+  const writes = roster.some((e) => e.id === "server:ms365:writes" && e.on);
+  return writes
+    ? "The sign-in asks Microsoft to let it change things as well as read them, since Allow changes is on."
+    : "The sign-in asks Microsoft for reading alone. To let it change things, switch Allow changes on first, then sign in again.";
 }

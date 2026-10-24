@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, googleScopeWords, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
@@ -47,11 +47,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
       setBusy(false);
     }
   };
-  const [google, setGoogle] = useState(false);
+  const [panel, setPanel] = useState<"google" | "microsoft" | null>(null);
   const setUp = (s: SetUp, grid: GridKey) => {
     const form = setUpForm(s, grid);
     if (!form) {
-      setGoogle(true);
+      setPanel(s.kind === "microsoft" ? "microsoft" : "google");
       return;
     }
     setAdding(form);
@@ -85,9 +85,14 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               {adding.kind === "provider" && <AddProvider agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
             </div>
           )}
-          {google && g.key === "mail" && agent.google && (
+          {panel === "google" && g.key === "mail" && agent.google && (
             <div className="config-add-panel">
-              <GoogleSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setGoogle(false)} />
+              <GoogleSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setPanel(null)} />
+            </div>
+          )}
+          {panel === "microsoft" && g.key === "mail" && agent.microsoft && (
+            <div className="config-add-panel">
+              <MicrosoftSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setPanel(null)} />
             </div>
           )}
         </section>
@@ -501,6 +506,114 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
           {address && <p>If your browser did not open, go to: <span className="mono selectable config-google-address">{address}</span></p>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Microsoft 365's set-up: the person's own Entra app, its id typed here and
+ *  checked as an id before Go takes it, the tenant, then the sign-in by a
+ *  device code, whose code and Microsoft's page are shown here while Go
+ *  waits; the browser opens only that page. It reads signed in only once the
+ *  server lists the account. The signoff is a line mail it sends or drafts
+ *  ends with. None of it runs while the agent runs. */
+function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
+  agent: app.PersistentAgentView; busy: boolean; act: Act;
+  onError: (e: string | null) => void; onChanged: (v: app.PersistentAgentView) => void; onDone: () => void;
+}) {
+  const m = agent.microsoft;
+  const [clientID, setClientID] = useState(m?.clientID ?? "");
+  const [tenant, setTenant] = useState(m?.tenant && m.tenant !== "consumers" && m.tenant !== "organizations" ? "org" : (m?.tenant ?? ""));
+  const [tenantID, setTenantID] = useState(m?.tenant && ENTRA_ID.test(m.tenant) ? m.tenant : "");
+  const [email, setEmail] = useState(m?.account ?? "");
+  const [signoff, setSignoff] = useState(m?.signoff ?? "");
+  const [started, setStarted] = useState(false);
+  const [code, setCode] = useState<{ url: string; code: string } | null>(null);
+  const waiting = started || !!m?.waiting;
+  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
+  const clientOK = ENTRA_ID.test(clientID.trim());
+  const tenantValue = tenant === "org" ? tenantID.trim() : tenant;
+  const tenantOK = tenant !== "org" || ENTRA_ID.test(tenantID.trim());
+  const emailOK = /^[^@\s-][^@\s]*@[^@\s]+\.[a-z]{2,}$/i.test(email.trim());
+  // Go tells the page a waiting sign-in's code and the page to enter it at,
+  // Microsoft's own.
+  useEffect(() => EventsOn("persistent:microsoft-sign-in", (v: { agent?: string; url?: string; code?: string }) => {
+    if (v?.agent === agent.name && typeof v.url === "string" && typeof v.code === "string") setCode({ url: v.url, code: v.code });
+  }), [agent.name]);
+  const signIn = async () => {
+    setStarted(true);
+    setCode(null);
+    onError(null);
+    try {
+      onChanged(await PersistentAPI.MicrosoftSignIn(agent.name, email.trim()));
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      setStarted(false);
+      setCode(null);
+    }
+  };
+  return (
+    <div className="config-google-form">
+      <p className="small">{microsoftWords(m)}</p>
+      {running && <Notice>Stop {agentCalled(agent)} first: its Microsoft 365 server holds what the set-up writes.</Notice>}
+      <p className="small muted">
+        Microsoft 365 signs in with an Entra app of your own, registered as a public client with Allow public client flows on. The
+        microsoft-365-setup skill walks you through it: ask {agentCalled(agent)} to help you set up Microsoft 365. Only the
+        app&apos;s id is kept; there is no secret.
+      </p>
+      <Field label="Application (client) ID" hint="From your app's Overview in Microsoft Entra.">
+        <Input value={clientID} autoComplete="off" spellCheck={false} disabled={waiting} onChange={(e) => setClientID(e.target.value)} />
+      </Field>
+      <Field label="Account kind" hint="Which tenant the sign-in uses.">
+        <Select value={tenant} disabled={waiting} onChange={(e) => setTenant(e.target.value)}>
+          {MICROSOFT_TENANTS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          <option value="org">One organization (its tenant id)</option>
+        </Select>
+      </Field>
+      {tenant === "org" && (
+        <Field label="Directory (tenant) ID" hint="From your app's Overview, for an app limited to one organization.">
+          <Input value={tenantID} autoComplete="off" spellCheck={false} disabled={waiting} onChange={(e) => setTenantID(e.target.value)} />
+        </Field>
+      )}
+      <div className="row gap">
+        <Button disabled={busy || waiting || running || !clientOK || !tenantOK}
+          onClick={() => void act(() => PersistentAPI.SetMicrosoftClient(agent.name, clientID.trim(), tenantValue), "Microsoft 365's app")}>
+          {m?.clientID ? "Keep this app" : "Keep the app"}
+        </Button>
+      </div>
+      <Field label="Your Microsoft account" hint="The address you sign in to Microsoft with.">
+        <Input value={email} autoComplete="off" spellCheck={false} disabled={!m?.clientID || waiting} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <p className="small muted">{microsoftScopeWords(agent.roster)}</p>
+      <div className="row gap">
+        <Button variant="primary" disabled={busy || waiting || running || !m?.clientID || !emailOK} onClick={() => void signIn()}>
+          {m?.account ? "Sign in again" : "Sign in with Microsoft"}
+        </Button>
+        {waiting && <Button onClick={() => void PersistentAPI.CancelMicrosoftSignIn(agent.name)}>Cancel</Button>}
+        <Button variant="ghost" disabled={started} onClick={onDone}>Close</Button>
+      </div>
+      {waiting && (
+        <div className="small" role="status">
+          {code ? (
+            <>
+              <p>Enter this code at Microsoft&apos;s sign-in page, then sign in and allow the app. This carries on when Microsoft answers.</p>
+              <p className="mono selectable config-google-address">{code.code}</p>
+              <p>If your browser did not open, go to: <span className="mono selectable config-google-address">{code.url}</span></p>
+            </>
+          ) : (
+            <p>Asking Microsoft for a sign-in code…</p>
+          )}
+        </div>
+      )}
+      <Field label="Signoff (optional)" hint="A line every mail it sends or drafts ends with, such as “Sent by my assistant”. Empty for none.">
+        <Input value={signoff} maxLength={200} disabled={waiting} onChange={(e) => setSignoff(e.target.value)} />
+      </Field>
+      <div className="row gap">
+        <Button disabled={busy || waiting || running || signoff.trim() === (m?.signoff ?? "")}
+          onClick={() => void act(() => PersistentAPI.SetMicrosoftSignoff(agent.name, signoff.trim()), "the signoff")}>
+          Save the signoff
+        </Button>
+      </div>
     </div>
   );
 }
