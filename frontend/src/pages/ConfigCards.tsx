@@ -409,10 +409,10 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   return (
     <div className="config-google-form">
       <p className="small">{googleWords(g)}</p>
-      {running && <Notice>Stop {agent.displayName} first: its Google Workspace server holds what the set-up writes.</Notice>}
+      {running && <Notice>Stop {agentCalled(agent)} first: its Google Workspace server holds what the set-up writes.</Notice>}
       <p className="small muted">
         Google Workspace signs in with a Google Cloud client of your own: a Desktop app client you download from Google&apos;s
-        console. The google-workspace-setup skill walks you through making one; ask {agent.displayName} to help you set up
+        console. The google-workspace-setup skill walks you through making one: ask {agentCalled(agent)} to help you set up
         Google Workspace. The file stays on this computer: Agentry hands it to the Google Workspace server, which keeps its
         secret in its own encrypted keyring.
       </p>
@@ -435,9 +435,15 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
       {waiting && (
         <div className="small" role="status">
           <p>Waiting for Google in your browser. Sign in there and allow Agentry; this carries on when Google answers.</p>
-          {address && <p>If your browser did not open, go to: <span className="mono selectable">{address}</span></p>}
+          {address && <p>If your browser did not open, go to: <span className="mono selectable config-google-address">{address}</span></p>}
         </div>
       )}
     </div>
   );
+}
+
+/** agentCalled is how a sentence names the agent: the name the person gave
+ *  it, or "the Assistant". */
+function agentCalled(a: Pick<app.PersistentAgentView, "displayName" | "title">): string {
+  return a.displayName && a.displayName !== a.title ? a.displayName : `the ${a.title}`;
 }
