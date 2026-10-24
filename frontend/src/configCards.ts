@@ -194,6 +194,30 @@ export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | 
  *  or its host filled in. */
 export type SetUp = { kind: "secret"; name: string } | { kind: "account"; host: string } | { kind: "google" };
 
+/** An open Add form: what it adds, what it is filled in with, and the grid
+ *  it is drawn under. A Set up's form is drawn under the grid of the card
+ *  that asked, so it opens where the person is looking, and on a page that
+ *  draws no Add card too. */
+export type AddForm = { kind: AddKind; secretName?: string; host?: string; grid: GridKey };
+
+/** setUpForm is the form a Set up opens from a card in grid, or null for
+ *  Google Workspace, whose set-up is a panel of its own. */
+export function setUpForm(s: SetUp, grid: GridKey): AddForm | null {
+  switch (s.kind) {
+    case "secret":
+      return { kind: "secret", secretName: s.name, grid };
+    case "account":
+      return { kind: "account", host: s.host, grid };
+    default:
+      return null;
+  }
+}
+
+/** addFormOf is the form an Add card in grid opens. */
+export function addFormOf(kind: AddKind, grid: GridKey): AddForm {
+  return { kind, grid };
+}
+
 /** setUpOf is what an entry's Set up asks for, or null for one that
  *  needs none now. */
 export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecret" | "setUpAccount" | "setUpGoogle">): SetUp | null {
