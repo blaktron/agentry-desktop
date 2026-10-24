@@ -4,7 +4,7 @@ import { AgentMarkdown } from "../../AgentMarkdown";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_STATES, MAIN_AGENT, mainStatusLine, startFailureLines, termLines } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, mainStatusLine, startFailureLines, taskSummary, termLines } from "../../persistentAgents";
 import { Button } from "../../ui";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
@@ -109,6 +109,13 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
             switch (l.kind) {
               case "person":
                 return <div key={i} className="agent-term-person"><span aria-hidden="true">&gt; </span>{l.text}</div>;
+              case "task":
+                return (
+                  <details key={i} className="agent-term-task" data-task-turn>
+                    <summary>{taskSummary(l.name)}</summary>
+                    {l.instruction && <div className="agent-term-task-body">{l.instruction}</div>}
+                  </details>
+                );
               case "agent":
                 return <div key={i} className="agent-term-agent"><AgentMarkdown text={l.text} /></div>;
               case "tool":

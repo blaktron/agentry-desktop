@@ -18,6 +18,9 @@ export interface SessionEvent {
   time: string;
   text?: string;
   synthetic?: boolean;
+  /** On a persistent agent's turn that its heartbeat sent, the task's id:
+   *  the turn is the agent's own, not the person's. */
+  task?: string;
   stopReason?: string;
   path?: string;
   digest?: string;
@@ -32,7 +35,7 @@ export interface SessionEvent {
 }
 
 export type Line =
-  | { kind: "user"; text: string; synthetic: boolean }
+  | { kind: "user"; text: string; synthetic: boolean; task?: string }
   | { kind: "assistant"; text: string }
   | { kind: "note"; text: string }
   | { kind: "warn"; text: string }
@@ -103,8 +106,8 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     case "user_turn":
       return {
         ...next, streaming: "", busy: true,
-        turns: ev.synthetic ? c.turns : c.turns + 1,
-        lines: [...c.lines, { kind: "user", text, synthetic: !!ev.synthetic }],
+        turns: ev.synthetic || ev.task ? c.turns : c.turns + 1,
+        lines: [...c.lines, ev.task ? { kind: "user", text, synthetic: !!ev.synthetic, task: ev.task } : { kind: "user", text, synthetic: !!ev.synthetic }],
       };
     case "assistant_text":
       return { ...next, streaming: c.streaming + text };

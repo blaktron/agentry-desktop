@@ -4993,6 +4993,7 @@ export namespace app {
 	    time: string;
 	    text?: string;
 	    synthetic?: boolean;
+	    task?: string;
 	    stopReason?: string;
 	    path?: string;
 	    digest?: string;
@@ -5013,6 +5014,7 @@ export namespace app {
 	        this.time = source["time"];
 	        this.text = source["text"];
 	        this.synthetic = source["synthetic"];
+	        this.task = source["task"];
 	        this.stopReason = source["stopReason"];
 	        this.path = source["path"];
 	        this.digest = source["digest"];
