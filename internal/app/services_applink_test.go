@@ -70,12 +70,12 @@ func (f *fakeMainOps) install(_, ref, who string) (*install.Result, error) {
 	f.installs = append(f.installs, who+" "+ref)
 	return &install.Result{Message: "installed " + ref}, nil
 }
-func (f *fakeMainOps) run(_, ref, task string, inputs []string, share, _ string, began func(string)) (*RunResultView, error) {
+func (f *fakeMainOps) run(_, ref, task string, inputs []string, share, _ string, began func(string, bool)) (*RunResultView, error) {
 	f.mu.Lock()
 	f.runs = append(f.runs, fakeMainRun{ref: ref, task: task, share: share, inputs: inputs})
 	gate := f.runGate
 	f.mu.Unlock()
-	began("01JMAINRUN0000000000000000")
+	began("01JMAINRUN0000000000000000", false)
 	if gate != nil {
 		<-gate
 	}

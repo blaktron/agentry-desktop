@@ -10,20 +10,77 @@
 // makes the app forget it, and Back to the setup reopens the setup on that
 // QuickAgent with the answers as they were.
 //
-// The run lock is unchanged: this run is the one local job, and anything
-// started meanwhile is refused with what is running. Every string the
-// run wrote (the log, the error, the result) is drawn as text.
+// The run lock is unchanged: this run is the one local job. A run started
+// meanwhile waits its turn in a card of its own, "Waiting to start", with
+// Cancel, and takes this card over when it begins; any other job started
+// meanwhile is refused with what is running. Every string the run wrote
+// (the log, the error, the result) is drawn as text.
 import { useEffect, useRef, useState } from "react";
-import { type LocalRun, headlineOf, outcome, shownLog } from "../localRun";
+import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, shownLog } from "../localRun";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
-import { type RunSetup, backToSetup, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
+import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 
-export default function RunFlow({ onBackToSetup, initialMinimized }: {
+export default function RunFlow(props: {
   /** Opens the run's setup again, with the answers as they were. */
   onBackToSetup: (s: RunSetup) => void;
   /** Harness-only: open as the corner card. */
+  initialMinimized?: boolean;
+}) {
+  const s = useLocalRun();
+  return (
+    <>
+      <FollowedRun {...props} />
+      {s.queue.length > 0 && <QueueCard queue={s.queue} />}
+    </>
+  );
+}
+
+// QueueCard lists the runs waiting to start, the next first, each with
+// what it waits for and Cancel, which takes it out of the queue unstarted.
+function QueueCard({ queue }: { queue: QueuedRun[] }) {
+  const [error, setError] = useState("");
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const cancel = async (id: string) => {
+    setCancelling(id);
+    setError("");
+    try {
+      await cancelQueuedRun(id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setCancelling(null);
+    }
+  };
+  return (
+    <CornerCard
+      label="Runs waiting to start"
+      running={false}
+      title={queue.length === 1 ? "1 run waiting to start" : `${queue.length} runs waiting to start`}
+      line={error}
+      tone={error ? "bad" : undefined}
+      actions={null}
+    >
+      <ul className="run-queue" data-run-queue>
+        {queue.map((q) => (
+          <li key={q.runId} className="run-queue-item">
+            <div className="grow">
+              <strong>{q.ref}</strong>
+              <div className="small muted">{queuedLine(q)}</div>
+            </div>
+            <Button onClick={() => void cancel(q.runId)} disabled={cancelling === q.runId} busy={cancelling === q.runId} busyLabel="Cancelling…">
+              Cancel
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </CornerCard>
+  );
+}
+
+function FollowedRun({ onBackToSetup, initialMinimized }: {
+  onBackToSetup: (s: RunSetup) => void;
   initialMinimized?: boolean;
 }) {
   const s = useLocalRun();

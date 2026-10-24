@@ -15,6 +15,23 @@ export type RunProgress = JobProgress & { runId: string; ref: string; prepared: 
 /** One line of a run's log, with its id (runner:run-line). */
 export type RunLine = { runId: string; line: string };
 
+/** A run waiting for the run lock behind another job (runner:run-queue,
+ *  RunAPI's QueuedRunView): Go sends the whole queue each time it changes. */
+export type QueuedRun = { runId: string; ref: string; position: number; waitingFor: string };
+
+/** The line a queued run's card says: where it stands and what it waits
+ *  for. */
+export function queuedLine(q: QueuedRun): string {
+  const job = lowerFirst(q.waitingFor);
+  if (q.position <= 1) return `Starts when ${job} ends.`;
+  const before = q.position - 1;
+  return `Starts after ${job} and the ${before === 1 ? "run" : `${before} runs`} queued before it.`;
+}
+
+function lowerFirst(s: string): string {
+  return s ? s[0].toLowerCase() + s.slice(1) : s;
+}
+
 export type LocalRun = {
   /** The release run, ns/name@version. */
   ref: string;
@@ -138,15 +155,19 @@ export type RunStoreDeps = {
   on: (event: string, cb: (v: never) => void) => () => void;
   stop: () => Promise<void>;
   forget: (runId: string) => void;
+  /** Cancel on a queued run's card. */
+  cancelQueued?: (runId: string) => Promise<void>;
 };
 
-export type RunStoreState<S> = { run: LocalRun | null; setup: S | null; shown: boolean; raised: number };
+export type RunStoreState<S> = { run: LocalRun | null; setup: S | null; shown: boolean; raised: number; queue: QueuedRun[] };
 
-/** The one run on this computer the app follows. A
- *  start owns nothing shared until its own run has begun: the run being
- *  followed (in the background, or a card that is over) is left as it is
- *  while a second Run waits for its consent and for Go's answer, and a start
- *  Go refuses changes nothing. setup is whatever reopens the run's setup. */
+/** The one run on this computer the app follows, and the runs waiting to
+ *  start after it. A start owns nothing shared until its own run has begun:
+ *  the run being followed (in the background, or a card that is over) is
+ *  left as it is while a second Run waits for its consent and for Go's
+ *  answer, and a start Go refuses changes nothing. A start Go queues behind
+ *  another job closes its setup once the queue names it, and takes the
+ *  card over when it begins. setup is whatever reopens the run's setup. */
 export function createRunStore<S>(deps: RunStoreDeps) {
   let run: LocalRun | null = null;
   let setup: S | null = null;
@@ -160,11 +181,18 @@ export function createRunStore<S>(deps: RunStoreDeps) {
   let starting_ = false;
   let shown = false;
   let raised = 0;
+  let queue: QueuedRun[] = [];
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((f) => f());
 
   return {
-    state: (): RunStoreState<S> => ({ run, setup, shown, raised }),
+    state: (): RunStoreState<S> => ({ run, setup, shown, raised, queue }),
+
+    /** The runs waiting to start, as Go last reported them. */
+    setQueue(q: QueuedRun[]): void {
+      queue = q ?? [];
+      notify();
+    },
     subscribe(f: () => void): () => void {
       listeners.add(f);
       return () => {
@@ -180,10 +208,13 @@ export function createRunStore<S>(deps: RunStoreDeps) {
       starting_ = true;
       const token = {};
       // The run followed when this start began is not this start's,
-      // whatever its reports say.
+      // whatever its reports say, and nor is a run already queued.
       const followed = run && !run.over ? run.runId : null;
+      const known = new Set(queue.map((q) => q.runId));
       let mine = starting(ref);
       let begun = false;
+      // queued: Go put this start's run in the queue, and the setup closed.
+      let queued = false;
       const publish = () => {
         if (owner !== token) return;
         run = mine;
@@ -203,11 +234,22 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           };
           setup = s;
           shown = true;
-          raised++;
+          // A queued run takes the card over as it was, open or in the
+          // corner, rather than opening a dialog nobody asked for then.
+          if (!queued) raised++;
           resolve();
         };
+        const offQueue = deps.on("runner:run-queue", (q: QueuedRun[]) => {
+          if (queued || begun) return;
+          const entry = (q ?? []).find((e) => e.ref === ref && !known.has(e.runId) && e.runId !== followed);
+          if (!entry) return;
+          queued = true;
+          starting_ = false;
+          mine = { ...mine, runId: entry.runId };
+          resolve();
+        });
         const offProgress = deps.on("runner:run-progress", (p: RunProgress) => {
-          if (p.runId === followed) return;
+          if (p.runId === followed || (!queued && known.has(p.runId))) return;
           const next = withProgress(mine, p);
           if (next === mine) return;
           mine = next;
@@ -232,7 +274,10 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           })
           .catch((e) => {
             if (!begun) {
-              starting_ = false;
+              // A queued run cancelled before it began has no card: the
+              // queue's next report drops it. Its start was over when it
+              // was queued, so another start pending now is left alone.
+              if (!queued) starting_ = false;
               reject(e);
               return;
             }
@@ -240,10 +285,16 @@ export function createRunStore<S>(deps: RunStoreDeps) {
             publish();
           })
           .finally(() => {
+            offQueue();
             offProgress();
             offLine();
           });
       });
+    },
+
+    /** Cancel on a queued run: it leaves the queue without starting. */
+    async cancelQueued(runId: string): Promise<void> {
+      await deps.cancelQueued?.(runId);
     },
 
     /** Stop: the run ends and its receipts are written as far as it got. */

@@ -24,7 +24,7 @@ function harness() {
   const report = (runId: string, ref: string, turns = 0) =>
     fire("runner:run-progress", { runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true } as RunProgress);
   const line = (runId: string, text: string) => fire("runner:run-line", { runId, line: text });
-  return { store, report, line, forgotten, stops: () => stops, listening: () => Object.values(listeners).flat().length };
+  return { store, fire, report, line, forgotten, stops: () => stops, listening: () => Object.values(listeners).flat().length };
 }
 
 // A call standing in for RunAPI.RunAgent, settled by the test.
@@ -195,4 +195,80 @@ test("a call that throws before it returns is refused like any other, and the ne
   h.report("r2", "acme/b@1.0.0");
   await begun;
   assert.equal(h.store.state().run?.runId, "r2");
+});
+
+test("a Run Go queues closes its setup at once, leaves the run followed alone, and takes the card over when it begins", async () => {
+  const h = harness();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  const raised = h.store.state().raised;
+
+  const b = pending();
+  const bBegun = h.store.start("setup B", "acme/b@1.0.0", b.call);
+  h.fire("runner:run-queue", [{ runId: "r2", ref: "acme/b@1.0.0", position: 1, waitingFor: "A run of acme/a@1.0.0" }]);
+  await bBegun;
+  let s = h.store.state();
+  assert.equal(s.run?.runId, "r1", "the queued run took the card before it began");
+  assert.equal(s.setup, "setup A");
+
+  // A's reports still reach A; a third start may begin waiting at once.
+  h.report("r1", "acme/a@1.0.0", 4);
+  assert.equal(h.store.state().run?.progress?.turns, 4);
+
+  a.resolve(result("r1"));
+  await tick();
+  assert.equal(h.store.state().run?.over, true);
+  h.report("r2", "acme/b@1.0.0");
+  await tick();
+  s = h.store.state();
+  assert.equal(s.run?.runId, "r2", "the queued run did not take the card when it began");
+  assert.equal(s.setup, "setup B");
+  assert.equal(s.raised, raised, "a queued run's start raised the dialog");
+  assert.deepEqual(h.forgotten, ["r1"]);
+  b.resolve(result("r2"));
+  await tick();
+  assert.equal(h.store.state().run?.result?.runId, "r2");
+  assert.equal(h.listening(), 0, "a run's listeners outlived it");
+});
+
+test("a queue entry already known, or of another release, is not this start's", async () => {
+  const h = harness();
+  h.store.setQueue([{ runId: "r5", ref: "acme/a@1.0.0", position: 1, waitingFor: "The container engine install" }]);
+  const b = pending();
+  let settled = false;
+  const begun = h.store.start("setup", "acme/a@1.0.0", b.call).then(() => { settled = true; });
+  h.fire("runner:run-queue", [
+    { runId: "r5", ref: "acme/a@1.0.0", position: 1, waitingFor: "The container engine install" },
+    { runId: "r6", ref: "acme/z@1.0.0", position: 2, waitingFor: "The container engine install" },
+  ]);
+  await tick();
+  assert.equal(settled, false, "another run's queue entry closed this setup");
+  // The known run beginning is not this start's either.
+  h.report("r5", "acme/a@1.0.0");
+  await tick();
+  assert.equal(settled, false, "a known queued run's first report was taken as this start's");
+  h.fire("runner:run-queue", [
+    { runId: "r6", ref: "acme/z@1.0.0", position: 1, waitingFor: "A run of acme/a@1.0.0" },
+    { runId: "r7", ref: "acme/a@1.0.0", position: 2, waitingFor: "A run of acme/a@1.0.0" },
+  ]);
+  await begun;
+  assert.equal(settled, true);
+  b.reject("the run was cancelled before it started");
+  await tick();
+  assert.equal(h.store.state().run, null, "a cancelled queued run left a card");
+});
+
+test("a queued run cancelled while another start waits leaves that start waiting", async () => {
+  const h = harness();
+  const a = pending();
+  const aQueued = h.store.start("A", "acme/a@1.0.0", a.call);
+  h.fire("runner:run-queue", [{ runId: "r1", ref: "acme/a@1.0.0", position: 1, waitingFor: "x" }]);
+  await aQueued;
+  const b = pending();
+  void h.store.start("B", "acme/b@1.0.0", b.call).catch(() => {});
+  a.reject("the run was cancelled before it started");
+  await tick();
+  await assert.rejects(h.store.start("C", "acme/c@1.0.0", pending().call), /being started/);
 });

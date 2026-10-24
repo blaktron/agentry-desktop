@@ -191,7 +191,8 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 }
 
 // The busy refusal names the job holding the run lock, and InFlight does
-// too, for every kind of job; with nothing running InFlight is nil.
+// too, for every kind of job; with nothing running InFlight is nil. (A run
+// started meanwhile waits its turn instead: services_runqueue_test.go.)
 func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	r := flowAPI(t, func(ctx context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
@@ -212,7 +213,6 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		t.Fatalf("InFlight during a run: %+v", v)
 	}
 	for name, call := range map[string]func() error{
-		"a second run":    func() error { _, err := runAgent(r); return err },
 		"removing images": func() error { _, err := r.RemoveAgentryImages(); return err },
 		"saving a key":    func() error { _, err := r.StoreJevKey("x"); return err },
 	} {
@@ -242,9 +242,9 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		if err := r.acquire(j.kind, j.what); err != nil {
 			t.Fatal(err)
 		}
-		_, err := runAgent(r)
+		_, err := r.RemoveAgentryImages()
 		if err == nil || err.Error() != j.want {
-			t.Fatalf("a run while %s holds the lock: %v, want %q", j.what, err, j.want)
+			t.Fatalf("removing images while %s holds the lock: %v, want %q", j.what, err, j.want)
 		}
 		if v := r.InFlight(); v == nil || v.Kind != string(j.kind) {
 			t.Fatalf("InFlight while %s: %+v", j.what, v)

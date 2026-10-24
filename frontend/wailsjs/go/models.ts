@@ -3616,6 +3616,24 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class QueuedRunView {
+	    runId: string;
+	    ref: string;
+	    position: number;
+	    waitingFor: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueuedRunView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.ref = source["ref"];
+	        this.position = source["position"];
+	        this.waitingFor = source["waitingFor"];
+	    }
+	}
 	export class RecentDeliverableView {
 	    path: string;
 	    name: string;

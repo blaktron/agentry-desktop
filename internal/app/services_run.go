@@ -53,10 +53,12 @@ const (
 	eventSessionEvent = "runner:session-event"
 )
 
-// errBusy refuses a second docker-touching operation instead of silently
-// queueing it behind one that can run for many minutes. The refusal a
-// person sees names the job holding the lock (busyError,
-// services_runflow.go); errBusy is what it is for errors.Is.
+// errBusy refuses a docker-touching operation other than a run while
+// another job holds the run lock, instead of silently queueing it behind one
+// that can run for many minutes; a run waits its turn in the queue instead
+// (services_runqueue.go). The refusal a person sees names the job holding
+// the lock (busyError, services_runflow.go); errBusy is what it is for
+// errors.Is.
 var errBusy = errors.New("another job is under way on this computer, and one job runs here at a time")
 
 // RunAPI drives QuickAgent runs from the app.
@@ -99,6 +101,16 @@ type RunAPI struct {
 	// (services_runflow.go), under its own lock.
 	holderMu sync.Mutex
 	holder   *jobHolder
+	// queue is the runs waiting for mu, in the order they were started
+	// (services_runqueue.go): release hands mu to the first of them.
+	// Taken before holderMu. queueClosed is set as the app quits, when
+	// nothing more waits.
+	queueMu     sync.Mutex
+	queue       []*queuedRun
+	queueClosed bool
+	// queueEmitMu orders the queue's reports, so the page never hears an
+	// older one after a newer.
+	queueEmitMu sync.Mutex
 
 	// live is the run or session in flight, so quitting can end it and sweep
 	// what it built (services_quit.go).
@@ -1045,6 +1057,9 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 type runHooks struct {
 	// began is told the run's id once it has begun.
 	began func(runID string)
+	// queued is told the run's id when it waits behind another job for
+	// the run lock; began follows once it starts.
+	queued func(runID string)
 	// inputsIn is the folder the run's input files were taken from in Go,
 	// a persistent agent's share folder: each must be a regular file in it,
 	// not reached through a link, in place of a picked one.
@@ -1069,7 +1084,17 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	if err := r.localRunGates(reg, ref, picked, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
 		return nil, err
 	}
-	if err := r.acquire(jobRun, "a run of "+ref); err != nil {
+	// The run's id is known before it waits, so the page can follow a
+	// queued run, and cancel it, by its id.
+	id, err := r.mintRunID()
+	if err != nil {
+		return nil, err
+	}
+	var queued func()
+	if h.queued != nil {
+		queued = func() { h.queued(id) }
+	}
+	if err := r.acquireRun(id, ref, queued); err != nil {
 		return nil, err
 	}
 	defer r.release()
@@ -1078,7 +1103,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	// (services_quit.go).
 	ctx, cancel := context.WithCancel(r.app.ctx)
 	defer cancel()
-	live, err := r.beginRun(jobRun, ref, cancel)
+	live, err := r.beginRunAs(jobRun, ref, id, cancel)
 	if err != nil {
 		return nil, err
 	}

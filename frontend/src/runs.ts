@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import * as RunAPI from "../wailsjs/go/app/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { app, trust } from "../wailsjs/go/models";
-import { type RunStoreState, createRunStore } from "./localRun";
+import { type QueuedRun, type RunStoreState, createRunStore } from "./localRun";
 import { type HostedRunState, createHostedRunStore } from "./hostedRun";
 import { type ChatStoreState, createChatStore } from "./sessionChat";
 import type { RunForm } from "./runSetup";
@@ -39,7 +39,13 @@ const store = createRunStore<RunSetup>({
   on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
   stop: () => RunAPI.StopRun(),
   forget: (runId) => void RunAPI.ForgetRun(runId),
+  cancelQueued: (runId) => RunAPI.CancelQueuedRun(runId),
 });
+
+// The runs waiting to start, for the app's life: read once, then as Go
+// reports each change.
+EventsOn("runner:run-queue", (q: QueuedRun[]) => store.setQueue(q));
+void RunAPI.QueuedRuns().then((q) => store.setQueue(q as QueuedRun[]), () => {});
 
 export type RunState = RunStoreState<RunSetup>;
 
@@ -52,14 +58,18 @@ export function useLocalRun(): RunState {
 
 /** Starts a run of ref by call (RunAPI.RunAgent): the promise resolves once
  *  Go reports that the run has begun, which is when the setup closes, and
- *  rejects with Go's words if it never began (the consent declined, another
- *  job holding the lock, a gate refused). */
+ *  rejects with Go's words if it never began (the consent declined, a gate
+ *  refused). A run Go queues behind another job resolves once it is
+ *  queued, and its card takes over when it begins. */
 export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
   return store.start(s, ref, call);
 }
 
 /** Stop: the run ends and its receipts are written as far as it got. */
 export const stopLocalRun = (): Promise<void> => store.stop();
+
+/** Cancel on a queued run: it leaves the queue without starting. */
+export const cancelQueuedRun = (runId: string): Promise<void> => store.cancelQueued(runId);
 
 /** Opens the flow as the dialog. */
 export const showLocalRun = (): void => store.show();
