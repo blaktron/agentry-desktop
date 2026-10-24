@@ -604,6 +604,8 @@ g.go = { app: {
       : { id: "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5", next: "2026-10-10T07:00:00Z" }),
   },
   RunAPI: {
+    QueuedRuns: async () => [],
+    CancelQueuedRun: async () => {},
     // Go's word on a source answer: an http address is refused as the CLI
     // refuses it; github.com has a key saved in the -saved states.
     SourceKeyStatus: async (type: string, answer: string) => {

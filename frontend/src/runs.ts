@@ -42,17 +42,28 @@ const store = createRunStore<RunSetup>({
   cancelQueued: (runId) => RunAPI.CancelQueuedRun(runId),
 });
 
-// The runs waiting to start, for the app's life: read once, then as Go
-// reports each change.
-EventsOn("runner:run-queue", (q: QueuedRun[]) => store.setQueue(q));
-void RunAPI.QueuedRuns().then((q) => store.setQueue(q as QueuedRun[]), () => {});
+// The runs waiting to start, for the app's life from the first use of the
+// run store (RunFlow is mounted with the app): read once, then as Go reports
+// each change. Not at module load, before the runtime is there.
+let watchingQueue = false;
+function watchQueue(): void {
+  if (watchingQueue) return;
+  watchingQueue = true;
+  EventsOn("runner:run-queue", (q: QueuedRun[]) => store.setQueue(q));
+  void Promise.resolve()
+    .then(() => RunAPI.QueuedRuns())
+    .then((q) => store.setQueue(q as QueuedRun[]), () => {});
+}
 
 export type RunState = RunStoreState<RunSetup>;
 
 /** The run the app follows, re-read whenever it changes. */
 export function useLocalRun(): RunState {
   const [, bump] = useState(0);
-  useEffect(() => store.subscribe(() => bump((n) => n + 1)), []);
+  useEffect(() => {
+    watchQueue();
+    return store.subscribe(() => bump((n) => n + 1));
+  }, []);
   return store.state();
 }
 
@@ -62,6 +73,7 @@ export function useLocalRun(): RunState {
  *  refused). A run Go queues behind another job resolves once it is
  *  queued, and its card takes over when it begins. */
 export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
+  watchQueue();
   return store.start(s, ref, call);
 }
 
