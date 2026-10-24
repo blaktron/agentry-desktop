@@ -7,6 +7,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import { app } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
@@ -20,9 +21,13 @@ import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
 import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
+import { pickHomeAgent, updateAgent, useAgents, useHomeAgent } from "../agents";
+import { homeAgentDrawn, homeChoices } from "../homeAgent";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, enableOutcome } from "../persistentAgents";
+import { AgentTiles } from "./AgentTiles";
 
 const LABELS: Record<WizardStep, string> = {
-  welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime",
+  welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime", agents: "Agents",
   reviewkey: "AI Review key", codingagent: "Coding agent", done: "Done", cloud: "Your data in the cloud",
 };
 
@@ -93,6 +98,7 @@ export default function Wizard({
           <WhereStep signedIn={cloudOpen(settings.registries, activeRegistry)} onChoose={choose} onBack={back} />
         )}
         {step === "runtime" && <RuntimeStep onBack={back} onNext={next} />}
+        {step === "agents" && <AgentsStep onBack={back} onNext={next} />}
         {step === "reviewkey" && <ReviewKeyStep onBack={back} onNext={next} />}
         {step === "codingagent" && <CodingAgentStep onBack={back} onNext={next} probeOnEntry={probeOnEntry} />}
         {step === "done" && (
@@ -119,7 +125,8 @@ function Welcome({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => void 
         <p className="page-sub">
           Browse scanned, signed QuickAgents from a registry, install them with digest and
           signature verification on this machine, and run them in isolated containers. This quick
-          setup signs you in and prepares the runtime — you can skip it and do either later.
+          setup signs you in, prepares the runtime and turns on the agents you want — you can skip it
+          and do any of it later.
         </p>
       </div>
       <div className="wizard-foot">
@@ -368,6 +375,92 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>
         <div className="grow" />
+        <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
+      </div>
+    </>
+  );
+}
+
+// AgentsStep: the persistent agents as tiles, each turned on or off here
+// through the same Go calls Settings → Persistent Agents makes, at once:
+// turning the Coding agent on raises its own native dialog first, and a No
+// leaves it off. An agent that is on can start when Agentry starts, and
+// Home's agent card can be given any agent that is on. Nothing is changed
+// unless a tile is clicked, so Skip leaves the agents as they were.
+function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const agents = useAgents();
+  const chosen = useHomeAgent();
+  const [busy, setBusy] = useState(false);
+  const [changed, setChanged] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const onHome = homeAgentDrawn(chosen ?? MAIN_AGENT, agents);
+
+  const act = async (f: () => Promise<string | null>) => {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const said = await f();
+      setChanged(true);
+      if (said) setNote(said);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const toggle = (name: string, on: boolean) => act(async () => {
+    const v = await PersistentAPI.SetEnabled(name, on);
+    updateAgent(v);
+    return enableOutcome(on && name === CODER_AGENT, v);
+  });
+  const runOnStart = (name: string, on: boolean) => act(async () => {
+    updateAgent(await PersistentAPI.Configure(name, { runOnStart: on } as app.PersistentChange));
+    return null;
+  });
+  const pick = (name: string) => act(() => pickHomeAgent(name));
+
+  const choices = homeChoices(agents);
+  return (
+    <>
+      <div className="wizard-body">
+        <h2>Your agents</h2>
+        <p className="page-sub">
+          Persistent agents run on this computer with your model and keep their conversation between the times you talk
+          to them. Turn on the ones you want; you can change this later in Settings → Persistent Agents.
+        </p>
+        {agents.length === 0 ? (
+          <p className="muted small">Reading the agents…</p>
+        ) : (
+          <AgentTiles mode="toggle" label="Agents" agents={agents} busy={busy} onToggle={toggle} onRunOnStart={runOnStart} />
+        )}
+        {agents.some((a) => a.name === CODER_AGENT && a.state === AGENT_STATES.disabled) && (
+          <p className="muted small">{CODER_WARNING} Turning it on asks you first.</p>
+        )}
+        {choices.length > 1 && (
+          <div className="field" role="radiogroup" aria-labelledby="wizard-home-agent-label">
+            <span className="field-label" id="wizard-home-agent-label">Show on Home</span>
+            <div className="agent-home-choices">
+              {choices.map((n) => {
+                const a = agents.find((x) => x.name === n)!;
+                return (
+                  <label key={n} data-wizard-home-agent={n}>
+                    <input type="radio" name="wizard-home-agent" checked={onHome === n} disabled={busy} onChange={() => void pick(n)} />
+                    {a.displayName}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <ErrorBox error={error} />
+        {note && <p className="small" role="status">{note}</p>}
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>
+        <div className="grow" />
+        {!changed && <Button variant="ghost" onClick={onNext} disabled={busy}>Skip</Button>}
         <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
       </div>
     </>

@@ -15,6 +15,9 @@ import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
 const harnessTheme = new URLSearchParams(window.location.search).get("theme");
+// ?homeagent=assistant gives Home's agent card the Assistant; a pick is kept
+// here and recorded on the body.
+let harnessHomeAgent = new URLSearchParams(window.location.search).get("homeagent") ?? "main";
 if (harnessTheme) document.documentElement.dataset.theme = harnessTheme;
 
 const hits = [
@@ -925,6 +928,8 @@ g.go = { app: {
     // Recorded on the body, so a shot can say what was kept.
     SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
     UnpinScheduled: async () => harnessUnpinScheduled(),
+    Agent: async () => harnessHomeAgent,
+    SetAgent: async (name: string) => { harnessHomeAgent = name; document.body.dataset.homeAgent = name; return name; },
   },
   VoiceAPI: {
     View: async () => voiceView,
@@ -1534,6 +1539,7 @@ function HomePreview() {
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
         runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"),
         persistentAgents: mark("persistent-agents"), provider: mark("provider"),
+        persistentAgent: (name) => { document.body.dataset.open = `persistent:${name}`; },
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },

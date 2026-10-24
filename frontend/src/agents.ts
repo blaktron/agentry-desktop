@@ -4,10 +4,11 @@
 // and Settings read, read again whenever runner:agent-state says one
 // started or stopped. The logic is persistentAgents.ts's.
 import { useEffect, useState } from "react";
+import * as HomeAPI from "../wailsjs/go/app/HomeAPI";
 import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import type { app } from "../wailsjs/go/models";
-import { applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
 
 export type AgentRecord = {
@@ -181,5 +182,61 @@ export async function startAgent(name: string): Promise<string | null> {
   } catch (e) {
     const now = await refreshAgents();
     return now.find((a) => a.name === name)?.failure ? null : String(e);
+  }
+}
+
+// The agent Home's card runs, as Go keeps it: read on first use, and set
+// through pickHomeAgent by the card's switcher, Settings → Home and the
+// Welcome's Agents step alike.
+let homeAgent: string | null = null;
+let homeAgentRead: Promise<void> | null = null;
+
+function readHomeAgent() {
+  if (homeAgentRead) return;
+  homeAgentRead = HomeAPI.Agent()
+    .then((name) => { homeAgent = name; })
+    .catch(() => { homeAgent = MAIN_AGENT; })
+    .finally(changed);
+}
+
+/** rereadHomeAgent reads the card's agent again, after Reset Home. */
+export function rereadHomeAgent() {
+  homeAgentRead = null;
+  readHomeAgent();
+}
+
+/** useHomeAgent is the agent Home's card was given, null until read. Who
+ *  the card draws is homeAgentDrawn's: Agentry Helper while that agent is
+ *  off. */
+export function useHomeAgent(): string | null {
+  const [, setBump] = useState(bump);
+  useEffect(() => {
+    const l = () => setBump(bump);
+    listeners.add(l);
+    readHomeAgent();
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
+  return homeAgent;
+}
+
+/** pickHomeAgent gives Home's card an agent, turning it on first when it is
+ *  off, as Settings does: the Coding agent's own dialog comes first, and a
+ *  No changes nothing. It answers what to say: an error, "Nothing was
+ *  changed." after a No, or null when the card has the agent. */
+export async function pickHomeAgent(name: string): Promise<string | null> {
+  try {
+    const a = agentNamed(name);
+    if (name !== MAIN_AGENT && a && a.state === AGENT_STATES.disabled) {
+      const v = await PersistentAPI.SetEnabled(name, true);
+      updateAgent(v);
+      if (v.state === AGENT_STATES.disabled) return "Nothing was changed.";
+    }
+    homeAgent = await HomeAPI.SetAgent(name);
+    changed();
+    return null;
+  } catch (e) {
+    return String(e);
   }
 }

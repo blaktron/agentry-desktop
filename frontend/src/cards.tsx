@@ -7,9 +7,11 @@
 // stretched button.
 import { Children, type ReactNode } from "react";
 
-export function CardFrame({ title, onOpen, figure, blurb, status, children, foot, className = "" }: {
+export function CardFrame({ title, onOpen, aside, figure, blurb, status, children, foot, className = "" }: {
   title: string;
   onOpen: () => void;
+  // A control beside the title, above the card's stretched button.
+  aside?: ReactNode;
   figure?: ReactNode;
   blurb?: ReactNode;
   // One line of what the card stands for now.
@@ -23,9 +25,18 @@ export function CardFrame({ title, onOpen, figure, blurb, status, children, foot
   return (
     <div className={`card build-way ${className}`.trim()}>
       {figure && <div className="build-way-figure">{figure}</div>}
-      <h2 className="build-way-title">
-        <button type="button" className="build-way-main" onClick={onOpen}>{title}</button>
-      </h2>
+      {aside ? (
+        <div className="build-way-head">
+          <h2 className="build-way-title">
+            <button type="button" className="build-way-main" onClick={onOpen}>{title}</button>
+          </h2>
+          <div className="build-way-part build-way-aside">{aside}</div>
+        </div>
+      ) : (
+        <h2 className="build-way-title">
+          <button type="button" className="build-way-main" onClick={onOpen}>{title}</button>
+        </h2>
+      )}
       {blurb && <p className="build-way-blurb">{blurb}</p>}
       {status && <p className="small build-way-status" role="status">{status}</p>}
       {/* Children.toArray drops what renders nothing, so a card whose
