@@ -222,15 +222,16 @@ test("a package server is added with its arguments in order, a remote server wit
   assert.equal(canAddServer({ ...form, source: "url", url: "https://mcp.example.com/mcp", args: [""] }), true);
 });
 
-test("the Reset dialog chooses the kind asked for, else the full reset", () => {
+test("a Reset button opens the agent's reset of its kind, else its full reset", () => {
   const resets = [
+    { kind: "all", title: "Reset all", body: "x" },
     { kind: "history", title: "Reset history", body: "h" },
     { kind: "agent", title: "Reset agent", body: "a" },
-    { kind: "all", title: "Reset all", body: "x" },
   ];
-  assert.equal(chosenReset(resets, null)?.kind, "all");
   assert.equal(chosenReset(resets, "history")?.title, "Reset history");
   assert.equal(chosenReset(resets, "agent")?.body, "a");
+  assert.equal(chosenReset(resets, "all")?.kind, "all");
+  assert.equal(chosenReset(resets, "nonsense")?.kind, "all");
   assert.equal(chosenReset([{ kind: "all", title: "Reset", body: "x" }], "history")?.title, "Reset");
   assert.equal(chosenReset([], "all"), null);
 });

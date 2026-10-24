@@ -300,6 +300,24 @@ func TestResettingTheAssistantInParts(t *testing.T) {
 		t.Error("ResetPart took the full reset")
 	}
 
+	if _, err := rig.p.ResetPart("assistant", ""); err == nil {
+		t.Error("ResetPart took no kind")
+	}
+	// What the person gave it: a stored secret's name (its value is the
+	// keychain's) and a sign-in, on and agreed to.
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := persistent.SecretEntryID("DEMO_TOKEN")
+	cfg.Secrets = []persistent.StoredSecret{{Name: "DEMO_TOKEN"}}
+	cfg.SignIns = map[string]persistent.ImageSignIn{"gog": {Account: "person@example.com"}}
+	cfg.Switches = map[string]bool{secret: true}
+	cfg.Consented = map[string]string{secret: "Gives your secret DEMO_TOKEN"}
+	if err := persistent.SaveConfig(rig.home, "assistant", cfg); err != nil {
+		t.Fatal(err)
+	}
+
 	asked := len(rig.dialogs())
 	rig.answer = false
 	if _, err := rig.p.ResetPart("assistant", "history"); !errors.Is(err, errNotConfirmed) {
@@ -314,8 +332,12 @@ func TestResettingTheAssistantInParts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.DisplayName != name {
-		t.Errorf("Reset history lost the name: %q", after.DisplayName)
+	kept, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.DisplayName != name || !kept.Switches[secret] || kept.Consented[secret] == "" || len(kept.Secrets) != 1 || len(kept.SignIns) != 1 {
+		t.Errorf("Reset history did not keep what the person chose: view %q, config %+v", after.DisplayName, kept)
 	}
 	asked = len(rig.dialogs())
 	after, err = rig.p.ResetPart("assistant", "agent")
@@ -325,12 +347,16 @@ func TestResettingTheAssistantInParts(t *testing.T) {
 	if d := rig.dialogs()[asked:]; len(d) != 1 || !strings.Contains(d[0], "Reset Sandra, keeping its secrets and sign-ins?") {
 		t.Fatalf("Reset agent's dialog: %q", d)
 	}
-	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	cfg, err = persistent.LoadConfig(rig.home, "assistant")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if after.DisplayName == name || cfg.DisplayName != "" || !cfg.Enabled {
 		t.Errorf("after Reset agent: view %q, config %+v", after.DisplayName, cfg)
+	}
+	// The credentials stay, switched off and not agreed to.
+	if len(cfg.Secrets) != 1 || len(cfg.SignIns) != 1 || cfg.Switches[secret] || len(cfg.Consented) != 0 {
+		t.Errorf("Reset agent's credentials: %+v", cfg)
 	}
 }
 

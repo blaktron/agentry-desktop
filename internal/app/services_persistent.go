@@ -1170,12 +1170,12 @@ func resetViews(a persistent.Agent) []PersistentResetView {
 		return []PersistentResetView{all}
 	}
 	all.Title = "Reset all"
-	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
+	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
 	return []PersistentResetView{
 		{Kind: resetHistory, Title: "Reset history",
-			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and asks you nothing again. The files in its share folder and the receipts of its segments are kept."},
+			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept."},
 		{Kind: resetAgent, Title: "Reset agent",
-			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it and the receipts of its segments are kept."},
+			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept."},
 		all,
 	}
 }
@@ -1197,6 +1197,9 @@ func (p *PersistentAPI) ResetPart(name, kind string) (*PersistentAgentView, erro
 	return p.reset(name, kind)
 }
 
+// reset runs one of the agent's resets by its kind, after Go's native
+// confirmation with that reset's own words; the kind must be one the agent
+// has.
 func (p *PersistentAPI) reset(name, kind string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {

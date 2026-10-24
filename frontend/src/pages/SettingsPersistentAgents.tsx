@@ -5,9 +5,9 @@
 // page with everything the agent is given: its name and personality, its
 // share folder, its knowledge packs and MCP servers, and its roster's
 // switches. A start, a switch or an addition that turns on what the person
-// has not agreed to on this computer asks in Go's native dialog; Reset asks
-// here, then natively, the Assistant choosing among Reset history, Reset
-// agent and Reset all, each with the words Go gives the native dialog. A folder comes from the native picker alone.
+// has not agreed to on this computer asks in Go's native dialog. Reset asks
+// here, then natively; the Assistant has three, Reset history, Reset agent
+// and Reset all, each with the words Go gives its native dialog. A folder comes from the native picker alone.
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
@@ -29,7 +29,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [error, setError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
-  const [resetKind, setResetKind] = useState<string | null>(null);
+  const [resetKind, setResetKind] = useState("all");
   const [exported, setExported] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -124,7 +124,9 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
-              <Button variant="ghost" data-persistent-reset={a.name} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => { setResetKind(null); setResetting(a); }}>Reset…</Button>
+              {(a.resets ?? []).map((r) => (
+                <Button key={r.kind} variant="ghost" data-persistent-reset={a.name} data-reset-kind={r.kind} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => { setResetKind(r.kind); setResetting(a); }}>{r.title}…</Button>
+              ))}
             </div>
           </Card>
         );
@@ -174,20 +176,10 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
       {resetting && (() => {
-        const choice = chosenReset(resetting.resets ?? [], resetKind);
+        const choice = chosenReset(resetting.resets, resetKind);
         const close = () => { setResetting(null); setExported(null); };
         return (
-        <Modal title={`Reset ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}?`} onClose={close}>
-          {(resetting.resets ?? []).length > 1 && (
-            <div className="stack" role="radiogroup" aria-label="Which reset">
-              {resetting.resets.map((r) => (
-                <label key={r.kind} className="row gap">
-                  <input type="radio" name="reset-kind" data-reset-kind={r.kind} checked={choice?.kind === r.kind} onChange={() => setResetKind(r.kind)} />
-                  <strong>{r.title}</strong>
-                </label>
-              ))}
-            </div>
-          )}
+        <Modal title={`${choice?.title ?? "Reset"} for ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}`} onClose={close}>
           {choice && <p data-reset-body={choice.kind}>{choice.body}</p>}
           {resetting.state === AGENT_STATES.running && <p>It is running: Reset stops it first.</p>}
           {resetting.keepsMemory && (
