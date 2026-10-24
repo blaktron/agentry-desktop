@@ -430,6 +430,12 @@ func TestMainAndTheAssistantAreGivenTheAppsHandler(t *testing.T) {
 // and its agreed runs are kept apart from Main's.
 func TestAgentLinksAreEachAgentsOwn(t *testing.T) {
 	userHome, runnerHome := isolateHomes(t)
+	// A share folder reached through a link is refused, and a temporary
+	// folder can be one (macOS's /var is /private/var).
+	if real, err := filepath.EvalSymlinks(userHome); err == nil && real != userHome {
+		userHome = real
+		setUserHome(t, userHome)
+	}
 	home := func() (string, error) { return runnerHome, nil }
 	if err := persistent.SaveConfig(runnerHome, assistantAgent, persistent.Config{Enabled: true, DisplayName: "Agentry Helper"}); err != nil {
 		t.Fatal(err)
