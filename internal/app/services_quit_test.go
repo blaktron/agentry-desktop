@@ -127,7 +127,7 @@ func TestARepairTurnIsSweptWithTheRun(t *testing.T) {
 		t.Fatal("the repair turn has no crash-path record")
 	}
 	r.shutdown()
-	<-errc
+	waitForEnd(errc)
 	got := strings.Join(f.steps(), ",")
 	if !strings.Contains(got, "sweep ab12cd34") || !strings.Contains(got, "sweep ef56ab78") {
 		t.Fatalf("shutdown steps %q", got)
@@ -159,7 +159,7 @@ func TestAHungEngineIsSweptWhenTheWaitRunsOut(t *testing.T) {
 		t.Fatal("a swept run's crash-path record was kept")
 	}
 	close(f.release)
-	<-errc
+	waitForEnd(errc)
 }
 
 // With nothing running, quitting touches no docker at all.
@@ -199,7 +199,7 @@ func TestBeforeCloseAsksOnlyWithARunLive(t *testing.T) {
 		t.Fatal("a failed dialog trapped the app")
 	}
 	r.shutdown()
-	<-errc
+	waitForEnd(errc)
 }
 
 func recorded(r *RunAPI, id string) bool {
@@ -217,7 +217,7 @@ func TestARunIsRecordedWhileInFlight(t *testing.T) {
 		t.Fatal("a run in flight has no crash-path record")
 	}
 	r.current().cancel()
-	<-errc
+	waitForEnd(errc)
 	if recorded(r, "ab12cd34") {
 		t.Fatal("the record outlived the run")
 	}
@@ -297,7 +297,7 @@ func TestQuittingMidRunSweepsLeftoversAfterTheTeardown(t *testing.T) {
 	_, errc := startRun(t, r, f)
 
 	r.shutdown()
-	<-errc
+	waitForEnd(errc)
 
 	if got := strings.Join(f.steps(), ","); got != "teardown ab12cd34,sweep ab12cd34,sweep dead0001" {
 		t.Fatalf("steps %q", got)
@@ -333,7 +333,7 @@ func TestAFailedQuitSweepIsTriedOnceAndKeepsTheRecord(t *testing.T) {
 		t.Fatal("a run that could not be swept lost its record")
 	}
 	close(f.release)
-	<-errc
+	waitForEnd(errc)
 }
 
 // fakeChat stands in for the engine's interactive session: End records
@@ -409,7 +409,7 @@ func TestARunsFilesAreRemovedWhenItEnds(t *testing.T) {
 	scratch := leaveScratch(t, r, "ab12cd34")
 
 	r.current().cancel()
-	<-errc
+	waitForEnd(errc)
 
 	if _, err := os.Stat(scratch); err == nil {
 		t.Fatal("the ended run's scratch directory is still there")
@@ -430,7 +430,7 @@ func TestARunThatLeavesFilesKeepsItsRecordForTheQuitSweep(t *testing.T) {
 	run.SetRemoveTreeForTest(t, func(string) error { return errors.New("the file is in use") })
 
 	r.current().cancel()
-	<-errc
+	waitForEnd(errc)
 
 	if _, err := os.Stat(scratch); err != nil {
 		t.Fatal("the test's delete was not the one that ran")
@@ -499,8 +499,15 @@ func TestARunBeingSettledIsStillInFlightAndHoldsNoLock(t *testing.T) {
 	}
 
 	close(release)
-	<-errc
+	waitForEnd(errc)
 	if r.current() != nil || recorded(r, "ab12cd34") {
 		t.Fatal("the settled run is still recorded")
 	}
+}
+
+// waitForEnd waits for a run started by startRun to end. How it ended is
+// not what the calling test asks.
+func waitForEnd(errc <-chan error) {
+	err := <-errc
+	_ = err
 }

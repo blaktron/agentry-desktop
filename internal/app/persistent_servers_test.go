@@ -3,8 +3,11 @@ package app
 import (
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -212,5 +215,54 @@ func TestRetryingAFailedServerClearsItsFailure(t *testing.T) {
 	}
 	if e := serverEntry(t, v); e.State != "on" || e.Reason != "" || len(rig.dialogs()) != asked {
 		t.Fatalf("after Retry: %+v, %d dialogs", e, len(rig.dialogs())-asked)
+	}
+}
+
+// A package server's arguments reach the agent's server entry in order, and
+// the dialog that asks before it is on names them.
+func TestAServerIsAddedWithItsArgs(t *testing.T) {
+	rig := newPersistentRig(t)
+	row := build.MCPServerRow{Source: "pypi", Package: "semgrep", Version: "1.140.0", Args: []string{"mcp", "--transport=stdio"}}
+	if _, err := rig.p.AddServer("assistant", row); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(cfg.Servers, func(s manifest.MCPServer) bool { return s.PyPI == "semgrep" })
+	if i < 0 || !slices.Equal(cfg.Servers[i].Args, row.Args) {
+		t.Fatalf("the agent's servers: %+v", cfg.Servers)
+	}
+	if !slices.ContainsFunc(rig.dialogs(), func(d string) bool { return strings.Contains(d, "started with the arguments mcp --transport=stdio") }) {
+		t.Fatalf("no dialog names the arguments: %q", rig.dialogs())
+	}
+}
+
+// Arguments the core would refuse are refused before the add, each problem
+// named, and nothing is added.
+func TestAServersArgsAreCheckedBeforeTheAdd(t *testing.T) {
+	for name, tc := range map[string]struct {
+		args []string
+		want string
+	}{
+		"empty":     {[]string{"mcp", ""}, "argument 2 is empty"},
+		"two words": {[]string{"mcp serve"}, "must be one word"},
+		"expanded":  {[]string{"$HOME"}, "the runner would expand"},
+		"template":  {[]string{"{{x}}"}, "the runner would expand"},
+		"too long":  {[]string{strings.Repeat("a", manifest.MaxMCPServerArgLen+1)}, "longer than"},
+		"too many":  {slices.Repeat([]string{"a"}, manifest.MaxMCPServerArgs+1), "at most"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rig := newPersistentRig(t)
+			before := len(rig.dialogs())
+			row := build.MCPServerRow{Source: "npm", Package: "some-server", Version: "1.0.0", Args: tc.args}
+			if _, err := rig.p.AddServer("assistant", row); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("%v, want %q", err, tc.want)
+			}
+			if cfg, _ := persistent.LoadConfig(rig.home, "assistant"); len(cfg.Servers) != 0 || len(rig.dialogs()) != before {
+				t.Fatalf("a refused add changed the agent (%+v) or asked", cfg.Servers)
+			}
+		})
 	}
 }

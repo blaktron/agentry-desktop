@@ -1235,15 +1235,23 @@ func (p *PersistentAPI) stopAll() {
 }
 
 // AddServer adds an MCP server to the agent's roster, in the Builder's
-// server row's shape (a package of npm or PyPI at an exact version, or a
-// remote server's address); it is held to the manifest's own rules for a
-// declared server, and turning it on asks first, as any widening does.
+// server row's shape (a package of npm or PyPI at an exact version and the
+// arguments its command starts with, or a remote server's address); its
+// arguments are checked as the Build form checks them, it is held to the
+// manifest's own rules for a declared server, and turning it on asks first,
+// as any widening does.
 func (p *PersistentAPI) AddServer(name string, row build.MCPServerRow) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err
 	}
-	srv := serverOfRow(row.Declared())
+	row = row.Declared()
+	if !row.IsRemote() {
+		if err := build.CheckArgs(row.Args); err != nil {
+			return nil, err
+		}
+	}
+	srv := serverOfRow(row)
 	if err := p.configure(a, persistent.Change{AddServer: &srv}); err != nil {
 		return nil, err
 	}
@@ -1259,6 +1267,9 @@ func serverOfRow(r build.MCPServerRow) manifest.MCPServer {
 		return srv
 	}
 	srv.Version, srv.Egress = strings.TrimSpace(r.Version), r.Egress
+	if len(r.Args) > 0 {
+		srv.Args = slices.Clone(r.Args)
+	}
 	if r.Source == "pypi" {
 		srv.PyPI = strings.TrimSpace(r.Package)
 	} else {

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
@@ -28,7 +28,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   withAdds?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState<{ kind: AddKind; secretName?: string; host?: string } | null>(null);
+  const [adding, setAdding] = useState<AddForm | null>(null);
   // One change at a time: every card waits while one is applied.
   const act: Act = async (f, what) => {
     setBusy(true);
@@ -45,12 +45,13 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
     }
   };
   const [google, setGoogle] = useState(false);
-  const setUp = (s: SetUp) => {
-    if (s.kind === "google") {
+  const setUp = (s: SetUp, grid: GridKey) => {
+    const form = setUpForm(s, grid);
+    if (!form) {
       setGoogle(true);
       return;
     }
-    setAdding(s.kind === "secret" ? { kind: "secret", secretName: s.name } : { kind: "account", host: s.host });
+    setAdding(form);
   };
   return (
     <div className="config-grids">
@@ -59,11 +60,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
           <h3>{g.title}</h3>
           <div className="config-grid">
             {g.entries.map((e) => (
-              <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={setUp} />
+              <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={(s) => setUp(s, g.key)} />
             ))}
             {g.adds.map((kind) => (
-              <button key={kind} type="button" className={`config-card config-card-add${adding?.kind === kind ? " open" : ""}`} disabled={busy}
-                aria-expanded={adding?.kind === kind} onClick={() => setAdding(adding?.kind === kind ? null : { kind })}>
+              <button key={kind} type="button" className={`config-card config-card-add${adding?.kind === kind && adding.grid === g.key ? " open" : ""}`} disabled={busy}
+                aria-expanded={adding?.kind === kind && adding.grid === g.key} onClick={() => setAdding(adding?.kind === kind && adding.grid === g.key ? null : addFormOf(kind, g.key))}>
                 <AddGlyph />
                 <span className="config-card-text">
                   <span className="config-card-name">{ADD_TITLES[kind]}</span>
@@ -72,7 +73,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               </button>
             ))}
           </div>
-          {adding && g.adds.includes(adding.kind) && (
+          {adding && adding.grid === g.key && (
             <div className="config-add-panel">
               {adding.kind === "server" && <AddServer agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "skill" && <AddSkill agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
@@ -208,7 +209,8 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
 /** The server Add card's panel: the agent's suggestions, one click each,
  *  then a package or a remote address of the person's own. */
 function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
-  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", url: "", tools: "" });
+  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", args: [], url: "", tools: "" });
+  const setArgs = (args: string[]) => setServer({ ...server, args });
   return (
     <>
       {(agent.suggested ?? []).length > 0 && (
@@ -240,6 +242,18 @@ function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentVie
           <>
             <Field label="Package"><Input value={server.package} onChange={(e) => setServer({ ...server, package: e.target.value })} /></Field>
             <Field label="Version" hint="An exact version, as a QuickAgent pins it."><Input value={server.version} onChange={(e) => setServer({ ...server, version: e.target.value })} /></Field>
+            <Field label="Arguments" hint="The words its command starts with, one per field, in order, for a server that is a subcommand of a larger program (such as mcp).">
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                {server.args.map((a, k) => (
+                  <span className="row" key={k} style={{ gap: 2 }}>
+                    <Input className="mono" aria-label={`argument ${k + 1}`} placeholder="word" style={{ width: 140 }} value={a} spellCheck={false}
+                      onChange={(e) => setArgs(server.args.map((x, j) => (j === k ? e.target.value : x)))} />
+                    <Button type="button" variant="ghost" className="small" aria-label={`remove argument ${k + 1}`} onClick={() => setArgs(server.args.filter((_, j) => j !== k))}>Remove</Button>
+                  </span>
+                ))}
+                <Button type="button" className="small" onClick={() => setArgs([...server.args, ""])}>Add an argument</Button>
+              </div>
+            </Field>
           </>
         )}
         <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>

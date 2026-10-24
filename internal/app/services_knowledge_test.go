@@ -444,7 +444,7 @@ func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T)
 	if _, err := os.Stat(req.Knowledge[0].Dir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("shutdown returned with the attached copy still in the store: %v", err)
 	}
-	<-errc
+	waitForEnd(errc)
 }
 
 // The Documents step sizes only what the native picker returned, walking

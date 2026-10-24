@@ -244,22 +244,25 @@ export function refreshesView(ev: SessionEvent): boolean {
   return ev.kind === "assistant_turn" || ev.kind === "notice" || ev.kind === "session_end";
 }
 
-/** The Configuration's server form. */
-export type ServerForm = { source: string; package: string; version: string; url: string; tools: string };
+/** The Configuration's server form. A package server's args are one field
+ *  each, in order, since an argument may hold a comma. */
+export type ServerForm = { source: string; package: string; version: string; args: string[]; url: string; tools: string };
 
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
 /** serverRowOf is the form as the Builder's server row: a package of npm or
- *  PyPI at an exact version, or a remote server's address, which signs in
- *  with nothing. */
-export function serverRowOf(f: ServerForm): { source: string; package?: string; version?: string; url?: string; auth?: string; tools: string[] } {
+ *  PyPI at an exact version with the arguments its command starts with, or a
+ *  remote server's address, which signs in with nothing and takes none. The
+ *  arguments go as written: Go checks them under the core's rules. */
+export function serverRowOf(f: ServerForm): { source: string; package?: string; version?: string; args?: string[]; url?: string; auth?: string; tools: string[] } {
   if (f.source === "url") return { source: "url", url: f.url.trim(), auth: "none", tools: list(f.tools) };
-  return { source: f.source, package: f.package.trim(), version: f.version.trim(), tools: list(f.tools) };
+  return { source: f.source, package: f.package.trim(), version: f.version.trim(), args: [...f.args], tools: list(f.tools) };
 }
 
-/** Whether the form names a server to add. */
+/** Whether the form names a server to add: a package and its version with
+ *  no argument field left empty, or an address. */
 export function canAddServer(f: ServerForm): boolean {
-  return f.source === "url" ? f.url.trim() !== "" : f.package.trim() !== "" && f.version.trim() !== "";
+  return f.source === "url" ? f.url.trim() !== "" : f.package.trim() !== "" && f.version.trim() !== "" && f.args.every((a) => a !== "");
 }
 
 /** A port name the CLI takes: 1 to 32 lower-case letters, digits and
