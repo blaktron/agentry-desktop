@@ -248,7 +248,10 @@ func (r *RunAPI) streamSession(ctx context.Context, client *hostedrun.Client, f 
 			// Every frame again, from the first the host holds: the chat
 			// that asked keeps each sequence number once.
 			stop()
-			<-done
+			// The stopped stream's end is waited for; its error is the
+			// stop's own.
+			stopped := <-done
+			_ = stopped
 			lastStatus = ""
 		}
 	}
