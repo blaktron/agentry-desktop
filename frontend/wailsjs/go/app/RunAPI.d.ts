@@ -26,6 +26,8 @@ export function CancelConnect():Promise<boolean>;
 
 export function CancelHostedRun():Promise<app.HostedRunView>;
 
+export function CancelQueuedRun(arg1:string):Promise<void>;
+
 export function CancelSignIn():Promise<boolean>;
 
 export function ChatGPTModels():Promise<Array<string>>;
@@ -125,6 +127,8 @@ export function PasteRedirect(arg1:string):Promise<void>;
 export function PrereqStatus():Promise<app.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<app.ProfileStatusView>;
+
+export function QueuedRuns():Promise<Array<app.QueuedRunView>>;
 
 export function RecentDeliverables(arg1:number):Promise<app.RecentDeliverablesView>;
 

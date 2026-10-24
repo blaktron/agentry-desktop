@@ -10,7 +10,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { sendToAgent, startAgent, stopStart, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, pendingChange, termLines } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, pendingChange, taskSummary, termLines } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
@@ -118,6 +118,13 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
             switch (l.kind) {
               case "person":
                 return <div key={i} className="agent-term-person"><span aria-hidden="true">&gt; </span>{l.text}</div>;
+              case "task":
+                return (
+                  <details key={i} className="agent-term-task" data-task-turn>
+                    <summary>{taskSummary(l.name)}</summary>
+                    {l.instruction && <div className="agent-term-task-body">{l.instruction}</div>}
+                  </details>
+                );
               case "agent":
                 return <div key={i} className="agent-term-agent"><AgentMarkdown text={l.text} /></div>;
               case "tool":

@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { app } from "../wailsjs/go/models";
-import { MAX_RUN_LOG_LINES, droppedNote, failed, shownLog, finished, outcome, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
+import { MAX_RUN_LOG_LINES, droppedNote, failed, shownLog, finished, outcome, queuedLine, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
 
 const report = (runId: string, ref: string, turns = 0): RunProgress => ({
   runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true,
@@ -97,4 +97,10 @@ test("a blocked run says who stopped it, as a warning", () => {
   assert.match(outcome(finished(begun, blocked(undefined))).line, /failed this run/);
   // Any other failure is still the error it was.
   assert.deepEqual(outcome(finished(begun, result("r1", "error", 14))), { line: "It ended in an error (exit 14).", tone: "bad" });
+});
+
+test("a queued run's line says what it waits for", () => {
+  assert.equal(queuedLine({ runId: "r1", ref: "acme/a@1.0.0", position: 1, waitingFor: "A run of acme/x@1.0.0" }), "Starts when a run of acme/x@1.0.0 ends.");
+  assert.equal(queuedLine({ runId: "r2", ref: "acme/a@1.0.0", position: 2, waitingFor: "The container engine install" }), "Starts after the container engine install and the run queued before it.");
+  assert.equal(queuedLine({ runId: "r3", ref: "acme/a@1.0.0", position: 4, waitingFor: "A chat with acme/x@1.0.0" }), "Starts after a chat with acme/x@1.0.0 and the 3 runs queued before it.");
 });

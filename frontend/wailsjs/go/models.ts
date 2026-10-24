@@ -3616,6 +3616,24 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class QueuedRunView {
+	    runId: string;
+	    ref: string;
+	    position: number;
+	    waitingFor: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueuedRunView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.ref = source["ref"];
+	        this.position = source["position"];
+	        this.waitingFor = source["waitingFor"];
+	    }
+	}
 	export class RecentDeliverableView {
 	    path: string;
 	    name: string;
@@ -4975,6 +4993,7 @@ export namespace app {
 	    time: string;
 	    text?: string;
 	    synthetic?: boolean;
+	    task?: string;
 	    stopReason?: string;
 	    path?: string;
 	    digest?: string;
@@ -4995,6 +5014,7 @@ export namespace app {
 	        this.time = source["time"];
 	        this.text = source["text"];
 	        this.synthetic = source["synthetic"];
+	        this.task = source["task"];
 	        this.stopReason = source["stopReason"];
 	        this.path = source["path"];
 	        this.digest = source["digest"];
