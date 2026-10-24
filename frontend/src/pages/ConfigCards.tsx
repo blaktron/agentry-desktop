@@ -13,7 +13,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
 import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
-import { AGENT_STATES, SHARE_SWITCH_LABEL, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
+import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
 
 type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
@@ -440,10 +440,4 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
       )}
     </div>
   );
-}
-
-/** agentCalled is how a sentence names the agent: the name the person gave
- *  it, or "the Assistant". */
-function agentCalled(a: Pick<app.PersistentAgentView, "displayName" | "title">): string {
-  return a.displayName && a.displayName !== a.title ? a.displayName : `the ${a.title}`;
 }
