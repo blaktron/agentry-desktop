@@ -8,6 +8,8 @@ import {
   MAX_EARLY,
   PERSISTENT_ONLY_SENTENCE,
   agentNavEntries,
+  viewingAgent,
+  agentCalled,
   mainStatusLine,
   canAddServer,
   portFormOK,
@@ -190,4 +192,20 @@ test("the share folder's line says whether a file added there is checked for mal
   assert.equal(shareCheckWords(false, true), ", and a file you add is checked for malware before it reads it");
   assert.equal(shareCheckWords(false, false), ", and reads a file you add unchecked: the malware check is off on this computer");
   assert.equal(shareCheckWords(true, true), ", and reads the files in it as they are");
+});
+
+test("the agent in front is the persistent page shown while the window is visible and focused, and nothing else", () => {
+  const page = { page: "persistent", id: "assistant" };
+  assert.equal(viewingAgent(page, true, true), "assistant");
+  assert.equal(viewingAgent(page, false, true), "");
+  assert.equal(viewingAgent(page, true, false), "");
+  assert.equal(viewingAgent({ page: "home" }, true, true), "");
+  assert.equal(viewingAgent({ page: "persistent", id: "" }, true, true), "");
+});
+
+test("a sentence names an agent by the name the person gave it, else as the Assistant", () => {
+  assert.equal(agentCalled({ displayName: "Assistant", title: "Assistant" }), "the Assistant");
+  assert.equal(agentCalled({ displayName: "Assistant", title: "Assistant" }, true), "The Assistant");
+  assert.equal(agentCalled({ displayName: "Ada", title: "Assistant" }), "Ada");
+  assert.equal(agentCalled({ displayName: "", title: "Coding agent" }), "the Coding agent");
 });

@@ -15,6 +15,8 @@ import {
   secretValueOK,
   SECRET_NAME,
   setUpOf,
+  googleWords,
+  googleScopeWords,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -45,6 +47,8 @@ test("each entry is drawn in its grid, the grids in their order, each ending in 
     ["Abilities and folders", ["share", "data", "commands", "port:web"], []],
   ]);
   assert.equal(gridOf({ kind: "something-new" }), "abilities");
+  // An image server's switches (Google Workspace's Allow changes) are drawn beside it.
+  assert.equal(gridOf({ kind: "server-switch" }), "apps");
 });
 
 test("an agent that keeps no secrets and takes no skills has no Add card for them, and a grid left empty is left out", () => {
@@ -120,6 +124,8 @@ test("Set up asks for what an offered server needs, only while it needs it", () 
   assert.deepEqual(setUpOf(entry({ state: "needs-set-up", setUpSecret: "BRAVE_API_KEY" })), { kind: "secret", name: "BRAVE_API_KEY" });
   assert.deepEqual(setUpOf(entry({ state: "needs-set-up", setUpAccount: "github.com" })), { kind: "account", host: "github.com" });
   assert.equal(setUpOf(entry({ state: "on", setUpSecret: "BRAVE_API_KEY" })), null);
+  assert.deepEqual(setUpOf(entry({ state: "needs-set-up", setUpGoogle: true })), { kind: "google" });
+  assert.equal(setUpOf(entry({ state: "off", setUpGoogle: true })), null);
   assert.deepEqual(cardMenu(coder.roster[3]), { setUp: { kind: "account", host: "github.com" }, remove: null });
 });
 
@@ -130,4 +136,18 @@ test("the secret form takes the CLI's names and values", () => {
   assert.ok(!secretValueOK("short"));
   assert.ok(!secretValueOK("two\nlines-here"));
   assert.ok(!secretValueOK("x".repeat(16 * 1024 + 1)));
+});
+
+test("the Google set-up says what it holds: no client, a client, then the account the server named", () => {
+  assert.equal(googleWords(undefined), "No Google Cloud client yet.");
+  assert.equal(googleWords({ client: false, account: "" }), "No Google Cloud client yet.");
+  assert.equal(googleWords({ client: true, account: "" }), "Your Google Cloud client is kept. Sign in next.");
+  assert.equal(googleWords({ client: true, account: "me@example.com" }), "Signed in as me@example.com.");
+  assert.equal(googleWords({ client: true, account: "me@example.com", stale: true }), "Signed in as me@example.com with your earlier client: sign in again with the new one.");
+});
+
+test("the sign-in asks for read-only access unless Allow changes is on", () => {
+  assert.match(googleScopeWords([{ id: "server:gog:writes", on: false }]), /read-only/);
+  assert.match(googleScopeWords([]), /read-only/);
+  assert.match(googleScopeWords([{ id: "server:gog:writes", on: true }]), /change things/);
 });

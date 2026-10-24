@@ -16,6 +16,8 @@ export function AddSkill(arg1:string,arg2:string):Promise<app.PersistentAgentVie
 
 export function AddSuggested(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
+export function CancelGoogleSignIn(arg1:string):Promise<void>;
+
 export function ChangeTask(arg1:string,arg2:string,arg3:string):Promise<Array<app.PersistentTaskView>>;
 
 export function ChooseShare(arg1:string):Promise<app.PersistentAgentView>;
@@ -25,6 +27,8 @@ export function Configure(arg1:string,arg2:app.PersistentChange):Promise<app.Per
 export function ExportMemory(arg1:string):Promise<app.PersistentExportView>;
 
 export function Get(arg1:string):Promise<app.PersistentAgentView>;
+
+export function GoogleSignIn(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function List():Promise<Array<app.PersistentAgentView>>;
 
@@ -46,15 +50,23 @@ export function SetDevHost(arg1:string,arg2:string,arg3:run.HostSignIn):Promise<
 
 export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgentView>;
 
+export function SetGoogleClient(arg1:string):Promise<app.PersistentAgentView>;
+
 export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
 export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
+
+export function SetTaskNotifications(arg1:boolean):Promise<boolean>;
+
+export function SetViewing(arg1:string):Promise<void>;
 
 export function Start(arg1:string):Promise<app.PersistentAgentView>;
 
 export function StartsAtSignIn():Promise<boolean>;
 
 export function Stop(arg1:string):Promise<app.PersistentAgentView>;
+
+export function TaskNotifications():Promise<boolean>;
 
 export function Tasks(arg1:string):Promise<Array<app.PersistentTaskView>>;
 

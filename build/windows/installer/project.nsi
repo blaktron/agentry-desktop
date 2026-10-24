@@ -269,6 +269,12 @@ Section "-un.RemoveApplication"
     # would launch the removed application.
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Agentry Desktop"
 
+    # Task notifications (internal/notify): the app's AppUserModelID, with the
+    # name, icon and click handler its toasts show under.
+    DeleteRegKey HKCU "Software\Classes\AppUserModelId\SecureAgentry.AgentryDesktop"
+    Delete "$LOCALAPPDATA\agentry-desktop\notify.png"
+    RMDir "$LOCALAPPDATA\agentry-desktop"
+
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR

@@ -866,6 +866,12 @@ g.go = { app: {
     SetDevHost: async () => harnessCoder,
     StartsAtSignIn: async () => false,
     SetStartsAtSignIn: async (on: boolean) => on,
+    TaskNotifications: async () => true,
+    SetTaskNotifications: async (on: boolean) => on,
+    SetViewing: async () => {},
+    SetGoogleClient: async () => harnessAssistant,
+    GoogleSignIn: async () => harnessAssistant,
+    CancelGoogleSignIn: async () => {},
     Transcript: async (name: string) => (name === "main" ? [
       { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
       { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },

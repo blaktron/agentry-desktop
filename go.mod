@@ -5,9 +5,11 @@ go 1.27.3
 require (
 	aead.dev/minisign v0.3.0
 	fyne.io/systray v1.12.2
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.23
-	github.com/blaktron/agentry-cli v0.6.178
+	github.com/blaktron/agentry-cli v0.6.180
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0
@@ -19,7 +21,6 @@ require (
 )
 
 require (
-	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
@@ -56,7 +57,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
 	github.com/go-openapi/validate v0.26.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
 	github.com/google/go-containerregistry v0.21.7 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect

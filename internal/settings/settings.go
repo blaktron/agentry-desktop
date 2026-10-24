@@ -69,6 +69,11 @@ type Settings struct {
 	// running in the tray or menu bar when its window closes while a
 	// persistent agent is enabled.
 	BackgroundNoted bool `yaml:"backgroundNoted,omitempty" json:"-"`
+	// TaskNotificationsOff is Settings → Persistent Agents' "Notify me when
+	// a task runs" switched off. Absent is on: a persistent agent's task runs
+	// while nobody is looking at the window, and the notification is how the
+	// person learns it ran.
+	TaskNotificationsOff bool `yaml:"taskNotificationsOff,omitempty" json:"-"`
 	// CheckForUpdates is Settings → "Check for newer versions". A POINTER
 	// because the default is on and this file is parsed leniently: absent
 	// must mean "on", and a plain bool cannot tell an absent field from a

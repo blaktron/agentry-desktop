@@ -6,6 +6,7 @@ import { AppVersion } from "../wailsjs/go/app/App";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/app/SelfUpdateAPI";
 import { UpdatesStatus } from "../wailsjs/go/app/InstallAPI";
 import { UnsafeLive } from "../wailsjs/go/app/RunAPI";
+import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { app } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
@@ -37,7 +38,7 @@ import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
 import { useAgents } from "./agents";
-import { agentNavEntries, CODER_AGENT, coderRunning } from "./persistentAgents";
+import { agentNavEntries, CODER_AGENT, coderRunning, viewingAgent } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
@@ -145,10 +146,26 @@ export default function App() {
   }, []);
   // Main's settings_open: Go names a section of SECTIONS, and the page opens
   // it; a name the page does not know opens nothing.
-  // The tray's item for a running agent opens its page.
+  // The tray's item for a running agent, and a click on one of its task's
+  // notifications, open its page.
   useEffect(() => EventsOn("tray:open-agent", (name: string) => {
     if (typeof name === "string" && name) setRoute({ page: "persistent", id: name });
   }), []);
+  // Go raises no task notification for the agent whose page is in front.
+  useEffect(() => {
+    const report = () => {
+      PersistentAPI.SetViewing(viewingAgent(route, document.hasFocus(), document.visibilityState === "visible")).catch(() => {});
+    };
+    report();
+    window.addEventListener("focus", report);
+    window.addEventListener("blur", report);
+    document.addEventListener("visibilitychange", report);
+    return () => {
+      window.removeEventListener("focus", report);
+      window.removeEventListener("blur", report);
+      document.removeEventListener("visibilitychange", report);
+    };
+  }, [route]);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
     if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
   }), []);

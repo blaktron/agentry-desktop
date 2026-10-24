@@ -35,6 +35,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/notify"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -112,6 +113,23 @@ type PersistentAPI struct {
 	// and the memory's one-shot copy in a test.
 	pickFolder   func() (string, error)
 	exportMemory func(ctx context.Context, home string, a persistent.Agent, dir string) (persistent.Exported, error)
+	// viewing is the agent whose page the window shows while it has the
+	// focus ("" for none), as the page reports it: its tasks raise no
+	// notification then.
+	viewing string
+	// showNotice raises a desktop notification, and minimised reports
+	// whether the window is minimised; nil is the platform's own. A test
+	// puts its own here.
+	showNotice func(notify.Notice) error
+	minimised  func() bool
+	// googleSignIns cancel the Google sign-ins waiting for the browser, by
+	// agent. googleSetUp, pickFile and browse stand in for the CLI's
+	// sign-in with its engine, the native file picker and the browser in a
+	// test.
+	googleSignIns map[string]context.CancelFunc
+	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
+	pickFile      func() (string, error)
+	browse        func(url string) error
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -254,9 +272,12 @@ type PersistentAgentView struct {
 	KeepsMemory bool                    `json:"keepsMemory"`
 	Codes       bool                    `json:"codes"`
 	Accounts    []PersistentAccountView `json:"accounts"`
-	Status      *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime    PersistentUsageView     `json:"lifetime"`
-	Volumes     PersistentVolumesView   `json:"volumes"`
+	// Google is the agent's Google Workspace set-up, for an agent that has
+	// that server.
+	Google   *PersistentGoogleView `json:"google,omitempty"`
+	Status   *PersistentStatusView `json:"status,omitempty"`
+	Lifetime PersistentUsageView   `json:"lifetime"`
+	Volumes  PersistentVolumesView `json:"volumes"`
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -302,6 +323,9 @@ type PersistentRosterEntry struct {
 	// asks for: the stored secret it needs, or an account on a host.
 	SetUpSecret  string `json:"setUpSecret,omitempty"`
 	SetUpAccount string `json:"setUpAccount,omitempty"`
+	// SetUpGoogle says the entry's Set up is Google Workspace's: its
+	// client file and sign-in.
+	SetUpGoogle bool `json:"setUpGoogle,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -460,12 +484,18 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 			v.State = agentDisabled
 		}
 	}
-	v.Roster = rosterView(roster, cfg.Servers, factsOf(a))
+	v.Roster = rosterView(roster, cfg.Servers, factsOf(a, cfg))
 	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
 	v.Accounts = accountViews(cfg.Accounts)
+	v.Google = googleView(a, cfg)
+	if v.Google != nil {
+		p.mu.Lock()
+		_, v.Google.Waiting = p.googleSignIns[a.Name]
+		p.mu.Unlock()
+	}
 	for _, e := range roster {
 		if e.Kind == persistent.KindServer {
 			v.Servers = append(v.Servers, PersistentServerView{ID: e.ID, Name: e.Name})
@@ -494,6 +524,7 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer, f cardFacts) 
 			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
 			ShareSwitch: e.ShareSwitch, Share: e.Share,
 			IconKey: f.glyph[e.ID], SetUpSecret: f.secret[e.ID], SetUpAccount: f.account[e.ID],
+			SetUpGoogle: f.google[e.ID],
 		}
 		if e.Kind == persistent.KindServer && e.ShareSwitch == "" {
 			for _, srv := range servers {
@@ -842,6 +873,7 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor, logw *supervisor
 		defer p.followers.Done()
 		for ev := range events {
 			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
+			p.noticeTask(name, ev, logw)
 		}
 	}()
 	go func() {
