@@ -70,6 +70,14 @@ export function termLines(c: Chat): TermLine[] {
 /** Main's name: its place is its Home card, with no sidebar entry or page. */
 export const MAIN_AGENT = "main";
 
+/** agentCalled is how a sentence names an agent: the name the person gave
+ *  it, or its own title with "the" ("the Assistant"); capital starts the
+ *  sentence with it. */
+export function agentCalled(a: Pick<app.PersistentAgentView, "displayName" | "title">, capital = false): string {
+  if (a.displayName && a.displayName !== a.title) return a.displayName;
+  return `${capital ? "The" : "the"} ${a.title}`;
+}
+
 /** viewingAgent is the persistent agent whose page the person is looking at,
  *  for Go: its page shown while the window is visible and has the focus, or
  *  "" for anything else. A task of that agent raises no desktop notification

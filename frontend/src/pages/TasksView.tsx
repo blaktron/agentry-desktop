@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
+import { agentCalled } from "../persistentAgents";
 import { taskOps, taskRow } from "../tasksView";
 import { Button, ErrorBox, Modal } from "../ui";
 
@@ -31,10 +32,10 @@ export function TasksView({ agent, onClose }: { agent: app.PersistentAgentView; 
     }
   };
   return (
-    <Modal title={`${agent.displayName}'s tasks`} onClose={onClose} wide>
+    <Modal title={`${agentCalled(agent, true)}'s tasks`} onClose={onClose} wide>
       <ErrorBox error={error} />
       <p className="small muted">
-        Ask {agent.displayName} in conversation to add a task or change when one runs. Its heartbeat runs them while it runs
+        Ask {agentCalled(agent)} in conversation to add a task or change when one runs. Its heartbeat runs them while it runs
         {agent.roster.some((e) => e.id === "heartbeat" && !e.on) ? ", and its heartbeat is off now: no task runs until you switch it on" : ""}.
       </p>
       {tasks === null && !error && <p className="small muted">Reading its tasks…</p>}

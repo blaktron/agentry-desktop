@@ -9,6 +9,7 @@ import {
   PERSISTENT_ONLY_SENTENCE,
   agentNavEntries,
   viewingAgent,
+  agentCalled,
   mainStatusLine,
   canAddServer,
   portFormOK,
@@ -200,4 +201,11 @@ test("the agent in front is the persistent page shown while the window is visibl
   assert.equal(viewingAgent(page, true, false), "");
   assert.equal(viewingAgent({ page: "home" }, true, true), "");
   assert.equal(viewingAgent({ page: "persistent", id: "" }, true, true), "");
+});
+
+test("a sentence names an agent by the name the person gave it, else as the Assistant", () => {
+  assert.equal(agentCalled({ displayName: "Assistant", title: "Assistant" }), "the Assistant");
+  assert.equal(agentCalled({ displayName: "Assistant", title: "Assistant" }, true), "The Assistant");
+  assert.equal(agentCalled({ displayName: "Ada", title: "Assistant" }), "Ada");
+  assert.equal(agentCalled({ displayName: "", title: "Coding agent" }), "the Coding agent");
 });
