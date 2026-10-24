@@ -1,4 +1,4 @@
-// A persistent agent's Configuration as cards, as logic: which of the four
+// A persistent agent's Configuration as cards, as logic: which of the
 // grids each roster entry is drawn in, the icon it is drawn with, the words
 // and the tone of its state, whether a click switches it, what its menu
 // offers, and the Add card that ends each grid. Pure, so the components and
@@ -7,24 +7,38 @@
 import type { app } from "../wailsjs/go/models";
 import { AGENT_STATES } from "./persistentAgents.ts";
 
-/** The four grids, in their order. */
-export type GridKey = "apps" | "accounts" | "skills" | "abilities";
+/** The grids, in their order. Mail and calendar is the Assistant's alone:
+ *  its enabled mail providers' servers and their switches. */
+export type GridKey = "apps" | "mail" | "accounts" | "skills" | "abilities";
 
 export const GRID_TITLES: Record<GridKey, string> = {
   apps: "Apps and servers",
+  mail: "Mail and calendar",
   accounts: "Accounts and secrets",
   skills: "Skills",
   abilities: "Abilities and folders",
 };
 
-const GRID_ORDER: GridKey[] = ["apps", "accounts", "skills", "abilities"];
+const GRID_ORDER: GridKey[] = ["apps", "mail", "accounts", "skills", "abilities"];
 
-/** gridOf is the grid an entry is drawn in: servers and what they may
+/** The agent's mail providers, as the page reads them. */
+type Providers = Pick<app.PersistentAgentView, "mailProviders">;
+
+/** providerOf is the mail provider whose server an entry is, or one of
+ *  whose switches it is (server:<key>:<switch>), if any. */
+export function providerOf(e: { id?: string }, agent: Providers): app.PersistentMailProviderView | undefined {
+  const id = e.id ?? "";
+  return (agent.mailProviders ?? []).find((p) => p.servers.some((s) => id === s || id.startsWith(`${s}:`)));
+}
+
+/** gridOf is the grid an entry is drawn in: a mail provider's server and
+ *  its switches are mail and calendar; other servers and what they may
  *  change (an offered server's writes, an image server's switches) are apps; accounts and secrets are what the agent signs in with;
  *  skills are skills; the rest (folders, memory, the heartbeat, commands,
  *  egress, the browser, the dev server, ports, knowledge packs) are its
  *  abilities. A kind this build does not know is an ability. */
-export function gridOf(e: Pick<app.PersistentRosterEntry, "kind">): GridKey {
+export function gridOf(e: Pick<app.PersistentRosterEntry, "kind"> & { id?: string }, agent: Providers = { mailProviders: [] }): GridKey {
+  if (providerOf(e, agent)) return "mail";
   switch (e.kind) {
     case "server":
     case "server-writes":
@@ -41,19 +55,20 @@ export function gridOf(e: Pick<app.PersistentRosterEntry, "kind">): GridKey {
 }
 
 /** What an Add card adds. */
-export type AddKind = "server" | "skill" | "secret" | "account";
+export type AddKind = "server" | "skill" | "secret" | "account" | "provider";
 
 /** One grid as the Configuration draws it: its entries in the roster's
  *  order and its Add cards, none where the agent takes nothing of that
  *  kind from the person. */
 export type Grid = { key: GridKey; title: string; entries: app.PersistentRosterEntry[]; adds: AddKind[] };
 
-/** configGrids are the agent's four grids. A grid with no entry and no Add
+/** configGrids are the agent's grids. A grid with no entry and no Add
  *  card is left out. withAdds is false where the cards are only shown, as
  *  on the agent's page. */
-export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes">, withAdds = true): Grid[] {
+export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes" | "mailProviders">, withAdds = true): Grid[] {
   const adds: Record<GridKey, AddKind[]> = {
     apps: ["server"],
+    mail: disabledProviders(agent).length > 0 ? ["provider"] : [],
     accounts: [...(agent.codes ? (["account"] as const) : []), ...(agent.keepsSecrets ? (["secret"] as const) : [])],
     skills: agent.takesSkills ? ["skill"] : [],
     abilities: [],
@@ -61,7 +76,7 @@ export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "kee
   return GRID_ORDER.map((key) => ({
     key,
     title: GRID_TITLES[key],
-    entries: agent.roster.filter((e) => gridOf(e) === key),
+    entries: agent.roster.filter((e) => gridOf(e, agent) === key),
     adds: withAdds ? adds[key] : [],
   })).filter((g) => g.entries.length > 0 || g.adds.length > 0);
 }
@@ -249,10 +264,24 @@ export function googleScopeWords(roster: Pick<app.PersistentRosterEntry, "id" | 
 
 /** A card's menu: Set up where it needs one, Details always, Remove where
  *  the person added it. */
-export type CardMenu = { setUp: SetUp | null; remove: RemoveAction | null };
+/** What a card's menu offers: Set up, Remove, and on a mail provider's
+ *  server, Disable that provider. */
+export type CardMenu = { setUp: SetUp | null; remove: RemoveAction | null; disable: app.PersistentMailProviderView | null };
 
-export function cardMenu(e: app.PersistentRosterEntry): CardMenu {
-  return { setUp: setUpOf(e), remove: removeAction(e) };
+export function cardMenu(e: app.PersistentRosterEntry, agent: Providers = { mailProviders: [] }): CardMenu {
+  const p = providerOf(e, agent);
+  return { setUp: setUpOf(e), remove: removeAction(e), disable: p && p.servers.includes(e.id) ? p : null };
+}
+
+/** disabledProviders are the mail providers the Add a provider card offers. */
+export function disabledProviders(agent: Providers): app.PersistentMailProviderView[] {
+  return (agent.mailProviders ?? []).filter((p) => !p.enabled);
+}
+
+/** providerWords is what the Add a provider panel says of a provider: the
+ *  account it is still signed in as, or that it needs setting up. */
+export function providerWords(p: Pick<app.PersistentMailProviderView, "accounts">): string {
+  return p.accounts.length > 0 ? `Still signed in as ${p.accounts.join(", ")}: enabling it needs no new sign-in.` : "Set it up after enabling it.";
 }
 
 /** Who granted an entry, in words. */

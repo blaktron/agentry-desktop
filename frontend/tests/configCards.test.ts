@@ -19,6 +19,9 @@ import {
   googleScopeWords,
   addFormOf,
   setUpForm,
+  disabledProviders,
+  providerOf,
+  providerWords,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -128,7 +131,7 @@ test("Set up asks for what an offered server needs, only while it needs it", () 
   assert.equal(setUpOf(entry({ state: "on", setUpSecret: "BRAVE_API_KEY" })), null);
   assert.deepEqual(setUpOf(entry({ state: "needs-set-up", setUpGoogle: true })), { kind: "google" });
   assert.equal(setUpOf(entry({ state: "off", setUpGoogle: true })), null);
-  assert.deepEqual(cardMenu(coder.roster[3]), { setUp: { kind: "account", host: "github.com" }, remove: null });
+  assert.deepEqual(cardMenu(coder.roster[3]), { setUp: { kind: "account", host: "github.com" }, remove: null, disable: null });
 });
 
 test("the secret form takes the CLI's names and values", () => {
@@ -171,4 +174,55 @@ test("Set up opens its form under the asking card's grid, whether or not the pag
 
 test("an Add card opens its form under its own grid", () => {
   assert.deepEqual(addFormOf("secret", "accounts"), { kind: "secret", grid: "accounts" });
+});
+
+const google = (enabled: boolean, accounts: string[] = []): app.PersistentMailProviderView =>
+  ({ key: "google", name: "Google", enabled, servers: ["server:gog"], accounts, setUp: [] }) as app.PersistentMailProviderView;
+
+const assistant = (enabled: boolean, accounts: string[] = []) => ({
+  keepsSecrets: true,
+  takesSkills: true,
+  codes: false,
+  mailProviders: [google(enabled, accounts)],
+  roster: [
+    entry({ id: "server:wiki", kind: "server", name: "Wikipedia" }),
+    ...(enabled
+      ? [
+          entry({ id: "server:gog", kind: "server", name: "Google Workspace (gog)", iconKey: "mail", on: false, state: "off" }),
+          entry({ id: "server:gog:writes", kind: "server-switch", name: "Google Workspace: allow changes", iconKey: "mail", on: false, state: "off" }),
+        ]
+      : []),
+  ],
+}) as Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes" | "mailProviders">;
+
+test("an enabled mail provider's server and switches are drawn in Mail and calendar, after Apps and servers", () => {
+  const grids = configGrids(assistant(true));
+  assert.deepEqual(grids.slice(0, 2).map((g) => [g.title, g.entries.map((e) => e.id), g.adds]), [
+    ["Apps and servers", ["server:wiki"], ["server"]],
+    ["Mail and calendar", ["server:gog", "server:gog:writes"], []],
+  ]);
+  assert.equal(gridOf({ id: "server:gog:send", kind: "server-switch" }, assistant(true)), "mail");
+  assert.equal(providerOf({ id: "server:gogx" }, assistant(true)), undefined);
+});
+
+test("a disabled provider leaves its section an Add a provider card, which offers it with what it still holds", () => {
+  const off = assistant(false, ["person@example.com"]);
+  const mail = configGrids(off).find((g) => g.key === "mail");
+  assert.deepEqual(mail && [mail.entries.length, mail.adds], [0, ["provider"]]);
+  assert.deepEqual(disabledProviders(off).map((p) => p.key), ["google"]);
+  assert.match(providerWords(google(false, ["person@example.com"])), /Still signed in as person@example.com: enabling it needs no new sign-in/);
+  assert.match(providerWords(google(false)), /Set it up after enabling it/);
+  // Every provider enabled: no Add card, and the section stays for its cards.
+  assert.deepEqual(configGrids(assistant(true)).find((g) => g.key === "mail")?.adds, []);
+  // On the agent's page no Add card is drawn, so an empty section is left out.
+  assert.equal(configGrids(off, false).some((g) => g.key === "mail"), false);
+  // An agent with no providers has no such section.
+  assert.equal(configGrids(coder).some((g) => g.key === "mail"), false);
+});
+
+test("a mail provider's server card offers to disable the provider; its switches and other cards do not", () => {
+  const a = assistant(true);
+  assert.equal(cardMenu(a.roster[1], a).disable?.key, "google");
+  assert.equal(cardMenu(a.roster[2], a).disable, null);
+  assert.equal(cardMenu(a.roster[0], a).disable, null);
 });

@@ -1,24 +1,27 @@
-// A persistent agent's Configuration as four grids of cards: Apps and
-// servers, Accounts and secrets, Skills, and Abilities and folders. A card
+// A persistent agent's Configuration as grids of cards: Apps and servers,
+// the Assistant's Mail and calendar, Accounts and secrets, Skills, and
+// Abilities and folders. A card
 // is an icon, a name, one line and a state: off greyed, on in full colour.
 // A click switches it, and a switch that widens what the agent has asks
 // first in Go's native dialog, never in the page. Its menu holds Set up,
 // Details and Remove; an install, a sign-in, a set-up and a failure (with
 // Retry) are drawn on it. Each grid ends in its Add card: a server (the
 // agent's suggestions first, one click each), a skill from a folder or a
-// .zip, a secret whose value goes to Go and is never read back.
+// .zip, a secret whose value goes to Go and is never read back, a mail
+// provider to enable. A mail provider's server card can disable its
+// provider, which keeps the sign-in.
 import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, googleScopeWords, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
 
 type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
 
-/** The four grids. withAdds draws the Add cards (the Configuration);
+/** The grids. withAdds draws the Add cards (the Configuration);
  *  without them the cards are only switched (the agent's page). */
 export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = true }: {
   agent: app.PersistentAgentView;
@@ -79,9 +82,10 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               {adding.kind === "skill" && <AddSkill agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "secret" && <AddSecret agent={agent} busy={busy} act={act} name={adding.secretName ?? ""} onDone={() => setAdding(null)} />}
               {adding.kind === "account" && <AddAccount key={adding.host ?? ""} agent={agent} busy={busy} act={act} host={adding.host ?? ""} onDone={() => setAdding(null)} />}
+              {adding.kind === "provider" && <AddProvider agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
             </div>
           )}
-          {google && g.key === "apps" && agent.google && (
+          {google && g.key === "mail" && agent.google && (
             <div className="config-add-panel">
               <GoogleSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setGoogle(false)} />
             </div>
@@ -92,8 +96,9 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   );
 }
 
-const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret", account: "Add an account" };
+const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret", account: "Add an account", provider: "Add a provider" };
 const ADD_LINES: Record<AddKind, string> = {
+  provider: "A service whose mail and calendar it reaches",
   account: "An account on GitHub, GitLab or another git host, its own or yours",
   server: "A suggested one, or an npm or PyPI package, or a remote address",
   skill: "From a folder or a .zip holding a SKILL.md",
@@ -110,9 +115,10 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
 }) {
   const [details, setDetails] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [disabling, setDisabling] = useState(false);
   const state = cardState(agent, e);
   const switches = cardSwitches(e);
-  const menu = cardMenu(e);
+  const menu = cardMenu(e, agent);
   // A server never given the share draws no switch; why is in Details.
   const shareSwitch = serverShareSwitch(e);
   const share = shareSwitch && !shareSwitch.disabled ? shareSwitch : null;
@@ -129,6 +135,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
     ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => menu.setUp && onSetUp(menu.setUp) }] : []),
     { key: "details", label: details ? "Hide details" : "Details", onSelect: () => setDetails(!details) },
     ...(menu.remove ? [{ key: "remove", label: "Remove", onSelect: () => setRemoving(true), disabled: busy }] : []),
+    ...(menu.disable ? [{ key: "disable", label: `Disable ${menu.disable.name}`, onSelect: () => setDisabling(true), disabled: busy }] : []),
   ];
   return (
     <div className={`config-card tone-${state.tone}${e.on ? " on" : " off"}`}>
@@ -174,6 +181,48 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
         </div>
       )}
       {removing && menu.remove && <RemoveConfirm agent={agent} action={menu.remove} busy={busy} act={act} onCancel={() => setRemoving(false)} />}
+      {disabling && menu.disable && <DisableProvider agent={agent} provider={menu.disable} busy={busy} act={act} onCancel={() => setDisabling(false)} />}
+    </div>
+  );
+}
+
+/** Disable a mail provider, confirmed on its card: its cards leave the
+ *  Configuration and its servers the agent's next start; its sign-in stays. */
+function DisableProvider({ agent, provider, busy, act, onCancel }: { agent: app.PersistentAgentView; provider: app.PersistentMailProviderView; busy: boolean; act: Act; onCancel: () => void }) {
+  const running = runsSomewhere(agent);
+  return (
+    <div className="config-card-confirm small" role="group" aria-label={`Disable ${provider.name}`}>
+      <span>
+        {running ? `Stop ${agentCalled(agent)} first: its mail servers hold their sign-ins while it runs.`
+          : `Disable ${provider.name}? Its cards leave Mail and calendar and ${agentCalled(agent)} no longer reaches it; its sign-in is kept.`}
+      </span>
+      <Button className="small" disabled={busy || running} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, provider.key, false), `${provider.name} disabled`).then((ok) => ok && onCancel())}>Disable</Button>
+      <Button variant="ghost" className="small" onClick={onCancel}>Cancel</Button>
+    </div>
+  );
+}
+
+/** runsSomewhere says the agent runs or starts, here or in another client:
+ *  its mail providers change only while it is stopped. */
+function runsSomewhere(agent: Pick<app.PersistentAgentView, "state">): boolean {
+  return agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
+}
+
+/** Add a provider: each disabled mail provider, enabled with one click;
+ *  its cards then join Mail and calendar. */
+function AddProvider({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
+  const running = runsSomewhere(agent);
+  return (
+    <div className="stack">
+      {running && <Notice>Stop {agentCalled(agent)} first: its mail servers hold their sign-ins while it runs.</Notice>}
+      {disabledProviders(agent).map((p) => (
+        <div key={p.key} className="row">
+          <Button disabled={busy || running} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, p.key, true), `${p.name} added`).then((ok) => ok && onDone())}>
+            Add {p.name}
+          </Button>
+          <span className="small muted">{providerWords(p)}</span>
+        </div>
+      ))}
     </div>
   );
 }
