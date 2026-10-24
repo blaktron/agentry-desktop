@@ -44,7 +44,7 @@ type PersistentSuggestionView struct {
 // word of its name. They are Agentry's own: no brand's mark is drawn.
 var glyphs = []struct{ word, key string }{
 	{"github", "git"}, {"gitlab", "git"}, {"wikipedia", "encyclopedia"}, {"context7", "docs"},
-	{"semgrep", "scan"}, {"weather", "weather"}, {"maps", "map"}, {"google", "mail"}, {"brave", "search"},
+	{"semgrep", "scan"}, {"weather", "weather"}, {"maps", "map"}, {"google", "mail"}, {"microsoft", "mail"}, {"brave", "search"},
 }
 
 // glyphFor is the glyph of a built-in's server named name, "" for none.
@@ -67,12 +67,13 @@ type cardFacts struct {
 	secret  map[string]string
 	account map[string]string
 	// google are the entries whose Set up is Google Workspace's: its
-	// server and the switches its sign-in grants.
-	google map[string]bool
+	// server and the switches its sign-in grants; microsoft, Microsoft
+	// 365's.
+	google, microsoft map[string]bool
 }
 
 func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
-	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}, google: map[string]bool{}}
+	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}, google: map[string]bool{}, microsoft: map[string]bool{}}
 	// The built-in offers some servers for the git hosts its accounts are
 	// on (a self-managed GitLab's), as the CLI draws its roster.
 	hosts := make([]offer.GitHost, 0, len(cfg.Accounts))
@@ -90,9 +91,10 @@ func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
 		id := persistent.ImageServerEntryID(s.Key)
 		f.glyph[id] = glyphFor(s.Name)
 		f.google[id] = s.Key == assistant.GogKey
+		f.microsoft[id] = s.Key == assistant.MS365Key
 		for _, w := range s.Switches {
 			sw := persistent.ImageSwitchEntryID(s.Key, w.Key)
-			f.glyph[sw], f.google[sw] = f.glyph[id], f.google[id]
+			f.glyph[sw], f.google[sw], f.microsoft[sw] = f.glyph[id], f.google[id], f.microsoft[id]
 		}
 	}
 	for _, s := range a.Builtin.SuggestedServers() {

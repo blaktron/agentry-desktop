@@ -723,7 +723,11 @@ const harnessAssistant = {
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
   share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
   keepsTime: true, keepsMemory: true, codes: false, accounts: [],
-  mailProviders: [{ key: "google", name: "Google", enabled: true, servers: ["server:gog"], accounts: ["sandra@example.com"], setUp: [] }],
+  mailProviders: [
+    { key: "google", name: "Google", enabled: true, servers: ["server:gog"], accounts: ["sandra@example.com"], setUp: [] },
+    { key: "microsoft", name: "Microsoft", enabled: false, servers: ["server:ms365"], accounts: [], setUp: ["it needs your Microsoft sign-in"] },
+  ],
+  microsoft: { clientID: "", tenant: "", account: "", signoff: "" },
   google: { client: true, clientAt: "2026-10-24T10:00:00Z", account: "sandra@example.com", at: "2026-10-24T10:02:00Z" },
   resets: [
     { kind: "history", title: "Reset history", body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept." },
@@ -893,6 +897,10 @@ g.go = { app: {
     }),
     GoogleSignIn: async () => harnessAssistant,
     CancelGoogleSignIn: async () => {},
+    SetMicrosoftClient: async () => harnessAssistant,
+    SetMicrosoftSignoff: async () => harnessAssistant,
+    MicrosoftSignIn: async () => harnessAssistant,
+    CancelMicrosoftSignIn: async () => {},
     Transcript: async (name: string) => (name === "main" ? [
       { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
       { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },
