@@ -277,6 +277,9 @@ type PersistentAgentView struct {
 	KeepsMemory bool                    `json:"keepsMemory"`
 	Codes       bool                    `json:"codes"`
 	Accounts    []PersistentAccountView `json:"accounts"`
+	// Resets are the resets the agent has, the full one last, each with
+	// what it wipes and keeps: the Assistant's three, one for the others.
+	Resets []PersistentResetView `json:"resets"`
 	// Google is the agent's Google Workspace set-up, for an agent that has
 	// that server.
 	Google   *PersistentGoogleView `json:"google,omitempty"`
@@ -495,6 +498,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
 	v.Accounts = accountViews(cfg.Accounts)
+	v.Resets = resetViews(a)
 	v.Google = googleView(a, cfg)
 	if v.Google != nil {
 		p.mu.Lock()
@@ -1141,14 +1145,71 @@ func (p *PersistentAPI) ChooseShare(name string) (*PersistentAgentView, error) {
 	return p.Get(name)
 }
 
+// PersistentResetView is one reset an agent has: its kind (history, agent
+// or all), its button's title, and what it wipes and keeps, which the page
+// and the native confirmation both show.
+type PersistentResetView struct {
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+// The kinds of reset, as the page passes them back.
+const (
+	resetHistory = "history"
+	resetAgent   = "agent"
+	resetAll     = "all"
+)
+
+// resetViews are the resets the agent has: Reset history and Reset agent
+// before Reset all for one that resets in parts, Reset alone otherwise.
+func resetViews(a persistent.Agent) []PersistentResetView {
+	all := PersistentResetView{Kind: resetAll, Title: "Reset",
+		Body: "This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept."}
+	if !a.Builtin.ResetsInParts() {
+		return []PersistentResetView{all}
+	}
+	all.Title = "Reset all"
+	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
+	return []PersistentResetView{
+		{Kind: resetHistory, Title: "Reset history",
+			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and asks you nothing again. The files in its share folder and the receipts of its segments are kept."},
+		{Kind: resetAgent, Title: "Reset agent",
+			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it and the receipts of its segments are kept."},
+		all,
+	}
+}
+
 // Reset puts an agent back to its defaults after a native confirmation:
 // its conversation, its files and everything the person chose for it. One
 // running here is stopped first; one another client runs is refused. Its
 // share folder's files and its receipts stay.
 func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
+	return p.reset(name, resetAll)
+}
+
+// ResetPart is one of the smaller resets of an agent that resets in parts,
+// by its kind: history or agent. It asks and stops as Reset does.
+func (p *PersistentAPI) ResetPart(name, kind string) (*PersistentAgentView, error) {
+	if kind != resetHistory && kind != resetAgent {
+		return nil, fmt.Errorf("%q is not a reset (history or agent)", kind)
+	}
+	return p.reset(name, kind)
+}
+
+func (p *PersistentAPI) reset(name, kind string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err
+	}
+	var choice *PersistentResetView
+	for _, c := range resetViews(a) {
+		if c.Kind == kind {
+			choice = &c
+		}
+	}
+	if choice == nil {
+		return nil, fmt.Errorf("the %s has one reset", a.Title)
 	}
 	home, err := p.home()
 	if err != nil {
@@ -1166,11 +1227,18 @@ func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	}
 	cfg, _ := persistent.LoadConfig(home, a.Name)
 	who := called(a, cfg)
-	body := "This puts " + who + " back to its defaults. It wipes its conversation, its own files (its two volumes), its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept."
+	body := choice.Body
 	if here {
 		body += " It is running: it is stopped first."
 	}
-	if err := p.app.askConsent("Reset "+who+"?", body); err != nil {
+	question := "Reset " + who + "?"
+	switch kind {
+	case resetHistory:
+		question = "Reset " + who + "'s history?"
+	case resetAgent:
+		question = "Reset " + who + ", keeping its secrets and sign-ins?"
+	}
+	if err := p.app.askConsent(question, body); err != nil {
 		return nil, err
 	}
 	if here {
@@ -1180,7 +1248,10 @@ func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := persistent.Reset(ctx, home, a.Name, p.dockerClient()); err != nil {
+	resets := map[string]func(context.Context, string, string, dockerx.Client) error{
+		resetAll: persistent.Reset, resetHistory: persistent.ResetHistory, resetAgent: persistent.ResetAgent,
+	}
+	if err := resets[kind](ctx, home, a.Name, p.dockerClient()); err != nil {
 		return nil, err
 	}
 	p.stateChanged(a.Name)

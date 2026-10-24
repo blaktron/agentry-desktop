@@ -265,6 +265,75 @@ func TestResettingAPersistentAgentAsksFirst(t *testing.T) {
 	}
 }
 
+// The Assistant offers Reset history, Reset agent and Reset all, the
+// others Reset alone; each smaller reset asks in its native dialog with the
+// words the page shows. Reset history keeps the name, Reset agent does not.
+func TestResettingTheAssistantInParts(t *testing.T) {
+	rig := newPersistentRig(t)
+	rig.p.docker = &dockerx.Fake{}
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	name := "Sandra"
+	v, err := rig.p.Configure("assistant", PersistentChange{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kinds []string
+	for _, r := range v.Resets {
+		kinds = append(kinds, r.Kind)
+	}
+	if strings.Join(kinds, ",") != "history,agent,all" || v.Resets[2].Title != "Reset all" {
+		t.Fatalf("the Assistant's resets: %+v", v.Resets)
+	}
+	coder, err := rig.p.Get("coder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(coder.Resets) != 1 || coder.Resets[0].Kind != "all" || coder.Resets[0].Title != "Reset" {
+		t.Fatalf("the Coding agent's resets: %+v", coder.Resets)
+	}
+	if _, err := rig.p.ResetPart("coder", "history"); err == nil || !strings.Contains(err.Error(), "one reset") {
+		t.Errorf("Reset history of the Coding agent: %v", err)
+	}
+	if _, err := rig.p.ResetPart("assistant", "all"); err == nil {
+		t.Error("ResetPart took the full reset")
+	}
+
+	asked := len(rig.dialogs())
+	rig.answer = false
+	if _, err := rig.p.ResetPart("assistant", "history"); !errors.Is(err, errNotConfirmed) {
+		t.Fatalf("a No: %v", err)
+	}
+	d := rig.dialogs()[asked:]
+	if len(d) != 1 || !strings.Contains(d[0], "Reset Sandra's history?") || !strings.Contains(d[0], v.Resets[0].Body) {
+		t.Fatalf("Reset history's dialog: %q", d)
+	}
+	rig.answer = true
+	after, err := rig.p.ResetPart("assistant", "history")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.DisplayName != name {
+		t.Errorf("Reset history lost the name: %q", after.DisplayName)
+	}
+	asked = len(rig.dialogs())
+	after, err = rig.p.ResetPart("assistant", "agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := rig.dialogs()[asked:]; len(d) != 1 || !strings.Contains(d[0], "Reset Sandra, keeping its secrets and sign-ins?") {
+		t.Fatalf("Reset agent's dialog: %q", d)
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.DisplayName == name || cfg.DisplayName != "" || !cfg.Enabled {
+		t.Errorf("after Reset agent: view %q, config %+v", after.DisplayName, cfg)
+	}
+}
+
 // The name and personality are saved as the person wrote them, drawn back
 // in the view; the sidebar's label is the name.
 func TestConfiguringTheAssistantsNameAndPersonality(t *testing.T) {

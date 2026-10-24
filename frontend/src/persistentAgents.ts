@@ -320,3 +320,9 @@ export function startFailureLines(a: Pick<app.PersistentAgentView, "state" | "fa
   if (f.log) lines.push(`Its log: ${f.log}`);
   return { title: f.stage ? `The last start failed at: ${f.stage}` : "The last start failed", lines };
 }
+
+/** The reset the Reset dialog has chosen: the kind asked for, if the agent
+ *  has it, else its full reset (the last of its resets). */
+export function chosenReset(resets: app.PersistentResetView[], kind: string | null): app.PersistentResetView | null {
+  return resets.find((r) => r.kind === kind) ?? resets[resets.length - 1] ?? null;
+}
