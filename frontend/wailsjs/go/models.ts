@@ -2669,6 +2669,28 @@ export namespace app {
 	        this.waiting = source["waiting"];
 	    }
 	}
+	export class PersistentMailProviderView {
+	    key: string;
+	    name: string;
+	    enabled: boolean;
+	    servers: string[];
+	    accounts: string[];
+	    setUp: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentMailProviderView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.servers = source["servers"];
+	        this.accounts = source["accounts"];
+	        this.setUp = source["setUp"];
+	    }
+	}
 	export class PersistentResetView {
 	    kind: string;
 	    title: string;
@@ -2856,6 +2878,7 @@ export namespace app {
 	    codes: boolean;
 	    accounts: PersistentAccountView[];
 	    resets: PersistentResetView[];
+	    mailProviders: PersistentMailProviderView[];
 	    google?: PersistentGoogleView;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
@@ -2893,6 +2916,7 @@ export namespace app {
 	        this.codes = source["codes"];
 	        this.accounts = this.convertValues(source["accounts"], PersistentAccountView);
 	        this.resets = this.convertValues(source["resets"], PersistentResetView);
+	        this.mailProviders = this.convertValues(source["mailProviders"], PersistentMailProviderView);
 	        this.google = this.convertValues(source["google"], PersistentGoogleView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
@@ -2999,6 +3023,7 @@ export namespace app {
 	        this.skipped = source["skipped"];
 	    }
 	}
+	
 	
 	
 	

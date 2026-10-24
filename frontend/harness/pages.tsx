@@ -723,6 +723,8 @@ const harnessAssistant = {
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
   share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
   keepsTime: true, keepsMemory: true, codes: false, accounts: [],
+  mailProviders: [{ key: "google", name: "Google", enabled: true, servers: ["server:gog"], accounts: ["sandra@example.com"], setUp: [] }],
+  google: { client: true, clientAt: "2026-10-24T10:00:00Z", account: "sandra@example.com", at: "2026-10-24T10:02:00Z" },
   resets: [
     { kind: "history", title: "Reset history", body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept." },
     { kind: "agent", title: "Reset agent", body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept." },
@@ -734,6 +736,8 @@ const harnessAssistant = {
     { id: "memory", kind: "memory", name: "Its memory", grantedBy: "built-in", state: "on", on: true, line: "Keeps a wiki of what it learns on a volume of its own", fixed: true },
     { id: "heartbeat", kind: "tasks", name: "Its heartbeat and tasks", grantedBy: "built-in", state: "off", on: false, line: "Wakes every minute to run the tasks you set it, and reminds you" },
     { id: "server:wikipedia", kind: "server", name: "Wikipedia", grantedBy: "built-in", state: "on", on: true, iconKey: "encyclopedia", line: "Wikipedia's articles, from en.wikipedia.org" },
+    { id: "server:gog", kind: "server", name: "Google Workspace (gog)", grantedBy: "built-in", state: "on", on: true, iconKey: "mail", setUpGoogle: true, line: "Uses Google Workspace (gog), reaching Google's own hosts alone, read only unless you allow changes" },
+    { id: "server:gog:writes", kind: "server-switch", name: "Google Workspace: allow changes", grantedBy: "built-in", state: "off", on: false, iconKey: "mail", setUpGoogle: true, line: "Lets Google Workspace (gog) change what your Google account holds, while it is on" },
     { id: "server:pdf", kind: "server", name: "npm:@acme/pdf-tools@1.2.0", grantedBy: "you", state: "on", on: true, icon: keptIcon, line: "npm @acme/pdf-tools 1.2.0, reaching nothing", shareSwitch: "server:pdf:share", share: false },
     { id: "server:notes", kind: "server", name: "pypi:notes-mcp@0.4.1", grantedBy: "you", state: "failed", on: true, reason: "PyPI has no notes-mcp 0.4.1", line: "PyPI notes-mcp 0.4.1, reaching nothing" },
     { id: "secret:OPENWEATHER_KEY", kind: "secret", name: "Your secret OPENWEATHER_KEY", grantedBy: "you", state: "on", on: true, line: "Given to the servers that declare it" },
@@ -880,6 +884,13 @@ g.go = { app: {
     SetTaskNotifications: async (on: boolean) => on,
     SetViewing: async () => {},
     SetGoogleClient: async () => harnessAssistant,
+    // As Go answers: a disabled provider's cards leave the roster, and it
+    // keeps its account.
+    SetMailProvider: async (_name: string, key: string, on: boolean) => ({
+      ...harnessAssistant,
+      mailProviders: harnessAssistant.mailProviders.map((p) => (p.key === key ? { ...p, enabled: on } : p)),
+      roster: on ? harnessAssistant.roster : harnessAssistant.roster.filter((e) => !e.id.startsWith("server:gog")),
+    }),
     GoogleSignIn: async () => harnessAssistant,
     CancelGoogleSignIn: async () => {},
     Transcript: async (name: string) => (name === "main" ? [

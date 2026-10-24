@@ -15,6 +15,8 @@
 //                     all drawn as text
 //   #run-card-stacked the run's card and a draft In Agentry's card stacked
 //                     in App's corner, neither covering the other
+//   #run-queue        the run's card, and above it the card of two runs
+//                     waiting to start, each with what it waits for and Cancel
 //
 // A run In Agentry, followed the same way:
 //   #hosted-queued      the dialog while it waits: its place in the queue,
@@ -260,6 +262,11 @@ g.go = { app: {
       else if (hash === "run-stopped") stop = () => setTimeout(() => resolve(result), 40);
     }),
     StopRun: async () => stop?.(),
+    QueuedRuns: async () => (hash === "run-queue" ? [
+      { runId: "q1000001", ref: "demo1/incident-summarizer@1.2.0", position: 1, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
+      { runId: "q1000002", ref: "acme/meeting-actions@0.4.1", position: 2, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
+    ] : []),
+    CancelQueuedRun: async () => {},
     // The star ask after a run In Agentry that ended well, of someone
     // else's QuickAgent not yet starred.
     StarAsk: async () => ({ ask: true, name: "demo1/incident-summarizer" }),
@@ -444,7 +451,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Preview() {
   const [corner, setCorner] = useState<HTMLElement | null>(null);
-  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "hosted-card-stacked";
+  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "run-queue" || hash === "hosted-card-stacked";
   return (
     <CornerHost.Provider value={corner}>
       <div data-preview="runs">

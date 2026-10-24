@@ -54,6 +54,8 @@ export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgent
 
 export function SetGoogleClient(arg1:string):Promise<app.PersistentAgentView>;
 
+export function SetMailProvider(arg1:string,arg2:string,arg3:boolean):Promise<app.PersistentAgentView>;
+
 export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
 export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
