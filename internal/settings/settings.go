@@ -164,6 +164,9 @@ type Settings struct {
 	Home *HomeLayout `yaml:"home,omitempty" json:"-"`
 	// Theme is Settings → Home → Theme: one of Themes, "" for System.
 	Theme string `yaml:"theme,omitempty" json:"theme,omitempty"`
+	// HomeAgent is the persistent agent Home's agent card runs, by its
+	// name: "" for Agentry Helper, the default (home.go).
+	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer

@@ -193,3 +193,35 @@ func TestHomeBindingPinsTheScheduledCard(t *testing.T) {
 		t.Fatalf("UnpinScheduled() = %+v, %v", v, err)
 	}
 }
+
+// TestHomeBindingPicksTheCardsAgent: the card runs Agentry Helper until the
+// person picks another agent this app has; a name it lacks is refused, and
+// one stored by a newer app reads as Agentry Helper.
+func TestHomeBindingPicksTheCardsAgent(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	h := &HomeAPI{}
+	if got, err := h.Agent(); err != nil || got != mainAgent {
+		t.Fatalf("the default agent: %q, %v", got, err)
+	}
+	if got, err := h.SetAgent("coder"); err != nil || got != "coder" {
+		t.Fatalf("SetAgent(coder): %q, %v", got, err)
+	}
+	if got, _ := h.Agent(); got != "coder" {
+		t.Fatalf("after coder: %q", got)
+	}
+	if _, err := h.SetAgent("butler"); err == nil {
+		t.Fatal("an agent this app lacks was taken")
+	}
+	if got, _ := h.SetAgent(mainAgent); got != mainAgent {
+		t.Fatalf("SetAgent(main): %q", got)
+	}
+	if stored, _ := settings.HomeAgentNow(); stored != "" {
+		t.Fatalf("Agentry Helper was stored as %q", stored)
+	}
+	if err := settings.SetHomeAgent("butler"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := h.Agent(); got != mainAgent {
+		t.Fatalf("an agent this app lacks reads %q", got)
+	}
+}

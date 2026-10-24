@@ -359,17 +359,44 @@ func SetTheme(name string) error {
 	return Save(s)
 }
 
-// ResetHome removes the stored layout, so Home is the defaults again. It
-// is the one change a newer layout takes, because the person asked for it.
+// HomeAgentNow is the persistent agent Home's agent card runs, by its name:
+// "" for Agentry Helper. The name is kept as it was stored; the app checks it
+// against the agents it has, and draws Agentry Helper for one it lacks.
+func HomeAgentNow() (string, error) {
+	s, err := Load()
+	if err != nil {
+		return "", err
+	}
+	return s.HomeAgent, nil
+}
+
+// SetHomeAgent stores the agent Home's agent card runs: "" for Agentry
+// Helper. The caller has checked the name.
+func SetHomeAgent(name string) error {
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	if s.HomeAgent == name {
+		return nil
+	}
+	s.HomeAgent = name
+	return Save(s)
+}
+
+// ResetHome removes the stored layout and the agent card's agent, so Home
+// is the defaults again. It is the one change a newer layout takes, because
+// the person asked for it.
 func ResetHome() error {
 	s, err := Load()
 	if err != nil {
 		return err
 	}
-	if s.Home == nil {
+	if s.Home == nil && s.HomeAgent == "" {
 		return nil
 	}
 	s.Home = nil
+	s.HomeAgent = ""
 	return Save(s)
 }
 

@@ -1,17 +1,19 @@
-// Main's app link: the tools the runner's app link lists for Main, each
-// answered here with the operation the page would use for it. The CLI's
-// supervisor hands every call but self_configure to this handler, one at a
-// time per connection, from a server with no network of its own; nothing
-// here changes a setting's value, starts or stops an agent, publishes,
-// signs in or touches a credential.
+// The app link's answers: the tools the runner's app link lists for Agentry
+// Helper (Main), which the Assistant's lists too, each answered here with the
+// operation the page would use for it. The CLI's supervisor hands every call
+// of these tools to this handler, one at a time per connection, from a
+// server with no network of its own; nothing here changes a setting's value,
+// starts or stops an agent, publishes, signs in or touches a credential.
 //
 // What an agent asks for is a claim, as a page's is: an install, a first
 // run of a QuickAgent, a schedule and a schedule's removal are each put to
-// the person in the app's native dialog, which names Main as the one
-// asking, and a No does nothing. A run Main starts is an ordinary local
-// run under the run lock: it is in Recent runs, writes to the output folder
-// and the Deliverables folder, and takes its files from Main's share folder
-// alone. What the registry and the docs say reaches Main as quoted data.
+// the person in the app's native dialog, which names the agent asking, and a
+// No does nothing. Each agent has a handler of its own: a run it starts
+// takes its files from its own share folder alone, and the runs the person
+// agreed to let it start are its own, so a Yes for one agent is never a Yes
+// for another. A run is an ordinary local run under the run lock: it is in
+// Recent runs and writes to the output folder and the Deliverables folder.
+// What the registry and the docs say reaches the agent as quoted data.
 package app
 
 import (
@@ -58,6 +60,9 @@ const mainAgent = "main"
 // mainAsks is how a dialog names Main as the one asking.
 const mainAsks = "Agentry Helper"
 
+// maxAskerName bounds the name an agent gave itself in a dialog's words.
+const maxAskerName = 40
+
 // docsBase is the documentation site docs_read reads from, and nothing else.
 const docsBase = "https://docs.secureagentry.net"
 
@@ -97,14 +102,17 @@ type mainOps interface {
 	docs(ctx context.Context, page string) ([]byte, int, error)
 }
 
-// mainLink answers Main's app link.
+// mainLink answers one agent's calls of Agentry Helper's tools: Main's, or
+// the Assistant's.
 type mainLink struct {
 	app   *App
 	ops   mainOps
 	share func() (string, error)
-	// agreedPath is where the runs the person agreed to let Main start are
-	// kept, by ns/name@version.
+	// agreedPath is where the runs the person agreed to let this agent
+	// start are kept, by ns/name@version.
 	agreedPath func() (string, error)
+	// asks is how a dialog names the agent asking; nil is Main's name.
+	asks func() string
 
 	mu   sync.Mutex
 	runs map[string]*mainRun
@@ -118,7 +126,26 @@ type mainRun struct {
 	err  error
 }
 
-// answer answers one of Main's tool calls.
+// who is how a dialog names the agent asking.
+func (m *mainLink) who() string {
+	if m.asks == nil {
+		return mainAsks
+	}
+	return m.asks()
+}
+
+// askerName is how a dialog names an agent: its title, which no one can
+// change, then the name it goes by when that differs, quoted and cut, since
+// the agent can set that name itself and must not pass for someone else.
+func askerName(title, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || name == title {
+		return title
+	}
+	return title + " (" + strconv.Quote(cut(name, maxAskerName)) + ")"
+}
+
+// answer answers one of the agent's tool calls.
 func (m *mainLink) answer(ctx context.Context, req applink.Request) applink.Answer {
 	text, err := m.call(ctx, req.Tool, req.Arguments)
 	switch {
@@ -401,7 +428,7 @@ func (m *mainLink) install(ref string) (string, error) {
 	} else if it != nil && (version == "" || version == it.Version) {
 		return fmt.Sprintf("%s/%s is already installed on this computer, at %s.", ns, name, it.Version), nil
 	}
-	res, err := m.ops.install(m.ops.registry(), ref, mainAsks)
+	res, err := m.ops.install(m.ops.registry(), ref, m.who())
 	if err != nil {
 		return "", err
 	}
@@ -552,18 +579,19 @@ func (m *mainLink) agreeToRun(exact, task string, files []string) error {
 	if slices.Contains(rec.Runs, exact) {
 		return nil
 	}
+	who := m.who()
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "%s asks to run %s on this computer", mainAsks, exact)
+	fmt.Fprintf(&msg, "%s asks to run %s on this computer", who, exact)
 	if len(files) > 0 {
 		fmt.Fprintf(&msg, " on %s from its share folder", strings.Join(files, ", "))
 	}
 	msg.WriteString(".")
 	if t := strings.TrimSpace(task); t != "" {
 		// Main's words, quoted, so they cannot pass for the dialog's own.
-		fmt.Fprintf(&msg, "\n\nThe task %s wrote for it: %s", mainAsks, quoted(cut(t, 500)))
+		fmt.Fprintf(&msg, "\n\nThe task %s wrote for it: %s", who, quoted(cut(t, 500)))
 	}
-	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. " + mainAsks + " may run this version again without asking.\n\nRun it?")
-	if err := m.app.askConsent("Run "+exact+" for "+mainAsks+"?", msg.String()); err != nil {
+	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. " + who + " may run this version again without asking.\n\nRun it?")
+	if err := m.app.askConsent("Run "+exact+" for "+who+"?", msg.String()); err != nil {
 		return err
 	}
 	rec.Version = 1
@@ -687,7 +715,7 @@ func (m *mainLink) scheduleAdd(ref, when, task string) (string, error) {
 		Registry: it.Origin, Ref: ns + "/" + name + "@" + it.Version, Task: strings.TrimSpace(task),
 		OutDir: m.ops.outputDir(), MaxTurns: -1, When: w,
 	}
-	made, err := m.ops.addSchedule(req, mainAsks)
+	made, err := m.ops.addSchedule(req, m.who())
 	if err != nil {
 		return "", err
 	}
@@ -756,7 +784,7 @@ func (m *mainLink) scheduleRemove(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	removed, err := m.ops.removeSchedule(s.ID, s.Name, mainAsks)
+	removed, err := m.ops.removeSchedule(s.ID, s.Name, m.who())
 	if err != nil {
 		return "", err
 	}
@@ -1140,20 +1168,27 @@ func (o appMainOps) docs(ctx context.Context, page string) ([]byte, int, error) 
 	return b, resp.StatusCode, err
 }
 
-// newMainLink is Main's app link over the app's own operations.
-func newMainLink(app *App, ops mainOps, home func() (string, error)) *mainLink {
-	return &mainLink{
+// newAgentLink is the named agent's handler of Agentry Helper's tools over
+// the app's own operations: its share folder, its own record of agreed runs
+// (Main's main-runs.json, any other agent's <name>-runs.json beside it), and
+// its name in the dialogs.
+func newAgentLink(app *App, ops mainOps, home func() (string, error), agent string) *mainLink {
+	config := func() (persistent.Agent, persistent.Config, string, error) {
+		h, err := home()
+		if err != nil {
+			return persistent.Agent{}, persistent.Config{}, "", err
+		}
+		a, err := persistent.Lookup(agent)
+		if err != nil {
+			return persistent.Agent{}, persistent.Config{}, "", err
+		}
+		cfg, err := persistent.LoadConfig(h, a.Name)
+		return a, cfg, h, err
+	}
+	l := &mainLink{
 		app: app, ops: ops,
 		share: func() (string, error) {
-			h, err := home()
-			if err != nil {
-				return "", err
-			}
-			a, err := persistent.Lookup(mainAgent)
-			if err != nil {
-				return "", err
-			}
-			cfg, err := persistent.LoadConfig(h, a.Name)
+			a, cfg, h, err := config()
 			if err != nil {
 				return "", err
 			}
@@ -1171,7 +1206,21 @@ func newMainLink(app *App, ops mainOps, home func() (string, error)) *mainLink {
 			if err != nil {
 				return "", err
 			}
-			return filepath.Join(filepath.Dir(p), "main-runs.json"), nil
+			return filepath.Join(filepath.Dir(p), agent+"-runs.json"), nil
 		},
 	}
+	if agent != mainAgent {
+		l.asks = func() string {
+			title := agent
+			if a, err := persistent.Lookup(agent); err == nil {
+				title = a.Title
+			}
+			a, cfg, _, err := config()
+			if err != nil {
+				return title
+			}
+			return askerName(title, a.DisplayName(cfg))
+		}
+	}
+	return l
 }

@@ -969,6 +969,19 @@ button.ghost:hover, .btn.ghost:hover {
 .provider-tile.on { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); background: var(--color-accent-soft); }
 .provider-tile.on::after { content: "✓"; position: absolute; top: 5px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-accent); color: var(--color-accent-fg); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
 .provider-tile:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* The persistent agents' tiles (AgentTiles.tsx): three across, a tile that
+   is on with its "Start when Agentry starts" box under it, and Agentry
+   Helper's tile, held on, drawn as on rather than faded. */
+.agent-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 760px) { .agent-tiles { grid-template-columns: minmax(0, 1fr); } }
+.agent-tile-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.agent-tiles .provider-tile { height: auto; min-height: 150px; }
+.agent-tile:disabled.on { opacity: 1; cursor: default; }
+.agent-tile-start { margin: 0; padding: 0 4px; font-size: 12.5px; gap: 6px; }
+.agent-home-choices { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 2px; }
+.agent-home-choices label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+.agent-home-choices input, .agent-tile-start input { width: auto; flex: none; margin: 0; }
+.agent-tile-start { align-items: center; justify-content: center; }
 .signin-way { margin: 6px 0 12px; }
 .signin-waiting { display: grid; gap: 8px; justify-items: start; }
 /* GitHub's device code: large, spaced, selectable, for someone typing or
@@ -1130,6 +1143,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-way-blurb { margin: 0; color: var(--color-lead); font-size: 14px; line-height: 1.55; }
 .build-way-foot { margin: auto 0 0; }
 .build-way-part { position: relative; z-index: 1; }
+.build-way-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.build-way-aside select { max-width: 160px; font-size: 12px; padding: 2px 6px; }
 /* A card's status line and live content (cards.tsx), which Home's cards
    carry in place of a figure and a sentence. */
 .build-way-status { margin: 0; color: var(--color-lead); }
