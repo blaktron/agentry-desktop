@@ -20,7 +20,7 @@ export const GRID_TITLES: Record<GridKey, string> = {
 const GRID_ORDER: GridKey[] = ["apps", "accounts", "skills", "abilities"];
 
 /** gridOf is the grid an entry is drawn in: servers and what they may
- *  change are apps; accounts and secrets are what the agent signs in with;
+ *  change (an offered server's writes, an image server's switches) are apps; accounts and secrets are what the agent signs in with;
  *  skills are skills; the rest (folders, memory, the heartbeat, commands,
  *  egress, the browser, the dev server, ports, knowledge packs) are its
  *  abilities. A kind this build does not know is an ability. */
@@ -28,6 +28,7 @@ export function gridOf(e: Pick<app.PersistentRosterEntry, "kind">): GridKey {
   switch (e.kind) {
     case "server":
     case "server-writes":
+    case "server-switch":
       return "apps";
     case "account":
     case "secret":

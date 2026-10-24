@@ -47,6 +47,8 @@ test("each entry is drawn in its grid, the grids in their order, each ending in 
     ["Abilities and folders", ["share", "data", "commands", "port:web"], []],
   ]);
   assert.equal(gridOf({ kind: "something-new" }), "abilities");
+  // An image server's switches (Google Workspace's Allow changes) are drawn beside it.
+  assert.equal(gridOf({ kind: "server-switch" }), "apps");
 });
 
 test("an agent that keeps no secrets and takes no skills has no Add card for them, and a grid left empty is left out", () => {
