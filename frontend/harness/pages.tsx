@@ -723,6 +723,11 @@ const harnessAssistant = {
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
   share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
   keepsTime: true, keepsMemory: true, codes: false, accounts: [],
+  resets: [
+    { kind: "history", title: "Reset history", body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept." },
+    { kind: "agent", title: "Reset agent", body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept." },
+    { kind: "all", title: "Reset all", body: "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept." },
+  ],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/assistantshare with you, read and write" },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
@@ -763,6 +768,7 @@ const harnessCoder = {
     { id: "skill:code-review", kind: "skill", name: "code-review", grantedBy: "built-in", state: "on", on: true, line: "Reviews a change for bugs and the project's own rules" },
   ],
   keepsSecrets: true, takesSkills: true, suggested: [], keepsTime: false, keepsMemory: false, codes: true,
+  resets: [{ kind: "all", title: "Reset", body: "This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept." }],
   accounts: [{ host: "github.com", kind: "github", own: true, user: "my-coder-bot", name: "my-coder-bot", email: "bot@example.com" }],
   status: { since: "2026-10-20T19:00:00Z", segment: 2, run: "c0de0001", adapter: "docker-agent", model: "qwen3.8-flash-next", resumed: true, busy: false, pending: false, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, userTurns: 1, toolCalls: 4 },
   lifetime: { segments: 2, inputTokens: 0, outputTokens: 0, totalTokens: 0, userTurns: 3, toolCalls: 9 },
@@ -781,6 +787,7 @@ const harnessMain = {
   name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
   share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: false, takesSkills: false, suggested: [],
   keepsTime: false, keepsMemory: false, codes: false, accounts: [],
+  resets: [{ kind: "all", title: "Reset", body: "This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept." }],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/mainshare with you, read and write", fixed: true },
     { id: "data", kind: "files", name: "Its own files", grantedBy: "built-in", state: "on", on: true, line: "Keeps its own files on a volume of its own", fixed: true },
@@ -911,6 +918,7 @@ g.go = { app: {
       : "Your account. The agent can do whatever the token can do as you.",
     AddFiles: async () => [],
     Reset: async () => harnessAssistant,
+    ResetPart: async () => harnessAssistant,
   },
   HomeAPI: {
     Layout: async () => {

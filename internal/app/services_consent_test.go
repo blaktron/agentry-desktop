@@ -47,11 +47,13 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, call := range map[string]func() error{
-		"PersistentAPI.Start": func() error { _, err := p.Start("assistant"); return err },
-		"PersistentAPI.Reset": func() error { _, err := p.Reset("assistant"); return err },
-		"RestartNow":          func() error { return r.RestartNow() },
-		"InstallEngine":       func() error { _, err := r.InstallEngine(); return err },
-		"AddToDockerGroup":    func() error { _, err := r.AddToDockerGroup(); return err },
+		"PersistentAPI.Start":             func() error { _, err := p.Start("assistant"); return err },
+		"PersistentAPI.Reset":             func() error { _, err := p.Reset("assistant"); return err },
+		"PersistentAPI.ResetPart history": func() error { _, err := p.ResetPart("assistant", "history"); return err },
+		"PersistentAPI.ResetPart agent":   func() error { _, err := p.ResetPart("assistant", "agent"); return err },
+		"RestartNow":                      func() error { return r.RestartNow() },
+		"InstallEngine":                   func() error { _, err := r.InstallEngine(); return err },
+		"AddToDockerGroup":                func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
 			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil, nil)
 			return err
@@ -74,7 +76,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			t.Errorf("%s with the dialog answered No: err = %v, want a refusal", name, err)
 		}
 	}
-	if len(asked) != 8 {
+	if len(asked) != 10 {
 		t.Fatalf("dialogs raised = %v, want one per call", asked)
 	}
 	// A consent-free run raises no dialog: nothing to confirm.

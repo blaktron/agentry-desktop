@@ -78,6 +78,10 @@ export function Reset(arg1) {
   return window['go']['app']['PersistentAPI']['Reset'](arg1);
 }
 
+export function ResetPart(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['ResetPart'](arg1, arg2);
+}
+
 export function Send(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['Send'](arg1, arg2);
 }

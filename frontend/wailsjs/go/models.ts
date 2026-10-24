@@ -2669,6 +2669,22 @@ export namespace app {
 	        this.waiting = source["waiting"];
 	    }
 	}
+	export class PersistentResetView {
+	    kind: string;
+	    title: string;
+	    body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentResetView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.title = source["title"];
+	        this.body = source["body"];
+	    }
+	}
 	export class PersistentSuggestionView {
 	    key: string;
 	    name: string;
@@ -2839,6 +2855,7 @@ export namespace app {
 	    keepsMemory: boolean;
 	    codes: boolean;
 	    accounts: PersistentAccountView[];
+	    resets: PersistentResetView[];
 	    google?: PersistentGoogleView;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
@@ -2875,6 +2892,7 @@ export namespace app {
 	        this.keepsMemory = source["keepsMemory"];
 	        this.codes = source["codes"];
 	        this.accounts = this.convertValues(source["accounts"], PersistentAccountView);
+	        this.resets = this.convertValues(source["resets"], PersistentResetView);
 	        this.google = this.convertValues(source["google"], PersistentGoogleView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
@@ -2981,6 +2999,7 @@ export namespace app {
 	        this.skipped = source["skipped"];
 	    }
 	}
+	
 	
 	
 	

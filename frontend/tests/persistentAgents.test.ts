@@ -34,6 +34,7 @@ import {
   installingAny,
   shareSwitchNote,
   shareCheckWords,
+  chosenReset,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -219,4 +220,18 @@ test("a package server is added with its arguments in order, a remote server wit
   assert.equal(canAddServer({ ...form, args: ["mcp", ""] }), false);
   assert.equal(canAddServer({ ...form, version: "" }), false);
   assert.equal(canAddServer({ ...form, source: "url", url: "https://mcp.example.com/mcp", args: [""] }), true);
+});
+
+test("a Reset button opens the agent's reset of its kind, else its full reset", () => {
+  const resets = [
+    { kind: "all", title: "Reset all", body: "x" },
+    { kind: "history", title: "Reset history", body: "h" },
+    { kind: "agent", title: "Reset agent", body: "a" },
+  ];
+  assert.equal(chosenReset(resets, "history")?.title, "Reset history");
+  assert.equal(chosenReset(resets, "agent")?.body, "a");
+  assert.equal(chosenReset(resets, "all")?.kind, "all");
+  assert.equal(chosenReset(resets, "nonsense")?.kind, "all");
+  assert.equal(chosenReset([{ kind: "all", title: "Reset", body: "x" }], "history")?.title, "Reset");
+  assert.equal(chosenReset([], "all"), null);
 });
