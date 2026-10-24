@@ -280,6 +280,10 @@ type PersistentAgentView struct {
 	// Resets are the resets the agent has, the full one last, each with
 	// what it wipes and keeps: the Assistant's three, one for the others.
 	Resets []PersistentResetView `json:"resets"`
+	// MailProviders are the services whose mail and calendar the agent
+	// reaches, each enabled or disabled; none for an agent that reaches no
+	// mail.
+	MailProviders []PersistentMailProviderView `json:"mailProviders"`
 	// Google is the agent's Google Workspace set-up, for an agent that has
 	// that server.
 	Google   *PersistentGoogleView `json:"google,omitempty"`
@@ -499,6 +503,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
 	v.Accounts = accountViews(cfg.Accounts)
 	v.Resets = resetViews(a)
+	v.MailProviders = mailProviderViews(a, cfg)
 	v.Google = googleView(a, cfg)
 	if v.Google != nil {
 		p.mu.Lock()

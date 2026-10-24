@@ -102,6 +102,10 @@ export function SetGoogleClient(arg1) {
   return window['go']['app']['PersistentAPI']['SetGoogleClient'](arg1);
 }
 
+export function SetMailProvider(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['SetMailProvider'](arg1, arg2, arg3);
+}
+
 export function SetSecret(arg1, arg2, arg3) {
   return window['go']['app']['PersistentAPI']['SetSecret'](arg1, arg2, arg3);
 }
