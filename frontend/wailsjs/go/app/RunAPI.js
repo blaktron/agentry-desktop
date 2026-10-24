@@ -46,6 +46,10 @@ export function CancelHostedRun() {
   return window['go']['app']['RunAPI']['CancelHostedRun']();
 }
 
+export function CancelQueuedRun(arg1) {
+  return window['go']['app']['RunAPI']['CancelQueuedRun'](arg1);
+}
+
 export function CancelSignIn() {
   return window['go']['app']['RunAPI']['CancelSignIn']();
 }
@@ -244,6 +248,10 @@ export function PrereqStatus() {
 
 export function ProfileStatus(arg1, arg2) {
   return window['go']['app']['RunAPI']['ProfileStatus'](arg1, arg2);
+}
+
+export function QueuedRuns() {
+  return window['go']['app']['RunAPI']['QueuedRuns']();
 }
 
 export function RecentDeliverables(arg1) {

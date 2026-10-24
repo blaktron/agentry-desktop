@@ -17,6 +17,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"path/filepath"
@@ -83,6 +84,12 @@ func (r *RunAPI) beginRun(kind jobKind, ref string, cancel context.CancelFunc) (
 	if err != nil {
 		return nil, err
 	}
+	return r.beginRunAs(kind, ref, id, cancel)
+}
+
+// beginRunAs is beginRun for a run whose id was minted before it waited
+// for the run lock.
+func (r *RunAPI) beginRunAs(kind jobKind, ref, id string, cancel context.CancelFunc) (*liveRun, error) {
 	l := &liveRun{id: id, kind: kind, ref: ref, started: time.Now().UTC(), cancel: cancel, done: make(chan struct{})}
 	r.liveMu.Lock()
 	r.live = l
@@ -257,8 +264,15 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 		}
 		return !yes
 	}
+	queued := ""
+	switch n := r.queuedCount(); {
+	case n == 1:
+		queued = " The run waiting to start after it is cancelled."
+	case n > 1:
+		queued = fmt.Sprintf(" The %d runs waiting to start after it are cancelled.", n)
+	}
 	yes, err := r.app.confirm(ctx, "Quit Agentry Desktop?",
-		"A run of "+l.ref+" is in progress. Quitting stops it and removes its containers; its receipts are written as far as it got. Quit anyway?")
+		"A run of "+l.ref+" is in progress. Quitting stops it and removes its containers; its receipts are written as far as it got."+queued+" Quit anyway?")
 	if err != nil {
 		return false
 	}
@@ -272,6 +286,9 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 // run that is live on this machine is never touched.
 func (r *RunAPI) shutdown() {
 	defer r.removePDFCopies()
+	// The queued runs go first, so none is handed the lock as the run in
+	// flight ends.
+	r.closeQueue()
 	var ids []string
 	if l := r.current(); l != nil {
 		if s := r.session; s != nil {

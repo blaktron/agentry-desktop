@@ -93,7 +93,7 @@ type mainOps interface {
 	requirements(reg, ns, name string) (*MCPView, error)
 	installed() ([]install.Item, error)
 	install(reg, ref, who string) (*install.Result, error)
-	run(reg, ref, task string, inputs []string, share, outDir string, began func(string)) (*RunResultView, error)
+	run(reg, ref, task string, inputs []string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error)
 	recorded(runID string) (*RecordedRunView, error)
 	schedules() (*SchedulesView, error)
 	addSchedule(req schedules.Request, who string) (*ScheduleMadeView, error)
@@ -521,33 +521,45 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 	if err := m.agreeToRun(exact, task, files); err != nil {
 		return "", err
 	}
-	began := make(chan string, 1)
+	// began carries the run's id the first time it is known: when it waits
+	// behind another job for the run lock, or when it begins.
+	type start struct {
+		id     string
+		queued bool
+	}
+	began := make(chan start, 1)
 	r := &mainRun{ref: exact, done: make(chan struct{})}
 	go func() {
 		defer close(r.done)
 		defer emitEvent(m.app, eventHomeChanged)
-		r.res, r.err = m.ops.run(it.Origin, ns+"/"+name+"@"+it.Version, task, inputs, share, m.ops.outputDir(), func(id string) {
+		r.res, r.err = m.ops.run(it.Origin, ns+"/"+name+"@"+it.Version, task, inputs, share, m.ops.outputDir(), func(id string, queued bool) {
 			m.mu.Lock()
 			if m.runs == nil {
 				m.runs = map[string]*mainRun{}
 			}
 			m.runs[id] = r
 			m.mu.Unlock()
-			began <- id
+			select {
+			case began <- start{id, queued}:
+			default:
+			}
 		})
 	}()
-	started := func(id string) string {
-		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", id, exact)
+	started := func(s start) string {
+		if s.queued {
+			return fmt.Sprintf("Queued run %s of %s: another job is under way on this computer, and the run starts when the jobs before it end. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", s.id, exact)
+		}
+		return fmt.Sprintf("Started run %s of %s. It is an ordinary run on this computer and shows in Recent runs. Call run_result with this id to wait for its outcome.", s.id, exact)
 	}
 	select {
-	case id := <-began:
-		return started(id), nil
+	case s := <-began:
+		return started(s), nil
 	case <-r.done:
 		// A run that began and ended at once has both channels ready, and
 		// select picks either: one that began did start.
 		select {
-		case id := <-began:
-			return started(id), nil
+		case s := <-began:
+			return started(s), nil
 		default:
 		}
 		if r.err != nil {
@@ -628,7 +640,7 @@ func (m *mainLink) result(ctx context.Context, id string) (string, error) {
 		select {
 		case <-r.done:
 		case <-wait.Done():
-			return fmt.Sprintf("Run %s of %s is still running after %s. Call run_result again to wait for it.", id, r.ref, resultWait), nil
+			return fmt.Sprintf("Run %s of %s has not finished after %s: it is running, or waiting to start behind another job. Call run_result again to wait for it.", id, r.ref, resultWait), nil
 		}
 		if r.err != nil {
 			return "", fmt.Errorf("run %s of %s ended without a result: %w", id, r.ref, r.err)
@@ -1118,8 +1130,13 @@ func (o appMainOps) install(reg, ref, who string) (*install.Result, error) {
 	return o.installer.installRunner(reg, ref, who)
 }
 
-func (o appMainOps) run(reg, ref, task string, inputs []string, share, outDir string, began func(string)) (*RunResultView, error) {
-	return o.runner.runAgent(runHooks{began: began, inputsIn: share}, reg, ref, task, inputs, outDir, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
+func (o appMainOps) run(reg, ref, task string, inputs []string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error) {
+	h := runHooks{
+		began:    func(id string) { began(id, false) },
+		queued:   func(id string) { began(id, true) },
+		inputsIn: share,
+	}
+	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
 }
 
 func (o appMainOps) recorded(runID string) (*RecordedRunView, error) {

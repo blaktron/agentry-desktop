@@ -611,6 +611,10 @@ table.declared-servers td { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .build-card-dot { animation: none; } }
 .build-card-line { margin: 6px 0 0; }
 .build-card-actions { justify-content: flex-end; margin-top: 8px; }
+.build-card-actions:empty { display: none; }
+.run-queue { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.run-queue-item { display: flex; align-items: center; gap: 8px; }
+.run-queue-item strong { overflow-wrap: anywhere; }
 .knowledge-log > summary { cursor: pointer; margin: 8px 0; }
 
 .run-log {

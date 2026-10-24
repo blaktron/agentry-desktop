@@ -52,27 +52,46 @@ func (e busyError) Error() string        { return e.msg }
 func (e busyError) Is(target error) bool { return target == errBusy }
 
 // acquire takes the run lock for a job of kind, named by what, or refuses
-// with the job that holds it.
+// with the job that holds it. A run waits for it instead (acquireRun).
 func (r *RunAPI) acquire(kind jobKind, what string) error {
 	if !r.mu.TryLock() {
 		return r.busy()
 	}
-	r.holderMu.Lock()
-	r.holder = &jobHolder{kind: kind, what: what}
-	r.holderMu.Unlock()
+	r.setHolder(&jobHolder{kind: kind, what: what})
 	return nil
 }
 
-// release gives the run lock back.
-func (r *RunAPI) release() {
+// setHolder records what holds the run lock; nil when nothing does.
+func (r *RunAPI) setHolder(h *jobHolder) {
 	r.holderMu.Lock()
-	r.holder = nil
+	r.holder = h
 	r.holderMu.Unlock()
+}
+
+// release gives the run lock back, or hands it to the first run waiting
+// for it, which the lock is never free between: a job that asks meanwhile
+// is refused, and no queued run is overtaken.
+func (r *RunAPI) release() {
+	r.queueMu.Lock()
+	if len(r.queue) > 0 {
+		q := r.queue[0]
+		r.queue = r.queue[1:]
+		r.setHolder(&jobHolder{kind: jobRun, what: q.what})
+		close(q.granted)
+		r.queueMu.Unlock()
+		r.emitQueue()
+		return
+	}
+	r.setHolder(nil)
+	r.queueMu.Unlock()
 	r.mu.Unlock()
 }
 
 // busy is the refusal while another job holds the run lock.
 func (r *RunAPI) busy() error {
+	r.queueMu.Lock()
+	waiting := len(r.queue)
+	r.queueMu.Unlock()
 	r.holderMu.Lock()
 	h := r.holder
 	r.holderMu.Unlock()
@@ -86,7 +105,14 @@ func (r *RunAPI) busy() error {
 			how = ", or end it"
 		}
 	}
-	return busyError{msg: fmt.Sprintf("%s is under way on this computer, and one job runs here at a time: wait for it to finish%s.", capitalize(what), how)}
+	after := ""
+	switch {
+	case waiting == 1:
+		after = " and the run waiting after it"
+	case waiting > 1:
+		after = fmt.Sprintf(" and the %d runs waiting after it", waiting)
+	}
+	return busyError{msg: fmt.Sprintf("%s is under way on this computer, and one job runs here at a time: wait for it%s to finish%s.", capitalize(what), after, how)}
 }
 
 func capitalize(s string) string {
