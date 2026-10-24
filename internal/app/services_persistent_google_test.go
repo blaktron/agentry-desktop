@@ -11,12 +11,30 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 )
 
-// The Assistant's Google Workspace card is drawn with its glyph, its Set up
-// is Google's (the server's and its switches'), and the view says what the
-// set-up holds, never more. The Coding agent has none.
+// The Assistant's Google Workspace card is drawn with its glyph once its
+// google mail provider is enabled, its Set up is Google's (the server's and
+// its switches'), and the view says what the set-up holds, never more. A
+// fresh Assistant has no mail provider enabled, so no card. The Coding
+// agent has none.
 func TestTheAssistantsGoogleCardAndView(t *testing.T) {
 	rig := newPersistentRig(t)
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := rig.p.Get("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range fresh.Roster {
+		if strings.HasPrefix(e.ID, persistent.ImageServerEntryID("gog")) {
+			t.Errorf("a fresh Assistant has a Google Workspace entry before a provider is enabled: %+v", e)
+		}
+	}
+	a, err := persistent.Lookup("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistent.SetMailProvider(rig.home, a, "Agentry Desktop", "google", true); err != nil {
 		t.Fatal(err)
 	}
 	v, err := rig.p.Get("assistant")
