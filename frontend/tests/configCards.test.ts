@@ -17,6 +17,8 @@ import {
   setUpOf,
   googleWords,
   googleScopeWords,
+  addFormOf,
+  setUpForm,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -150,4 +152,23 @@ test("the sign-in asks for read-only access unless Allow changes is on", () => {
   assert.match(googleScopeWords([{ id: "server:gog:writes", on: false }]), /read-only/);
   assert.match(googleScopeWords([]), /read-only/);
   assert.match(googleScopeWords([{ id: "server:gog:writes", on: true }]), /change things/);
+});
+
+test("Set up opens its form under the asking card's grid, whether or not the page draws Add cards", () => {
+  const brave = entry({ id: "server:npm-brave-brave-search-mcp-server", kind: "server", state: "needs-set-up", setUpSecret: "BRAVE_API_KEY" });
+  const set = setUpOf(brave);
+  assert.ok(set);
+  const form = setUpForm(set, gridOf(brave));
+  assert.deepEqual(form, { kind: "secret", secretName: "BRAVE_API_KEY", grid: "apps" });
+  // The agent's page draws no Add card, and the form is still drawn, under
+  // the Apps grid where the card that asked is.
+  const grids = configGrids({ ...coder, roster: [brave] }, false);
+  assert.deepEqual(grids.map((g) => g.adds), [[]]);
+  assert.deepEqual(grids.map((g) => g.key === form?.grid), [true]);
+  assert.deepEqual(setUpForm({ kind: "account", host: "github.com" }, "apps"), { kind: "account", host: "github.com", grid: "apps" });
+  assert.equal(setUpForm({ kind: "google" }, "apps"), null);
+});
+
+test("an Add card opens its form under its own grid", () => {
+  assert.deepEqual(addFormOf("secret", "accounts"), { kind: "secret", grid: "accounts" });
 });

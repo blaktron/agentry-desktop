@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
@@ -28,7 +28,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   withAdds?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState<{ kind: AddKind; secretName?: string; host?: string } | null>(null);
+  const [adding, setAdding] = useState<AddForm | null>(null);
   // One change at a time: every card waits while one is applied.
   const act: Act = async (f, what) => {
     setBusy(true);
@@ -45,12 +45,13 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
     }
   };
   const [google, setGoogle] = useState(false);
-  const setUp = (s: SetUp) => {
-    if (s.kind === "google") {
+  const setUp = (s: SetUp, grid: GridKey) => {
+    const form = setUpForm(s, grid);
+    if (!form) {
       setGoogle(true);
       return;
     }
-    setAdding(s.kind === "secret" ? { kind: "secret", secretName: s.name } : { kind: "account", host: s.host });
+    setAdding(form);
   };
   return (
     <div className="config-grids">
@@ -59,11 +60,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
           <h3>{g.title}</h3>
           <div className="config-grid">
             {g.entries.map((e) => (
-              <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={setUp} />
+              <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={(s) => setUp(s, g.key)} />
             ))}
             {g.adds.map((kind) => (
-              <button key={kind} type="button" className={`config-card config-card-add${adding?.kind === kind ? " open" : ""}`} disabled={busy}
-                aria-expanded={adding?.kind === kind} onClick={() => setAdding(adding?.kind === kind ? null : { kind })}>
+              <button key={kind} type="button" className={`config-card config-card-add${adding?.kind === kind && adding.grid === g.key ? " open" : ""}`} disabled={busy}
+                aria-expanded={adding?.kind === kind && adding.grid === g.key} onClick={() => setAdding(adding?.kind === kind && adding.grid === g.key ? null : addFormOf(kind, g.key))}>
                 <AddGlyph />
                 <span className="config-card-text">
                   <span className="config-card-name">{ADD_TITLES[kind]}</span>
@@ -72,7 +73,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               </button>
             ))}
           </div>
-          {adding && g.adds.includes(adding.kind) && (
+          {adding && adding.grid === g.key && (
             <div className="config-add-panel">
               {adding.kind === "server" && <AddServer agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "skill" && <AddSkill agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}

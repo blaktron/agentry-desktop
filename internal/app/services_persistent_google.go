@@ -94,7 +94,7 @@ func (p *PersistentAPI) google(ctx context.Context, a persistent.Agent) (persist
 	if err != nil {
 		return persistent.Google{}, err
 	}
-	return persistent.Google{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore()}, nil
+	return persistent.Google{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore(), Client: persistent.ClientDesktop}, nil
 }
 
 // googleAgent is the agent named, if it has a Google Workspace server and
