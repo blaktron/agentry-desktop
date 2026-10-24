@@ -22,6 +22,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/persistent/assistant"
+	"github.com/blaktron/agentry-cli/pkg/persistent/offer"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -64,16 +66,34 @@ type cardFacts struct {
 	glyph   map[string]string
 	secret  map[string]string
 	account map[string]string
+	// google are the entries whose Set up is Google Workspace's: its
+	// server and the switches its sign-in grants.
+	google map[string]bool
 }
 
-func factsOf(a persistent.Agent) cardFacts {
-	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}}
-	for _, o := range a.Builtin.OfferedServers() {
+func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
+	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}, google: map[string]bool{}}
+	// The built-in offers some servers for the git hosts its accounts are
+	// on (a self-managed GitLab's), as the CLI draws its roster.
+	hosts := make([]offer.GitHost, 0, len(cfg.Accounts))
+	for _, g := range cfg.Accounts {
+		hosts = append(hosts, offer.GitHost{Host: g.Host, Kind: string(g.Kind)})
+	}
+	for _, o := range a.Builtin.OfferedServers(hosts) {
 		id := persistent.ServerEntryID(o.Server)
 		g := glyphFor(o.Name)
 		f.glyph[id] = g
 		f.glyph[persistent.ServerWritesID(o.Server)] = g
 		f.secret[id], f.account[id] = o.Secret, o.Account
+	}
+	for _, s := range a.Builtin.ImageServers(policy.Images{}) {
+		id := persistent.ImageServerEntryID(s.Key)
+		f.glyph[id] = glyphFor(s.Name)
+		f.google[id] = s.Key == assistant.GogKey
+		for _, w := range s.Switches {
+			sw := persistent.ImageSwitchEntryID(s.Key, w.Key)
+			f.glyph[sw], f.google[sw] = f.glyph[id], f.google[id]
+		}
 	}
 	for _, s := range a.Builtin.SuggestedServers() {
 		f.glyph[persistent.ServerEntryID(s.Server)] = glyphFor(s.Key + " " + s.Name)

@@ -26,6 +26,10 @@ export function AddSuggested(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['AddSuggested'](arg1, arg2);
 }
 
+export function CancelGoogleSignIn(arg1) {
+  return window['go']['app']['PersistentAPI']['CancelGoogleSignIn'](arg1);
+}
+
 export function ChangeTask(arg1, arg2, arg3) {
   return window['go']['app']['PersistentAPI']['ChangeTask'](arg1, arg2, arg3);
 }
@@ -44,6 +48,10 @@ export function ExportMemory(arg1) {
 
 export function Get(arg1) {
   return window['go']['app']['PersistentAPI']['Get'](arg1);
+}
+
+export function GoogleSignIn(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['GoogleSignIn'](arg1, arg2);
 }
 
 export function List() {
@@ -84,6 +92,10 @@ export function SetDevHost(arg1, arg2, arg3) {
 
 export function SetEnabled(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetEnabled'](arg1, arg2);
+}
+
+export function SetGoogleClient(arg1) {
+  return window['go']['app']['PersistentAPI']['SetGoogleClient'](arg1);
 }
 
 export function SetSecret(arg1, arg2, arg3) {

@@ -9,11 +9,12 @@
 // .zip, a secret whose value goes to Go and is never read back.
 import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
+import { cardIcon, cardMenu, cardState, cardSwitches, configGrids, googleScopeWords, googleWords, grantedWords, secretValueOK, SECRET_NAME, type AddKind, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
-import { SHARE_SWITCH_LABEL, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
-import { Button, Field, Input, OptionsMenu, Select } from "../ui";
+import { AGENT_STATES, SHARE_SWITCH_LABEL, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
+import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
 
 type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
 
@@ -43,7 +44,14 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
       setBusy(false);
     }
   };
-  const setUp = (s: SetUp) => setAdding(s.kind === "secret" ? { kind: "secret", secretName: s.name } : { kind: "account", host: s.host });
+  const [google, setGoogle] = useState(false);
+  const setUp = (s: SetUp) => {
+    if (s.kind === "google") {
+      setGoogle(true);
+      return;
+    }
+    setAdding(s.kind === "secret" ? { kind: "secret", secretName: s.name } : { kind: "account", host: s.host });
+  };
   return (
     <div className="config-grids">
       {configGrids(agent, withAdds).map((g) => (
@@ -70,6 +78,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               {adding.kind === "skill" && <AddSkill agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
               {adding.kind === "secret" && <AddSecret agent={agent} busy={busy} act={act} name={adding.secretName ?? ""} onDone={() => setAdding(null)} />}
               {adding.kind === "account" && <AddAccount key={adding.host ?? ""} agent={agent} busy={busy} act={act} host={adding.host ?? ""} onDone={() => setAdding(null)} />}
+            </div>
+          )}
+          {google && g.key === "apps" && agent.google && (
+            <div className="config-add-panel">
+              <GoogleSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setGoogle(false)} />
             </div>
           )}
         </section>
@@ -356,6 +369,75 @@ function AddAccount({ agent, busy, act, host: given, onDone }: { agent: app.Pers
           Keep the account
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Google Workspace's set-up: the person's Google Cloud client from a file
+ *  the native picker returns, read in Go and never by the page, then the
+ *  sign-in in the browser. It reads signed in only once the server names
+ *  the account. Neither runs while the agent runs. */
+function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
+  agent: app.PersistentAgentView; busy: boolean; act: Act;
+  onError: (e: string | null) => void; onChanged: (v: app.PersistentAgentView) => void; onDone: () => void;
+}) {
+  const g = agent.google;
+  const [email, setEmail] = useState(g?.account ?? "");
+  const [started, setStarted] = useState(false);
+  const [address, setAddress] = useState<string | null>(null);
+  const waiting = started || !!g?.waiting;
+  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting;
+  const emailOK = /^[^@\s-][^@\s]*@[^@\s]+\.[a-z]{2,}$/i.test(email.trim());
+  // Go tells the page a waiting sign-in's address, Google's own, to show
+  // as text for when the browser did not open.
+  useEffect(() => EventsOn("persistent:google-sign-in", (v: { agent?: string; url?: string }) => {
+    if (v?.agent === agent.name && typeof v.url === "string") setAddress(v.url);
+  }), [agent.name]);
+  const signIn = async () => {
+    setStarted(true);
+    setAddress(null);
+    onError(null);
+    try {
+      onChanged(await PersistentAPI.GoogleSignIn(agent.name, email.trim()));
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      setStarted(false);
+      setAddress(null);
+    }
+  };
+  return (
+    <div className="config-google-form">
+      <p className="small">{googleWords(g)}</p>
+      {running && <Notice>Stop {agent.displayName} first: its Google Workspace server holds what the set-up writes.</Notice>}
+      <p className="small muted">
+        Google Workspace signs in with a Google Cloud client of your own: a Desktop app client you download from Google&apos;s
+        console. The google-workspace-setup skill walks you through making one; ask {agent.displayName} to help you set up
+        Google Workspace. The file stays on this computer: Agentry hands it to the Google Workspace server, which keeps its
+        secret in its own encrypted keyring.
+      </p>
+      <div className="row gap">
+        <Button disabled={busy || waiting || running} onClick={() => void act(() => PersistentAPI.SetGoogleClient(agent.name), "Google Workspace's client")}>
+          {g?.client ? "Choose another client file…" : "Choose the client file…"}
+        </Button>
+      </div>
+      <Field label="Your Google account" hint="The address you sign in to Google with.">
+        <Input value={email} autoComplete="off" spellCheck={false} disabled={!g?.client || waiting} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <p className="small muted">{googleScopeWords(agent.roster)}</p>
+      <div className="row gap">
+        <Button variant="primary" disabled={busy || waiting || running || !g?.client || !emailOK} onClick={() => void signIn()}>
+          {g?.account ? "Sign in again" : "Sign in with Google"}
+        </Button>
+        {waiting && <Button onClick={() => void PersistentAPI.CancelGoogleSignIn(agent.name)}>Cancel</Button>}
+        <Button variant="ghost" disabled={started} onClick={onDone}>Close</Button>
+      </div>
+      {waiting && (
+        <div className="small" role="status">
+          <p>Waiting for Google in your browser. Sign in there and allow Agentry; this carries on when Google answers.</p>
+          {address && <p>If your browser did not open, go to: <span className="mono selectable">{address}</span></p>}
+        </div>
+      )}
     </div>
   );
 }
