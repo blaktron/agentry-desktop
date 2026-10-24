@@ -17,10 +17,11 @@ export type HomeCardDescriptor = {
 };
 
 export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
-  // Main: a chat with Agentry's own agent. It starts on the first message
-  // sent to it, never when Home opens.
-  main: { kind: "main", title: "Agentry Helper", multiple: false,
-    line: "A chat with Agentry Helper, Agentry's own agent: it finds, installs, runs and schedules QuickAgents for you, asking you first in Agentry." },
+  // The agent card: a chat with a persistent agent, Agentry Helper unless
+  // the person picks another. It starts on the first message sent to it,
+  // never when Home opens.
+  main: { kind: "main", title: "Agent", multiple: false,
+    line: "A chat with a persistent agent: Agentry Helper, which finds, installs, runs and schedules QuickAgents for you, unless you pick another below." },
   deliverables: { kind: "deliverables", title: "Deliverables", multiple: false,
     line: "The newest files your runs were for, with Open, View and Show in folder, and a button for your Deliverables folder." },
   "recent-runs": { kind: "recent-runs", title: "Recent runs", multiple: false,

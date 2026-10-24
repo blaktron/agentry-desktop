@@ -359,6 +359,7 @@ export default function App() {
                   settings: () => nav({ page: "settings", ...SETTINGS_FOR.homeSettings }),
                   scheduled: () => nav({ page: "scheduled" }),
                   persistentAgents: () => nav({ page: "settings", ...SETTINGS_FOR.homeMain }),
+                  persistentAgent: (id) => nav({ page: "persistent", id }),
                   provider: () => nav({ page: "settings", ...SETTINGS_FOR.mainModel }),
                 }}
               />

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
+
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -96,6 +98,37 @@ func ThemeScript() http.Handler {
 		}
 		_, _ = fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
 	})
+}
+
+// Agent is the persistent agent Home's agent card runs, by its name:
+// Agentry Helper's (main) unless the person picked another this app has.
+func (h *HomeAPI) Agent() (string, error) {
+	name, err := settings.HomeAgentNow()
+	if err != nil {
+		return "", err
+	}
+	if _, err := persistent.Lookup(name); name == "" || err != nil {
+		return mainAgent, nil
+	}
+	return name, nil
+}
+
+// SetAgent picks the persistent agent Home's agent card runs. It changes
+// only the card: an agent that is off stays off, and the page draws Agentry
+// Helper in its place until it is turned on.
+func (h *HomeAPI) SetAgent(name string) (string, error) {
+	a, err := persistent.Lookup(name)
+	if err != nil {
+		return "", err
+	}
+	stored := a.Name
+	if stored == mainAgent {
+		stored = ""
+	}
+	if err := settings.SetHomeAgent(stored); err != nil {
+		return "", err
+	}
+	return a.Name, nil
 }
 
 // Reset puts Home back to the default cards.

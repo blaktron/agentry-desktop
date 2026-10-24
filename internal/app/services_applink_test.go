@@ -408,21 +408,89 @@ func TestMainsLinkRefusesWhatItDoesNotTake(t *testing.T) {
 	}
 }
 
-// Only Main's segment is given the app's handler: the Assistant's app link
-// answers self_configure in the supervisor and nothing else here.
-func TestOnlyMainIsGivenTheAppsHandler(t *testing.T) {
+// Main's segment and the Assistant's are each given a handler of their
+// own, and the Coding agent's none: its app link lists no tool of the app's.
+func TestMainAndTheAssistantAreGivenTheAppsHandler(t *testing.T) {
 	rig := newPersistentRig(t)
-	rig.p.link = newMainRig(t).m
-	m, err := persistent.Lookup(mainAgent)
-	if err != nil {
+	rig.p.links = map[string]*mainLink{mainAgent: newMainRig(t).m, assistantAgent: newMainRig(t).m}
+	for name, want := range map[string]bool{mainAgent: true, assistantAgent: true, coderAgent: false} {
+		a, err := persistent.Lookup(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := rig.p.appLink(a) != nil; got != want {
+			t.Errorf("%s given a handler: %v", name, got)
+		}
+	}
+}
+
+// Each agent's handler is its own: the Assistant's dialogs name it by its
+// title before the name it goes by, quoted, so a name it gave itself cannot
+// pass for Agentry or the Helper; its runs take files from its own share;
+// and its agreed runs are kept apart from Main's.
+func TestAgentLinksAreEachAgentsOwn(t *testing.T) {
+	userHome, runnerHome := isolateHomes(t)
+	// A share folder reached through a link is refused, and a temporary
+	// folder can be one (macOS's /var is /private/var).
+	if real, err := filepath.EvalSymlinks(userHome); err == nil && real != userHome {
+		userHome = real
+		setUserHome(t, userHome)
+	}
+	home := func() (string, error) { return runnerHome, nil }
+	if err := persistent.SaveConfig(runnerHome, assistantAgent, persistent.Config{Enabled: true, DisplayName: "Agentry Helper"}); err != nil {
 		t.Fatal(err)
 	}
-	as, err := persistent.Lookup("assistant")
-	if err != nil {
+	share := filepath.Join(userHome, "agentry", "assistantshare")
+	if err := os.MkdirAll(share, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if rig.p.appLink(m) == nil || rig.p.appLink(as) != nil {
-		t.Fatal("the handler is not Main's alone")
+	app := &App{ctx: context.Background()}
+	ops := &fakeMainOps{}
+	helper, assistant := newAgentLink(app, ops, home, mainAgent), newAgentLink(app, ops, home, assistantAgent)
+	if got := helper.who(); got != mainAsks {
+		t.Errorf("the Helper is named %q", got)
+	}
+	if got := assistant.who(); got != `Assistant ("Agentry Helper")` {
+		t.Errorf("the Assistant is named %q", got)
+	}
+	if got, err := assistant.share(); err != nil || got != share {
+		t.Errorf("the Assistant's share: %q, %v", got, err)
+	}
+	hp, _ := helper.agreedPath()
+	ap, _ := assistant.agreedPath()
+	if filepath.Base(hp) != "main-runs.json" || filepath.Base(ap) != "assistant-runs.json" || filepath.Dir(hp) != filepath.Dir(ap) {
+		t.Errorf("the agreed runs: %s and %s", hp, ap)
+	}
+	if got := askerName("Assistant", strings.Repeat("x", 100)); len(got) > len("Assistant (\"\")")+maxAskerName+len(" [cut]") {
+		t.Errorf("a long name is not cut: %q", got)
+	}
+}
+
+// The Assistant's run, install and schedule are asked for in its own name,
+// and a run the person agreed to for the Helper is asked again for it.
+func TestTheAssistantAsksInItsOwnName(t *testing.T) {
+	rig := newMainRig(t)
+	helperAgreed, _ := rig.m.agreedPath()
+	rig.installedHere("acme", "pdf-summary", "1.0.0")
+	run := map[string]any{"ref": "acme/pdf-summary", "task": "summarise it"}
+	if a := rig.call(t, "quickagent_run", run); a.IsError || len(rig.asked) != 1 {
+		t.Fatalf("the Helper's run: %+v, dialogs %d", a, len(rig.asked))
+	}
+
+	assistantAgreed := filepath.Join(filepath.Dir(helperAgreed), "assistant-runs.json")
+	rig.m.asks = func() string { return askerName("Assistant", "Sandra") }
+	rig.m.agreedPath = func() (string, error) { return assistantAgreed, nil }
+	if a := rig.call(t, "quickagent_run", run); a.IsError || len(rig.asked) != 2 {
+		t.Fatalf("the Assistant's run of a version the Helper may run: %+v, dialogs %d", a, len(rig.asked))
+	}
+	if !strings.Contains(rig.asked[1], `Assistant ("Sandra") asks to run acme/pdf-summary@1.0.0`) {
+		t.Errorf("the dialog: %s", rig.asked[1])
+	}
+	if a := rig.call(t, "quickagent_install", map[string]string{"ref": "acme/other"}); a.IsError {
+		t.Fatalf("install: %+v", a)
+	}
+	if n := len(rig.ops.installs); n == 0 || !strings.Contains(rig.ops.installs[n-1], `Assistant ("Sandra")`) {
+		t.Errorf("the install was asked for by %v", rig.ops.installs)
 	}
 }
 

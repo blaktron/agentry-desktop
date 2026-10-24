@@ -17,7 +17,7 @@ import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
 import { DeliverablesCard } from "./home/DeliverablesCard";
 import { ScheduledCard } from "./home/ScheduledCard";
-import { MainCard } from "./home/MainCard";
+import { AgentCard } from "./home/AgentCard";
 import { HomeGrid } from "./home/HomeGrid";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
@@ -64,9 +64,11 @@ export type HomeOpen = {
   settings: () => void;
   // The Scheduled card's page.
   scheduled: () => void;
-  // Main's card: Settings → Persistent Agents, and Settings → Provider
-  // where no model is set up.
+  // The agent card: Settings → Persistent Agents for Agentry Helper, any
+  // other agent's own page, and Settings → Provider where no model is set
+  // up.
   persistentAgents: () => void;
+  persistentAgent: (name: string) => void;
   provider: () => void;
 };
 
@@ -203,7 +205,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   // A plain object, not createFrom.
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
-    main: () => <MainCard onOpenSettings={open.persistentAgents} onSetUpModel={open.provider} />,
+    main: () => <AgentCard onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} />,
     deliverables: () => (
       <DeliverablesCard view={deliverables.value} error={deliverables.error} now={new Date()} onOpenSettings={open.deliverables} />
     ),

@@ -726,3 +726,28 @@ func TestThemeIsKeptAndSystemIsTheDefault(t *testing.T) {
 		t.Fatal("Reset Home touched the theme")
 	}
 }
+
+// TestTheHomeAgentIsKeptAndResetHomeClearsIt: no agent stored reads as
+// Agentry Helper's "", a name is kept as given, and Reset Home clears it
+// with the layout.
+func TestTheHomeAgentIsKeptAndResetHomeClearsIt(t *testing.T) {
+	isolate(t)
+	if got, err := HomeAgentNow(); err != nil || got != "" {
+		t.Fatalf("no agent stored reads %q, %v", got, err)
+	}
+	if err := SetHomeAgent("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := HomeAgentNow(); got != "assistant" {
+		t.Fatalf("after assistant = %q", got)
+	}
+	if !strings.Contains(readRaw(t), "homeAgent: assistant") {
+		t.Fatalf("not written:\n%s", readRaw(t))
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := HomeAgentNow(); got != "" || strings.Contains(readRaw(t), "homeAgent") {
+		t.Fatalf("Reset Home kept the agent %q:\n%s", got, readRaw(t))
+	}
+}

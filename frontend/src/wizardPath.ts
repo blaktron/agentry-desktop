@@ -1,15 +1,16 @@
 // The first-run wizard's two paths After Sign in the person picks where their
-// QuickAgents run: Local walks the rest of the setup as it was (Runtime, AI
-// Review key, Coding agent, Done); Cloud, open only to someone signed in,
+// QuickAgents run: Local walks the rest of the setup (Runtime, Agents, AI
+// Review key, Coding agent, Done), Agents after Runtime because a persistent
+// agent runs on it; Cloud, open only to someone signed in,
 // says how their data in Agentry's cloud is kept and finishes there, since
 // a hosted run needs nothing set up on this computer. Pure, so node's test
 // runner holds it.
 
-export type WizardStep = "welcome" | "signin" | "where" | "runtime" | "reviewkey" | "codingagent" | "done" | "cloud";
+export type WizardStep = "welcome" | "signin" | "where" | "runtime" | "agents" | "reviewkey" | "codingagent" | "done" | "cloud";
 export type WizardPath = "local" | "cloud";
 
 const SHARED: WizardStep[] = ["welcome", "signin", "where"];
-const LOCAL: WizardStep[] = [...SHARED, "runtime", "reviewkey", "codingagent", "done"];
+const LOCAL: WizardStep[] = [...SHARED, "runtime", "agents", "reviewkey", "codingagent", "done"];
 const CLOUD: WizardStep[] = [...SHARED, "cloud"];
 
 // The steps the dots show. Until a path is picked the dots show Local's,

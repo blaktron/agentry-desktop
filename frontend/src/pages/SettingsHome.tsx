@@ -6,6 +6,10 @@ import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
 import { applyTheme, THEMES, themeOn, type ThemeId } from "../theme";
+import { pickHomeAgent, rereadHomeAgent, useAgents, useHomeAgent } from "../agents";
+import { homeAgentDrawn } from "../homeAgent";
+import { MAIN_AGENT } from "../persistentAgents";
+import { AgentTiles } from "./AgentTiles";
 
 // Settings → Home: the theme, which default cards Home shows, the
 // QuickAgents pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
@@ -15,7 +19,7 @@ import { applyTheme, THEMES, themeOn, type ThemeId } from "../theme";
 // to another card), and Reset drops every pin, which the page says before
 // it asks.
 
-type HomePart = "theme" | "cards" | "pins" | "reset";
+type HomePart = "theme" | "agent" | "cards" | "pins" | "reset";
 // What a change in a part answered: Go's refusal, or what was done.
 type Answer = { part: HomePart; text: string; error?: boolean };
 
@@ -36,6 +40,16 @@ export function HomeSettings() {
   const [confirmReset, setConfirmReset] = useState(false);
   // The theme on the window; a choice shows at once and Go keeps it.
   const [theme, setTheme] = useState<ThemeId>(() => themeOn(document.documentElement));
+
+  const agents = useAgents();
+  const homeAgent = useHomeAgent();
+  const pickAgent = async (name: string) => {
+    setBusy(true);
+    setSaid(null);
+    const err = await pickHomeAgent(name);
+    if (err) setSaid({ part: "agent", text: err, error: err !== "Nothing was changed." });
+    setBusy(false);
+  };
 
   const chooseTheme = async (id: ThemeId) => {
     const before = theme;
@@ -125,6 +139,23 @@ export function HomeSettings() {
         </Card>
       </section>
 
+      <section id="settings-part-home-agent" className="settings-part">
+        <h2>Agent on Home</h2>
+        <Card>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            The persistent agent Home&apos;s agent card talks to. Picking one that is off turns it on, as Settings → Persistent
+            Agents does. While the agent you picked is off, the card shows Agentry Helper.
+          </p>
+          {agents.length === 0 ? (
+            <p className="muted small">Reading the agents…</p>
+          ) : (
+            <AgentTiles mode="pick" label="Agent" agents={agents} value={homeAgentDrawn(homeAgent ?? MAIN_AGENT, agents)} busy={busy}
+              onPick={(name) => void pickAgent(name)} />
+          )}
+          <Said said={said} part="agent" />
+        </Card>
+      </section>
+
       <section id="settings-part-home-cards" className="settings-part">
         <h2>Cards</h2>
         <Card>
@@ -199,7 +230,8 @@ export function HomeSettings() {
           <p className="small" style={{ marginTop: 0 }}>
             Shows the {HOME_DEFAULTS.length} default cards again in their first order and sizes
             {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}
-            {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}. It uninstalls nothing.
+            {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}, and puts Agentry Helper back
+            on the agent card. It uninstalls nothing and turns no agent off.
           </p>
           <Button disabled={busy} data-reset-home onClick={() => setConfirmReset(true)}>Reset Home…</Button>
           <Said said={said} part="reset" />
@@ -221,7 +253,7 @@ export function HomeSettings() {
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
             <Button variant="danger" data-reset-home-confirm
-              onClick={() => { setConfirmReset(false); void act("reset", () => HomeAPI.Reset(), "Home is back to its default cards."); }}>
+              onClick={() => { setConfirmReset(false); void act("reset", () => HomeAPI.Reset().finally(rereadHomeAgent), "Home is back to its default cards, with Agentry Helper on the agent card."); }}>
               Reset Home
             </Button>
           </div>

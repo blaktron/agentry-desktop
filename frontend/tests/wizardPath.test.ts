@@ -5,8 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor } from "../src/wizardPath.ts";
 
-test("Local keeps the setup as it was, after the choice", () => {
-  assert.deepEqual(stepsFor("local"), ["welcome", "signin", "where", "runtime", "reviewkey", "codingagent", "done"]);
+test("Local walks the setup after the choice, Agents after Runtime", () => {
+  assert.deepEqual(stepsFor("local"), ["welcome", "signin", "where", "runtime", "agents", "reviewkey", "codingagent", "done"]);
 });
 
 test("Cloud ends on its data page", () => {
@@ -39,7 +39,10 @@ test("a step opened directly finds its own path", () => {
   assert.equal(pathOf("reviewkey"), "local");
   assert.equal(pathOf("cloud"), "cloud");
   assert.equal(stepBefore("cloud", null), "where");
-  assert.equal(stepAfter("runtime", null), "reviewkey");
+  assert.equal(pathOf("agents"), "local");
+  assert.equal(stepAfter("runtime", null), "agents");
+  assert.equal(stepAfter("agents", null), "reviewkey");
+  assert.equal(stepBefore("reviewkey", null), "agents");
 });
 
 test("Cloud needs a sign-in to the registry being browsed", () => {

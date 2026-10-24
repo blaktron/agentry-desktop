@@ -60,10 +60,13 @@ const (
 // shownAgents are the persistent agents the app offers, in their order:
 // Main, whose place is its Home card, then the Assistant and the Coding
 // agent.
-var shownAgents = []string{mainAgent, "assistant", coderAgent}
+var shownAgents = []string{mainAgent, assistantAgent, coderAgent}
 
 // coderAgent is the Coding agent's name, its built-in's.
 const coderAgent = "coder"
+
+// assistantAgent is the Assistant's name, its built-in's.
+const assistantAgent = "assistant"
 
 // transcriptLines is how much of an agent's transcript its page reloads.
 const transcriptLines = 500
@@ -96,8 +99,10 @@ type PersistentAPI struct {
 	// docker is the engine client a reset removes the volumes through; nil
 	// is the docker CLI.
 	docker dockerx.Client
-	// link answers Main's app link; nil answers its tools as unanswered.
-	link *mainLink
+	// links answer Agentry Helper's tools for each agent whose app link
+	// lists them, by its name; an agent without one has its calls of them
+	// answered as unanswered.
+	links map[string]*mainLink
 	// onState is told whenever an agent starts, stops or is turned on or
 	// off: the tray follows it.
 	onState func()
@@ -819,12 +824,14 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 }
 
 // appLink is the handler of the agent's app link calls the supervisor does
-// not answer itself: Main's tools, answered by the app.
+// not answer itself: Agentry Helper's tools, answered by the app, for Main
+// and the Assistant.
 func (p *PersistentAPI) appLink(a persistent.Agent) persistent.AppLinkHandler {
-	if a.Name != mainAgent || p.link == nil {
+	l := p.links[a.Name]
+	if l == nil {
 		return nil
 	}
-	return p.link.answer
+	return l.answer
 }
 
 // packs opens the packs a roster has on, from the local store under the

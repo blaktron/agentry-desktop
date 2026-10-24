@@ -1,21 +1,23 @@
 // First-run wizard preview. Selects the step by
 // location.hash (#0 welcome | #1 sign-in | #2 Local or Cloud | #3 runtime |
-// #4 AI Review key | #5 coding agent | #6 done | #cloud the Cloud path's
-// data page) and renders it over the shell chrome, the same
+// #4 agents | #5 AI Review key | #6 coding agent | #7 done | #cloud the Cloud
+// path's data page) and renders it over the shell chrome, the same
 // pattern the run-surface modals use. Not shipped: it sits outside tsconfig
 // include and the app's Vite entry.
 //
-// Suffixes pick a state: #5 shows the step after
+// Suffixes pick a state: #6 shows the step after
 // "Look for coding agents" with Claude Code found and chosen and Codex
-// missing; #5-missing the same with neither on the machine; #5-unprobed
-// the step as it opens, before the look; #6-nothing every step skipped —
-// the Nothing set up ending instead of Done.
+// missing; #6-missing the same with neither on the machine; #6-unprobed
+// the step as it opens, before the look; #7-nothing every step skipped —
+// the Nothing set up ending instead of Done. #4 is the Agents step with the
+// Helper alone on; #4-assistant has the Assistant on too, and the Coding
+// agent's tile asks natively, which #4-coderno answers No.
 //
 // The AI Review key: no key is saved unless the
 // suffix is -saved or -keyonly, or the step is Done and something was set
 // up; -refused has the keychain refuse the save, so the shot script types a
 // key and clicks Save; -slow has the save never answer, so the footer's
-// hold can be shot. #6-keyonly is Done after the key alone was saved: the
+// hold can be shot. #7-keyonly is Done after the key alone was saved: the
 // policy exists, written from defaults by that save, and no provider is set
 // up, so the ending is still Nothing set up.
 import { createRoot } from "react-dom/client";
@@ -137,7 +139,22 @@ const harnesses = [
 ];
 
 const step = Number(location.hash.replace("#", "").split("-")[0]) || 0;
-const keySaved = suffix === "saved" || keyOnly || (step === 6 && !nothing);
+const keySaved = suffix === "saved" || keyOnly || (step === 7 && !nothing);
+
+// The persistent agents the Agents step lists: the Helper never started,
+// the Assistant off (on in #4-assistant) and the Coding agent off. A switch
+// answers the agent as Go would, and the Coding agent's tile, in
+// #4-coderno, answers as a No in its dialog does: still off.
+const agentView = (name: string, title: string, on: boolean, share: string) => ({
+  name, title, displayName: title, state: on ? "stopped" : "disabled", share: `/home/me/agentry/${share}`, runOnStart: false,
+  lifetime: { userTurns: 0, totalTokens: 0 }, roster: [], servers: [], knowledge: [], defaultShare: true,
+});
+const wizardAgents: Record<string, any> = {
+  main: { ...agentView("main", "Agentry Helper", false, "mainshare") },
+  assistant: agentView("assistant", "Assistant", suffix === "assistant", "assistantshare"),
+  coder: agentView("coder", "Coding agent", false, "codingshare"),
+};
+let wizardHomeAgent = "main";
 const noKey = { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false };
 const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 
@@ -146,6 +163,21 @@ let dockerChecks = 0;
 const g = window as any;
 g.go = { app: {
   App: { OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); } },
+  PersistentAPI: {
+    List: async () => Object.values(wizardAgents),
+    SetEnabled: async (name: string, on: boolean) => {
+      if (!(name === "coder" && on && suffix === "coderno")) wizardAgents[name] = { ...wizardAgents[name], state: on ? "stopped" : "disabled" };
+      return wizardAgents[name];
+    },
+    Configure: async (name: string, c: { runOnStart?: boolean }) => {
+      wizardAgents[name] = { ...wizardAgents[name], runOnStart: !!c.runOnStart };
+      return wizardAgents[name];
+    },
+  },
+  HomeAPI: {
+    Agent: async () => wizardHomeAgent,
+    SetAgent: async (name: string) => { wizardHomeAgent = name; document.body.dataset.homeAgent = name; return name; },
+  },
   // The agentry command's card on the done step: not offered off macOS.
   ScheduleAPI: { CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }) },
   RunAPI: {
@@ -266,7 +298,7 @@ createRoot(document.getElementById("root")!).render(
       onSelectRegistry={() => {}}
       onFinish={() => {}}
       initialStep={cloudPage ? "cloud" : stepsFor("local")[step] ?? "welcome"}
-      probeOnEntry={step === 5 && suffix !== "unprobed"}
+      probeOnEntry={step === 6 && suffix !== "unprobed"}
     />
   </>,
 );
