@@ -30,6 +30,10 @@ export function CancelGoogleSignIn(arg1) {
   return window['go']['app']['PersistentAPI']['CancelGoogleSignIn'](arg1);
 }
 
+export function CancelMicrosoftSignIn(arg1) {
+  return window['go']['app']['PersistentAPI']['CancelMicrosoftSignIn'](arg1);
+}
+
 export function ChangeTask(arg1, arg2, arg3) {
   return window['go']['app']['PersistentAPI']['ChangeTask'](arg1, arg2, arg3);
 }
@@ -56,6 +60,10 @@ export function GoogleSignIn(arg1, arg2) {
 
 export function List() {
   return window['go']['app']['PersistentAPI']['List']();
+}
+
+export function MicrosoftSignIn(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['MicrosoftSignIn'](arg1, arg2);
 }
 
 export function OpenPort(arg1, arg2) {
@@ -104,6 +112,14 @@ export function SetGoogleClient(arg1) {
 
 export function SetMailProvider(arg1, arg2, arg3) {
   return window['go']['app']['PersistentAPI']['SetMailProvider'](arg1, arg2, arg3);
+}
+
+export function SetMicrosoftClient(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['SetMicrosoftClient'](arg1, arg2, arg3);
+}
+
+export function SetMicrosoftSignoff(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['SetMicrosoftSignoff'](arg1, arg2);
 }
 
 export function SetSecret(arg1, arg2, arg3) {

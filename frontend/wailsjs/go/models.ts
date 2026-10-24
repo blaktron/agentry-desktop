@@ -2647,6 +2647,32 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	    }
 	}
+	export class PersistentMicrosoftView {
+	    clientID?: string;
+	    tenant?: string;
+	    clientAt?: string;
+	    account?: string;
+	    at?: string;
+	    signoff?: string;
+	    stale?: boolean;
+	    waiting?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentMicrosoftView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.clientID = source["clientID"];
+	        this.tenant = source["tenant"];
+	        this.clientAt = source["clientAt"];
+	        this.account = source["account"];
+	        this.at = source["at"];
+	        this.signoff = source["signoff"];
+	        this.stale = source["stale"];
+	        this.waiting = source["waiting"];
+	    }
+	}
 	export class PersistentGoogleView {
 	    client: boolean;
 	    clientAt?: string;
@@ -2743,6 +2769,7 @@ export namespace app {
 	    setUpSecret?: string;
 	    setUpAccount?: string;
 	    setUpGoogle?: boolean;
+	    setUpMicrosoft?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2767,6 +2794,7 @@ export namespace app {
 	        this.setUpSecret = source["setUpSecret"];
 	        this.setUpAccount = source["setUpAccount"];
 	        this.setUpGoogle = source["setUpGoogle"];
+	        this.setUpMicrosoft = source["setUpMicrosoft"];
 	    }
 	}
 	export class PersistentServerView {
@@ -2880,6 +2908,7 @@ export namespace app {
 	    resets: PersistentResetView[];
 	    mailProviders: PersistentMailProviderView[];
 	    google?: PersistentGoogleView;
+	    microsoft?: PersistentMicrosoftView;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -2918,6 +2947,7 @@ export namespace app {
 	        this.resets = this.convertValues(source["resets"], PersistentResetView);
 	        this.mailProviders = this.convertValues(source["mailProviders"], PersistentMailProviderView);
 	        this.google = this.convertValues(source["google"], PersistentGoogleView);
+	        this.microsoft = this.convertValues(source["microsoft"], PersistentMicrosoftView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -3023,6 +3053,7 @@ export namespace app {
 	        this.skipped = source["skipped"];
 	    }
 	}
+	
 	
 	
 	

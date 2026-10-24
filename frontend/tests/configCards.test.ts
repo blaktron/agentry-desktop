@@ -22,6 +22,9 @@ import {
   disabledProviders,
   providerOf,
   providerWords,
+  ENTRA_ID,
+  microsoftWords,
+  microsoftScopeWords,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -225,4 +228,34 @@ test("a mail provider's server card offers to disable the provider; its switches
   assert.equal(cardMenu(a.roster[1], a).disable?.key, "google");
   assert.equal(cardMenu(a.roster[2], a).disable, null);
   assert.equal(cardMenu(a.roster[0], a).disable, null);
+});
+
+test("Microsoft 365's cards open its own set-up, which says what it holds and what the sign-in asks for", () => {
+  const ms = entry({ id: "server:ms365", kind: "server", name: "Microsoft 365 and Outlook.com", iconKey: "mail", state: "needs-set-up", on: true, setUpMicrosoft: true });
+  assert.deepEqual(setUpOf(ms), { kind: "microsoft" });
+  assert.equal(setUpForm({ kind: "microsoft" }, "mail"), null);
+  assert.equal(microsoftWords(undefined), "No Entra app yet.");
+  assert.equal(microsoftWords({ clientID: "11111111-2222-3333-4444-555555555555", account: "", stale: false }), "Your Entra app is kept. Sign in next.");
+  assert.equal(microsoftWords({ clientID: "11111111-2222-3333-4444-555555555555", account: "ana@outlook.com", stale: false }), "Signed in as ana@outlook.com.");
+  assert.match(microsoftWords({ clientID: "x", account: "ana@outlook.com", stale: true }), /earlier app/);
+  assert.match(microsoftScopeWords([{ id: "server:ms365:writes", on: false }]), /reading alone/);
+  assert.match(microsoftScopeWords([{ id: "server:ms365:writes", on: true }]), /change things as well/);
+  for (const ok of ["11111111-2222-3333-4444-555555555555", "ABCDEF01-2222-3333-4444-555555555555"]) assert.ok(ENTRA_ID.test(ok), ok);
+  for (const bad of ["my-app", "11111111-2222-3333-4444-55555555555", " 11111111-2222-3333-4444-555555555555", ""]) assert.ok(!ENTRA_ID.test(bad), bad);
+});
+
+test("an enabled Microsoft's server and switches are drawn in Mail and calendar with Disable Microsoft", () => {
+  const a = {
+    ...assistant(true),
+    mailProviders: [google(true), { key: "microsoft", name: "Microsoft", enabled: true, servers: ["server:ms365"], accounts: [], setUp: [] } as app.PersistentMailProviderView],
+    roster: [
+      ...assistant(true).roster,
+      entry({ id: "server:ms365", kind: "server", name: "Microsoft 365 and Outlook.com", iconKey: "mail", on: false, state: "off", setUpMicrosoft: true }),
+      entry({ id: "server:ms365:send", kind: "server-switch", name: "Microsoft 365: allow sending mail", iconKey: "mail", on: false, state: "off", setUpMicrosoft: true }),
+    ],
+  };
+  const mail = configGrids(a).find((g) => g.key === "mail");
+  assert.deepEqual(mail?.entries.map((e) => e.id), ["server:gog", "server:gog:writes", "server:ms365", "server:ms365:send"]);
+  assert.equal(cardMenu(a.roster[3], a).disable?.key, "microsoft");
+  assert.equal(cardMenu(a.roster[4], a).disable, null);
 });

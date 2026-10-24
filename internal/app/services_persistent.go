@@ -132,9 +132,14 @@ type PersistentAPI struct {
 	// sign-in with its engine, the native file picker and the browser in a
 	// test.
 	googleSignIns map[string]context.CancelFunc
-	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
-	pickFile      func() (string, error)
-	browse        func(url string) error
+	// microsoftSignIns cancel the Microsoft sign-ins waiting for the
+	// person to enter the code, by agent; microsoftSetUp stands in for the
+	// CLI's in a test.
+	microsoftSignIns map[string]context.CancelFunc
+	microsoftSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Microsoft, error)
+	googleSetUp      func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
+	pickFile         func() (string, error)
+	browse           func(url string) error
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -286,10 +291,13 @@ type PersistentAgentView struct {
 	MailProviders []PersistentMailProviderView `json:"mailProviders"`
 	// Google is the agent's Google Workspace set-up, for an agent that has
 	// that server.
-	Google   *PersistentGoogleView `json:"google,omitempty"`
-	Status   *PersistentStatusView `json:"status,omitempty"`
-	Lifetime PersistentUsageView   `json:"lifetime"`
-	Volumes  PersistentVolumesView `json:"volumes"`
+	Google *PersistentGoogleView `json:"google,omitempty"`
+	// Microsoft is the agent's Microsoft 365 set-up, for an agent that has
+	// that server.
+	Microsoft *PersistentMicrosoftView `json:"microsoft,omitempty"`
+	Status    *PersistentStatusView    `json:"status,omitempty"`
+	Lifetime  PersistentUsageView      `json:"lifetime"`
+	Volumes   PersistentVolumesView    `json:"volumes"`
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -338,6 +346,9 @@ type PersistentRosterEntry struct {
 	// SetUpGoogle says the entry's Set up is Google Workspace's: its
 	// client file and sign-in.
 	SetUpGoogle bool `json:"setUpGoogle,omitempty"`
+	// SetUpMicrosoft says the entry's Set up is Microsoft 365's: its Entra
+	// app and sign-in.
+	SetUpMicrosoft bool `json:"setUpMicrosoft,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -504,6 +515,12 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.Accounts = accountViews(cfg.Accounts)
 	v.Resets = resetViews(a)
 	v.MailProviders = mailProviderViews(a, cfg)
+	v.Microsoft = microsoftView(a, cfg)
+	if v.Microsoft != nil {
+		p.mu.Lock()
+		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
+		p.mu.Unlock()
+	}
 	v.Google = googleView(a, cfg)
 	if v.Google != nil {
 		p.mu.Lock()
@@ -538,7 +555,7 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer, f cardFacts) 
 			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
 			ShareSwitch: e.ShareSwitch, Share: e.Share,
 			IconKey: f.glyph[e.ID], SetUpSecret: f.secret[e.ID], SetUpAccount: f.account[e.ID],
-			SetUpGoogle: f.google[e.ID],
+			SetUpGoogle: f.google[e.ID], SetUpMicrosoft: f.microsoft[e.ID],
 		}
 		if e.Kind == persistent.KindServer && e.ShareSwitch == "" {
 			for _, srv := range servers {
