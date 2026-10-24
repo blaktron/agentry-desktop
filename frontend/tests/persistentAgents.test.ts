@@ -209,3 +209,14 @@ test("a sentence names an agent by the name the person gave it, else as the Assi
   assert.equal(agentCalled({ displayName: "Ada", title: "Assistant" }), "Ada");
   assert.equal(agentCalled({ displayName: "", title: "Coding agent" }), "the Coding agent");
 });
+
+test("a package server is added with its arguments in order, a remote server with none", () => {
+  const form = { source: "pypi", package: " semgrep ", version: "1.140.0", args: ["mcp", "--transport=stdio,quiet"], url: "", tools: "scan, rules" };
+  assert.deepEqual(serverRowOf(form), { source: "pypi", package: "semgrep", version: "1.140.0", args: ["mcp", "--transport=stdio,quiet"], tools: ["scan", "rules"] });
+  assert.deepEqual(serverRowOf({ ...form, source: "url", url: " https://mcp.example.com/mcp " }), { source: "url", url: "https://mcp.example.com/mcp", auth: "none", tools: ["scan", "rules"] });
+  assert.equal(canAddServer(form), true);
+  assert.equal(canAddServer({ ...form, args: [] }), true);
+  assert.equal(canAddServer({ ...form, args: ["mcp", ""] }), false);
+  assert.equal(canAddServer({ ...form, version: "" }), false);
+  assert.equal(canAddServer({ ...form, source: "url", url: "https://mcp.example.com/mcp", args: [""] }), true);
+});

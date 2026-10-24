@@ -209,7 +209,8 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
 /** The server Add card's panel: the agent's suggestions, one click each,
  *  then a package or a remote address of the person's own. */
 function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
-  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", url: "", tools: "" });
+  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", args: [], url: "", tools: "" });
+  const setArgs = (args: string[]) => setServer({ ...server, args });
   return (
     <>
       {(agent.suggested ?? []).length > 0 && (
@@ -241,6 +242,18 @@ function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentVie
           <>
             <Field label="Package"><Input value={server.package} onChange={(e) => setServer({ ...server, package: e.target.value })} /></Field>
             <Field label="Version" hint="An exact version, as a QuickAgent pins it."><Input value={server.version} onChange={(e) => setServer({ ...server, version: e.target.value })} /></Field>
+            <Field label="Arguments" hint="The words its command starts with, one per field, in order, for a server that is a subcommand of a larger program (such as mcp).">
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                {server.args.map((a, k) => (
+                  <span className="row" key={k} style={{ gap: 2 }}>
+                    <Input className="mono" aria-label={`argument ${k + 1}`} placeholder="word" style={{ width: 140 }} value={a} spellCheck={false}
+                      onChange={(e) => setArgs(server.args.map((x, j) => (j === k ? e.target.value : x)))} />
+                    <Button type="button" variant="ghost" className="small" aria-label={`remove argument ${k + 1}`} onClick={() => setArgs(server.args.filter((_, j) => j !== k))}>Remove</Button>
+                  </span>
+                ))}
+                <Button type="button" className="small" onClick={() => setArgs([...server.args, ""])}>Add an argument</Button>
+              </div>
+            </Field>
           </>
         )}
         <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>

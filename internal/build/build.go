@@ -1358,6 +1358,16 @@ func Load(dir string) (*Model, error) {
 	return m, nil
 }
 
+// CheckArgs refuses a package server's args the core would refuse, naming
+// every problem, so a server added outside the form is held to the form's
+// rules before it is added.
+func CheckArgs(args []string) error {
+	if p := argProblems(args); len(p) > 0 {
+		return errors.New("the server's arguments: " + strings.Join(p, "; "))
+	}
+	return nil
+}
+
 // argProblems says what is wrong with a package server's args under the
 // core's rules, so the form names it before a save: at most
 // manifest.MaxMCPServerArgs arguments, each one non-empty word of at most
