@@ -42,6 +42,8 @@ export function RemoveSkill(arg1:string,arg2:string):Promise<app.PersistentAgent
 
 export function Reset(arg1:string):Promise<app.PersistentAgentView>;
 
+export function ResetPart(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
 export function Send(arg1:string,arg2:string):Promise<void>;
 
 export function SetAccount(arg1:string,arg2:app.PersistentAccountForm):Promise<app.PersistentAgentView>;

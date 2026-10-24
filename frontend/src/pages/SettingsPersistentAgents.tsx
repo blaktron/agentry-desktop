@@ -5,15 +5,16 @@
 // page with everything the agent is given: its name and personality, its
 // share folder, its knowledge packs and MCP servers, and its roster's
 // switches. A start, a switch or an addition that turns on what the person
-// has not agreed to on this computer asks in Go's native dialog; Reset asks
-// here, then natively. A folder comes from the native picker alone.
+// has not agreed to on this computer asks in Go's native dialog. Reset asks
+// here, then natively; the Assistant has three, Reset history, Reset agent
+// and Reset all, each with the words Go gives its native dialog. A folder comes from the native picker alone.
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -28,6 +29,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [error, setError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
+  const [resetKind, setResetKind] = useState("all");
   const [exported, setExported] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -122,7 +124,9 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
-              <Button variant="ghost" data-persistent-reset={a.name} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => setResetting(a)}>Reset…</Button>
+              {(a.resets ?? []).map((r) => (
+                <Button key={r.kind} variant="ghost" data-persistent-reset={a.name} data-reset-kind={r.kind} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => { setResetKind(r.kind); setResetting(a); }}>{r.title}…</Button>
+              ))}
             </div>
           </Card>
         );
@@ -171,14 +175,12 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         </p>
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
-      {resetting && (
-        <Modal title={`Reset ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}?`} onClose={() => setResetting(null)}>
-          <p>
-            This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers
-            and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what
-            you agreed to, so its next start asks you again. It goes back to its default share folder.
-          </p>
-          <p>The files in the share folder you chose, the receipts of what it did and a dev server's sign-in in your keychain are kept.</p>
+      {resetting && (() => {
+        const choice = chosenReset(resetting.resets, resetKind);
+        const close = () => { setResetting(null); setExported(null); };
+        return (
+        <Modal title={`${choice?.title ?? "Reset"} for ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}`} onClose={close}>
+          {choice && <p data-reset-body={choice.kind}>{choice.body}</p>}
           {resetting.state === AGENT_STATES.running && <p>It is running: Reset stops it first.</p>}
           {resetting.keepsMemory && (
             <div className="row gap">
@@ -197,24 +199,25 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           <div className="row gap">
             <Button
               variant="danger"
-              disabled={exporting}
+              disabled={exporting || !choice}
               onClick={() => {
                 const name = resetting.name;
-                setResetting(null);
-                setExported(null);
+                const kind = choice?.kind ?? "all";
+                close();
                 void act(name, async () => {
-                  const v = await PersistentAPI.Reset(name);
+                  const v = kind === "all" ? await PersistentAPI.Reset(name) : await PersistentAPI.ResetPart(name, kind);
                   forgetChat(name);
                   return v;
                 });
               }}
             >
-              Reset
+              {choice?.title ?? "Reset"}
             </Button>
-            <Button variant="ghost" disabled={exporting} onClick={() => { setResetting(null); setExported(null); }}>Cancel</Button>
+            <Button variant="ghost" disabled={exporting} onClick={close}>Cancel</Button>
           </div>
         </Modal>
-      )}
+        );
+      })()}
     </section>
   );
 }
