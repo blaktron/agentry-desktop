@@ -1571,6 +1571,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-term-tool, .agent-term-note { color: var(--color-muted); font-size: 12px; }
 .agent-term-note { font-style: italic; }
 .agent-term-warn { color: var(--color-sev-high); font-size: 12px; }
+.agent-term-task { margin: 0 0 10px; color: var(--color-muted); font-size: 12px; }
+.agent-term-task > summary { cursor: pointer; }
+.agent-term-task-body { margin: 4px 0 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .agent-term-pending { margin: 0; padding: 6px 14px; color: var(--color-warm); font-size: 12px; border-top: 1px solid var(--color-border); }
 .agent-term-prompt { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
 .agent-term-prompt > span { color: var(--color-accent); font-weight: 700; padding-bottom: 8px; }

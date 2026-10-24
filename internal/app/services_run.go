@@ -182,11 +182,14 @@ type SessionView struct {
 type SessionEventView struct {
 	// Seq is a hosted session's frame sequence number (0 on this
 	// machine): a chat that replays a session keeps each one once.
-	Seq        uint64 `json:"seq,omitempty"`
-	Kind       string `json:"kind"`
-	Time       string `json:"time"`
-	Text       string `json:"text,omitempty"`
-	Synthetic  bool   `json:"synthetic,omitempty"`
+	Seq       uint64 `json:"seq,omitempty"`
+	Kind      string `json:"kind"`
+	Time      string `json:"time"`
+	Text      string `json:"text,omitempty"`
+	Synthetic bool   `json:"synthetic,omitempty"`
+	// Task is, on a persistent agent's user turn that its heartbeat sent,
+	// the id of the task: the turn is the agent's own, not the person's.
+	Task       string `json:"task,omitempty"`
 	StopReason string `json:"stopReason,omitempty"`
 	Path       string `json:"path,omitempty"`
 	Digest     string `json:"digest,omitempty"`
@@ -203,7 +206,7 @@ type SessionEventView struct {
 // eventView flattens a session event for the chat view.
 func eventView(ev session.Event) SessionEventView {
 	return SessionEventView{
-		Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic,
+		Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic, Task: ev.Task,
 		StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
 		InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, TotalTokens: ev.TotalTokens, CostUSD: ev.CostUSD,
 	}

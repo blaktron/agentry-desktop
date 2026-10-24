@@ -42,9 +42,12 @@ export function chatFromTranscript(events: SessionEvent[], now: number): AgentCh
 }
 
 /** A terminal-style line of the chat: the person's after a ">", the
- *  agent's as markdown, a tool call and the runner's notes dim. */
+ *  agent's as markdown, a tool call and the runner's notes dim, and a turn
+ *  the agent's heartbeat sent for one of its tasks as one folded line
+ *  naming the task, its instruction inside. */
 export type TermLine =
   | { kind: "person"; text: string }
+  | { kind: "task"; name: string; instruction: string }
   | { kind: "agent"; text: string }
   | { kind: "tool"; text: string }
   | { kind: "note"; text: string }
@@ -54,6 +57,7 @@ export function termLines(c: Chat): TermLine[] {
   return c.lines.flatMap((l): TermLine[] => {
     switch (l.kind) {
       case "user":
+        if (l.task) return [{ kind: "task", ...taskTurn(l.text) }];
         return l.synthetic ? [] : [{ kind: "person", text: l.text }];
       case "assistant":
         return [{ kind: "agent", text: l.text }];
@@ -65,6 +69,21 @@ export function termLines(c: Chat): TermLine[] {
         return [];
     }
   });
+}
+
+/** taskTurn reads a task's turn as the heartbeat writes it, a
+ *  "Task: <name>" line and then the instruction, after any notice the
+ *  runner put first. */
+export function taskTurn(text: string): { name: string; instruction: string } {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("Task: ") && l.slice(6).trim() !== "");
+  if (at < 0) return { name: "", instruction: text.trim() };
+  return { name: lines[at].slice(6).trim(), instruction: lines.slice(at + 1).join("\n").trim() };
+}
+
+/** taskSummary is a task turn's folded line. */
+export function taskSummary(name: string): string {
+  return name ? `Task “${name}” ran on its own` : "A task ran on its own";
 }
 
 /** Main's name: its place is its Home card, with no sidebar entry or page. */

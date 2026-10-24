@@ -27,6 +27,8 @@ import {
   coderRunning,
   enableOutcome,
   termLines,
+  taskSummary,
+  taskTurn,
   startFailureLines,
   startReasonWords,
   serverShareSwitch,
@@ -70,6 +72,30 @@ test("a segment's end is not the conversation's: the chat goes on, and the last 
   c = applyAgentEvent(c, { kind: "user_turn", time: t, text: "next" }, now);
   assert.equal(c.lastTurnTokens, 0, "a new turn starts its count again");
   assert.equal(c.busy, true);
+});
+
+test("a task's turn is one folded line naming the task, never the person's, live and from the transcript", () => {
+  const task = { kind: "user_turn", time: t, text: "Task: Stand up\n\nRemind the person to stand up and stretch.", task: "t1" };
+  const answer = { kind: "assistant_turn", time: t, text: "Time to stand up and stretch." };
+  const live = applyAgentEvent(applyAgentEvent(newAgentChat(), task, now), answer, now);
+  const expected = [
+    { kind: "task", name: "Stand up", instruction: "Remind the person to stand up and stretch." },
+    { kind: "agent", text: "Time to stand up and stretch." },
+  ];
+  assert.deepEqual(termLines(live), expected);
+  assert.equal(live.turns, 0, "the task's turn counted as the person's");
+  assert.deepEqual(termLines(chatFromTranscript([task, answer], now)), expected);
+  // The same text typed by the person, with no mark, is the person's.
+  const typed = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: task.text }, now);
+  assert.deepEqual(termLines(typed), [{ kind: "person", text: task.text }]);
+  assert.equal(typed.turns, 1);
+});
+
+test("a task turn's name and instruction, after a notice the runner put first", () => {
+  assert.deepEqual(taskTurn("(a file was added)\nTask: Morning brief\n\nSummarise the share.\nThen stop."), { name: "Morning brief", instruction: "Summarise the share.\nThen stop." });
+  assert.deepEqual(taskTurn("no task line"), { name: "", instruction: "no task line" });
+  assert.equal(taskSummary("Morning brief"), "Task “Morning brief” ran on its own");
+  assert.equal(taskSummary(""), "A task ran on its own");
 });
 
 test("a synthetic turn the runner sent is not drawn as the person's", () => {
