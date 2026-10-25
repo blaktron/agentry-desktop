@@ -76,6 +76,10 @@ type MeetingAPI struct {
 	root string
 	// client fetches the models; nil is meeting.DownloadClient's.
 	client *http.Client
+	// assistant is the Assistant transcripts are handed to, and delivery
+	// the one worker that hands them on.
+	assistant meetingAssistant
+	delivery  meetingDelivery
 }
 
 // manager builds the feature's manager once.
@@ -151,7 +155,8 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 					f(st)
 				}
 			},
-			Changed: func() { emitEvent(m.app, eventMeetingChanged) },
+			Changed:     func() { emitEvent(m.app, eventMeetingChanged) },
+			Transcribed: m.transcribed,
 		}
 		// Calls are watched for only where this copy records.
 		if m.unavailable == "" {
@@ -264,6 +269,14 @@ func (m *MeetingAPI) start(ctx context.Context) {
 		return
 	}
 	mgr.Start(ctx)
+	// A turn cut short by the last quit is the person's to ask again.
+	if ms, err := mgr.Meetings(); err == nil {
+		for _, mt := range ms {
+			if mt.Delivery == meeting.DeliverySending {
+				_, _ = mgr.Update(mt.ID, func(x *meeting.Meeting) { x.Delivery = meeting.DeliveryWaiting })
+			}
+		}
+	}
 	if m.unavailable == "" && meetingSettings().On {
 		mgr.Prepare(ctx)
 	}
@@ -348,6 +361,42 @@ type MeetingView struct {
 	HasTranscript  bool   `json:"hasTranscript"`
 	HasAudio       bool   `json:"hasAudio"`
 	AudioUntil     string `json:"audioUntil,omitempty"`
+	// FromCalendar: an armed window recorded it, so its title is the
+	// calendar's.
+	FromCalendar bool `json:"fromCalendar"`
+	// Delivery is where handing it to the Assistant stands: "" (not
+	// handed to it), waiting, sending, sent or failed; DeliveryError says
+	// why it failed.
+	Delivery      string `json:"delivery,omitempty"`
+	DeliveryError string `json:"deliveryError,omitempty"`
+}
+
+// MeetingWindowView is a window the Assistant armed.
+type MeetingWindowView struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Invitees []string `json:"invitees"`
+	App      string   `json:"app,omitempty"`
+	Opens    string   `json:"opens"`
+	Closes   string   `json:"closes"`
+	By       string   `json:"by,omitempty"`
+	// State is waiting, open, recording or closed; Recorded how many calls
+	// it recorded.
+	State    string `json:"state"`
+	Recorded int    `json:"recorded"`
+}
+
+// MeetingAssistantView is the Assistant as Meeting notes hands it
+// transcripts.
+type MeetingAssistantView struct {
+	// Enabled: the person has an Assistant; Name is how a sentence names
+	// it, and Running whether it runs, here or in another client.
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+	Running bool   `json:"running"`
+	// SendToAssistant and AskFirst are the person's choices.
+	SendToAssistant bool `json:"sendToAssistant"`
+	AskFirst        bool `json:"askFirst"`
 }
 
 // MeetingNotesView is the Meeting notes page.
@@ -393,6 +442,10 @@ type MeetingNotesView struct {
 	// StartsAtSignIn: Agentry starts, hidden, when the person signs in, so
 	// calls are noticed from then on.
 	StartsAtSignIn bool `json:"startsAtSignIn"`
+	// Windows are the windows the Assistant armed, the soonest first.
+	Windows []MeetingWindowView `json:"windows"`
+	// Assistant is the Assistant transcripts may be handed to.
+	Assistant MeetingAssistantView `json:"assistant"`
 }
 
 // Status reads the page.
@@ -406,6 +459,13 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
+		Windows: []MeetingWindowView{},
+	}
+	a := m.assistantOf()
+	where := a.where()
+	v.Assistant = MeetingAssistantView{
+		Enabled: where != assistantNotEnabled, Name: a.name(), Running: where == assistantHere || where == assistantElsewhere,
+		SendToAssistant: mn.SendToAssistant, AskFirst: mn.AskFirst,
 	}
 	v.StartsAtSignIn, _ = startsAtSignIn()
 	mgr := m.manager()
@@ -465,10 +525,36 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		if mv.HasAudio && !mt.AudioUntil.IsZero() {
 			mv.AudioUntil = mt.AudioUntil.Format(time.RFC3339)
 		}
+		mv.FromCalendar, mv.Delivery, mv.DeliveryError = mt.Window != "", mt.Delivery, mt.DeliveryError
 		v.Meetings = append(v.Meetings, mv)
 	}
 	sort.SliceStable(v.Meetings, func(i, j int) bool { return v.Meetings[i].Started > v.Meetings[j].Started })
+	now := time.Now()
+	for _, w := range mgr.Windows() {
+		v.Windows = append(v.Windows, windowView(w, status.Recording, now))
+	}
 	return v, nil
+}
+
+// windowView is an armed window as the pages draw it.
+func windowView(w meeting.Window, rec *meeting.RecordingStatus, now time.Time) MeetingWindowView {
+	state := "closed"
+	switch {
+	case rec != nil && slices.Contains(w.Meetings, rec.ID):
+		state = "recording"
+	case now.Before(w.Opens):
+		state = "waiting"
+	case w.Open(now):
+		state = "open"
+	}
+	inv := w.Invitees
+	if inv == nil {
+		inv = []string{}
+	}
+	return MeetingWindowView{
+		ID: w.ID, Title: w.Title, Invitees: inv, App: w.App, By: w.By,
+		Opens: w.Opens.Format(time.RFC3339), Closes: w.Closes.Format(time.RFC3339), State: state, Recorded: len(w.Meetings),
+	}
 }
 
 // TurnOn turns Meeting notes on after the native dialog says what that
@@ -483,6 +569,10 @@ func (m *MeetingAPI) TurnOn() (*MeetingNotesView, error) {
 	}
 	if err := settings.SetMeetingNotesOn(true); err != nil {
 		return nil, err
+	}
+	// Its Home card: the last meetings, Record, the armed windows.
+	if err := settings.AddMeetingsToHome(); err != nil {
+		log.Printf("meeting notes: Home card: %v", err)
 	}
 	mgr.Start(m.app.ctxOrBackground())
 	mgr.Prepare(m.app.ctxOrBackground())
@@ -610,15 +700,7 @@ func (m *MeetingAPI) SetAutomatic(key string, on bool) (*MeetingNotesView, error
 
 // browserApp says whether a meeting app is a web browser, whose calls come
 // from any site.
-func browserApp(key string) bool {
-	k := strings.ToLower(key)
-	for _, b := range []string{"chrome", "chromium", "firefox", "brave", "msedge", "edge", "opera", "vivaldi", "epiphany", "librewolf", "zen"} {
-		if strings.Contains(k, b) {
-			return true
-		}
-	}
-	return false
-}
+func browserApp(key string) bool { return meeting.BrowserApp(key) }
 
 // SetMaxHours sets the longest a recording runs.
 func (m *MeetingAPI) SetMaxHours(h int) (*MeetingNotesView, error) {

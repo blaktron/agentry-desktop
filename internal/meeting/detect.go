@@ -204,11 +204,11 @@ func (m *Manager) callEvent(ev CallEvent) {
 
 // consider acts on the calls under way that have not been answered, in the
 // order they started, while nothing records: a call of an app on the
-// automatic list is recorded at once, taking the place of an offer that
-// stands (that call waits its turn); otherwise the first is offered, one
-// offer at a time. A call is answered once, by its offer, its automatic
-// recording or the person's Stop, and is not taken up again until it has
-// ended.
+// automatic list, or one inside a window the Assistant armed, is recorded
+// at once, taking the place of an offer that stands (that call waits its
+// turn); otherwise the first is offered, one offer at a time. A call is
+// answered once, by its offer, its automatic recording or the person's
+// Stop, and is not taken up again until it has ended.
 func (m *Manager) consider() {
 	s := m.Settings()
 	m.mu.Lock()
@@ -217,6 +217,9 @@ func (m *Manager) consider() {
 		return
 	}
 	var auto, ask *Call
+	var window *Window
+	how := Automatically
+	now := m.now()
 	for _, k := range m.order {
 		if m.handled[k] {
 			continue
@@ -224,7 +227,11 @@ func (m *Manager) consider() {
 		c := m.live[k]
 		if slices.Contains(s.Automatic, k) {
 			if auto == nil {
-				auto = &c
+				auto, window, how = &c, nil, Automatically
+			}
+		} else if w, ok := m.windowForLocked(c, now); ok {
+			if auto == nil {
+				auto, window, how = &c, &w, InWindow
 			}
 		} else if ask == nil {
 			ask = &c
@@ -239,8 +246,8 @@ func (m *Manager) consider() {
 		}
 		m.mu.Unlock()
 		// startRecording takes away an offer that stands.
-		if _, err := m.startRecording(ctx, *auto, Automatically); err != nil {
-			log.Printf("meeting notes: recording %s automatically: %v", auto.App, err)
+		if _, err := m.startRecording(ctx, *auto, how, window); err != nil {
+			log.Printf("meeting notes: recording %s (%s): %v", auto.App, how, err)
 			_ = m.notify(Notice{Title: "A meeting was not recorded", Body: "Agentry could not record " + auto.App + ": " + err.Error()})
 		}
 	case ask != nil && m.offer == nil:
@@ -329,7 +336,7 @@ func (m *Manager) AcceptOffer(ctx context.Context, id string) (*Meeting, error) 
 	if err != nil {
 		return nil, err
 	}
-	return m.startRecording(ctx, o.call, FromOffer)
+	return m.startRecording(ctx, o.call, FromOffer, nil)
 }
 
 // DeclineOffer lets the offer go: nothing is recorded, and the call is not

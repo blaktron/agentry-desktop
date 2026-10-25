@@ -127,6 +127,10 @@ type TranscriptInfo struct {
 	Gaps     []Gap
 	// SilentSides are the sides with nothing to transcribe.
 	SilentSides []Label
+	// FromCalendar: the title and Participants are the calendar's, for a
+	// recording an armed window made; Participants are who was invited.
+	FromCalendar bool
+	Participants []string
 }
 
 type frontSpeaker struct {
@@ -151,7 +155,8 @@ type frontmatter struct {
 	Timezone        string         `yaml:"timezone"`
 	App             string         `yaml:"app"`
 	AppDetection    string         `yaml:"app_detection"`
-	Participants    string         `yaml:"participants"`
+	Participants    any            `yaml:"participants"`
+	TitleSource     string         `yaml:"title_source"`
 	Speakers        []frontSpeaker `yaml:"speakers"`
 	Language        string         `yaml:"language"`
 	LanguageProfile string         `yaml:"language_profile"`
@@ -187,7 +192,7 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		DurationSeconds: int64(info.Ended.Sub(info.Started).Seconds()),
 		Timezone:        zoneName(info.Started),
 		App:             app, AppDetection: detection,
-		Participants: "unknown",
+		Participants: "unknown", TitleSource: "recording",
 		Speakers: []frontSpeaker{
 			{Label: string(Me), Source: "microphone", Note: "the person who owns this computer"},
 			{Label: string(Them), Source: "system-audio", Note: farNote},
@@ -195,6 +200,12 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		Language: info.Language, LanguageProfile: info.Profile, Model: info.Model,
 		Transcriber: Transcriber, FarSide: string(info.FarSide),
 		Echo: "dedupe-text", OutputDevice: "unknown",
+	}
+	if info.FromCalendar {
+		fm.TitleSource = "calendar"
+		if len(info.Participants) > 0 {
+			fm.Participants = info.Participants
+		}
 	}
 	for _, s := range info.SilentSides {
 		fm.Silent = append(fm.Silent, string(s))
@@ -289,12 +300,47 @@ func WriteTranscript(dir, name string, content []byte) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	tmp, err := tempFile(dir)
+	return writeVia(dir, dir, name, content, 0o600)
+}
+
+// CopyIntoShare puts a transcript into dir, a folder in the Assistant's
+// share, as WriteTranscript does, but never writes there: the copy is
+// written whole in the first of stages (folders outside the share) on the
+// share's filesystem, then linked into place, so a walk of the share never
+// sees half a file and nothing in it is ever written over or changed.
+func CopyIntoShare(dir string, stages []string, name string, content []byte) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	var errs []error
+	for _, stage := range stages {
+		if err := os.MkdirAll(stage, 0o700); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		// Readable by the agent's tools, as a file the person adds is.
+		out, err := writeVia(stage, dir, name, content, 0o644)
+		if err == nil {
+			return out, nil
+		}
+		errs = append(errs, err)
+	}
+	return "", fmt.Errorf("the transcript could not be put in the share folder: %w", errors.Join(errs...))
+}
+
+// writeVia writes content under a temporary name in stage, with perm,
+// then links it into dir under name, or name with a number, never over a
+// file.
+func writeVia(stage, dir, name string, content []byte, perm os.FileMode) (string, error) {
+	tmp, err := tempFile(stage)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = os.Remove(tmp) }()
 	if err := writeSynced(tmp, content); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(tmp, perm); err != nil {
 		return "", err
 	}
 	base := strings.TrimSuffix(name, ".md")

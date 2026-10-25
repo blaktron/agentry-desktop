@@ -50,7 +50,34 @@ type Meeting struct {
 	Gaps       []Gap         `json:"gaps,omitempty"`
 	// AudioUntil is when the kept audio is deleted; zero once it is gone.
 	AudioUntil time.Time `json:"audioUntil,omitempty"`
+	// Window is the armed window it was recorded in, and Invitees that
+	// window's attendees; "" and none for any other recording.
+	Window   string   `json:"window,omitempty"`
+	Invitees []string `json:"invitees,omitempty"`
+	// Shared is the transcript's copy in the Assistant's share folder, ""
+	// until it is copied there.
+	Shared string `json:"shared,omitempty"`
+	// Delivery is where handing the transcript to the Assistant stands:
+	// "" for not handed to it, or one of the Delivery constants.
+	Delivery      string `json:"delivery,omitempty"`
+	DeliveryError string `json:"deliveryError,omitempty"`
 }
+
+// Where handing a transcript to the Assistant stands.
+const (
+	// DeliveryWaiting: the transcript is in the share, and the person asks
+	// the Assistant to summarise it (it was stopped, or they chose to be
+	// asked first).
+	DeliveryWaiting = "waiting"
+	// DeliverySending: the turn is being sent, or waits for a turn in
+	// flight to end.
+	DeliverySending = "sending"
+	// DeliverySent: the Assistant was asked to summarise it.
+	DeliverySent = "sent"
+	// DeliveryFailed: it could not be copied or sent; DeliveryError says
+	// why.
+	DeliveryFailed = "failed"
+)
 
 // Store keeps the meetings' folders under Dir.
 type Store struct {

@@ -113,6 +113,9 @@ type mainLink struct {
 	agreedPath func() (string, error)
 	// asks is how a dialog names the agent asking; nil is Main's name.
 	asks func() string
+	// meetings answers the Assistant's meeting tools; nil where this link
+	// does not.
+	meetings func(ctx context.Context, tool string, raw json.RawMessage, who string) (string, error)
 
 	mu   sync.Mutex
 	runs map[string]*mainRun
@@ -172,6 +175,9 @@ func args(raw json.RawMessage, v any) error {
 }
 
 func (m *mainLink) call(ctx context.Context, tool string, raw json.RawMessage) (string, error) {
+	if applink.IsMeetingTool(tool) && m.meetings != nil {
+		return m.meetings(ctx, tool, raw, m.who())
+	}
 	switch tool {
 	case "registry_search":
 		var a struct {

@@ -36,6 +36,11 @@ const (
 	// → Home. It is a card, not one of the 16 QuickAgent pins, and it is no
 	// default: Reset Home removes it.
 	HomeScheduled = "scheduled"
+	// HomeMeetings is Meeting notes' card: the last meetings, Record, the
+	// windows the Assistant armed and the transcripts waiting for it. It is
+	// no default: turning Meeting notes on adds it, Large, and Settings →
+	// Home shows or hides it; Reset Home removes it.
+	HomeMeetings = "meetings"
 	// HomeMain is Main's card: a chat with Agentry's own persistent agent,
 	// first on Home. It starts nothing until the person sends a message.
 	HomeMain = "main"
@@ -199,12 +204,13 @@ func HomeLayoutNow() (layout HomeLayout, newer, unreadable bool, err error) {
 	return l, st == homeNewer, st == homeUnreadable, err
 }
 
-// SetHomeCardShown shows or hides the default card of kind, or the
-// Scheduled card, keeping its place in the order. One the stored layout
-// lacks is added at the end when it is shown (the Scheduled card Large).
-// Any other kind is refused, and so is a change to a newer layout.
+// SetHomeCardShown shows or hides the default card of kind, the Scheduled
+// card or the Meeting notes card, keeping its place in the order. One the
+// stored layout lacks is added at the end when it is shown (the Scheduled
+// and Meeting notes cards Large). Any other kind is refused, and so is a
+// change to a newer layout.
 func SetHomeCardShown(kind string, shown bool) error {
-	if !slices.Contains(homeDefaults, kind) && kind != HomeScheduled {
+	if !slices.Contains(homeDefaults, kind) && kind != HomeScheduled && kind != HomeMeetings {
 		return fmt.Errorf("%q is not a Home card that can be shown or hidden", kind)
 	}
 	s, l, err := usableHome()
@@ -220,7 +226,7 @@ func SetHomeCardShown(kind string, shown bool) error {
 	}
 	if !found {
 		c := HomeCard{Kind: kind, Hidden: !shown}
-		if kind == HomeScheduled {
+		if kind == HomeScheduled || kind == HomeMeetings {
 			if !shown {
 				return nil
 			}
@@ -236,6 +242,20 @@ func SetHomeCardShown(kind string, shown bool) error {
 // card, Large, after every other card, or a hidden one shown again in its
 // place. One already shown is left as it is.
 func PinScheduledToHome() error { return SetHomeCardShown(HomeScheduled, true) }
+
+// AddMeetingsToHome is turning Meeting notes on: its card, Large, after
+// every other card, unless the layout has one already, shown or hidden, so
+// a card the person hid stays hidden.
+func AddMeetingsToHome() error {
+	_, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(l.Cards, func(c HomeCard) bool { return c.Kind == HomeMeetings }) {
+		return nil
+	}
+	return SetHomeCardShown(HomeMeetings, true)
+}
 
 // UnpinScheduledFromHome removes the Scheduled card, hidden or not; a Home
 // without one is left as it is.
