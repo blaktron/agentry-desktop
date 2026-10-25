@@ -22,6 +22,26 @@ const (
 	frameEvent = 'e'
 )
 
+// frameHead is a frame's kind, track and length.
+const frameHead = 6
+
+// The parent's commands.
+const (
+	cmdDetect = "detect"
+	cmdRecord = "record"
+	cmdPause  = "pause"
+)
+
+// The child's events.
+const (
+	evSessions = "sessions"
+	evStarted  = "started"
+	evFarSide  = "far-side"
+	evEnded    = "ended"
+	evLog      = "log"
+	evError    = "error"
+)
+
 // The child's tracks.
 const (
 	wireMic = 0
@@ -65,7 +85,7 @@ type frameWriter struct {
 }
 
 func (f *frameWriter) frame(kind, track byte, payload []byte) error {
-	head := make([]byte, 6)
+	head := make([]byte, frameHead)
 	head[0], head[1] = kind, track
 	binary.LittleEndian.PutUint32(head[2:], uint32(len(payload))) //nolint:gosec // a frame is far below 4 GB
 	f.mu.Lock()
@@ -95,13 +115,13 @@ func (f *frameWriter) event(ev wireEvent) error {
 
 // readFrame reads one frame.
 func readFrame(r *bufio.Reader) (kind, track byte, payload []byte, err error) {
-	head := make([]byte, 6)
+	head := make([]byte, frameHead)
 	if _, err := io.ReadFull(r, head); err != nil {
 		return 0, 0, nil, err
 	}
 	n := binary.LittleEndian.Uint32(head[2:])
 	if n > maxFrame {
-		return 0, 0, nil, fmt.Errorf("a frame of %d bytes", n)
+		return 0, 0, nil, fmt.Errorf("the audio child sent a frame of %d bytes, more than any audio or event", n)
 	}
 	payload = make([]byte, n)
 	if _, err := io.ReadFull(r, payload); err != nil {

@@ -65,7 +65,7 @@ type childRecorder struct {
 // once it says it is recording.
 func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
 	c := &childCapture{spawn: r.spawn, call: call, tracks: tracks, ended: make(chan struct{}), quit: make(chan struct{}), done: make(chan struct{})}
-	p, out, err := c.startChild()
+	p, out, _, err := c.startChild()
 	if err != nil {
 		return nil, err
 	}
@@ -112,19 +112,21 @@ type childCapture struct {
 	done chan struct{}
 }
 
-func (c *childCapture) startChild() (*childProc, *bufio.Reader, error) {
+// startChild starts a child recording the call, paused or not as the
+// recording is; it returns which it was told.
+func (c *childCapture) startChild() (*childProc, *bufio.Reader, bool, error) {
 	p, err := c.spawn()
 	if err != nil {
-		return nil, nil, fmt.Errorf("the audio recorder could not be started: %w", err)
+		return nil, nil, false, fmt.Errorf("the audio recorder could not be started: %w", err)
 	}
 	c.mu.Lock()
-	cmd := wireCommand{Cmd: "record", PID: c.call.PID, Binary: c.call.Binary, Paused: c.paused}
+	cmd := wireCommand{Cmd: cmdRecord, PID: c.call.PID, Binary: c.call.Binary, Paused: c.paused}
 	c.mu.Unlock()
 	if err := p.send(cmd); err != nil {
 		p.stop()
-		return nil, nil, fmt.Errorf("the audio recorder could not be started: %w", err)
+		return nil, nil, false, fmt.Errorf("the audio recorder could not be started: %w", err)
 	}
-	return p, bufio.NewReader(p.out), nil
+	return p, bufio.NewReader(p.out), cmd.Paused, nil
 }
 
 // awaitStart reads until the child says it records, or why it cannot. Audio
@@ -151,13 +153,13 @@ func (c *childCapture) awaitStart(out *bufio.Reader) (wireEvent, error) {
 				continue
 			}
 			switch ev.Type {
-			case "started":
+			case evStarted:
 				res <- result{ev: ev}
 				return
-			case "error":
+			case evError:
 				res <- result{err: errors.New(ev.Message)}
 				return
-			case "log":
+			case evLog:
 				log.Printf("meeting notes: %s", ev.Message)
 			}
 		}
@@ -245,7 +247,7 @@ func (c *childCapture) supervise(ctx context.Context, out *bufio.Reader) {
 			return
 		}
 		c.mu.Unlock()
-		p, o, err := c.startChild()
+		p, o, sent, err := c.startChild()
 		if err != nil {
 			log.Printf("meeting notes: %v", err)
 			continue
@@ -257,6 +259,10 @@ func (c *childCapture) supervise(ctx context.Context, out *bufio.Reader) {
 			return
 		}
 		c.proc = p
+		// A pause asked for while no child ran reaches this one.
+		if c.paused != sent {
+			_ = p.send(wireCommand{Cmd: cmdPause, Paused: c.paused})
+		}
 		c.mu.Unlock()
 		out = o
 	}
@@ -268,7 +274,7 @@ func (c *childCapture) follow(out *bufio.Reader) error {
 		kind, track, payload, err := readFrame(out)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				err = errors.New("it exited")
+				err = errors.New("the audio recorder exited")
 			}
 			return err
 		}
@@ -281,15 +287,20 @@ func (c *childCapture) follow(out *bufio.Reader) error {
 			continue
 		}
 		switch ev.Type {
-		case "far-side":
+		case evStarted, evFarSide:
+			// A child started again says how it records the far side only
+			// in its start; once any of it was the whole device, the
+			// recording says so.
 			c.mu.Lock()
-			c.farSide = ev.FarSide
+			if c.farSide != FarSideWholeDevice && ev.FarSide != "" {
+				c.farSide = ev.FarSide
+			}
 			c.mu.Unlock()
-		case "ended":
+		case evEnded:
 			c.endOnce.Do(func() { close(c.ended) })
-		case "log":
+		case evLog:
 			log.Printf("meeting notes: %s", ev.Message)
-		case "error":
+		case evError:
 			return errors.New(ev.Message)
 		}
 	}
@@ -318,7 +329,9 @@ func (c *childCapture) SetPaused(paused bool) error {
 		return errors.New("the recording has stopped")
 	}
 	c.paused = paused
-	return c.proc.send(wireCommand{Cmd: "pause", Paused: paused})
+	// A child that has ended takes the pause when it is started again.
+	_ = c.proc.send(wireCommand{Cmd: cmdPause, Paused: paused})
+	return nil
 }
 
 // Stop ends the child and every track.
@@ -338,6 +351,9 @@ func (c *childCapture) Stop() error {
 	defer c.mu.Unlock()
 	for _, t := range []Track{c.mic, c.far} {
 		if t != nil {
+			// A loopback sends nothing while nothing plays: the track is
+			// brought level with the end of the recording before it ends.
+			t.Write(nil)
 			t.End()
 		}
 	}
@@ -360,7 +376,7 @@ func (d childDetector) Watch(ctx context.Context, events chan<- CallEvent) error
 		return fmt.Errorf("the audio watcher could not be started: %w", err)
 	}
 	defer p.stop()
-	if err := p.send(wireCommand{Cmd: "detect"}); err != nil {
+	if err := p.send(wireCommand{Cmd: cmdDetect}); err != nil {
 		return fmt.Errorf("the audio watcher could not be started: %w", err)
 	}
 	snaps := make(chan paSnapshot)
@@ -378,13 +394,13 @@ func (d childDetector) Watch(ctx context.Context, events chan<- CallEvent) error
 				continue
 			}
 			switch ev.Type {
-			case "sessions":
+			case evSessions:
 				select {
 				case snaps <- sessionSnapshot(ev.Sessions):
 				case <-ctx.Done():
 					return
 				}
-			case "error":
+			case evError:
 				errc <- errors.New(ev.Message)
 				return
 			}

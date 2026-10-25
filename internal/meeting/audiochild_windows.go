@@ -88,6 +88,13 @@ func flowOf(f endpointFlow) wasapi.Flow {
 	return wasapi.Render
 }
 
+func flowFrom(f wasapi.Flow) endpointFlow {
+	if f == wasapi.Capture {
+		return flowCapture
+	}
+	return flowRender
+}
+
 func (w wasapiSystem) Sessions() ([]audioSession, error) {
 	ss, err := w.s.Sessions()
 	if err != nil {
@@ -95,11 +102,7 @@ func (w wasapiSystem) Sessions() ([]audioSession, error) {
 	}
 	out := make([]audioSession, 0, len(ss))
 	for _, x := range ss {
-		f := flowRender
-		if x.Flow == wasapi.Capture {
-			f = flowCapture
-		}
-		out = append(out, audioSession{Endpoint: x.Endpoint, Flow: f, PID: x.PID, Exe: x.Exe, App: x.App, Active: x.Active})
+		out = append(out, audioSession{Endpoint: x.Endpoint, Flow: flowFrom(x.Flow), PID: x.PID, Exe: x.Exe, App: x.App, Active: x.Active})
 	}
 	return out, nil
 }

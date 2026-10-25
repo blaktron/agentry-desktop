@@ -46,7 +46,7 @@ var meetingWarnings = meetingWarningsFor(runtime.GOOS)
 func meetingWarningsFor(goos string) []string {
 	far := "When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so."
 	if goos == "windows" {
-		far = "It records everything played on the speakers or headset the meeting app uses, other sounds there included, and the transcript says so."
+		far = "It records everything played on the speakers or headset the meeting app uses, other sounds there included, or everything your computer plays when no meeting app is found, and the transcript says which."
 	}
 	return []string{
 		meeting.ConsentSentence,
@@ -296,6 +296,17 @@ func (m *MeetingAPI) start(ctx context.Context) {
 func (m *MeetingAPI) shutdown() {
 	if m.mgr != nil {
 		m.mgr.Shutdown()
+	}
+}
+
+// suspendForUpdate is shutdown before an installer replaces the app, with
+// what starts the feature again should the installer not start.
+func (m *MeetingAPI) suspendForUpdate() (resume func()) {
+	m.shutdown()
+	return func() {
+		if m.mgr != nil {
+			m.start(m.app.ctxOrBackground())
+		}
 	}
 }
 

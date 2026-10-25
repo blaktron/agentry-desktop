@@ -102,7 +102,7 @@ func (s *fakeStream) Read() ([]int16, error) {
 	s.f.mu.Lock()
 	defer s.f.mu.Unlock()
 	if s.f.gone[s.ep] {
-		return nil, fmt.Errorf("reading: %w", errDeviceGone)
+		return nil, fmt.Errorf("the headset was unplugged: %w", errDeviceGone)
 	}
 	v := int16(1000)
 	if s.flow == flowRender {
@@ -328,14 +328,14 @@ func TestAPauseHoldsNoDevice(t *testing.T) {
 func TestRecordWithNoAppTakesTheCallOrTheDefaults(t *testing.T) {
 	f := newFakeAudio()
 	f.set(zoomSession("headset", flowRender, true), zoomSession("headset-mic", flowCapture, true))
-	frames := runChild(t, f, wireCommand{Cmd: "record"})
-	started := firstEvent(t, frames, "started")
+	frames := runChild(t, f, wireCommand{Cmd: cmdRecord})
+	started := firstEvent(t, frames, evStarted)
 	if started.Call == nil || started.Call.Binary != "zoom.exe" || started.FarSide != FarSideAppDevice {
 		t.Fatalf("started %+v", started)
 	}
 	f = newFakeAudio()
-	frames = runChild(t, f, wireCommand{Cmd: "record"})
-	started = firstEvent(t, frames, "started")
+	frames = runChild(t, f, wireCommand{Cmd: cmdRecord})
+	started = firstEvent(t, frames, evStarted)
 	if started.Call != nil || started.FarSide != FarSideWholeDevice {
 		t.Fatalf("started %+v", started)
 	}
@@ -349,8 +349,8 @@ func TestARefusedMicrophoneFailsTheStart(t *testing.T) {
 	f := newFakeAudio()
 	f.set(zoomSession("headset", flowRender, true), zoomSession("headset-mic", flowCapture, true))
 	f.refuse["headset-mic"] = errors.New("Windows refused access")
-	frames := runChild(t, f, wireCommand{Cmd: "record", PID: "4100"})
-	ev := firstEvent(t, frames, "error")
+	frames := runChild(t, f, wireCommand{Cmd: cmdRecord, PID: "4100"})
+	ev := firstEvent(t, frames, evError)
 	if !strings.Contains(ev.Message, "Windows refused access") {
 		t.Fatalf("error %q", ev.Message)
 	}
@@ -366,7 +366,7 @@ func TestTheDetectorLeavesThisAppOut(t *testing.T) {
 	f := newFakeAudio()
 	f.set(zoomSession("headset", flowRender, true),
 		audioSession{Endpoint: "laptop-mic", Flow: flowCapture, PID: 9, Exe: self, Active: true})
-	ev := firstEvent(t, runChildAs(t, f, wireCommand{Cmd: "detect"}, self), "sessions")
+	ev := firstEvent(t, runChildAs(t, f, wireCommand{Cmd: cmdDetect}, self), "sessions")
 	for _, s := range ev.Sessions {
 		if s.Exe == self {
 			t.Fatalf("this app's session was reported: %+v", ev.Sessions)
@@ -406,7 +406,7 @@ func runChildAs(t *testing.T, f *fakeAudio, cmd wireCommand, self string) []wire
 			break
 		}
 		var ev wireEvent
-		if kind == frameEvent && json.Unmarshal(payload, &ev) == nil && ev.Type != "log" {
+		if kind == frameEvent && json.Unmarshal(payload, &ev) == nil && ev.Type != evLog {
 			events = append(events, ev)
 		}
 	}

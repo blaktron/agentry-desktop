@@ -197,7 +197,7 @@ func (r *childRecording) log(format string, args ...any) {
 		return
 	}
 	r.logged[msg] = true
-	_ = r.out.event(wireEvent{Type: "log", Message: msg})
+	_ = r.out.event(wireEvent{Type: evLog, Message: msg})
 }
 
 func (r *childRecording) closeMic() {
@@ -330,7 +330,7 @@ func (r *childRecording) followFar(ep, def string, first bool) error {
 	if side != r.farSide {
 		r.farSide = side
 		if !first {
-			_ = r.out.event(wireEvent{Type: "far-side", FarSide: side})
+			_ = r.out.event(wireEvent{Type: evFarSide, FarSide: side})
 		}
 	}
 	return nil
@@ -349,7 +349,7 @@ func (r *childRecording) checkEnded(reading bool) {
 	}
 	if r.now().Sub(r.quietSince) >= callEndWait {
 		r.ended = true
-		_ = r.out.event(wireEvent{Type: "ended"})
+		_ = r.out.event(wireEvent{Type: evEnded})
 	}
 }
 
@@ -406,17 +406,17 @@ func captureMain(in io.Reader, out io.Writer, open func() (audioSystem, error), 
 	}
 	sys, err := open()
 	if err != nil {
-		_ = w.event(wireEvent{Type: "error", Message: "the audio system could not be reached: " + err.Error()})
+		_ = w.event(wireEvent{Type: evError, Message: "the audio system could not be reached: " + err.Error()})
 		return 1
 	}
 	defer sys.Close()
 	switch first.Cmd {
-	case "detect":
+	case cmdDetect:
 		return detectLoop(sys, w, cmds, self)
-	case "record":
+	case cmdRecord:
 		return recordLoop(sys, w, cmds, self, first)
 	}
-	_ = w.event(wireEvent{Type: "error", Message: fmt.Sprintf("an unknown command %q", first.Cmd)})
+	_ = w.event(wireEvent{Type: evError, Message: fmt.Sprintf("an unknown command %q", first.Cmd)})
 	return 2
 }
 
@@ -436,13 +436,13 @@ func detectLoop(sys audioSystem, w *frameWriter, cmds <-chan wireCommand, self s
 		}
 		sessions, err := sys.Sessions()
 		if err != nil {
-			_ = w.event(wireEvent{Type: "error", Message: "the audio sessions could not be read: " + err.Error()})
+			_ = w.event(wireEvent{Type: evError, Message: "the audio sessions could not be read: " + err.Error()})
 			return 1
 		}
 		sessions = withoutExe(sessions, self)
 		b, _ := json.Marshal(sessions)
 		if string(b) != string(last) {
-			if w.event(wireEvent{Type: "sessions", Sessions: sessions}) != nil {
+			if w.event(wireEvent{Type: evSessions, Sessions: sessions}) != nil {
 				return 1
 			}
 			last = b
@@ -475,10 +475,10 @@ func recordLoop(sys audioSystem, w *frameWriter, cmds <-chan wireCommand, self s
 	if err := r.scan(true); err != nil {
 		r.closeMic()
 		r.closeFar()
-		_ = w.event(wireEvent{Type: "error", Message: err.Error()})
+		_ = w.event(wireEvent{Type: evError, Message: err.Error()})
 		return 1
 	}
-	if err := w.event(wireEvent{Type: "started", Call: call, FarSide: r.farSide}); err != nil {
+	if err := w.event(wireEvent{Type: evStarted, Call: call, FarSide: r.farSide}); err != nil {
 		return 1
 	}
 	defer func() { r.closeMic(); r.closeFar() }()
@@ -491,7 +491,7 @@ func recordLoop(sys audioSystem, w *frameWriter, cmds <-chan wireCommand, self s
 			if !ok {
 				return 0
 			}
-			if c.Cmd == "pause" {
+			if c.Cmd == cmdPause {
 				r.setPaused(c.Paused)
 			}
 		case <-tick.C:

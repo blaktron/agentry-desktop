@@ -427,6 +427,21 @@ func TestTheAppGoingEndsTheRecording(t *testing.T) {
 	}
 }
 
+// A manager shut down for an update that did not start records again once
+// started again.
+func TestAManagerShutDownStartsAgain(t *testing.T) {
+	h := newHarness(t)
+	h.rec.tracks = []fakeTrackSpec{{Me, "mic", speech(SampleRate)}}
+	h.m.Shutdown()
+	h.m.Start(context.Background())
+	mt, err := h.m.Record(context.Background())
+	if err != nil {
+		t.Fatalf("recording after starting again: %v", err)
+	}
+	_ = h.m.Stop()
+	waitFor(t, "the transcript", func() bool { return h.meeting(t, mt.ID).State == StateDone })
+}
+
 func TestShutdownKeepsTheRecordingForTheNextLaunch(t *testing.T) {
 	h := newHarness(t)
 	h.rec.tracks = []fakeTrackSpec{{Me, "mic", speech(SampleRate)}}

@@ -126,7 +126,7 @@ if [ -f "$sidecar/whisper-cli" ]; then
   rm -f "$desc.new"
   grep -q "^    dst: $lib/whisper/whisper-cli$" "$desc" && grep -q '^      - libstdc++6 (>= 12)$' "$desc" && grep -q '^      - libstdc++ >= 12$' "$desc" ||
     { echo "package-linux: could not add the transcriber to the description" >&2; exit 1; }
-  echo "package-linux: carrying the transcriber in $lib/whisper ($(find "$sidecar" -maxdepth 1 ! -name SHA256SUMS -type f -o -type l | grep -c .) files)"
+  echo "package-linux: carrying the transcriber in $lib/whisper ($(find "$sidecar" -maxdepth 1 ! -name SHA256SUMS \( -type f -o -type l \) | grep -c .) files)"
 fi
 
 for fmt in deb rpm; do

@@ -284,6 +284,11 @@ func (m *Manager) Shutdown() {
 		cancel()
 	}
 	m.wg.Wait()
+	// Stopped, and able to start again: an update that could not begin
+	// hands the feature back.
+	m.mu.Lock()
+	m.started, m.closing = false, false
+	m.mu.Unlock()
 }
 
 func (m *Manager) enqueue(id string) {

@@ -10,7 +10,7 @@ import (
 
 // replaceFile renames tmp over dst. Windows refuses to rename over a file
 // another handle has open (an antivirus scan, the search indexer), so there
-// a refusal is tried again for up to a second before it is an error.
+// a refusal is tried again for about half a second before it is an error.
 func replaceFile(tmp, dst string) error {
 	err := os.Rename(tmp, dst)
 	if runtime.GOOS != "windows" {

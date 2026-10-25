@@ -207,6 +207,25 @@ func TestACrashedChildIsStartedAgain(t *testing.T) {
 	}
 }
 
+// A child started again that can find the app's output no more records the
+// default output, and the recording says the far side is the whole device.
+func TestARestartThatWidensIsSaid(t *testing.T) {
+	f := newFakeAudio()
+	f.set(zoomSession("headset", flowRender, true), zoomSession("headset-mic", flowCapture, true))
+	child := &inProcessChild{f: f}
+	c, err := childRecorder{spawn: child.spawn}.Record(context.Background(), Call{Binary: "zoom.exe", PID: "4100"}, &memTracks{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Stop() }()
+	if c.FarSide() != FarSideAppDevice {
+		t.Fatalf("far side %q", c.FarSide())
+	}
+	f.set(zoomSession("headset-mic", flowCapture, true))
+	child.crashLast()
+	eventually(t, "the far side said to be the whole device", func() bool { return c.FarSide() == FarSideWholeDevice })
+}
+
 // The child's start failing is the recording's error, with its reason.
 func TestAChildThatCannotRecordFailsTheRecording(t *testing.T) {
 	f := newFakeAudio()

@@ -443,8 +443,11 @@ func TestInstallDownloadsAndAppliesAVerifiedRelease(t *testing.T) {
 	fake := &fakeApplier{}
 	u.applier = fake
 	// What must not outlive the process ends before the installer runs.
-	var endedFirst bool
-	u.beforeApply = func() { endedFirst = fake.applied == "" }
+	var endedFirst, resumed bool
+	u.beforeApply = func() func() {
+		endedFirst = fake.applied == ""
+		return func() { resumed = true }
+	}
 
 	if _, err := u.SelfUpdateCheckNow(); err != nil {
 		t.Fatal(err)
@@ -458,12 +461,34 @@ func TestInstallDownloadsAndAppliesAVerifiedRelease(t *testing.T) {
 	if !endedFirst {
 		t.Error("the work that must not outlive the process was not ended before the installer ran")
 	}
+	if resumed {
+		t.Error("what was ended for the installer was started again although the installer ran")
+	}
 	if string(fake.bytes) != string(want) {
 		t.Error("what was applied is not what the release signed")
 	}
 	// The download is not left lying in the temp directory afterwards.
 	if _, err := os.Stat(fake.applied); !os.IsNotExist(err) {
 		t.Errorf("the downloaded artifact is still at %s", fake.applied)
+	}
+}
+
+// An installer that does not start hands back what was ended for it.
+func TestAFailedInstallStartsAgainWhatItEnded(t *testing.T) {
+	configHome(t)
+	srv, keys, _ := installable(t, "9.9.9", false)
+	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
+	u.applier = &fakeApplier{applyErr: errors.New("the installer did not start")}
+	var resumed bool
+	u.beforeApply = func() func() { return func() { resumed = true } }
+	if _, err := u.SelfUpdateCheckNow(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := u.InstallSelfUpdate(); err == nil {
+		t.Fatal("a failed install reported success")
+	}
+	if !resumed {
+		t.Fatal("what was ended for the installer was not started again")
 	}
 }
 
