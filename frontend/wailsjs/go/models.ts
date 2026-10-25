@@ -2417,6 +2417,22 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class MeetingAppView {
+	    key: string;
+	    name: string;
+	    automatic: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingAppView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.automatic = source["automatic"];
+	    }
+	}
 	export class MeetingChoice {
 	    id: string;
 	    name: string;
@@ -2431,6 +2447,22 @@ export namespace app {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.sizeBytes = source["sizeBytes"];
+	    }
+	}
+	export class MeetingOfferView {
+	    id: string;
+	    app: string;
+	    expires: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingOfferView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.app = source["app"];
+	        this.expires = source["expires"];
 	    }
 	}
 	export class MeetingView {
@@ -2475,6 +2507,7 @@ export namespace app {
 	    app: string;
 	    wholeDevice: boolean;
 	    paused: boolean;
+	    automatic: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingRecordingView(source);
@@ -2487,6 +2520,7 @@ export namespace app {
 	        this.app = source["app"];
 	        this.wholeDevice = source["wholeDevice"];
 	        this.paused = source["paused"];
+	        this.automatic = source["automatic"];
 	    }
 	}
 	export class MeetingNotesView {
@@ -2511,6 +2545,12 @@ export namespace app {
 	    outputDirChosen: boolean;
 	    keepAudio: boolean;
 	    meetings: MeetingView[];
+	    detects: boolean;
+	    offer?: MeetingOfferView;
+	    apps: MeetingAppView[];
+	    maxHours: number;
+	    maxHoursChoices: number[];
+	    startsAtSignIn: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingNotesView(source);
@@ -2539,6 +2579,12 @@ export namespace app {
 	        this.outputDirChosen = source["outputDirChosen"];
 	        this.keepAudio = source["keepAudio"];
 	        this.meetings = this.convertValues(source["meetings"], MeetingView);
+	        this.detects = source["detects"];
+	        this.offer = this.convertValues(source["offer"], MeetingOfferView);
+	        this.apps = this.convertValues(source["apps"], MeetingAppView);
+	        this.maxHours = source["maxHours"];
+	        this.maxHoursChoices = source["maxHoursChoices"];
+	        this.startsAtSignIn = source["startsAtSignIn"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2559,6 +2605,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class MetaView {

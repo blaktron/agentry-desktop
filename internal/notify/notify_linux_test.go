@@ -16,24 +16,38 @@ import (
 // fakeServer is a notification server on a private bus: it records each
 // Notify and answers with ids from 1.
 type fakeServer struct {
-	mu    sync.Mutex
-	caps  []string
-	calls []fakeCall
+	mu     sync.Mutex
+	caps   []string
+	calls  []fakeCall
+	closed []uint32
 }
 
 type fakeCall struct {
 	app, icon, summary, body string
 	actions                  []string
 	hints                    map[string]dbus.Variant
+	replaces                 uint32
+	timeout                  int32
 }
 
 func (f *fakeServer) GetCapabilities() ([]string, *dbus.Error) { return f.caps, nil }
 
-func (f *fakeServer) Notify(app string, _ uint32, icon, summary, body string, actions []string, hints map[string]dbus.Variant, _ int32) (uint32, *dbus.Error) {
+// Notify answers with a new id, or the replaced one's.
+func (f *fakeServer) Notify(app string, replaces uint32, icon, summary, body string, actions []string, hints map[string]dbus.Variant, timeout int32) (uint32, *dbus.Error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, fakeCall{app, icon, summary, body, actions, hints})
+	f.calls = append(f.calls, fakeCall{app, icon, summary, body, actions, hints, replaces, timeout})
+	if replaces != 0 {
+		return replaces, nil
+	}
 	return uint32(len(f.calls)), nil
+}
+
+func (f *fakeServer) CloseNotification(id uint32) *dbus.Error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = append(f.closed, id)
+	return nil
 }
 
 func (f *fakeServer) last(t *testing.T) fakeCall {
@@ -97,7 +111,7 @@ func privateBus(t *testing.T, f *fakeServer) (*dbus.Conn, string) {
 		if session.conn != nil {
 			_ = session.conn.Close()
 		}
-		session.conn, session.keys, session.order = nil, nil, nil
+		session.conn, session.keys, session.order, session.tags = nil, nil, nil, nil
 		session.Unlock()
 	})
 	return server, addr
@@ -197,7 +211,7 @@ func TestNoServerIsAnError(t *testing.T) {
 
 func TestOnlyTheNewestKeysAreKept(t *testing.T) {
 	session.Lock()
-	session.keys, session.order = map[uint32]string{}, nil
+	session.keys, session.order = map[uint32]shown{}, nil
 	session.Unlock()
 	t.Cleanup(func() {
 		session.Lock()
@@ -205,9 +219,93 @@ func TestOnlyTheNewestKeysAreKept(t *testing.T) {
 		session.Unlock()
 	})
 	for i := uint32(1); i <= maxKeys+5; i++ {
-		remember(i, "k")
+		remember(i, shown{key: "k"})
 	}
 	if forget(1) != "" || forget(maxKeys+5) != "k" {
 		t.Error("the oldest keys are dropped and the newest kept")
+	}
+}
+
+func TestButtonsReplacingAndWithdrawing(t *testing.T) {
+	f := &fakeServer{caps: []string{"actions", "body"}}
+	server, _ := privateBus(t, f)
+	presses := make(chan string, 4)
+	SetOnAction(func(key, action string) { presses <- key + " " + action })
+	t.Cleanup(func() { SetOnAction(nil) })
+
+	n := Notice{
+		Title: "Record this meeting? (Zoom)", Body: "b", Key: "meeting-notes", Tag: "offer", Resident: true,
+		Actions: []Action{{ID: "record:1", Label: "Record"}, {ID: "not-now:1", Label: "Not now"}, {ID: actionKey, Label: "a button that is the click"}},
+	}
+	if err := Show(n); err != nil {
+		t.Fatal(err)
+	}
+	c := f.last(t)
+	if strings.Join(c.actions, "|") != actionKey+"|Open|record:1|Record|not-now:1|Not now" {
+		t.Errorf("actions %q", c.actions)
+	}
+	if r, _ := c.hints["resident"].Value().(bool); !r || c.timeout != 0 || c.replaces != 0 {
+		t.Errorf("a resident notification: resident %v, timeout %d, replaces %d", r, c.timeout, c.replaces)
+	}
+	n.Title = "Record this meeting? (Zoom) again"
+	if err := Show(n); err != nil {
+		t.Fatal(err)
+	}
+	if c := f.last(t); c.replaces != 1 {
+		t.Errorf("the same tag replaced id %d, want 1", c.replaces)
+	}
+
+	// A button it did not offer does nothing; one it offered comes back with
+	// the key, and a resident notification's buttons keep working.
+	for _, a := range []string{"stop", "record:1", "not-now:1"} {
+		if err := server.Emit(busPath, busIface+".ActionInvoked", uint32(1), a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Each press runs on a goroutine of its own, so they may arrive in
+	// either order.
+	got := map[string]bool{}
+	for range 2 {
+		select {
+		case p := <-presses:
+			got[p] = true
+		case <-time.After(5 * time.Second):
+			t.Fatalf("the presses came back as %v", got)
+		}
+	}
+	if !got["meeting-notes record:1"] || !got["meeting-notes not-now:1"] {
+		t.Errorf("presses %v, want record:1 and not-now:1", got)
+	}
+	select {
+	case p := <-presses:
+		t.Errorf("a button it did not offer came back: %q", p)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	if err := Withdraw("offer"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	closed := append([]uint32(nil), f.closed...)
+	f.mu.Unlock()
+	if len(closed) != 1 || closed[0] != 1 {
+		t.Errorf("closed %v, want [1]", closed)
+	}
+	if err := server.Emit(busPath, busIface+".ActionInvoked", uint32(1), "record:1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-presses:
+		t.Errorf("a withdrawn notification's button came back: %q", got)
+	case <-time.After(500 * time.Millisecond):
+	}
+	if err := Withdraw("nothing shown with this tag"); err != nil {
+		t.Errorf("withdrawing what is not shown: %v", err)
+	}
+	if err := Show(Notice{Title: "t", Tag: "offer"}); err != nil {
+		t.Fatal(err)
+	}
+	if c := f.last(t); c.replaces != 0 || c.timeout != -1 {
+		t.Errorf("after the withdrawal: replaces %d, timeout %d, want a new notification with the server's timeout", c.replaces, c.timeout)
 	}
 }

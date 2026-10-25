@@ -1,9 +1,11 @@
 package app
 
 // The background app. While the Assistant or the Coding agent is enabled,
-// closing the window hides it instead of quitting: the agents go on, Main
-// (which lives in the window) stops, and a tray icon (the menu bar's on
-// macOS) opens the window again, opens a running agent's page, or quits.
+// or Meeting notes is on, closing the window hides it instead of quitting:
+// the agents go on and calls are still noticed, Main (which lives in the
+// window) stops, and a tray icon (the menu bar's on macOS) opens the window
+// again, shows and acts on a meeting being recorded, opens a running
+// agent's page, or quits.
 // Quit means stop: every agent's segment ends with its receipts and its
 // volumes kept, and the next launch starts each agent set to run when
 // Agentry starts and continues its conversation.
@@ -30,6 +32,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/loginitem"
 	"github.com/blaktron/agentry-desktop/internal/macquit"
+	"github.com/blaktron/agentry-desktop/internal/meeting"
 	"github.com/blaktron/agentry-desktop/internal/notify"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/tray"
@@ -60,10 +63,30 @@ var (
 	}
 	windowHide = runtime.WindowHide
 	appQuit    = runtime.Quit
-	// trayStart and traySet are the tray's, a test's seams.
-	trayStart = tray.Start
-	traySet   = tray.SetRunning
+	// trayStart, traySet and trayMeeting are the tray's, a test's seams.
+	trayStart   = tray.Start
+	traySet     = tray.SetRunning
+	trayMeeting = tray.SetMeeting
 )
+
+// keepsRunning says whether the app runs on in the background with its
+// window closed: an agent that runs there is enabled, or Meeting notes is
+// on.
+func (s *Services) keepsRunning() bool {
+	return s.persistent.keepsRunning() || s.meeting.keepsRunning()
+}
+
+// meetingTray is a recording as the tray shows it.
+func meetingTray(st *meeting.RecordingStatus) tray.Meeting {
+	if st == nil {
+		return tray.Meeting{}
+	}
+	what := st.App
+	if st.FarSide == meeting.FarSideWholeDevice || what == "" {
+		what = "everything this computer plays"
+	}
+	return tray.Meeting{Recording: true, Paused: st.Paused, What: what}
+}
 
 // SetHidden says the app was launched to start hidden, at sign-in.
 func (s *Services) SetHidden(hidden bool) { s.bg.hidden = hidden }
@@ -86,6 +109,14 @@ func (s *Services) startBackground(ctx context.Context) {
 		s.quit(ctx)
 	}()
 	s.persistent.onState = func() { s.followAgents(ctx) }
+	s.meeting.setHooks(func() { s.followAgents(ctx) }, func(*meeting.RecordingStatus) { s.followAgents(ctx) })
+	// A press on one of Meeting notes' buttons (Record, Not now, Pause,
+	// Resume, Stop) is the person's own, from the notification server.
+	notify.SetOnAction(func(key, action string) {
+		if key == meetingNoticeKey {
+			s.meeting.handleAction(action)
+		}
+	})
 	// A click on a task's notification opens its agent's page, and one on
 	// Meeting notes' opens that page.
 	notify.SetOnClick(func(name string) {
@@ -106,7 +137,7 @@ func (s *Services) startBackground(ctx context.Context) {
 	s.followAgents(ctx)
 	// Launched hidden at sign-in with nothing to run in the background, the
 	// app would be invisible with no icon: it shows its window.
-	if s.bg.hidden && !s.persistent.keepsRunning() {
+	if s.bg.hidden && !s.keepsRunning() {
 		windowShow(ctx)
 	}
 	s.bg.launching.Add(1)
@@ -117,9 +148,10 @@ func (s *Services) startBackground(ctx context.Context) {
 }
 
 // followAgents starts the tray once an agent that runs in the background is
-// enabled, and keeps its menu to the agents running.
+// enabled or Meeting notes is on, and keeps its menu to the agents running
+// and the meeting being recorded.
 func (s *Services) followAgents(ctx context.Context) {
-	if s.persistent.keepsRunning() {
+	if s.keepsRunning() {
 		trayStart(tray.Menu{
 			Tooltip: "Agentry",
 			OnOpen:  func() { windowShow(ctx) },
@@ -127,11 +159,15 @@ func (s *Services) followAgents(ctx context.Context) {
 				windowShow(ctx)
 				emitEvent(s.app, eventTrayOpenAgent, name)
 			},
-			OnQuit: func() { s.quit(ctx) },
-			Agents: backgroundAgents,
+			OnQuit:          func() { s.quit(ctx) },
+			Agents:          backgroundAgents,
+			OnMeetingPause:  func() { s.meeting.handleAction(meeting.ActionPause) },
+			OnMeetingResume: func() { s.meeting.handleAction(meeting.ActionResume) },
+			OnMeetingStop:   func() { s.meeting.handleAction(meeting.ActionStop) },
 		})
 	}
 	traySet(s.persistent.runningLabels())
+	trayMeeting(meetingTray(s.meeting.recording()))
 }
 
 // quit is the person's quit: the intent, then the window's quit, which runs
@@ -145,7 +181,7 @@ func (s *Services) quit(ctx context.Context) {
 // that runs in the background is enabled and the person did not ask to quit,
 // and stops Main, which lives in the window. It reports whether it did.
 func (s *Services) closeToBackground(ctx context.Context) bool {
-	if s.bg.quitting.Load() || !s.persistent.keepsRunning() {
+	if s.bg.quitting.Load() || !s.keepsRunning() {
 		return false
 	}
 	// Hidden, the window shows no agent, whatever the page last said: a
@@ -182,8 +218,15 @@ func (s *Services) noteBackgroundOnce(ctx context.Context) {
 	case "windows":
 		where, extra = "the notification area", "\n\nWindows puts a new icon among the hidden icons (the ^ beside the clock). Drag it onto the taskbar to keep it in view."
 	}
+	what := "Your persistent agents keep running with the window closed."
+	switch agents, meetings := s.persistent.keepsRunning(), s.meeting.keepsRunning(); {
+	case agents && meetings:
+		what = "Your persistent agents keep running with the window closed, and Meeting notes still notices your calls."
+	case meetings:
+		what = "Meeting notes still notices your calls with the window closed."
+	}
 	go notice(ctx, "Agentry is still running",
-		"Your persistent agents keep running with the window closed. The Agentry icon in "+where+" opens the window again, or quits Agentry and stops them."+extra)
+		what+" The Agentry icon in "+where+" opens the window again, or quits Agentry."+extra)
 }
 
 // notice is the OS information dialog, a test's seam.
@@ -193,7 +236,13 @@ var notice = func(ctx context.Context, title, message string) {
 
 // StartsAtSignIn reports whether Agentry starts, hidden, when the person
 // signs in: the login item is there and launches this copy of the app.
-func (p *PersistentAPI) StartsAtSignIn() (bool, error) {
+func (p *PersistentAPI) StartsAtSignIn() (bool, error) { return startsAtSignIn() }
+
+// SetStartsAtSignIn writes or removes the login item that starts this copy
+// of the app hidden at sign-in, and answers how it now stands.
+func (p *PersistentAPI) SetStartsAtSignIn(on bool) (bool, error) { return setStartsAtSignIn(on) }
+
+func startsAtSignIn() (bool, error) {
 	exe, err := executable()
 	if err != nil {
 		return false, err
@@ -201,9 +250,7 @@ func (p *PersistentAPI) StartsAtSignIn() (bool, error) {
 	return loginitem.Enabled(exe)
 }
 
-// SetStartsAtSignIn writes or removes the login item that starts this copy
-// of the app hidden at sign-in, and answers how it now stands.
-func (p *PersistentAPI) SetStartsAtSignIn(on bool) (bool, error) {
+func setStartsAtSignIn(on bool) (bool, error) {
 	exe, err := executable()
 	if err != nil {
 		return false, err

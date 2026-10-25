@@ -47,6 +47,12 @@ func stop() {
 // setIcon is a template image, which the menu bar tints for light and dark.
 func setIcon() { systray.SetTemplateIcon(iconTemplate, iconPNG) }
 
+var recordingPNG = withDot(iconPNG)
+
+// setRecordingIcon is the colour icon with its red dot: a template image
+// would lose the red.
+func setRecordingIcon() { systray.SetIcon(recordingPNG) }
+
 // afterBuild points the status button's action at the library's delegate:
 // under an external loop it has no target, so a keyboard or VoiceOver press
 // would do nothing.
