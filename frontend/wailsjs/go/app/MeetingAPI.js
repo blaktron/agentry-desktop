@@ -14,6 +14,10 @@ export function Forget(arg1) {
   return window['go']['app']['MeetingAPI']['Forget'](arg1);
 }
 
+export function NotNow(arg1) {
+  return window['go']['app']['MeetingAPI']['NotNow'](arg1);
+}
+
 export function OpenOutputFolder() {
   return window['go']['app']['MeetingAPI']['OpenOutputFolder']();
 }
@@ -34,6 +38,10 @@ export function Record() {
   return window['go']['app']['MeetingAPI']['Record']();
 }
 
+export function RecordOffer(arg1) {
+  return window['go']['app']['MeetingAPI']['RecordOffer'](arg1);
+}
+
 export function ResetOutputDir() {
   return window['go']['app']['MeetingAPI']['ResetOutputDir']();
 }
@@ -42,8 +50,16 @@ export function Resume() {
   return window['go']['app']['MeetingAPI']['Resume']();
 }
 
+export function SetAutomatic(arg1, arg2) {
+  return window['go']['app']['MeetingAPI']['SetAutomatic'](arg1, arg2);
+}
+
 export function SetKeepAudio(arg1) {
   return window['go']['app']['MeetingAPI']['SetKeepAudio'](arg1);
+}
+
+export function SetMaxHours(arg1) {
+  return window['go']['app']['MeetingAPI']['SetMaxHours'](arg1);
 }
 
 export function SetModel(arg1) {
@@ -52,6 +68,10 @@ export function SetModel(arg1) {
 
 export function SetProfile(arg1) {
   return window['go']['app']['MeetingAPI']['SetProfile'](arg1);
+}
+
+export function SetStartsAtSignIn(arg1) {
+  return window['go']['app']['MeetingAPI']['SetStartsAtSignIn'](arg1);
 }
 
 export function ShowTranscript(arg1) {

@@ -58,3 +58,6 @@ func darwinErr(rc C.int) error {
 func goAgentryNotifyClicked(key *C.char) {
 	clicked(C.GoString(key))
 }
+
+// withdraw leaves the notification: macOS takes it away itself once seen.
+func withdraw(string) error { return nil }

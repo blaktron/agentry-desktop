@@ -1,15 +1,17 @@
-// Meeting notes: record a meeting by hand, transcribe it on this computer,
-// and keep the transcript in a folder. Turning it on, and every Record, is
-// confirmed in Go's native dialog: this page asking is not the person
-// deciding. While it is off nothing records. The page names a meeting by
-// its id and never a path, and the output folder comes from the native
-// picker alone.
-import { useCallback, useEffect, useState } from "react";
+// Meeting notes: record a meeting, by hand or on the offer of a call the
+// app noticed (at once for an app the person put on the automatic list),
+// transcribe it on this computer, and keep the transcript in a folder.
+// Turning it on, every Record from this page and every app put on the
+// automatic list are confirmed in Go's native dialog: this page asking is
+// not the person deciding. While it is off nothing records. The page names
+// a meeting by its id and never a path, and the output folder comes from
+// the native picker alone.
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
 import type { app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
-import { CHAT_LINE, canTranscribe, downloadWords, duration, elapsed, isNo, meetingState, recordingWhat } from "../meetingNotes";
+import { AUTO_CHOICES, CHAT_LINE, canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingState, offerTitle, recordingWhat } from "../meetingNotes";
 
 type View = app.MeetingNotesView;
 
@@ -19,6 +21,18 @@ export default function MeetingNotes() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
+  // justOn: turned on in this visit, when starting at sign-in is offered.
+  const [justOn, setJustOn] = useState(false);
+  // A notification's click opens this page at its top, where an offer or
+  // the recording is, however far down it was left.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    try {
+      return EventsOn("meeting:open", () => root.current?.closest(".content")?.scrollTo({ top: 0 }));
+    } catch {
+      return undefined;
+    }
+  }, []);
 
   const read = useCallback(() => {
     MeetingAPI.Status().then(setView).catch((e) => setError(String(e)));
@@ -89,21 +103,65 @@ export default function MeetingNotes() {
             {view.warnings.map((w) => <li key={w}>{w}</li>)}
           </ul>
           <div className="row">
-            <Button variant="primary" data-meeting-turn-on disabled={busy} onClick={() => act(MeetingAPI.TurnOn)}>Turn on Meeting notes…</Button>
+            <Button
+              variant="primary"
+              data-meeting-turn-on
+              disabled={busy}
+              onClick={() =>
+                act(async () => {
+                  const v = await MeetingAPI.TurnOn();
+                  setJustOn(true);
+                  return v;
+                })
+              }
+            >
+              Turn on Meeting notes…
+            </Button>
           </div>
         </Card>
       </div>
     );
   }
 
+  const offer = view.offer;
   const prepareLine = view.preparing
     ? `${view.prepareStep || "Getting ready"}${view.prepareTotal ? `: ${downloadWords(view.prepareDone ?? 0, view.prepareTotal)}` : ""}`
     : null;
 
   return (
-    <div className="meeting-notes">
+    <div className="meeting-notes" ref={root}>
       {header}
       <ErrorBox error={error} />
+
+      {justOn && view.detects && !view.startsAtSignIn && (
+        <Card className="meeting-signin" data-meeting-signin-offer>
+          <p>
+            Agentry notices calls only while it runs. Closing its window keeps it running in the background; to notice calls
+            after you sign in to this computer, start Agentry when you sign in.
+          </p>
+          <div className="row">
+            <Button variant="primary" disabled={busy} onClick={() => act(async () => { const v = await MeetingAPI.SetStartsAtSignIn(true); setJustOn(false); return v; })}>
+              Start Agentry when I sign in
+            </Button>
+            <Button variant="ghost" onClick={() => setJustOn(false)}>Not now</Button>
+          </div>
+        </Card>
+      )}
+
+      {offer && !recording && (
+        <Card className="meeting-offer" data-meeting-offer>
+          <h3>{offerTitle(offer.app)}</h3>
+          <p>
+            Agentry noticed a call in {offer.app || "a meeting app"}. Record it to transcribe it on this computer. Recording others may
+            need their consent; tell them you are recording.
+          </p>
+          <div className="row">
+            <Button variant="primary" data-meeting-offer-record disabled={busy} onClick={() => act(() => MeetingAPI.RecordOffer(offer.id))}>Record…</Button>
+            <Button variant="ghost" data-meeting-offer-not-now disabled={busy} onClick={() => act(() => MeetingAPI.NotNow(offer.id))}>Not now</Button>
+          </div>
+          <p className="small muted">The offer lapses at {new Date(offer.expires).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} and nothing is recorded.</p>
+        </Card>
+      )}
 
       <Card className="meeting-recorder">
         {recording ? (
@@ -113,6 +171,11 @@ export default function MeetingNotes() {
               <strong className="meeting-clock">{elapsed(recording.started, now)}</strong>
               <span>Recording {recordingWhat(recording.app, recording.wholeDevice)}.</span>
             </div>
+            {recording.automatic && (
+              <p className="small muted" data-meeting-automatic>
+                It started by itself: {recording.app || "this app"} is on your list of apps recorded automatically.
+              </p>
+            )}
             {recording.wholeDevice && (
               <p className="small muted">
                 No meeting app was found to record on its own, so every sound your computer plays is in this recording, and the
@@ -129,8 +192,11 @@ export default function MeetingNotes() {
         ) : (
           <>
             <p>
-              Press Record when your meeting has started. Agentry records the meeting app's sound and your microphone as two
-              tracks, and stops when you press Stop or the meeting app stops.
+              {view.detects
+                ? "When a meeting app starts a call, Agentry offers to record it. You can also press Record once your meeting has started. "
+                : "Press Record when your meeting has started. "}
+              Agentry records the meeting app's sound and your microphone as two tracks, and stops when you press Stop or the meeting
+              app lets go of the microphone.
             </p>
             <div className="row">
               <Button variant="primary" data-meeting-record disabled={busy} onClick={() => act(MeetingAPI.Record)}>Record…</Button>
@@ -225,6 +291,47 @@ export default function MeetingNotes() {
             <Button variant="ghost" onClick={() => act(MeetingAPI.OpenOutputFolder)}>Open folder</Button>
           </div>
         </Field>
+        {view.detects && (
+          <Field label="Meeting apps" hint="An app's calls are offered for recording unless you choose to record them automatically. A browser's calls come from any site.">
+            {view.apps.length === 0 ? (
+              <p className="small muted" data-meeting-apps-empty>Apps appear here once Agentry has noticed a call in them.</p>
+            ) : (
+              <div className="meeting-apps" data-meeting-apps>
+                {view.apps.map((a) => (
+                  <div className="row meeting-app" key={a.key}>
+                    <span>{a.name}</span>
+                    <Select
+                      aria-label={`${a.name}'s calls`}
+                      value={a.automatic ? "auto" : "ask"}
+                      disabled={busy}
+                      onChange={(e) => act(() => MeetingAPI.SetAutomatic(a.key, e.target.value === "auto"))}
+                    >
+                      {AUTO_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
+        )}
+        <Field label="Stop a recording after" htmlFor="meeting-max-hours" hint="A recording that runs this long is stopped and transcribed.">
+          <Select id="meeting-max-hours" value={String(view.maxHours)} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetMaxHours(Number(e.target.value)))}>
+            {view.maxHoursChoices.map((h) => <option key={h} value={String(h)}>{hoursLabel(h)}</option>)}
+          </Select>
+        </Field>
+        {view.detects && (
+          <label className="check-row">
+            <input
+              type="checkbox"
+              role="switch"
+              data-meeting-signin
+              checked={view.startsAtSignIn}
+              disabled={busy}
+              onChange={(e) => act(() => MeetingAPI.SetStartsAtSignIn(e.target.checked))}
+            />
+            Start Agentry when I sign in, so calls are noticed from then on
+          </label>
+        )}
         <label className="check-row">
           <input type="checkbox" role="switch" data-meeting-keep checked={view.keepAudio} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetKeepAudio(e.target.checked))} />
           Keep recordings for 7 days

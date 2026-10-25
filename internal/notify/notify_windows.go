@@ -80,3 +80,6 @@ func show(n Notice) error {
 	}
 	return nil
 }
+
+// withdraw leaves the toast: it times out into the Action Center on its own.
+func withdraw(string) error { return nil }

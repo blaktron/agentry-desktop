@@ -4,7 +4,7 @@ import { AgentMarkdown } from "../../AgentMarkdown";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_STATES, MAIN_AGENT, mainStatusLine, startFailureLines, taskSummary, termLines } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, startFailureLines, taskSummary, termLines } from "../../persistentAgents";
 import { Button } from "../../ui";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
@@ -52,13 +52,13 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
   // A new agent on the card starts with nothing said about the last one.
   useEffect(() => { setError(null); }, [name]);
 
-  const running = agent?.state === AGENT_STATES.running;
+  const running = !!agent && isLive(agent);
   const answering = starting || rec.sending || rec.chat.busy;
   const elsewhere = agent?.state === AGENT_STATES.elsewhere;
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || answering || !agent || elsewhere) return;
+    if (!text || answering || !agent) return;
     setError(null);
     if (!running) {
       // The first message starts the agent; Go asks natively first where its
@@ -135,7 +135,7 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
             Set up a model to talk to {called}. <Button variant="link" onClick={onSetUpModel}>Settings → Provider</Button>
           </p>
         )}
-        {elsewhere && <p className="small muted">{called} is running in {agent?.holder || "another client"}.</p>}
+        {elsewhere && <p className="small muted">{called} is running in {agent?.holder || "another client"}; you can talk to it here.</p>}
         {(error || rec.error) && <p className="small agent-term-warn" role="alert">{error || rec.error}</p>}
         <form
           className="agent-term-prompt main-card-prompt"

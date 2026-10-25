@@ -1,8 +1,8 @@
 // Meeting notes' words: durations, the recording's clock, each meeting's
-// state, and the No of a native dialog.
+// state, the No of a native dialog, the offer and the longest recording.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canTranscribe, downloadWords, duration, elapsed, isNo, meetingState, recordingWhat } from "../src/meetingNotes.ts";
+import { canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingState, offerTitle, recordingWhat } from "../src/meetingNotes.ts";
 
 test("durations read in seconds, minutes, then hours", () => {
   assert.equal(duration(45), "45 s");
@@ -38,4 +38,11 @@ test("a download counts in megabytes, and a dialog's No is not an error", () => 
   assert.equal(downloadWords(0, 0), "");
   assert.equal(isNo("Error: not confirmed: Record this meeting?"), true);
   assert.equal(isNo("Error: the audio system could not be reached"), false);
+});
+
+test("an offer names its app, and the longest recording reads in hours", () => {
+  assert.equal(offerTitle("Zoom Meeting"), "Record this meeting? (Zoom Meeting)");
+  assert.equal(offerTitle(""), "Record this meeting? (a meeting app)");
+  assert.equal(hoursLabel(1), "1 hour");
+  assert.equal(hoursLabel(4), "4 hours");
 });

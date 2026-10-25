@@ -37,6 +37,7 @@ import {
   shareSwitchNote,
   shareCheckWords,
   chosenReset,
+  isLive,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -260,4 +261,10 @@ test("a Reset button opens the agent's reset of its kind, else its full reset", 
   assert.equal(chosenReset(resets, "nonsense")?.kind, "all");
   assert.equal(chosenReset([{ kind: "all", title: "Reset", body: "x" }], "history")?.title, "Reset");
   assert.equal(chosenReset([], "all"), null);
+});
+
+test("an agent another client runs is live here: its chat sends and its Stop stops it", () => {
+  assert.equal(isLive({ state: "running" }), true);
+  assert.equal(isLive({ state: "elsewhere" }), true);
+  for (const state of ["stopped", "starting", "disabled"]) assert.equal(isLive({ state }), false, state);
 });

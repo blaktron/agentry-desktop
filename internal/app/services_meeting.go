@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -45,8 +46,10 @@ var meetingWarnings = []string{
 	"It downloads a speech model of about 200 MB the first time. No audio or transcript leaves this computer.",
 }
 
-// MeetingAPI is Meeting notes: record a meeting by hand, transcribe it on
-// this computer, and write the transcript to a folder.
+// MeetingAPI is Meeting notes: record a meeting by hand, or offer one the
+// audio stack shows under way and record it on Record (at once for an app
+// the person chose), transcribe it on this computer, and write the
+// transcript to a folder.
 type MeetingAPI struct {
 	app *App
 
@@ -56,9 +59,18 @@ type MeetingAPI struct {
 	unavailable string
 	// sidecar is where this copy carries the transcriber; a test sets it.
 	sidecar string
-	// newRecorder and notifyShow are the platform's, a test's seams.
-	newRecorder func() meeting.Recorder
-	notifyShow  func(notify.Notice) error
+	// newRecorder, newDetector, notifyShow and notifyWithdraw are the
+	// platform's, a test's seams.
+	newRecorder    func() meeting.Recorder
+	newDetector    func() meeting.Detector
+	notifyShow     func(notify.Notice) error
+	notifyWithdraw func(tag string) error
+	// onState is told when the switch changes, and onIndicate the
+	// recording as it starts, pauses, resumes and ends: the background app
+	// follows both (background.go).
+	hooks      sync.Mutex
+	onState    func()
+	onIndicate func(*meeting.RecordingStatus)
 	// root is the feature's data folder; "" is meeting-notes in the
 	// config folder.
 	root string
@@ -91,9 +103,17 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 		if m.newRecorder != nil {
 			rec = m.newRecorder
 		}
+		detector := meeting.NewDetector
+		if m.newDetector != nil {
+			detector = m.newDetector
+		}
 		show := notify.Show
 		if m.notifyShow != nil {
 			show = m.notifyShow
+		}
+		withdraw := notify.Withdraw
+		if m.notifyWithdraw != nil {
+			withdraw = m.notifyWithdraw
 		}
 		if runtime.GOOS != "linux" {
 			m.unavailable = "Meeting notes records on Linux only."
@@ -107,12 +127,35 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			Settings:    meetingSettings,
 			Tier:        meeting.TierCPU,
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
-			Notify: func(title, body string) {
-				if err := show(notify.Notice{Title: title, Body: body, Key: meetingNoticeKey}); err != nil {
+			Notify: func(n meeting.Notice) error {
+				out := notify.Notice{Title: n.Title, Body: n.Body, Key: meetingNoticeKey, Tag: n.Tag, Resident: n.Resident}
+				for _, a := range n.Actions {
+					out.Actions = append(out.Actions, notify.Action{ID: a.ID, Label: a.Label})
+				}
+				err := show(out)
+				if err != nil {
+					log.Printf("meeting notes: notification: %v", err)
+				}
+				return err
+			},
+			Withdraw: func(tag string) {
+				if err := withdraw(tag); err != nil {
 					log.Printf("meeting notes: notification: %v", err)
 				}
 			},
+			Indicate: func(st *meeting.RecordingStatus) {
+				m.hooks.Lock()
+				f := m.onIndicate
+				m.hooks.Unlock()
+				if f != nil {
+					f(st)
+				}
+			},
 			Changed: func() { emitEvent(m.app, eventMeetingChanged) },
+		}
+		// Calls are watched for only where this copy records.
+		if m.unavailable == "" {
+			m.mgr.Detector = detector()
 		}
 	})
 	return m.mgr
@@ -130,7 +173,76 @@ func meetingSettings() meeting.Settings {
 	if out == "" {
 		out, _ = defaultMeetingFolder()
 	}
-	return meeting.Settings{On: mn.On, Profile: mn.Profile, Model: mn.Model, OutputDir: out, KeepAudio: mn.KeepAudio}
+	return meeting.Settings{
+		On: mn.On, Profile: mn.Profile, Model: mn.Model, OutputDir: out, KeepAudio: mn.KeepAudio,
+		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour,
+	}
+}
+
+// meetingMaxHours are the longest recordings the page offers, in hours.
+var meetingMaxHours = []int{1, 2, 3, 4, 6, 8}
+
+// maxHours is the stored longest recording, four hours when it is unset or
+// not one the page offers.
+func maxHours(h int) int {
+	if slices.Contains(meetingMaxHours, h) {
+		return h
+	}
+	return int(meeting.DefaultMaxLength / time.Hour)
+}
+
+// keepsRunning says whether Meeting notes keeps the app running in the
+// background: it is on where this copy records, so calls are noticed with
+// the window closed.
+func (m *MeetingAPI) keepsRunning() bool {
+	return m != nil && m.manager() != nil && m.unavailable == "" && meetingSettings().On
+}
+
+// setHooks is the background app's: what the switch and the recording
+// tell it.
+func (m *MeetingAPI) setHooks(onState func(), onIndicate func(*meeting.RecordingStatus)) {
+	if m == nil {
+		return
+	}
+	m.hooks.Lock()
+	defer m.hooks.Unlock()
+	m.onState, m.onIndicate = onState, onIndicate
+}
+
+func (m *MeetingAPI) stateChanged() {
+	if mgr := m.manager(); mgr != nil {
+		mgr.Refresh()
+	}
+	m.hooks.Lock()
+	f := m.onState
+	m.hooks.Unlock()
+	if f != nil {
+		f()
+	}
+}
+
+// recording is the recording in progress, for the tray; nil for none.
+func (m *MeetingAPI) recording() *meeting.RecordingStatus {
+	if m == nil || m.manager() == nil {
+		return nil
+	}
+	return m.mgr.Status().Recording
+}
+
+// handleAction answers a press on one of Meeting notes' notification
+// buttons: the notification server's report of the person's press, which
+// counts as their own (Record, Not now, Pause, Resume, Stop).
+func (m *MeetingAPI) handleAction(action string) {
+	if m == nil {
+		return
+	}
+	mgr, err := m.available()
+	if err != nil {
+		return
+	}
+	if err := mgr.HandleAction(action); err != nil {
+		log.Printf("meeting notes: %s: %v", action, err)
+	}
 }
 
 func defaultMeetingFolder() (string, error) {
@@ -199,6 +311,24 @@ type MeetingRecordingView struct {
 	// far side is everything the computer plays.
 	WholeDevice bool `json:"wholeDevice"`
 	Paused      bool `json:"paused"`
+	// Automatic: it started without asking, the app being on the
+	// automatic list.
+	Automatic bool `json:"automatic"`
+}
+
+// MeetingOfferView is a detected call offered for recording.
+type MeetingOfferView struct {
+	ID      string `json:"id"`
+	App     string `json:"app"`
+	Expires string `json:"expires"`
+}
+
+// MeetingAppView is a meeting app whose call was detected here, and whether
+// its calls are recorded without asking.
+type MeetingAppView struct {
+	Key       string `json:"key"`
+	Name      string `json:"name"`
+	Automatic bool   `json:"automatic"`
 }
 
 // MeetingView is one meeting in the list.
@@ -251,6 +381,18 @@ type MeetingNotesView struct {
 	OutputDirChosen bool          `json:"outputDirChosen"`
 	KeepAudio       bool          `json:"keepAudio"`
 	Meetings        []MeetingView `json:"meetings"`
+	// Detects: calls are noticed and offered here.
+	Detects bool              `json:"detects"`
+	Offer   *MeetingOfferView `json:"offer,omitempty"`
+	// Apps are the meeting apps seen here, for the automatic list.
+	Apps []MeetingAppView `json:"apps"`
+	// MaxHours is the longest a recording runs, and MaxHoursChoices what
+	// may be chosen.
+	MaxHours        int   `json:"maxHours"`
+	MaxHoursChoices []int `json:"maxHoursChoices"`
+	// StartsAtSignIn: Agentry starts, hidden, when the person signs in, so
+	// calls are noticed from then on.
+	StartsAtSignIn bool `json:"startsAtSignIn"`
 }
 
 // Status reads the page.
@@ -263,7 +405,9 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	v := &MeetingNotesView{
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
+		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
 	}
+	v.StartsAtSignIn, _ = startsAtSignIn()
 	mgr := m.manager()
 	v.Available, v.Unavailable = mgr != nil && m.unavailable == "", m.unavailable
 	if mgr == nil {
@@ -285,7 +429,17 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	v.Model, v.ModelName, v.ModelReady = status.Model, status.ModelName, status.ModelReady
 	v.Preparing, v.PrepareStep, v.PrepareDone, v.PrepareTotal, v.PrepareError = status.Prepare.Busy, status.Prepare.Step, status.Prepare.Done, status.Prepare.Total, status.Prepare.Error
 	if r := status.Recording; r != nil {
-		v.Recording = &MeetingRecordingView{ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice, Paused: r.Paused}
+		v.Recording = &MeetingRecordingView{
+			ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice,
+			Paused: r.Paused, Automatic: r.How == meeting.Automatically,
+		}
+	}
+	v.Detects = v.Available && mgr.Detector != nil
+	if o := status.Offer; o != nil {
+		v.Offer = &MeetingOfferView{ID: o.ID, App: o.App, Expires: o.Expires.Format(time.RFC3339)}
+	}
+	for _, a := range mgr.Apps() {
+		v.Apps = append(v.Apps, MeetingAppView{Key: a.Key, Name: a.Name, Automatic: slices.Contains(mn.Automatic, a.Key)})
 	}
 	ms, err := mgr.Meetings()
 	if err != nil {
@@ -332,20 +486,23 @@ func (m *MeetingAPI) TurnOn() (*MeetingNotesView, error) {
 	}
 	mgr.Start(m.app.ctxOrBackground())
 	mgr.Prepare(m.app.ctxOrBackground())
+	m.stateChanged()
 	return m.Status()
 }
 
 // TurnOff turns Meeting notes off. A recording in progress is stopped
 // first and kept; it is transcribed when the feature is on again.
 func (m *MeetingAPI) TurnOff() (*MeetingNotesView, error) {
+	// The switch goes off first, so the Stop below starts nothing new.
+	if err := settings.SetMeetingNotesOn(false); err != nil {
+		return nil, err
+	}
 	if mgr := m.manager(); mgr != nil && mgr.Status().Recording != nil {
 		if err := mgr.Stop(); err != nil {
 			return nil, err
 		}
 	}
-	if err := settings.SetMeetingNotesOn(false); err != nil {
-		return nil, err
-	}
+	m.stateChanged()
 	return m.Status()
 }
 
@@ -376,6 +533,108 @@ func (m *MeetingAPI) Record() (*MeetingNotesView, error) {
 		return nil, err
 	}
 	if _, err := mgr.Record(m.app.ctxOrBackground()); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// RecordOffer records the detected call offered, after the native dialog
+// has asked: the page asking is not the person pressing Record. The offer's
+// own notification button needs no dialog, being the person's press.
+func (m *MeetingAPI) RecordOffer(id string) (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	if !meetingSettings().On {
+		return nil, meeting.ErrOff
+	}
+	o := mgr.Status().Offer
+	if o == nil || o.ID != id {
+		return nil, meeting.ErrNoOffer
+	}
+	if err := m.app.askConsent("Record this meeting?", "Agentry records your microphone and "+o.App+" until you press Stop or the call ends. "+meeting.ConsentSentence); err != nil {
+		return nil, err
+	}
+	if _, err := mgr.AcceptOffer(m.app.ctxOrBackground(), id); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// NotNow lets the offered call go unrecorded; it is not offered again.
+func (m *MeetingAPI) NotNow(id string) (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	if err := mgr.DeclineOffer(id); err != nil && !errors.Is(err, meeting.ErrNoOffer) {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// SetAutomatic records a meeting app's calls without asking, or asks again.
+// Adding one is confirmed in the native dialog, since from then on its
+// calls record unprompted; the app must be one whose call was detected
+// here.
+func (m *MeetingAPI) SetAutomatic(key string, on bool) (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	var app *meeting.KnownApp
+	for _, a := range mgr.Apps() {
+		if a.Key == key {
+			app = &a
+			break
+		}
+	}
+	if app == nil {
+		return nil, fmt.Errorf("no meeting app %q has been seen here", key)
+	}
+	if on {
+		msg := "Every call in " + app.Name + " will be recorded as soon as it starts, without asking. The tray and a notification show each recording, with Pause and Stop. " + meeting.ConsentSentence
+		if browserApp(key) {
+			msg = "Every call in " + app.Name + ", on any site, will be recorded as soon as it starts, without asking. The tray and a notification show each recording, with Pause and Stop. " + meeting.ConsentSentence
+		}
+		if err := m.app.askConsent("Record "+app.Name+" automatically?", msg); err != nil {
+			return nil, err
+		}
+	}
+	if err := settings.SetMeetingAutomatic(key, on); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// browserApp says whether a meeting app is a web browser, whose calls come
+// from any site.
+func browserApp(key string) bool {
+	k := strings.ToLower(key)
+	for _, b := range []string{"chrome", "chromium", "firefox", "brave", "msedge", "edge", "opera", "vivaldi", "epiphany", "librewolf", "zen"} {
+		if strings.Contains(k, b) {
+			return true
+		}
+	}
+	return false
+}
+
+// SetMaxHours sets the longest a recording runs.
+func (m *MeetingAPI) SetMaxHours(h int) (*MeetingNotesView, error) {
+	if !slices.Contains(meetingMaxHours, h) {
+		return nil, fmt.Errorf("a recording can run %v hours at most, not %d", meetingMaxHours, h)
+	}
+	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.MaxHours = h; return nil }); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// SetStartsAtSignIn starts Agentry, hidden, when the person signs in, or
+// stops doing so.
+func (m *MeetingAPI) SetStartsAtSignIn(on bool) (*MeetingNotesView, error) {
+	if _, err := setStartsAtSignIn(on); err != nil {
 		return nil, err
 	}
 	return m.Status()

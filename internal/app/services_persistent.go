@@ -142,6 +142,15 @@ type PersistentAPI struct {
 	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
 	pickFile      func() (string, error)
 	browse        func(url string) error
+	// elsewhere is what the owner-lock watch last saw of each agent:
+	// whether another client runs it. viewers are the app's chats with
+	// those agents. held, attach and requestStop stand in for the CLI's
+	// lock probe, its Attach and its RequestStop in a test.
+	elsewhere   map[string]bool
+	viewers     map[string]*viewer
+	held        func(home, name string) (bool, *persistent.Holder)
+	attach      func(ctx context.Context, home, name string, history []session.Event) (session.Session, error)
+	requestStop func(ctx context.Context, home, name string) (persistent.Stopped, error)
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -503,11 +512,9 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	case starting:
 		v.State = agentStarting
 	default:
-		if held, holder := persistent.Held(home, a.Name); held {
+		if held, holder := p.heldElsewhere(home, a.Name); held {
 			v.State = agentElsewhere
-			if holder != nil {
-				v.Holder = holder.Where()
-			}
+			v.Holder = holderWords(holder)
 		} else if cfg.Enabled {
 			v.State = agentStopped
 		} else {
@@ -962,7 +969,8 @@ func (p *PersistentAPI) running(name string) (agentSupervisor, bool) {
 // Stop stops an agent this app runs: its segment ends without a final
 // result and its volumes stay, so the next start continues the
 // conversation. An agent still starting has its start cancelled, which
-// tears down what the start made, and Stop waits for it.
+// tears down what the start made, and Stop waits for it. An agent another
+// client runs is asked to stop through its supervisor's socket.
 func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -985,6 +993,14 @@ func (p *PersistentAPI) Stop(name string) (*PersistentAgentView, error) {
 	}
 	sv, ok := p.running(a.Name)
 	if !ok {
+		// An agent another client runs is stopped through its socket.
+		if home, err := p.home(); err == nil {
+			if held, _ := p.heldElsewhere(home, a.Name); held {
+				if err := p.stopElsewhere(home, a); err != nil {
+					return nil, err
+				}
+			}
+		}
 		return p.Get(name)
 	}
 	p.markStopping(a.Name)
@@ -1013,18 +1029,26 @@ func (p *PersistentAPI) markStopping(name string) {
 
 // Send sends the person's message as the agent's next turn and returns
 // once it is answered; its events stream meanwhile. A change waiting for
-// the next turn is applied first, which the stream says.
+// the next turn is applied first, which the stream says. An agent another
+// client runs takes it through its supervisor's socket.
 func (p *PersistentAPI) Send(name, text string) error {
 	a, err := p.agent(name)
 	if err != nil {
 		return err
 	}
-	sv, ok := p.running(a.Name)
-	if !ok {
-		return fmt.Errorf("the %s is not running: start it first", a.Title)
-	}
 	if strings.TrimSpace(text) == "" {
 		return errors.New("the message is empty")
+	}
+	sv, ok := p.running(a.Name)
+	if !ok {
+		home, err := p.home()
+		if err != nil {
+			return err
+		}
+		if held, _ := p.heldElsewhere(home, a.Name); held {
+			return p.sendElsewhere(home, a, text)
+		}
+		return fmt.Errorf("the %s is not running: start it first", a.Title)
 	}
 	return sv.Send(context.Background(), text)
 }
@@ -1342,6 +1366,8 @@ func (p *PersistentAPI) stopAll() {
 			_, _ = sv.Stop(ctx)
 		}()
 	}
+	// The chats with agents another client runs go; those agents run on.
+	p.leaveViewers()
 	wg.Wait()
 }
 

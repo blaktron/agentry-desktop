@@ -24,7 +24,55 @@ type Settings struct {
 	OutputDir string
 	// KeepAudio keeps recordings for KeepFor after their transcript.
 	KeepAudio bool
+	// Automatic are the meeting apps, by AppKey, whose calls are recorded
+	// as soon as they are detected; every other app's call is offered.
+	Automatic []string
+	// MaxLength ends a recording that has run this long; 0 is
+	// DefaultMaxLength.
+	MaxLength time.Duration
 }
+
+// DefaultMaxLength is how long a recording runs at most unless the person
+// chose otherwise.
+const DefaultMaxLength = 4 * time.Hour
+
+// Notice is a desktop notification the feature raises.
+type Notice struct {
+	// Tag names a notification that a later one with the same tag
+	// replaces, and Withdraw takes away; "" for one that stands alone.
+	Tag   string
+	Title string
+	Body  string
+	// Actions are its buttons, where the platform draws them; a press
+	// comes back to HandleAction with the action's ID.
+	Actions []NoticeAction
+	// Resident keeps it on screen until it is replaced or withdrawn.
+	Resident bool
+}
+
+// NoticeAction is one button on a notification.
+type NoticeAction struct {
+	ID    string
+	Label string
+}
+
+// The tags of the feature's notifications.
+const (
+	tagRecording = "meeting-recording"
+	tagOffer     = "meeting-offer"
+)
+
+// How says how a recording started.
+type How string
+
+const (
+	// ByHand is the person's own Record.
+	ByHand How = "hand"
+	// FromOffer is Record pressed on the offer of a detected call.
+	FromOffer How = "offer"
+	// Automatically is a detected call of an app on the automatic list.
+	Automatically How = "automatic"
+)
 
 // Manager runs Meeting notes: one recording at a time, then its
 // transcription, in the background, one meeting after another.
@@ -35,25 +83,47 @@ type Manager struct {
 	Recorder  Recorder
 	Engine    Engine
 	Models    *Models
-	Settings  func() Settings
+	// Detector reports calls; nil where calls are not detected, and then
+	// nothing is offered or started but by hand.
+	Detector Detector
+	Settings func() Settings
 	// Tier is this computer's hardware tier.
 	Tier string
 	// EngineReady says whether the transcriber can run; nil means it can.
 	EngineReady func() error
-	// Notify tells the person something in a desktop notification.
-	Notify func(title, body string)
+	// Notify raises a desktop notification, and Withdraw takes away the
+	// one with a tag. An error says it was not raised.
+	Notify   func(Notice) error
+	Withdraw func(tag string)
+	// Indicate is told the recording in progress each time it starts,
+	// pauses, resumes or ends (nil): the tray shows it.
+	Indicate func(*RecordingStatus)
+	// OfferFor is how long an offer to record stands; 0 is two minutes.
+	OfferFor time.Duration
 	// Changed is told whenever the status changes.
 	Changed func()
 	Now     func() time.Time
 
-	mu      sync.Mutex
-	rec     *recording
-	prep    PrepareStatus
-	jobs    map[string]int
-	queue   chan string
-	ctx     context.Context
-	cancel  context.CancelFunc
-	started bool
+	mu sync.Mutex
+	// noticeMu orders the recording's notification: raised, replaced and
+	// taken away one at a time.
+	noticeMu sync.Mutex
+	rec      *recording
+	prep     PrepareStatus
+	jobs     map[string]int
+	queue    chan string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	started  bool
+	// live are the calls under way, by AppKey; offer is the one offer
+	// standing; refresh asks the watcher to read the switch again.
+	live    map[string]Call
+	order   []string
+	handled map[string]bool
+	offer   *Offer
+	refresh chan struct{}
+	// closing is set as the app quits: nothing new starts.
+	closing bool
 	// wg is the background work Shutdown waits for.
 	wg sync.WaitGroup
 }
@@ -74,6 +144,7 @@ type RecordingStatus struct {
 	App     string    `json:"app,omitempty"`
 	FarSide FarSide   `json:"farSide"`
 	Paused  bool      `json:"paused"`
+	How     How       `json:"how"`
 }
 
 // Status is the feature's state as a page shows it.
@@ -91,6 +162,8 @@ type Status struct {
 	// Transcribing is each meeting being transcribed, by id, with its
 	// progress from 0 to 100.
 	Transcribing map[string]int `json:"transcribing"`
+	// Offer is the detected call offered for recording, if one stands.
+	Offer *Offer `json:"offer,omitempty"`
 }
 
 // recording is the one recording in progress.
@@ -102,6 +175,7 @@ type recording struct {
 	pausedAt time.Duration
 	paused   bool
 	stopping bool
+	how      How
 }
 
 func (m *Manager) now() time.Time {
@@ -132,6 +206,8 @@ func (m *Manager) Start(ctx context.Context) {
 	m.started = true
 	m.queue = make(chan string, 64)
 	m.jobs = map[string]int{}
+	m.live, m.handled = map[string]Call{}, map[string]bool{}
+	m.refresh = make(chan struct{}, 1)
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.ctx = ctx
 	m.mu.Unlock()
@@ -158,8 +234,9 @@ func (m *Manager) Start(ctx context.Context) {
 		}
 	}
 	_ = st.Sweep(m.now(), m.Settings().KeepAudio)
-	m.wg.Add(2)
+	m.wg.Add(3)
 	go m.work(ctx)
+	go m.watch(ctx)
 	if m.Settings().On {
 		for _, id := range pending {
 			m.enqueue(id)
@@ -186,6 +263,7 @@ func (m *Manager) Start(ctx context.Context) {
 // for it: a download or a transcription in flight is cancelled.
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
+	m.closing = true
 	r := m.rec
 	cancel := m.cancel
 	m.mu.Unlock()
@@ -227,9 +305,89 @@ func (m *Manager) Status() Status {
 		st.Transcribing[id] = p
 	}
 	if r := m.rec; r != nil {
-		st.Recording = &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused}
+		st.Recording = r.status()
+	}
+	if o := m.offer; o != nil {
+		cp := *o
+		st.Offer = &cp
 	}
 	return st
+}
+
+func (r *recording) status() *RecordingStatus {
+	return &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how}
+}
+
+// indicate tells Indicate the recording as it now stands.
+func (m *Manager) indicate() {
+	if m.Indicate == nil {
+		return
+	}
+	m.mu.Lock()
+	var st *RecordingStatus
+	if r := m.rec; r != nil && !r.stopping {
+		st = r.status()
+	}
+	m.mu.Unlock()
+	m.Indicate(st)
+}
+
+func (m *Manager) notify(n Notice) error {
+	if m.Notify == nil {
+		return nil
+	}
+	return m.Notify(n)
+}
+
+func (m *Manager) withdraw(tag string) {
+	if m.Withdraw != nil {
+		m.Withdraw(tag)
+	}
+}
+
+// The actions of the feature's notifications' buttons.
+const (
+	ActionPause  = "pause"
+	ActionResume = "resume"
+	ActionStop   = "stop"
+	// ActionRecord and ActionNotNow answer an offer: each is followed by
+	// ":" and the offer's ID.
+	ActionRecord = "record"
+	ActionNotNow = "not-now"
+)
+
+// announce raises, or replaces, the notification that says a recording is
+// under way, with its Pause or Resume and its Stop. An error says it was not
+// raised.
+func (m *Manager) announce(r *recording) error {
+	// noticeMu orders this against finish's withdrawal: a recording that
+	// has stopped is never announced again.
+	m.noticeMu.Lock()
+	defer m.noticeMu.Unlock()
+	m.mu.Lock()
+	if m.rec != r || r.stopping {
+		m.mu.Unlock()
+		return nil
+	}
+	app, far, paused, how := r.m.App, r.m.FarSide, r.paused, r.how
+	m.mu.Unlock()
+	what := "your microphone and everything your computer plays"
+	if far != FarSideWholeDevice && app != "" {
+		what = "your microphone and " + app
+	}
+	n := Notice{Tag: tagRecording, Resident: true, Title: "Recording a meeting", Body: "Agentry is recording " + what + ". " + ConsentSentence}
+	if how == Automatically {
+		n.Title = "Recording a meeting automatically"
+		n.Body = "Agentry is recording " + what + ", which you chose to record automatically. " + ConsentSentence
+	}
+	pause := NoticeAction{ID: ActionPause, Label: "Pause"}
+	if paused {
+		n.Title = "Meeting recording paused"
+		n.Body = "Nothing is recorded until you resume. The transcript marks the gap."
+		pause = NoticeAction{ID: ActionResume, Label: "Resume"}
+	}
+	n.Actions = []NoticeAction{pause, {ID: ActionStop, Label: "Stop"}}
+	return m.notify(n)
 }
 
 // Meetings lists the meetings, newest first.
@@ -241,9 +399,16 @@ func (m *Manager) HasAudio(mt *Meeting) bool { return m.store().HasAudio(mt) }
 // ErrOff refuses a recording or a transcription while the feature is off.
 var ErrOff = errors.New("meeting notes is off: turn it on first")
 
-// Record starts recording. It refuses while the feature is off or while
-// another recording runs.
+// Record starts recording, at the person's own Record: the call under way,
+// or the whole default devices when there is none. It refuses while the
+// feature is off or while another recording runs.
 func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
+	return m.startRecording(ctx, Call{}, ByHand)
+}
+
+// startRecording is every way into a recording: it records call (zero for
+// whatever the recorder finds) and announces it, whatever started it.
+func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meeting, error) {
 	s := m.Settings()
 	if !s.On {
 		return nil, ErrOff
@@ -264,11 +429,16 @@ func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
 		m.mu.Unlock()
 		return nil, err
 	}
-	r := &recording{m: mt, names: map[string]bool{}}
+	r := &recording{m: mt, names: map[string]bool{}, how: how}
 	m.rec = r
+	offer := m.offer
+	m.offer = nil
 	m.mu.Unlock()
+	if offer != nil {
+		m.withdrawOffer()
+	}
 
-	capture, err := m.Recorder.Record(ctx, Call{}, &recordingTracks{m: m, r: r})
+	capture, err := m.Recorder.Record(ctx, call, &recordingTracks{m: m, r: r})
 	if err != nil {
 		m.mu.Lock()
 		m.rec = nil
@@ -280,27 +450,61 @@ func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
 		return nil, err
 	}
 	m.mu.Lock()
+	if m.rec != r || r.stopping {
+		// Stopped while the capture was starting: let it go at once, so no
+		// device stays open for a recording nobody sees.
+		m.mu.Unlock()
+		_ = capture.Stop()
+		for _, t := range r.tracks {
+			t.End()
+		}
+		return nil, errors.New("the recording was stopped as it started")
+	}
 	r.capture = capture
 	mt.App = capture.Call().App
+	if mt.App == "" {
+		mt.App = call.App
+	}
 	mt.FarSide = capture.FarSide()
 	_ = st.Save(mt)
 	m.mu.Unlock()
 
-	what := "your microphone and everything your computer plays"
-	if mt.App != "" {
-		what = "your microphone and " + mt.App
+	if err := m.announce(r); err != nil && how == Automatically {
+		// Nobody pressed Record, and nothing could say it is recording:
+		// what was started is let go and nothing is kept.
+		m.abandon(r)
+		return nil, fmt.Errorf("no notification could say it is recording: %w", err)
 	}
-	if m.Notify != nil {
-		m.Notify("Recording a meeting", "Agentry is recording "+what+". "+ConsentSentence)
-	}
+	m.indicate()
 	go m.follow(ctx, r, capture)
 	m.changed()
 	return mt, nil
 }
 
+// abandon lets a recording go that has only just started, keeping nothing.
+func (m *Manager) abandon(r *recording) {
+	m.mu.Lock()
+	if m.rec != r {
+		m.mu.Unlock()
+		return
+	}
+	r.stopping = true
+	m.rec = nil
+	m.mu.Unlock()
+	if r.capture != nil {
+		_ = r.capture.Stop()
+	}
+	for _, t := range r.tracks {
+		t.End()
+	}
+	_ = m.store().Delete(r.m.ID)
+	m.changed()
+}
+
 // follow watches a recording until it ends: a capture whose far side
 // widens to the whole device is said in its meeting and a notification,
-// and a capture that ends by itself is finished and transcribed.
+// and a capture that ends by itself, or reaches the longest a recording
+// runs, is finished and transcribed.
 func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
@@ -322,11 +526,16 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 				r.m.FarSide = FarSideWholeDevice
 				_ = m.store().Save(r.m)
 			}
+			ran := m.now().Sub(r.m.Started)
 			m.mu.Unlock()
+			if limit := m.maxLength(); ran >= limit {
+				_ = m.finish(r, true)
+				_ = m.notify(Notice{Title: "Meeting recording stopped", Body: "Agentry stopped recording after " + lengthWords(limit) + ", the longest a recording runs. The transcript is on its way."})
+				return
+			}
 			if widened {
-				if m.Notify != nil {
-					m.Notify("Recording everything your computer plays", "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so.")
-				}
+				_ = m.notify(Notice{Title: "Recording everything your computer plays", Body: "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so."})
+				_ = m.announce(r)
 				m.changed()
 			}
 		}
@@ -352,6 +561,10 @@ func (m *Manager) SetPaused(paused bool) error {
 		return err
 	}
 	defer m.changed()
+	defer func() {
+		_ = m.announce(r)
+		m.indicate()
+	}()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.rec != r || r.paused == paused {
@@ -396,6 +609,16 @@ func (m *Manager) finish(r *recording, transcribe bool) error {
 		err = r.capture.Stop()
 	}
 	defer m.changed()
+	// After the lock is let go: the recording's notification taken away
+	// and the tray told.
+	defer func() {
+		m.noticeMu.Lock()
+		m.withdraw(tagRecording)
+		m.noticeMu.Unlock()
+		m.indicate()
+		// A call that waited while this one recorded has its turn.
+		m.consider()
+	}()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()

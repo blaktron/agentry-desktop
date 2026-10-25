@@ -10,7 +10,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { sendToAgent, startAgent, stopStart, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, pendingChange, taskSummary, termLines } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, pendingChange, taskSummary, termLines } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
@@ -34,7 +34,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   useEffect(() => {
     const t = setInterval(() => {
       setNow(Date.now());
-      if (agent?.state === AGENT_STATES.running) PersistentAPI.Get(name).then(updateAgent).catch(() => {});
+      if (agent && isLive(agent)) PersistentAPI.Get(name).then(updateAgent).catch(() => {});
     }, 5000);
     return () => clearInterval(t);
   }, [name, agent?.state]);
@@ -71,7 +71,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   };
 
   if (!agent) return <p className="muted">Reading the agent…</p>;
-  const running = agent.state === AGENT_STATES.running;
+  const running = isLive(agent);
   const answering = rec.sending || rec.chat.busy;
   const send = async () => {
     const text = draft.trim();
