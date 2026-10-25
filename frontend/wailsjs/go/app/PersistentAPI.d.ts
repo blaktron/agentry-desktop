@@ -40,6 +40,8 @@ export function OpenPort(arg1:string,arg2:string):Promise<void>;
 
 export function RemoveAccount(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
+export function RemoveFastmailToken(arg1:string):Promise<app.PersistentAgentView>;
+
 export function RemoveSecret(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function RemoveSkill(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
@@ -55,6 +57,8 @@ export function SetAccount(arg1:string,arg2:app.PersistentAccountForm):Promise<a
 export function SetDevHost(arg1:string,arg2:string,arg3:run.HostSignIn):Promise<app.PersistentAgentView>;
 
 export function SetEnabled(arg1:string,arg2:boolean):Promise<app.PersistentAgentView>;
+
+export function SetFastmailToken(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function SetGoogleClient(arg1:string):Promise<app.PersistentAgentView>;
 

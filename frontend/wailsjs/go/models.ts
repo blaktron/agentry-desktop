@@ -2647,6 +2647,20 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	    }
 	}
+	export class PersistentFastmailView {
+	    token: boolean;
+	    set?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentFastmailView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.token = source["token"];
+	        this.set = source["set"];
+	    }
+	}
 	export class PersistentMicrosoftView {
 	    clientID?: string;
 	    tenant?: string;
@@ -2770,6 +2784,7 @@ export namespace app {
 	    setUpAccount?: string;
 	    setUpGoogle?: boolean;
 	    setUpMicrosoft?: boolean;
+	    setUpFastmail?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentRosterEntry(source);
@@ -2795,6 +2810,7 @@ export namespace app {
 	        this.setUpAccount = source["setUpAccount"];
 	        this.setUpGoogle = source["setUpGoogle"];
 	        this.setUpMicrosoft = source["setUpMicrosoft"];
+	        this.setUpFastmail = source["setUpFastmail"];
 	    }
 	}
 	export class PersistentServerView {
@@ -2909,6 +2925,7 @@ export namespace app {
 	    mailProviders: PersistentMailProviderView[];
 	    google?: PersistentGoogleView;
 	    microsoft?: PersistentMicrosoftView;
+	    fastmail?: PersistentFastmailView;
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -2948,6 +2965,7 @@ export namespace app {
 	        this.mailProviders = this.convertValues(source["mailProviders"], PersistentMailProviderView);
 	        this.google = this.convertValues(source["google"], PersistentGoogleView);
 	        this.microsoft = this.convertValues(source["microsoft"], PersistentMicrosoftView);
+	        this.fastmail = this.convertValues(source["fastmail"], PersistentFastmailView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -3053,6 +3071,7 @@ export namespace app {
 	        this.skipped = source["skipped"];
 	    }
 	}
+	
 	
 	
 	

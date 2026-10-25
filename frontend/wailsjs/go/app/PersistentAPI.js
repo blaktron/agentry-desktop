@@ -74,6 +74,10 @@ export function RemoveAccount(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['RemoveAccount'](arg1, arg2);
 }
 
+export function RemoveFastmailToken(arg1) {
+  return window['go']['app']['PersistentAPI']['RemoveFastmailToken'](arg1);
+}
+
 export function RemoveSecret(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['RemoveSecret'](arg1, arg2);
 }
@@ -104,6 +108,10 @@ export function SetDevHost(arg1, arg2, arg3) {
 
 export function SetEnabled(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetEnabled'](arg1, arg2);
+}
+
+export function SetFastmailToken(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['SetFastmailToken'](arg1, arg2);
 }
 
 export function SetGoogleClient(arg1) {

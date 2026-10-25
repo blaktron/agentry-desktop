@@ -44,7 +44,7 @@ type PersistentSuggestionView struct {
 // word of its name. They are Agentry's own: no brand's mark is drawn.
 var glyphs = []struct{ word, key string }{
 	{"github", "git"}, {"gitlab", "git"}, {"wikipedia", "encyclopedia"}, {"context7", "docs"},
-	{"semgrep", "scan"}, {"weather", "weather"}, {"maps", "map"}, {"google", "mail"}, {"microsoft", "mail"}, {"brave", "search"},
+	{"semgrep", "scan"}, {"weather", "weather"}, {"maps", "map"}, {"google", "mail"}, {"microsoft", "mail"}, {"fastmail", "mail"}, {"brave", "search"},
 }
 
 // glyphFor is the glyph of a built-in's server named name, "" for none.
@@ -68,12 +68,12 @@ type cardFacts struct {
 	account map[string]string
 	// google are the entries whose Set up is Google Workspace's: its
 	// server and the switches its sign-in grants; microsoft, Microsoft
-	// 365's.
-	google, microsoft map[string]bool
+	// 365's; fastmail, Fastmail's: its token.
+	google, microsoft, fastmail map[string]bool
 }
 
 func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
-	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}, google: map[string]bool{}, microsoft: map[string]bool{}}
+	f := cardFacts{glyph: map[string]string{}, secret: map[string]string{}, account: map[string]string{}, google: map[string]bool{}, microsoft: map[string]bool{}, fastmail: map[string]bool{}}
 	// The built-in offers some servers for the git hosts its accounts are
 	// on (a self-managed GitLab's), as the CLI draws its roster.
 	hosts := make([]offer.GitHost, 0, len(cfg.Accounts))
@@ -86,6 +86,7 @@ func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
 		f.glyph[id] = g
 		f.glyph[persistent.ServerWritesID(o.Server)] = g
 		f.secret[id], f.account[id] = o.Secret, o.Account
+		f.fastmail[id] = o.MailProvider == assistant.MailFastmail
 	}
 	for _, s := range a.Builtin.ImageServers(policy.Images{}) {
 		id := persistent.ImageServerEntryID(s.Key)

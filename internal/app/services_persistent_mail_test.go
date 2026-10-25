@@ -29,7 +29,7 @@ func TestTheAssistantsMailProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(v.MailProviders) != 2 || v.MailProviders[0].Key != "google" || v.MailProviders[1].Key != "microsoft" || v.MailProviders[0].Enabled || gogCards(v) != 0 {
+	if len(v.MailProviders) != 3 || v.MailProviders[0].Key != "google" || v.MailProviders[1].Key != "microsoft" || v.MailProviders[2].Key != "fastmail" || v.MailProviders[0].Enabled || gogCards(v) != 0 {
 		t.Fatalf("a new Assistant: providers %+v, %d gog cards", v.MailProviders, gogCards(v))
 	}
 	if v.MailProviders[0].Accounts == nil || v.MailProviders[0].SetUp == nil {
