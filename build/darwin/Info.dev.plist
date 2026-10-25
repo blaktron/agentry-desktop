@@ -23,6 +23,10 @@
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Meeting notes records your microphone during a meeting you record, to transcribe it on this Mac.</string>
+        <key>NSAudioCaptureUsageDescription</key>
+        <string>Meeting notes records the sound of the meeting app during a meeting you record, to transcribe it on this Mac.</string>
         {{if .Info.FileAssociations}}
         <key>CFBundleDocumentTypes</key>
         <array>

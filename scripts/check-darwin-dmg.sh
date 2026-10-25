@@ -2,7 +2,7 @@
 # Reads the built disk image back and checks it holds the bundle and an
 # Applications shortcut and nothing else. Runs on macOS only: it mounts the image.
 #
-#   scripts/check-darwin-dmg.sh [--cli <agentry>] <out.dmg> <agentry-desktop.app>
+#   scripts/check-darwin-dmg.sh [--cli <agentry>] [--whisper <dir>] <out.dmg> <agentry-desktop.app>
 #
 # What it proves:
 #   1. the file name is one the download manifest admits (.dmg is the "dmg"
@@ -35,6 +35,13 @@
 #   8. the bundle carries the third-party notices as
 #      Contents/Resources/THIRD_PARTY_NOTICES.txt, byte-identical to the
 #      repository's THIRD_PARTY_NOTICES and sealed by the bundle's signature.
+#   9. with --whisper <dir>, the bundle carries Meeting notes' transcriber as
+#      Contents/Resources/whisper, holding exactly <dir>'s files (whisper-cli),
+#      each byte-identical to <dir>'s: the sidecar is carried as it was signed
+#      and notarized, never re-signed. whisper-cli is executable, universal,
+#      signed as net.secureagentry.whisper-cli under the hardened runtime with
+#      no entitlements, and sealed by the bundle's signature. Without
+#      --whisper the bundle must carry no Contents/Resources/whisper.
 #
 # The image is detached whatever happens — on the way out, and on an
 # interrupt or a cancelled CI job — because a leaked mount on a persistent
@@ -45,14 +52,19 @@ set -euo pipefail
 
 fail() { echo "check-darwin-dmg: $*" >&2; exit 1; }
 
+usage="usage: $0 [--cli <agentry>] [--whisper <dir>] <out.dmg> <agentry-desktop.app>"
 cli=
-if [ "${1:-}" = --cli ]; then
-  cli="${2:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
-  shift 2
-  [ -f "$cli" ] || fail "$cli does not exist"
-fi
-dmg="${1:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
-app="${2:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
+whisper=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --cli) cli="${2:?$usage}"; shift 2; [ -f "$cli" ] || fail "$cli does not exist" ;;
+    --whisper) whisper="${2:?$usage}"; shift 2; [ -f "$whisper/whisper-cli" ] || fail "$whisper holds no whisper-cli" ;;
+    --*) fail "$usage" ;;
+    *) break ;;
+  esac
+done
+dmg="${1:?$usage}"
+app="${2:?$usage}"
 
 [ -f "$dmg" ] || fail "$dmg does not exist"
 [ -d "$app" ] || fail "$app does not exist"
@@ -173,4 +185,36 @@ cmp -s "$notices" "$root_dir/THIRD_PARTY_NOTICES" || fail "the THIRD_PARTY_NOTIC
 grep -q '<key>Resources/THIRD_PARTY_NOTICES.txt</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
   fail "the bundle's signature does not seal Contents/Resources/THIRD_PARTY_NOTICES.txt"
 
-echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), third-party notices sealed, $clinote"
+# 9. Meeting notes' transcriber, or that the bundle carries none.
+carried_whisper="$mnt/$appname/Contents/Resources/whisper"
+whispernote="no transcriber"
+if [ -z "$whisper" ]; then
+  [ ! -e "$carried_whisper" ] || fail "the bundle on the image carries Contents/Resources/whisper, and no --whisper says which"
+else
+  [ -d "$carried_whisper" ] || fail "the bundle on the image has no Contents/Resources/whisper"
+  want_files=$(cd "$whisper" && find . -mindepth 1 -print | sed 's|^\./||' | sort)
+  got_files=$(cd "$carried_whisper" && find . -mindepth 1 -print | sed 's|^\./||' | sort)
+  [ "$got_files" = "$want_files" ] || { printf 'carried:\n%s\nwanted:\n%s\n' "$got_files" "$want_files" >&2; fail "Contents/Resources/whisper on the image does not hold exactly the files of $whisper"; }
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -f "$whisper/$f" ] && [ ! -L "$whisper/$f" ] || fail "$whisper/$f is not a regular file"
+    cmp -s "$carried_whisper/$f" "$whisper/$f" || fail "Contents/Resources/whisper/$f on the image differs from $whisper/$f"
+  done <<<"$want_files"
+  wcli="$carried_whisper/whisper-cli"
+  [ -x "$wcli" ] || fail "the carried whisper-cli is not executable"
+  w_arches=$(lipo -archs "$wcli")
+  for want in arm64 x86_64; do
+    tr ' ' '\n' <<<"$w_arches" | grep -x "$want" >/dev/null || fail "the carried whisper-cli is not universal: lipo says '$w_arches'"
+  done
+  w_sig=$(codesign -dvv "$wcli" 2>&1) || fail "the carried whisper-cli is not signed"
+  grep -qx 'Identifier=net.secureagentry.whisper-cli' <<<"$w_sig" || fail "the carried whisper-cli is not signed as net.secureagentry.whisper-cli"
+  grep -qE '^CodeDirectory .*flags=0x[0-9a-f]+\(([^)]*,)?runtime[,)]' <<<"$w_sig" || fail "the carried whisper-cli is not signed under the hardened runtime"
+  w_ent=$(codesign -d --entitlements - --xml "$wcli" 2>/dev/null) || fail "codesign could not read the entitlements of the carried whisper-cli"
+  if grep '<key>' <<<"$w_ent" >/dev/null; then fail "the carried whisper-cli carries entitlements"; fi
+  grep -q '<key>Resources/whisper/whisper-cli</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
+    fail "the bundle's signature does not seal Contents/Resources/whisper/whisper-cli"
+  w_auth=$(grep -E '^(Authority|Signature)=' <<<"$w_sig" | head -1 || true)
+  whispernote="carries whisper-cli ($w_auth)"
+fi
+
+echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), third-party notices sealed, $clinote, $whispernote"

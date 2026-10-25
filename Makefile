@@ -155,7 +155,16 @@ package-darwin: build-darwin wrap-darwin
 # bundle signs it under the same identity as the CLI's own release, and the
 # keychain treats the two copies as one program. Without it (a PR build) the
 # bundle carries no CLI.
+#
+# Meeting notes' transcriber: when build/whisper holds the darwin sidecar
+# (whisper-cli-darwin/whisper-cli, one universal binary, as a release unpacks
+# it), build-darwin carries it as Contents/Resources/whisper/whisper-cli
+# exactly as it came: it is already Developer ID-signed and notarized under
+# its own identifier, so it is never re-signed, and the bundle's seal covers
+# it. wrap-darwin reads it back with --whisper. Without it (a PR build) the
+# app offers no Meeting notes.
 DARWIN_APP := build/bin/agentry-desktop.app
+DARWIN_WHISPER := build/whisper/whisper-cli-darwin
 
 build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
@@ -166,6 +175,10 @@ ifneq ($(wildcard build/cli/agentry-darwin),)
 	install -m 0755 build/cli/agentry-darwin $(DARWIN_APP)/Contents/Resources/bin/agentry
 	codesign --force --sign - --identifier net.secureagentry.cli $(DARWIN_APP)/Contents/Resources/bin/agentry
 endif
+ifneq ($(wildcard $(DARWIN_WHISPER)/whisper-cli),)
+	install -d $(DARWIN_APP)/Contents/Resources/whisper
+	install -m 0755 $(DARWIN_WHISPER)/whisper-cli $(DARWIN_APP)/Contents/Resources/whisper/whisper-cli
+endif
 	codesign --force --sign - $(DARWIN_APP)
 	codesign --verify --deep --strict $(DARWIN_APP)
 
@@ -173,7 +186,7 @@ wrap-darwin:
 	rm -f build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 	scripts/package-darwin-dmg.sh $(DARWIN_APP) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
-	scripts/check-darwin-dmg.sh $(if $(wildcard build/cli/agentry-darwin),--cli build/cli/agentry-darwin,) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg $(DARWIN_APP)
+	scripts/check-darwin-dmg.sh $(if $(wildcard build/cli/agentry-darwin),--cli build/cli/agentry-darwin,) $(if $(wildcard $(DARWIN_WHISPER)/whisper-cli),--whisper $(DARWIN_WHISPER),) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg $(DARWIN_APP)
 
 # Drags the dmg's bundle onto a temporary Applications folder over a copy
 # that is already there and proves the person's configuration and sign-in
