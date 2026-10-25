@@ -181,8 +181,11 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		app, detection = "unknown", "none"
 	}
 	farNote := "everyone heard through the meeting app; not split by person"
-	if info.FarSide == FarSideWholeDevice {
+	switch info.FarSide {
+	case FarSideWholeDevice:
 		farNote = "everything the computer played, the meeting included; not split by person"
+	case FarSideAppDevice:
+		farNote = "everything played on the speakers or headset the meeting app used, the meeting included; not split by person"
 	}
 	fm := frontmatter{
 		Type: "meeting-transcript", Format: TranscriptFormat,
@@ -223,8 +226,11 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", oneLine(info.Title))
 	b.WriteString("Transcript produced automatically on this computer. Speaker labels come from the audio source, not from voice recognition: \"Them\" may be several people. Words may be wrong. Times are from the start of the recording.\n")
-	if info.FarSide == FarSideWholeDevice {
+	switch info.FarSide {
+	case FarSideWholeDevice:
 		b.WriteString("\nNo meeting app was found to record on its own, so \"Them\" is everything the computer played, other sounds included.\n")
+	case FarSideAppDevice:
+		b.WriteString("\n\"Them\" is everything played on the speakers or headset the meeting app used, so other sounds played there are in it too.\n")
 	}
 	b.WriteString("\n## Transcript\n\n")
 	if len(lines) == 0 {

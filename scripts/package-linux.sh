@@ -92,6 +92,43 @@ if [ -f build/cli/agentry ]; then
   echo "package-linux: carrying the agentry CLI as /usr/bin/agentry ($(sed -n 's/^version=//p' build/cli/CLI-BUILD-INFO 2>/dev/null || echo 'version unknown'))"
 fi
 
+# Meeting notes' transcriber, when the build carries it
+# (build/whisper/whisper-cli-linux-amd64, which a release puts there): the
+# whole folder, its libraries' links included, as
+# /usr/lib/agentry-desktop/whisper, where the app looks for it beside
+# /usr/bin. whisper-cli finds its libraries through its own RUNPATH
+# ($ORIGIN). It links libstdc++ (GCC 12's, for GLIBCXX_3.4.30) and
+# libgcc_s, which the app does not, so the description declares them too;
+# the Vulkan backend's loader is not declared, since the backend is loaded
+# at run time and the CPU runs without it. The two folders are the
+# package's own, so a removal takes them.
+sidecar=build/whisper/whisper-cli-linux-amd64
+if [ -f "$sidecar/whisper-cli" ]; then
+  if [ "$desc" = build/nfpm/nfpm.yaml ]; then
+    cp -f build/nfpm/nfpm.yaml build/linux/stage/nfpm.yaml
+    desc=build/linux/stage/nfpm.yaml
+  fi
+  mkdir -p build/linux/stage/whisper
+  lib=/usr/lib/agentry-desktop
+  entries="  - dst: $lib\n    type: dir\n  - dst: $lib/whisper\n    type: dir\n"
+  for f in "$sidecar"/*; do
+    n=$(basename "$f")
+    [ "$n" != SHA256SUMS ] || continue
+    if [ -L "$f" ]; then
+      entries+="  - src: $(readlink "$f")\n    dst: $lib/whisper/$n\n    type: symlink\n"
+    else
+      cp -f "$f" "build/linux/stage/whisper/$n"
+      entries+="  - src: build/linux/stage/whisper/$n\n    dst: $lib/whisper/$n\n    file_info:\n      mode: 0755\n"
+    fi
+  done
+  awk -v e="$entries" '{print} /^contents:$/{printf "%s", e}' "$desc" >"$desc.new"
+  awk '{print} /^      - libwebkit2gtk-4.1-0$/{print "      - libstdc++6 (>= 12)\n      - libgcc-s1"} /^      - webkit2gtk4.1$/{print "      - libstdc++ >= 12\n      - libgcc"}' "$desc.new" >"$desc"
+  rm -f "$desc.new"
+  grep -q "^    dst: $lib/whisper/whisper-cli$" "$desc" && grep -q '^      - libstdc++6 (>= 12)$' "$desc" && grep -q '^      - libstdc++ >= 12$' "$desc" ||
+    { echo "package-linux: could not add the transcriber to the description" >&2; exit 1; }
+  echo "package-linux: carrying the transcriber in $lib/whisper ($(find "$sidecar" -maxdepth 1 ! -name SHA256SUMS \( -type f -o -type l \) | grep -c .) files)"
+fi
+
 for fmt in deb rpm; do
   out="build/linux/agentry-desktop-${VERSION}-linux-amd64.${fmt}"
   DESKTOP_VERSION="$PKG_VERSION" nfpm package -f "$desc" -p "$fmt" -t "$out" >/dev/null

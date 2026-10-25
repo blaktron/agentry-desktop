@@ -5,7 +5,7 @@
 # uninstall checks (scripts/acceptance/windows-install.ps1) run by hand on a
 # Windows machine.
 #
-#   scripts/check-windows-installer.sh [--cli FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
+#   scripts/check-windows-installer.sh [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]
 #
 # What it proves:
 #   1. the file name is one the download manifest admits (-setup.exe is
@@ -20,7 +20,11 @@
 #      plumbing under $PLUGINSDIR, the WebView2 bootstrapper included) —
 #      four with --cli FILE: bin/agentry.exe too, byte-identical to FILE, the
 #      CLI a build put in build/cli; without --cli an installer carrying a CLI
-#      is refused, since nothing then says which CLI it is;
+#      is refused, since nothing then says which CLI it is; and with
+#      --whisper DIR every file of DIR but its SHA256SUMS under bin/whisper/,
+#      each byte-identical to DIR's, the transcriber a build put in
+#      build/whisper; without --whisper an installer carrying bin/whisper is
+#      refused, for the same reason;
 #   4. the application it carries is byte-identical to the binary the zip
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
@@ -38,16 +42,18 @@
 set -euo pipefail
 
 cli=""
+whisper=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --cli) cli="${2:?--cli needs the CLI file}"; shift 2 ;;
+    --whisper) whisper="${2:?--whisper needs the sidecar folder}"; shift 2 ;;
     --) shift; break ;;
     -*) echo "check-windows-installer: unknown option $1" >&2; exit 2 ;;
     *) break ;;
   esac
 done
-setup="${1:?usage: $0 [--cli FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
-exe="${2:?usage: $0 [--cli FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+setup="${1:?usage: $0 [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+exe="${2:?usage: $0 [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 nsi="${3:-$root_dir/build/windows/installer/project.nsi}"
 
@@ -57,6 +63,10 @@ fail() { echo "check-windows-installer: $*" >&2; exit 1; }
 [ -f "$exe" ] || fail "$exe does not exist"
 [ -f "$nsi" ] || fail "$nsi does not exist"
 [ -z "$cli" ] || [ -f "$cli" ] || fail "$cli does not exist"
+[ -z "$whisper" ] || [ -f "$whisper/whisper-cli.exe" ] || fail "$whisper holds no whisper-cli.exe"
+# The sidecar's files, as the installer must place them.
+whisper_files=""
+[ -z "$whisper" ] || whisper_files=$(cd "$whisper" && find . -maxdepth 1 -type f ! -name SHA256SUMS | sed 's|^\./||' | sort)
 command -v 7z >/dev/null 2>&1 || fail "7z is needed to read the installer (apt-get install p7zip-full; dnf install p7zip p7zip-plugins)"
 
 # 1. The name.
@@ -87,12 +97,13 @@ entries=$(7z l -slt "$setup" | awk '/^----------$/{on=1; next} on && /^Path = /{
 listing=$(printf '%s\n' "$entries" | grep -v '^\$PLUGINSDIR' || true)
 expected=$'THIRD_PARTY_NOTICES.txt\nagentry-desktop.exe\nuninstall.exe'
 [ -z "$cli" ] || expected+=$'\nbin/agentry.exe'
+[ -z "$whisper_files" ] || expected+=$'\n'"$(printf '%s\n' "$whisper_files" | sed 's|^|bin/whisper/|')"
 if [ "$(printf '%s\n' "$listing" | sort)" != "$(printf '%s\n' "$expected" | sort)" ]; then
   printf 'installed files:\n%s\n' "$listing" >&2
-  if [ -n "$cli" ]; then
-    fail "the installer does not install exactly agentry-desktop.exe, THIRD_PARTY_NOTICES.txt, bin/agentry.exe and uninstall.exe"
-  fi
-  fail "the installer does not install exactly agentry-desktop.exe, THIRD_PARTY_NOTICES.txt and uninstall.exe (one that carries the CLI is checked with --cli)"
+  want="agentry-desktop.exe, THIRD_PARTY_NOTICES.txt, uninstall.exe"
+  [ -z "$cli" ] || want+=", bin/agentry.exe"
+  [ -z "$whisper" ] || want+=", the sidecar under bin/whisper"
+  fail "the installer does not install exactly $want (a CLI is checked with --cli, the sidecar with --whisper)"
 fi
 grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' <<<"$entries" || fail "the WebView2 bootstrapper is not in the installer"
 
@@ -116,6 +127,14 @@ if [ -n "$cli" ]; then
   grep -E '^[[:space:]]*ExecWait .*--add-cli-to-path' "$nsi" >/dev/null || fail "the install section does not have the app put the CLI on the Path (--add-cli-to-path)"
   grep -E '^[[:space:]]*ExecWait .*--remove-cli-from-path' "$nsi" >/dev/null || fail "the uninstaller does not have the app take the CLI off the Path (--remove-cli-from-path)"
 fi
+
+# 4c. The transcriber it carries is the one build/whisper held, file for
+# file.
+for f in $whisper_files; do
+  if ! 7z e -so "$setup" "bin/whisper/$f" 2>/dev/null | cmp -s - "$whisper/$f"; then
+    fail "the bin/whisper/$f inside the installer differs from $whisper/$f"
+  fi
+done
 
 # 5. The script itself: what the install section may touch.
 grep -q -E '^!define REQUEST_EXECUTION_LEVEL "user"' "$nsi" || fail "$nsi does not define REQUEST_EXECUTION_LEVEL user"
@@ -181,4 +200,5 @@ grep -q -F -- "$root_mit" <<<"$licence_text" || fail "the MIT licence in $licenc
 
 carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + uninstall.exe"
 [ -z "$cli" ] || carries="agentry-desktop.exe + THIRD_PARTY_NOTICES.txt + bin/agentry.exe ($(basename "$cli")) + uninstall.exe"
+[ -z "$whisper" ] || carries+=" + bin/whisper ($(printf '%s\n' "$whisper_files" | grep -c .) files)"
 echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR, licence page before the install pages"

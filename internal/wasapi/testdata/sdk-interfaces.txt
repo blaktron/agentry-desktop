@@ -1,0 +1,17 @@
+# The COM interfaces this package calls, as the Windows SDK declares them:
+# each line is an interface, its IID, and its methods in vtable order
+# (IUnknown's three first); a "class" line is a coclass and its CLSID.
+# Extracted from the SDK's mmdeviceapi.h, Audioclient.h and audiopolicy.h
+# by TestTheTableIsTheSDKs, which reads a folder of those headers named by
+# AGENTRY_WINDOWS_SDK_HEADERS and fails where this file differs. Only names
+# and identifiers are kept here, not the headers' text.
+IMMDeviceEnumerator A95664D2-9614-4F35-A746-DE8DB63617E6 QueryInterface AddRef Release EnumAudioEndpoints GetDefaultAudioEndpoint GetDevice RegisterEndpointNotificationCallback UnregisterEndpointNotificationCallback
+IMMDeviceCollection 0BD7A1BE-7A1A-44DB-8397-CC5392387B5E QueryInterface AddRef Release GetCount Item
+IMMDevice D666063F-1587-4E43-81F1-B948E807363F QueryInterface AddRef Release Activate OpenPropertyStore GetId GetState
+IAudioClient 1CB9AD4C-DBFA-4C32-B178-C2F568A703B2 QueryInterface AddRef Release Initialize GetBufferSize GetStreamLatency GetCurrentPadding IsFormatSupported GetMixFormat GetDevicePeriod Start Stop Reset SetEventHandle GetService
+IAudioCaptureClient C8ADBD64-E71E-48A0-A4DE-185C395CD317 QueryInterface AddRef Release GetBuffer ReleaseBuffer GetNextPacketSize
+IAudioSessionManager2 77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F QueryInterface AddRef Release GetAudioSessionControl GetSimpleAudioVolume GetSessionEnumerator RegisterSessionNotification UnregisterSessionNotification RegisterDuckNotification UnregisterDuckNotification
+IAudioSessionEnumerator E2F5BB11-0570-40CA-ACDD-3AA01277DEE8 QueryInterface AddRef Release GetCount GetSession
+IAudioSessionControl F4B1A599-7266-4319-A8CA-E70ACB11E8CD QueryInterface AddRef Release GetState GetDisplayName SetDisplayName GetIconPath SetIconPath GetGroupingParam SetGroupingParam RegisterAudioSessionNotification UnregisterAudioSessionNotification
+IAudioSessionControl2 BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D QueryInterface AddRef Release GetState GetDisplayName SetDisplayName GetIconPath SetIconPath GetGroupingParam SetGroupingParam RegisterAudioSessionNotification UnregisterAudioSessionNotification GetSessionIdentifier GetSessionInstanceIdentifier GetProcessId IsSystemSoundsSession SetDuckingPreference
+class MMDeviceEnumerator BCDE0395-E52F-467C-8E3D-C4579291692E

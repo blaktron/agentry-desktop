@@ -18,12 +18,16 @@
 #      dependencies and nothing else named by hand, and the real package
 #      installs over it as an upgrade the package manager orders as one;
 #   2. the package owns exactly the binary, the desktop entry, the icons and
-#      the third-party notices (byte-identical to THIRD_PARTY_NOTICES),
+#      the third-party notices (byte-identical to THIRD_PARTY_NOTICES), the
+#      CLI and the transcriber when the build carries them (byte-identical,
+#      and each runs),
 #      nothing under /home or /root, and carries no maintainer script or
 #      trigger (read from the package's control archive, not inferred);
 #   3. the installed binary is byte-identical to <binary>, the one the bare
 #      artifact ships;
-#   4. every library the binary's ELF NEEDED entries name resolves (4a), and
+#   4. every library the binary's ELF NEEDED entries name resolves, and the
+#      transcriber's (all but the Vulkan backend's loader, which is optional)
+#      when it is carried (4a), and
 #      on the strict families the declared dependencies are exactly the
 #      packages that own those libraries — nothing missing, nothing
 #      superfluous (4b);
@@ -61,6 +65,9 @@ cp THIRD_PARTY_NOTICES "$stage/THIRD_PARTY_NOTICES"
 # The agentry CLI the packages carry when the build has one (build/cli):
 # /usr/bin/agentry must be it.
 [ ! -f build/cli/agentry ] || cp build/cli/agentry "$stage/agentry.cli"
+# The transcriber the packages carry when the build has one (build/whisper):
+# /usr/lib/agentry-desktop/whisper must be it.
+[ ! -f build/whisper/whisper-cli-linux-amd64/whisper-cli ] || cp -a build/whisper/whisper-cli-linux-amd64 "$stage/whisper"
 
 # The part every container runs after installing the previous package.
 # $1 is the family (deb or rpm); $2 is "strict" where the owners check runs.
@@ -115,7 +122,9 @@ desktop-file-validate /usr/share/applications/agentry-desktop.desktop || fail "t
 [ -f /usr/share/icons/hicolor/512x512/apps/agentry-desktop.png ] || fail "no 512px icon"
 cmp /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES /pkg/THIRD_PARTY_NOTICES || fail "the package's third-party notices are missing or differ from THIRD_PARTY_NOTICES"
 if printf '%s\n' "$files" | grep -E '^/(home|root)(/|$)'; then fail "the package owns something under a home directory"; fi
-if printf '%s\n' "$files" | grep -v -E '^/usr$|^/usr/(bin|share)(/|$)'; then fail "the package owns something outside /usr/bin and /usr/share"; fi
+owned='^/usr$|^/usr/(bin|share)(/|$)'
+[ ! -d /pkg/whisper ] || owned+='|^/usr/lib$|^/usr/lib/agentry-desktop(/|$)'
+if printf '%s\n' "$files" | grep -v -E "$owned"; then fail "the package owns something outside /usr/bin, /usr/share and its transcriber's folder"; fi
 [ -z "$scripts" ] || fail "the package carries maintainer scripts or triggers: $scripts"
 echo "ok ($fam): owns $(printf '%s\n' "$files" | grep -c -v -E '/$') paths under /usr, no scripts, valid desktop entry"
 
@@ -127,6 +136,26 @@ if [ -f /pkg/agentry.cli ]; then
   echo "ok ($fam): /usr/bin/agentry is the carried CLI, on PATH: $(head -1 /tmp/cli.out)"
 else
   [ ! -e /usr/bin/agentry ] || fail "the package carries /usr/bin/agentry but the build carried no CLI"
+fi
+
+# 2c. The transcriber, when the build carries one: every file and link of
+#     /usr/lib/agentry-desktop/whisper is the build's, and whisper-cli runs;
+#     without one, the package has none.
+side=/usr/lib/agentry-desktop/whisper
+if [ -d /pkg/whisper ]; then
+  for f in /pkg/whisper/*; do
+    n=$(basename "$f")
+    [ "$n" != SHA256SUMS ] || continue
+    if [ -L "$f" ]; then
+      [ "$(readlink "$side/$n")" = "$(readlink "$f")" ] || fail "$side/$n is not the link the build carried"
+    else
+      cmp "$side/$n" "$f" || fail "$side/$n differs from the transcriber the build carried"
+    fi
+  done
+  "$side/whisper-cli" --help >/tmp/whisper.out 2>&1 || { tail -5 /tmp/whisper.out >&2; fail "whisper-cli does not run"; }
+  echo "ok ($fam): $side is the carried transcriber, and whisper-cli runs"
+else
+  [ ! -e /usr/lib/agentry-desktop ] || fail "the package carries a transcriber but the build carried none"
 fi
 
 # 3. The same binary as the bare artifact.
@@ -143,6 +172,19 @@ needed=$(readelf -d "$bin" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
 paths=$(for lib in $needed; do printf '%s\n' "$ldd_out" | awk -v l="$lib" '$1==l {print $3}'; done)
 [ "$(printf '%s\n' "$paths" | grep -c .)" = "$(printf '%s\n' "$needed" | grep -c .)" ] || fail "could not resolve every NEEDED library's path"
 echo "ok ($fam): all $(printf '%s\n' "$needed" | grep -c .) linked libraries resolve"
+# The transcriber's libraries: those it carries itself are its own, and the
+# Vulkan backend is left out, since it is loaded at run time and the CPU
+# runs where its loader is missing.
+if [ -d /pkg/whisper ]; then
+  for elf in "$side/whisper-cli" "$side"/*.so*; do
+    [ -f "$elf" ] && [ ! -L "$elf" ] && [ "$(basename "$elf")" != libggml-vulkan.so ] || continue
+    out=$(ldd "$elf")
+    if grep -q 'not found' <<<"$out"; then grep 'not found' <<<"$out" >&2; fail "$elf links a library that is missing after installing only the package"; fi
+    paths+=$'\n'$(awk -v own="$side/" '$2=="=>" && index($3, own)!=1 {print $3}' <<<"$out")
+  done
+  paths=$(printf '%s\n' "$paths" | grep . | sort -u)
+  echo "ok ($fam): the transcriber's linked libraries resolve"
+fi
 
 # 4b. The declared dependencies are exactly the owners of what is linked.
 if [ "$strict" = strict ]; then
@@ -179,6 +221,7 @@ esac
 [ ! -e /usr/share/applications/agentry-desktop.desktop ] || fail "the desktop entry survived the removal"
 [ ! -e /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES ] || fail "the third-party notices survived the removal"
 [ ! -e /usr/bin/agentry ] || fail "/usr/bin/agentry survived the removal"
+[ ! -e /usr/lib/agentry-desktop ] || fail "the transcriber's folder survived the removal"
 after=$(snapshot)
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after") >&2; fail "removing changed the home"; }
 echo "ok ($fam): upgrade and removal left every configuration byte in place"

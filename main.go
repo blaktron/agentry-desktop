@@ -24,6 +24,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/hostpath"
 	"github.com/blaktron/agentry-desktop/internal/loginitem"
+	"github.com/blaktron/agentry-desktop/internal/meeting"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
 
@@ -37,6 +38,12 @@ var assets embed.FS
 var notices string
 
 func main() {
+	// Meeting notes records through Windows' audio stack in a child process
+	// of this same binary, so a fault there ends that process and not the
+	// app (internal/meeting). No window, no other argument is read.
+	if len(os.Args) > 1 && os.Args[1] == meeting.CaptureFlag {
+		os.Exit(meeting.CaptureMain(os.Stdin, os.Stdout))
+	}
 	// Opened from Finder, the app has launchd's PATH, which holds no docker;
 	// relaunched by a self-update on Windows, it has the first launch's:
 	// give it the PATH a terminal opened now would have before anything
