@@ -1,6 +1,7 @@
 package run
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"os"
@@ -16,15 +17,16 @@ import (
 )
 
 // standInEnv, when set, makes this test binary stand in for a long-running
-// process: it waits for SIGTERM and exits. A test reaches it through a link
-// named for the program it plays, since the sweep reads a process's own
-// command line.
+// process: it says it is ready on standard output, waits for SIGTERM and
+// exits. A test reaches it through a link named for the program it plays,
+// since the sweep reads a process's own command line.
 const standInEnv = "AGENTRY_DESKTOP_TEST_STAND_IN"
 
 func TestMain(m *testing.M) {
 	if os.Getenv(standInEnv) != "" {
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+		_, _ = os.Stdout.WriteString("ready\n")
 		<-stop
 		os.Exit(0)
 	}
@@ -60,10 +62,21 @@ func TestSweepFilesEndsTheServiceBeforeTheDirectory(t *testing.T) {
 	}
 	cmd := exec.Command(podman, "--runtime", "runsc", "system", "service", "--time=0", "unix://"+sock) //nolint:gosec // this test binary
 	cmd.Env = append(os.Environ(), standInEnv+"=1")
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() })
+	// Start returns once the exec has begun, which can be before the kernel
+	// has given the process its new command line; the sweep would then read
+	// an empty one and rightly leave the process alone. The stand-in's own
+	// line says the exec is complete.
+	if _, err := bufio.NewReader(out).ReadString('\n'); err != nil {
+		t.Fatalf("the stand-in did not start: %v", err)
+	}
 	start, ok := owner.StartTime(cmd.Process.Pid)
 	if !ok {
 		t.Skip("this process cannot read start times")
