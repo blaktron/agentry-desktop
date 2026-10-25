@@ -251,11 +251,12 @@ func (m *Manager) recordedInLocked(windowID, meetingID string) {
 	_ = m.writeWindowsLocked(ws)
 }
 
-// rearm watches the windows an earlier session kept.
+// rearm watches the windows an earlier session kept. It writes nothing: a
+// launch with no windows leaves no file, and one long closed is dropped at
+// the next write.
 func (m *Manager) rearm() {
 	m.mu.Lock()
 	ws := m.readWindowsLocked()
-	_ = m.writeWindowsLocked(ws)
 	m.mu.Unlock()
 	for _, w := range ws {
 		m.watchWindow(w)
