@@ -320,6 +320,18 @@ export const MICROSOFT_TENANTS: { value: string; label: string }[] = [
   { value: "organizations", label: "A work or school account" },
 ];
 
+/** microsoftAdminWords is what the Microsoft 365 set-up says of a work or
+ *  school account's administrator, for the account kind chosen ("" asks
+ *  Microsoft, "org" is one organization's tenant): nothing for a personal
+ *  account. who is the agent in a sentence. */
+export function microsoftAdminWords(kind: string, who: string): string {
+  if (kind === "consumers") return "";
+  if (kind === "") {
+    return `A work or school account usually needs its administrator to approve your app first. Ask ${who} to write the request.`;
+  }
+  return `Your organization's administrator will most likely have to approve your app before you can sign in (admin consent for its permissions). Ask ${who} to help you set up Microsoft 365 for a work account: it writes the request for you to send.`;
+}
+
 /** microsoftWords is what the Microsoft 365 set-up says it holds: the app,
  *  then the account the server named, never anything secret. */
 export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale"> | undefined): string {
