@@ -31,6 +31,7 @@ type Services struct {
 	destinations *DestinationsAPI
 	notices      *NoticesAPI
 	persistent   *PersistentAPI
+	meeting      *MeetingAPI
 	bg           background
 }
 
@@ -64,6 +65,7 @@ func New(notices string) *Services {
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},
 		persistent:   &PersistentAPI{app: app, run: run, links: links},
+		meeting:      &MeetingAPI{app: app},
 	}
 }
 
@@ -93,6 +95,9 @@ func (s *Services) Startup(ctx context.Context) {
 	// The background app: the quit intent, the tray, and the agents set to
 	// run when Agentry starts (background.go).
 	s.startBackground(ctx)
+	// Meeting notes' leftovers recovered and its old audio swept; no
+	// audio device is opened until the person presses Record.
+	s.meeting.start(ctx)
 }
 
 // BeforeClose is the window's OnBeforeClose. A run in flight is ended first:
@@ -130,6 +135,8 @@ func (s *Services) Shutdown(ctx context.Context) {
 		defer wg.Done()
 		s.persistent.stopAll()
 	}()
+	// A meeting being recorded is kept for the next launch to transcribe.
+	s.meeting.shutdown()
 	s.run.shutdown()
 	wg.Wait()
 	s.run.stopManagedEngine(ctx)
@@ -157,5 +164,6 @@ func (s *Services) Bind() []interface{} {
 		s.destinations,
 		s.notices,
 		s.persistent,
+		s.meeting,
 	}
 }

@@ -8,9 +8,10 @@ require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.23
-	github.com/blaktron/agentry-cli v0.6.190
+	github.com/blaktron/agentry-cli v0.6.191
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
+	github.com/jfreymuth/pulse v0.1.3
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8

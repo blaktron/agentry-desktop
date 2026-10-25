@@ -1,7 +1,8 @@
 // The sidebar's items as a tree of rows, worked out from the page that is
 // open. Pure, so the node tests can import it; nav.tsx draws the rows.
 //
-// From the top: Home; the persistent agents, one row each; Library with
+// From the top: Home; the persistent agents, one row each; Meeting notes,
+// where this copy can record; Library with
 // Browse and Publisher beneath it; Schedule; Build, a section that opens no
 // page, with QuickAgent (and Validate beneath it), Voice and Knowledge; and
 // Settings, which opens its landing and lists every section beneath it.
@@ -12,7 +13,7 @@
 
 // The pages a sidebar row can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "meetings" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
 
 /** A persistent agent's entry, after Home: the Assistant by the name the
  *  person gave it, with a dot for running or stopped. */
@@ -83,6 +84,8 @@ export type NavState = {
   agents?: NavAgent[];
   /** The persistent agent whose page is open. */
   agent?: string;
+  /** This copy records meetings here: Meeting notes is shown. */
+  meetings?: boolean;
   /** Settings' sections, in the landing's order. */
   sections?: NavSection[];
   /** The Settings section open; none for the landing. */
@@ -114,6 +117,10 @@ export function navRows(s: NavState): NavRow[] {
   for (const a of s.agents ?? []) {
     const open = s.page === "persistent" && s.agent === a.id;
     rows.push({ key: `agent:${a.id}`, label: a.label, target: { kind: "agent", id: a.id }, lit: open, current: open, parent: false, running: a.running });
+  }
+  if (s.meetings) {
+    const open = s.page === "meetings";
+    rows.push({ key: "meetings", label: "Meeting notes", target: { kind: "page", page: "meetings" }, lit: open, current: open, parent: false });
   }
   rows.push(itemRow(LIBRARY, s.page, signedIn));
   rows.push(itemRow(SCHEDULE, s.page, signedIn));

@@ -280,3 +280,38 @@ func TestTokenForRefusesAURLSettingsWouldRefuse(t *testing.T) {
 		}
 	}
 }
+
+// Meeting notes' switch is written by SetMeetingNotesOn alone: a save that
+// loaded the settings with it on, made before it went off, cannot turn it
+// back on, and one made with it off cannot turn it on.
+func TestSaveNeverChangesMeetingNotesSwitch(t *testing.T) {
+	isolate(t)
+	stale, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.On = true
+	stale.MeetingNotes.Profile = "multilingual"
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.MeetingNotes.On || s.MeetingNotes.Profile != "multilingual" {
+		t.Fatalf("after Save: %+v, want the profile saved and the switch still off", s.MeetingNotes)
+	}
+	if err := SetMeetingNotesOn(true); err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.On = false
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); !s.MeetingNotes.On {
+		t.Fatal("Save turned the switch off")
+	}
+	if err := SetMeetingNotesOn(false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.MeetingNotes.On || s.MeetingNotes.Profile != "multilingual" {
+		t.Fatalf("after SetMeetingNotesOn(false): %+v", s.MeetingNotes)
+	}
+}

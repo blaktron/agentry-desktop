@@ -2417,6 +2417,150 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class MeetingChoice {
+	    id: string;
+	    name: string;
+	    sizeBytes?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingChoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.sizeBytes = source["sizeBytes"];
+	    }
+	}
+	export class MeetingView {
+	    id: string;
+	    title: string;
+	    app: string;
+	    wholeDevice: boolean;
+	    started: string;
+	    durationSeconds: number;
+	    state: string;
+	    error?: string;
+	    progress: number;
+	    transcriptName?: string;
+	    hasTranscript: boolean;
+	    hasAudio: boolean;
+	    audioUntil?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.app = source["app"];
+	        this.wholeDevice = source["wholeDevice"];
+	        this.started = source["started"];
+	        this.durationSeconds = source["durationSeconds"];
+	        this.state = source["state"];
+	        this.error = source["error"];
+	        this.progress = source["progress"];
+	        this.transcriptName = source["transcriptName"];
+	        this.hasTranscript = source["hasTranscript"];
+	        this.hasAudio = source["hasAudio"];
+	        this.audioUntil = source["audioUntil"];
+	    }
+	}
+	export class MeetingRecordingView {
+	    id: string;
+	    started: string;
+	    app: string;
+	    wholeDevice: boolean;
+	    paused: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingRecordingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.started = source["started"];
+	        this.app = source["app"];
+	        this.wholeDevice = source["wholeDevice"];
+	        this.paused = source["paused"];
+	    }
+	}
+	export class MeetingNotesView {
+	    available: boolean;
+	    unavailable?: string;
+	    on: boolean;
+	    warnings: string[];
+	    recording?: MeetingRecordingView;
+	    preparing: boolean;
+	    prepareStep?: string;
+	    prepareDone?: number;
+	    prepareTotal?: number;
+	    prepareError?: string;
+	    model: string;
+	    modelName: string;
+	    modelReady: boolean;
+	    modelChoice: string;
+	    models: MeetingChoice[];
+	    profile: string;
+	    profiles: MeetingChoice[];
+	    outputDir: string;
+	    outputDirChosen: boolean;
+	    keepAudio: boolean;
+	    meetings: MeetingView[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingNotesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.unavailable = source["unavailable"];
+	        this.on = source["on"];
+	        this.warnings = source["warnings"];
+	        this.recording = this.convertValues(source["recording"], MeetingRecordingView);
+	        this.preparing = source["preparing"];
+	        this.prepareStep = source["prepareStep"];
+	        this.prepareDone = source["prepareDone"];
+	        this.prepareTotal = source["prepareTotal"];
+	        this.prepareError = source["prepareError"];
+	        this.model = source["model"];
+	        this.modelName = source["modelName"];
+	        this.modelReady = source["modelReady"];
+	        this.modelChoice = source["modelChoice"];
+	        this.models = this.convertValues(source["models"], MeetingChoice);
+	        this.profile = source["profile"];
+	        this.profiles = this.convertValues(source["profiles"], MeetingChoice);
+	        this.outputDir = source["outputDir"];
+	        this.outputDirChosen = source["outputDirChosen"];
+	        this.keepAudio = source["keepAudio"];
+	        this.meetings = this.convertValues(source["meetings"], MeetingView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	export class MetaView {
 	    version: string;
 	    apiVersion: string;
