@@ -146,8 +146,10 @@ func (p *PersistentAPI) viewerOf(home, name string) session.Session {
 	go func() {
 		defer p.followers.Done()
 		for ev := range s.Events() {
-			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
+			// Decided before the page has the event, as for an agent
+			// this app runs.
 			p.noticeTask(name, ev, nil)
+			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
 		}
 		p.mu.Lock()
 		if p.viewers[name] == v {
