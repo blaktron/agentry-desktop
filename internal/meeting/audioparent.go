@@ -82,9 +82,9 @@ func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 	// The far side has a track from the start: a loopback delivers nothing
 	// while nothing plays, and a far side silent throughout is a silent
 	// track in the transcript, not a missing one.
-	c.mu.Lock()
+	c.trackMu.Lock()
 	_, err = c.trackLocked(wireFar)
-	c.mu.Unlock()
+	c.trackMu.Unlock()
 	if err != nil {
 		p.stop()
 		return nil, err
@@ -97,12 +97,17 @@ type childCapture struct {
 	spawn  spawnFunc
 	tracks Tracks
 
-	mu       sync.Mutex
-	call     Call
-	farSide  FarSide
-	paused   bool
-	stopped  bool
-	proc     *childProc
+	// mu is the capture's state. The manager asks for Call and FarSide
+	// under its own lock, and opening a track takes that lock, so no track
+	// is opened or written under mu: trackMu is the tracks'.
+	mu      sync.Mutex
+	call    Call
+	farSide FarSide
+	paused  bool
+	stopped bool
+	proc    *childProc
+
+	trackMu  sync.Mutex
 	mic, far Track
 
 	ended   chan struct{}
@@ -176,10 +181,13 @@ func (c *childCapture) awaitStart(out *bufio.Reader) (wireEvent, error) {
 // nothing is written while paused.
 func (c *childCapture) write(track byte, payload []byte) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.stopped || c.paused {
+	drop := c.stopped || c.paused
+	c.mu.Unlock()
+	if drop {
 		return
 	}
+	c.trackMu.Lock()
+	defer c.trackMu.Unlock()
 	t, err := c.trackLocked(track)
 	if err != nil {
 		log.Printf("meeting notes: a track could not be opened: %v", err)
@@ -192,7 +200,8 @@ func (c *childCapture) write(track byte, payload []byte) {
 	t.Write(samples)
 }
 
-// trackLocked is the child's track, opened the first time it is asked for.
+// trackLocked is the child's track, opened the first time it is asked for;
+// trackMu is held.
 func (c *childCapture) trackLocked(track byte) (Track, error) {
 	t := &c.mic
 	label, name := Me, "mic"
@@ -347,8 +356,8 @@ func (c *childCapture) Stop() error {
 	c.mu.Unlock()
 	p.stop()
 	<-c.done
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.trackMu.Lock()
+	defer c.trackMu.Unlock()
 	for _, t := range []Track{c.mic, c.far} {
 		if t != nil {
 			// A loopback sends nothing while nothing plays: the track is

@@ -183,6 +183,42 @@ func TestASilentFarSideStillHasItsTrack(t *testing.T) {
 	}
 }
 
+// lockingTracks opens a track only under a lock its caller holds too, as
+// the manager's tracks open under the manager's lock.
+type lockingTracks struct {
+	mu *sync.Mutex
+	memTracks
+}
+
+func (l *lockingTracks) Open(label Label, name string) (Track, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.memTracks.Open(label, name)
+}
+
+// The manager asks for the call under its lock while the first audio opens
+// a track, which takes that lock: asking must not wait on the opening.
+func TestTheCallIsReadWhileATrackOpens(t *testing.T) {
+	var managerMu sync.Mutex
+	c := &childCapture{tracks: &lockingTracks{mu: &managerMu}, call: Call{App: "Zoom"}}
+	managerMu.Lock()
+	wrote := make(chan struct{})
+	go func() { c.write(wireMic, []byte{1, 0}); close(wrote) }()
+	time.Sleep(50 * time.Millisecond)
+	got := make(chan Call, 1)
+	go func() { got <- c.Call() }()
+	select {
+	case call := <-got:
+		if call.App != "Zoom" {
+			t.Fatalf("call %+v", call)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reading the call waited on a track being opened: the manager and the capture would deadlock")
+	}
+	managerMu.Unlock()
+	<-wrote
+}
+
 // A child that dies is started again, and the recording goes on on the same
 // tracks.
 func TestACrashedChildIsStartedAgain(t *testing.T) {
