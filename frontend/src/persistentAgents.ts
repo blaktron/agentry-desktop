@@ -352,3 +352,23 @@ export function startFailureLines(a: Pick<app.PersistentAgentView, "state" | "fa
 export function chosenReset(resets: app.PersistentResetView[], kind: string): app.PersistentResetView | null {
   return resets.find((r) => r.kind === kind) ?? resets.find((r) => r.kind === "all") ?? null;
 }
+
+const upkeepTriggers: Record<string, string> = {
+  idle: "after a quiet spell",
+  "in-use": "as its conversation grew large",
+  manual: "when asked",
+};
+
+/** One run of the memory's upkeep, as its Configuration names it. */
+export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger" | "done" | "reason">, now: Date = new Date()): string {
+  const at = new Date(u.time);
+  const day = at.toDateString() === now.toDateString() ? "today" : at.toLocaleDateString();
+  const when = `${day} at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  if (u.trigger === "consolidate") {
+    return u.done ? `Memory last tidied ${when}.` : `The memory's last tidy, ${when}, did not run: ${u.reason}.`;
+  }
+  const why = upkeepTriggers[u.trigger] ?? u.trigger;
+  return u.done
+    ? `Last compacted ${when}, ${why}: a fresh conversation opened with its handoff.`
+    : `The last compaction, ${when}, ${why}, did not finish: ${u.reason}. The conversation went on as it was.`;
+}

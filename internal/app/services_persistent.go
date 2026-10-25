@@ -246,6 +246,7 @@ type agentSupervisor interface {
 	Roster() persistent.Roster
 	Done() <-chan struct{}
 	Stop(ctx context.Context) (*receipt.Envelope, error)
+	Compact(ctx context.Context) (persistent.Compacted, error)
 }
 
 // PersistentAgentView is how an agent stands, for Settings and its page.
@@ -316,6 +317,37 @@ type PersistentAgentView struct {
 	Status   *PersistentStatusView   `json:"status,omitempty"`
 	Lifetime PersistentUsageView     `json:"lifetime"`
 	Volumes  PersistentVolumesView   `json:"volumes"`
+	// LastCompaction and LastConsolidation are the newest records of the
+	// memory's upkeep, for an agent that keeps a memory; none before the
+	// first.
+	LastCompaction    *PersistentUpkeepView `json:"lastCompaction,omitempty"`
+	LastConsolidation *PersistentUpkeepView `json:"lastConsolidation,omitempty"`
+}
+
+// PersistentUpkeepView is one run of an agent's memory upkeep, a compaction
+// or the daily tidy of its memory, as its Configuration names it.
+type PersistentUpkeepView struct {
+	Time time.Time `json:"time"`
+	// Trigger is idle, in-use, manual or consolidate.
+	Trigger string `json:"trigger"`
+	// Done says it finished: a compaction started a fresh conversation, a
+	// tidy ran. Reason is why not when it did not.
+	Done        bool   `json:"done"`
+	Reason      string `json:"reason,omitempty"`
+	FactsBefore int    `json:"factsBefore"`
+	FactsAfter  int    `json:"factsAfter"`
+}
+
+// upkeepView is a record of the agent's receipts as the view shows it.
+func upkeepView(r *persistent.UpkeepRecord) *PersistentUpkeepView {
+	if r == nil {
+		return nil
+	}
+	done := r.Swapped
+	if r.Trigger == persistent.UpkeepConsolidate {
+		done = r.Reason == ""
+	}
+	return &PersistentUpkeepView{Time: r.Time, Trigger: r.Trigger, Done: done, Reason: r.Reason, FactsBefore: r.FactsBefore, FactsAfter: r.FactsAfter}
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -531,6 +563,10 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
+	if v.KeepsMemory {
+		compaction, consolidation := persistent.LastUpkeep(home, a.Name)
+		v.LastCompaction, v.LastConsolidation = upkeepView(compaction), upkeepView(consolidation)
+	}
 	v.Accounts = accountViews(cfg.Accounts)
 	v.Resets = resetViews(a)
 	v.MailProviders = mailProviderViews(a, cfg)

@@ -720,6 +720,8 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
 const keptIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGf4DwADgQGAiPkb6AAAAABJRU5ErkJggg==";
 
 const harnessAssistant = {
+  lastCompaction: { time: "2026-10-25T09:05:00Z", trigger: "manual", done: true, factsBefore: 6, factsAfter: 14 },
+  lastConsolidation: { time: "2026-10-25T12:00:00Z", trigger: "consolidate", done: true, factsBefore: 14, factsAfter: 13 },
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
   share: "/home/me/agentry/assistantshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: true, takesSkills: true, malwareCheck: true,
   keepsTime: true, keepsMemory: true, codes: false, accounts: [],
@@ -933,6 +935,7 @@ g.go = { app: {
       return harnessTasks;
     },
     ExportMemory: async () => ({ folder: "/home/me/Documents/assistant-memory-2026-10-23-201500", files: 12, bytes: 48213 }),
+    Compact: async () => harnessAssistant,
     SetAccount: async () => harnessCoder,
     RemoveAccount: async () => harnessCoder,
     AccountKind: async (host: string) => ({ "github.com": "github", "gitlab.com": "gitlab", "codeberg.org": "gitea" } as Record<string, string>)[host.trim().toLowerCase()] ?? "",
