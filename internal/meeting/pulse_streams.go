@@ -18,6 +18,8 @@ type paStream struct {
 	// OnMonitor is a source-output reading a sink's monitor rather than a
 	// microphone.
 	OnMonitor bool
+	// Meter is a source-output that only measures a level (isMeter).
+	Meter bool
 }
 
 // paSnapshot is one listing of the streams.
@@ -28,33 +30,19 @@ type paSnapshot struct {
 	MonitorOf map[uint32]uint32
 }
 
-// findCall is the call under way: an app, not this one, that reads a
-// microphone (an uncorked source-output on a source that is not a monitor)
-// and also plays something. The first such app in the listing wins, named
-// as its playback is: an app often gives its microphone stream a name of
-// its own ("Google Chrome input").
+// findCall is the call under way: the first of findCalls.
 func findCall(s paSnapshot, me string) (Call, bool) {
-	for _, o := range s.Outputs {
-		if o.Corked || o.OnMonitor || o.PID == "" || o.PID == me {
-			continue
-		}
-		for _, in := range s.Inputs {
-			if in.PID == o.PID {
-				name := in.App
-				if name == "" {
-					name = o.App
-				}
-				return Call{App: name, Binary: o.Binary, PID: o.PID}, true
-			}
-		}
+	calls := findCalls(s, me)
+	if len(calls) == 0 {
+		return Call{}, false
 	}
-	return Call{}, false
+	return calls[0], true
 }
 
 // appMic is the app's microphone stream, if it has one.
 func appMic(s paSnapshot, pid string) (paStream, bool) {
 	for _, o := range s.Outputs {
-		if o.PID == pid && !o.OnMonitor {
+		if o.PID == pid && !o.OnMonitor && !o.Meter {
 			return o, true
 		}
 	}

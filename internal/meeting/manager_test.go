@@ -18,6 +18,7 @@ import (
 type fakeRecorder struct {
 	mu      sync.Mutex
 	calls   int
+	asked   []Call
 	call    Call
 	far     FarSide
 	tracks  []fakeTrackSpec
@@ -35,10 +36,15 @@ func (f *fakeRecorder) Record(_ context.Context, call Call, tracks Tracks) (Capt
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	f.asked = append(f.asked, call)
 	if f.err != nil {
 		return nil, f.err
 	}
-	c := &fakeCapture{call: f.call, far: f.far, ended: make(chan struct{})}
+	got := f.call
+	if call.PID != "" {
+		got = call
+	}
+	c := &fakeCapture{call: got, far: f.far, ended: make(chan struct{})}
 	for _, spec := range f.tracks {
 		t, err := tracks.Open(spec.label, spec.name)
 		if err != nil {
@@ -142,16 +148,25 @@ func testCatalogue(t *testing.T, dir string) Catalogue {
 }
 
 type harness struct {
-	m        *Manager
-	rec      *fakeRecorder
-	eng      *fakeEngine
-	settings *Settings
-	notices  []string
-	out      string
-	mu       sync.Mutex
+	m         *Manager
+	rec       *fakeRecorder
+	eng       *fakeEngine
+	settings  *Settings
+	notices   []string
+	raised    []Notice
+	withdrawn []string
+	shown     []*RecordingStatus
+	notifyErr error
+	out       string
+	configure func(*Manager)
+	mu        sync.Mutex
 }
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t *testing.T) *harness { return newHarnessWith(t, nil) }
+
+// newHarnessWith is newHarness with configure run on the manager before it
+// starts.
+func newHarnessWith(t *testing.T, configure func(*Manager)) *harness {
 	t.Helper()
 	root := t.TempDir()
 	models := filepath.Join(root, "models")
@@ -159,10 +174,11 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	h := &harness{
-		rec:      &fakeRecorder{far: FarSideApp, call: Call{App: "Zoom", PID: "42"}},
-		eng:      &fakeEngine{byFile: map[string][]Segment{}},
-		settings: &Settings{On: true, Profile: "english", OutputDir: filepath.Join(root, "out")},
-		out:      filepath.Join(root, "out"),
+		rec:       &fakeRecorder{far: FarSideApp, call: Call{App: "Zoom", PID: "42"}},
+		eng:       &fakeEngine{byFile: map[string][]Segment{}},
+		settings:  &Settings{On: true, Profile: "english", OutputDir: filepath.Join(root, "out")},
+		out:       filepath.Join(root, "out"),
+		configure: configure,
 	}
 	h.m = &Manager{
 		Root: root, Catalogue: testCatalogue(t, models), Recorder: h.rec, Engine: h.eng,
@@ -172,11 +188,26 @@ func newHarness(t *testing.T) *harness {
 			defer h.mu.Unlock()
 			return *h.settings
 		},
-		Notify: func(title, body string) {
+		Notify: func(n Notice) error {
 			h.mu.Lock()
 			defer h.mu.Unlock()
-			h.notices = append(h.notices, title+": "+body)
+			h.notices = append(h.notices, n.Title+": "+n.Body)
+			h.raised = append(h.raised, n)
+			return h.notifyErr
 		},
+		Withdraw: func(tag string) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.withdrawn = append(h.withdrawn, tag)
+		},
+		Indicate: func(st *RecordingStatus) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.shown = append(h.shown, st)
+		},
+	}
+	if h.configure != nil {
+		h.configure(h.m)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { h.m.Shutdown(); cancel() })
@@ -510,8 +541,16 @@ func TestAFarSideThatWidensIsSaidAndWritten(t *testing.T) {
 	waitFor(t, "its notification", func() bool {
 		h.mu.Lock()
 		defer h.mu.Unlock()
-		return len(h.notices) == 2 && strings.Contains(h.notices[1], "everything")
+		return len(h.notices) == 3 && strings.Contains(h.notices[1], "everything")
 	})
+	// The recording's own notification is raised again with the wider
+	// words, in its place.
+	h.mu.Lock()
+	again := h.raised[2]
+	h.mu.Unlock()
+	if again.Tag != tagRecording || !strings.Contains(again.Body, "everything your computer plays") {
+		t.Fatalf("the recording's notification after the widening = %+v", again)
+	}
 	_ = h.m.Stop()
 	waitFor(t, "the transcript", func() bool { return h.meeting(t, mt.ID).State == StateDone })
 	raw, _ := os.ReadFile(h.meeting(t, mt.ID).Transcript)

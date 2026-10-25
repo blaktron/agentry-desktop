@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -192,6 +193,13 @@ type MeetingNotes struct {
 	// off by default, when the audio is deleted once the transcript is
 	// written.
 	KeepAudio bool `yaml:"keepAudio,omitempty"`
+	// Automatic are the meeting apps, by their key, whose calls are
+	// recorded without asking. Save does not write it: only
+	// SetMeetingAutomatic does, which the app calls after a native
+	// confirmation when an app is added.
+	Automatic []string `yaml:"automatic,omitempty"`
+	// MaxHours ends a recording that has run this many hours; 0 for four.
+	MaxHours int `yaml:"maxHours,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer
@@ -330,6 +338,10 @@ func Save(s Settings) error {
 	cur, err := Load()
 	s.UnsafeMode = err == nil && cur.UnsafeMode
 	s.MeetingNotes.On = err == nil && cur.MeetingNotes.On
+	s.MeetingNotes.Automatic = nil
+	if err == nil {
+		s.MeetingNotes.Automatic = cur.MeetingNotes.Automatic
+	}
 	return write(s)
 }
 
@@ -344,6 +356,25 @@ func SetMeetingNotesOn(on bool) error {
 		return err
 	}
 	s.MeetingNotes.On = on
+	return write(s)
+}
+
+// SetMeetingAutomatic adds a meeting app to the list whose calls are
+// recorded without asking, or takes it off, and writes nothing else. The
+// caller is the one binding that may: MeetingAPI's SetAutomatic, after the
+// native confirmation when it adds.
+func SetMeetingAutomatic(key string, on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	list := slices.DeleteFunc(slices.Clone(s.MeetingNotes.Automatic), func(k string) bool { return k == key })
+	if on {
+		list = append(list, key)
+	}
+	s.MeetingNotes.Automatic = list
 	return write(s)
 }
 

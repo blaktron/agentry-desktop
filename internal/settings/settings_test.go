@@ -315,3 +315,41 @@ func TestSaveNeverChangesMeetingNotesSwitch(t *testing.T) {
 		t.Fatalf("after SetMeetingNotesOn(false): %+v", s.MeetingNotes)
 	}
 }
+
+// The automatic list is written by SetMeetingAutomatic alone: a save cannot
+// add an app to it, and one made from settings loaded before an app was
+// added cannot take it off.
+func TestSaveNeverChangesTheMeetingAutomaticList(t *testing.T) {
+	isolate(t)
+	stale, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.Automatic = []string{"chrome"}
+	stale.MeetingNotes.MaxHours = 2
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); len(s.MeetingNotes.Automatic) != 0 || s.MeetingNotes.MaxHours != 2 {
+		t.Fatalf("after Save: %+v, want the hours saved and no app automatic", s.MeetingNotes)
+	}
+	if err := SetMeetingAutomatic("zoom", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetMeetingAutomatic("zoom", true); err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.Automatic = nil
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); len(s.MeetingNotes.Automatic) != 1 || s.MeetingNotes.Automatic[0] != "zoom" {
+		t.Fatalf("after a stale Save: %v, want [zoom] once", s.MeetingNotes.Automatic)
+	}
+	if err := SetMeetingAutomatic("zoom", false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); len(s.MeetingNotes.Automatic) != 0 || s.MeetingNotes.MaxHours != 2 {
+		t.Fatalf("after taking zoom off: %+v", s.MeetingNotes)
+	}
+}

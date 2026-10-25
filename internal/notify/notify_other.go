@@ -6,3 +6,5 @@ package notify
 func Init() error { return nil }
 
 func show(Notice) error { return ErrUnsupported }
+
+func withdraw(string) error { return nil }

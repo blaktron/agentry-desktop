@@ -8,6 +8,8 @@ export function DeleteAudio(arg1:string):Promise<app.MeetingNotesView>;
 
 export function Forget(arg1:string):Promise<app.MeetingNotesView>;
 
+export function NotNow(arg1:string):Promise<app.MeetingNotesView>;
+
 export function OpenOutputFolder():Promise<void>;
 
 export function OpenTranscript(arg1:string):Promise<void>;
@@ -18,15 +20,23 @@ export function Prepare():Promise<app.MeetingNotesView>;
 
 export function Record():Promise<app.MeetingNotesView>;
 
+export function RecordOffer(arg1:string):Promise<app.MeetingNotesView>;
+
 export function ResetOutputDir():Promise<app.MeetingNotesView>;
 
 export function Resume():Promise<app.MeetingNotesView>;
 
+export function SetAutomatic(arg1:string,arg2:boolean):Promise<app.MeetingNotesView>;
+
 export function SetKeepAudio(arg1:boolean):Promise<app.MeetingNotesView>;
+
+export function SetMaxHours(arg1:number):Promise<app.MeetingNotesView>;
 
 export function SetModel(arg1:string):Promise<app.MeetingNotesView>;
 
 export function SetProfile(arg1:string):Promise<app.MeetingNotesView>;
+
+export function SetStartsAtSignIn(arg1:boolean):Promise<app.MeetingNotesView>;
 
 export function ShowTranscript(arg1:string):Promise<void>;
 

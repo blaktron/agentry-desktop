@@ -27,6 +27,10 @@ func stop() {
 
 func setIcon() { systray.SetIcon(iconPNG) }
 
+var recordingPNG = withDot(iconPNG)
+
+func setRecordingIcon() { systray.SetIcon(recordingPNG) }
+
 func afterBuild() {}
 
 // Activate brings the app forward after its window is shown; the window

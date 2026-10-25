@@ -39,9 +39,10 @@ type PulseRecorder struct {
 const fragment = SampleRate / 10 * 2
 
 // endWait is how long a recording of an app goes on after the app has
-// stopped both reading the microphone and playing, in case it comes back
-// (a call rejoined, a device switched).
-const endWait = 30 * time.Second
+// stopped reading the microphone, in case it comes back (a call rejoined, a
+// device switched). Playing alone does not keep it going: a browser plays
+// other tabs' sound long after its call.
+const endWait = callEndWait
 
 // Record starts recording.
 func (r PulseRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
@@ -54,6 +55,7 @@ func (r PulseRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 		c: c, conn: conn, tracks: tracks, me: strconv.Itoa(os.Getpid()),
 		changed: make(chan struct{}, 1), done: make(chan struct{}), ended: make(chan struct{}),
 		lostInputs: map[uint32]bool{}, farByInput: map[uint32]*paRecord{},
+		waiting: map[uint32]Track{}, failures: map[uint32]int{},
 		monitors: map[uint32]*paRecord{}, monitorTracks: map[uint32]Track{},
 	}
 	c.Callback = p.callback
@@ -125,7 +127,12 @@ type pulseCapture struct {
 	micTrack   Track
 	farByInput map[uint32]*paRecord
 	lostInputs map[uint32]bool // playback streams recorded and gone: never taken up again
-	whole      []*paRecord
+	// waiting are the tracks of playback streams that could not be
+	// recorded yet, to be tried again, and failures how often each failed
+	// while it played.
+	waiting  map[uint32]Track
+	failures map[uint32]int
+	whole    []*paRecord
 	// monitors record a sink's whole output where one of the app's
 	// playback streams could not be recorded on its own, by sink; their
 	// tracks, kept for a monitor taken up again.
@@ -182,7 +189,10 @@ func (p *pulseCapture) watch(ctx context.Context) {
 		case <-p.changed:
 		case <-tick.C:
 		}
-		if p.farSide != FarSideApp {
+		// A recording of the whole devices has no app to follow. One that
+		// follows an app goes on following it after part of its far side
+		// widened to its sink's monitor, so it still ends with the call.
+		if p.call.PID == "" {
 			continue
 		}
 		snap, err := p.list()
@@ -195,8 +205,8 @@ func (p *pulseCapture) watch(ctx context.Context) {
 
 // reconcile brings the recording in line with the app's streams: the
 // microphone followed to the source the app reads now and dropped when the
-// app stops reading; each playback stream that is flowing taken up once,
-// and one that is gone ended for good.
+// app stops reading; each playback stream that is flowing taken up once
+// while the app reads the microphone, and one that is gone ended for good.
 func (p *pulseCapture) reconcile(s paSnapshot) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -239,22 +249,37 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 		}
 	}
 	for _, in := range appPlayback(s, pid) {
-		if p.farByInput[in.Index] != nil || p.lostInputs[in.Index] {
+		if p.mic == nil || p.farByInput[in.Index] != nil || p.lostInputs[in.Index] {
 			continue
 		}
 		mon, ok := s.MonitorOf[in.Device]
 		if !ok {
 			continue
 		}
-		t, err := p.tracks.Open(Them, fmt.Sprintf("far-%d", in.Index))
-		if err != nil {
-			return err
+		t := p.waiting[in.Index]
+		if t == nil {
+			var err error
+			if t, err = p.tracks.Open(Them, fmt.Sprintf("far-%d", in.Index)); err != nil {
+				return err
+			}
 		}
 		rec, err := p.openLocked(t, mon, "", in.Index, "Agentry meeting notes ("+in.App+")")
 		if err != nil {
-			t.End()
-			p.lostInputs[in.Index] = true
-			if p.inputListed(in.Index) {
+			// An app corks and drops streams as a call settles, so a
+			// stream that could not be recorded widens the recording only
+			// when it is still there, playing, and failed twice.
+			listed, corked := p.inputState(in.Index)
+			switch {
+			case !listed:
+				p.loseLocked(in.Index, t)
+			case corked:
+				// Taken up when it plays again.
+				p.waiting[in.Index] = t
+			case p.failures[in.Index] == 0:
+				p.failures[in.Index]++
+				p.waiting[in.Index] = t
+			default:
+				p.loseLocked(in.Index, t)
 				// The stream plays on but cannot be recorded on its own:
 				// the whole of its sink is, and the recording says so.
 				if err := p.recordMonitorLocked(in.Device, mon); err != nil {
@@ -263,7 +288,13 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 			}
 			continue
 		}
+		delete(p.waiting, in.Index)
 		p.farByInput[in.Index] = rec
+	}
+	for in, t := range p.waiting {
+		if !hasInput(s, in) {
+			p.loseLocked(in, t)
+		}
 	}
 	if len(appPlayback(s, pid)) == 0 {
 		for sink, rec := range p.monitors {
@@ -271,7 +302,7 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 			delete(p.monitors, sink)
 		}
 	}
-	if p.mic == nil && len(p.farByInput) == 0 && len(p.monitors) == 0 {
+	if p.mic == nil {
 		if p.quietSince.IsZero() {
 			p.quietSince = time.Now()
 		} else if time.Since(p.quietSince) > endWait {
@@ -294,10 +325,22 @@ func alive(s paSnapshot, rec *paRecord) bool {
 	return false
 }
 
-// inputListed asks whether a playback stream is still there.
-func (p *pulseCapture) inputListed(index uint32) bool {
+// inputState asks whether a playback stream is still there, and whether it
+// is corked.
+func (p *pulseCapture) inputState(index uint32) (listed, corked bool) {
 	var reply proto.GetSinkInputInfoReply
-	return p.c.Request(&proto.GetSinkInputInfo{SinkInputIndex: index}, &reply) == nil
+	if p.c.Request(&proto.GetSinkInputInfo{SinkInputIndex: index}, &reply) != nil {
+		return false, false
+	}
+	return true, reply.Corked
+}
+
+// loseLocked ends a playback stream's track for good: the stream went, or
+// could not be recorded on its own.
+func (p *pulseCapture) loseLocked(index uint32, t Track) {
+	t.End()
+	delete(p.waiting, index)
+	p.lostInputs[index] = true
 }
 
 // recordMonitorLocked records the whole output of sink, through its monitor
@@ -447,25 +490,30 @@ func (p *pulseCapture) stopAll() {
 	for _, t := range p.monitorTracks {
 		t.End()
 	}
+	for _, t := range p.waiting {
+		t.End()
+	}
 	p.mic, p.whole, p.farByInput, p.monitors = nil, nil, map[uint32]*paRecord{}, map[uint32]*paRecord{}
 	p.mu.Unlock()
 	close(p.done)
 	_ = p.conn.Close()
 }
 
-// list reads the streams, the sinks' monitors and which sources are
+func (p *pulseCapture) list() (paSnapshot, error) { return listStreams(p.c) }
+
+// listStreams reads the streams, the sinks' monitors and which sources are
 // monitors.
-func (p *pulseCapture) list() (paSnapshot, error) {
+func listStreams(c *proto.Client) (paSnapshot, error) {
 	s := paSnapshot{MonitorOf: map[uint32]uint32{}}
 	var sinks proto.GetSinkInfoListReply
-	if err := p.c.Request(&proto.GetSinkInfoList{}, &sinks); err != nil {
+	if err := c.Request(&proto.GetSinkInfoList{}, &sinks); err != nil {
 		return s, err
 	}
 	for _, k := range sinks {
 		s.MonitorOf[k.SinkIndex] = k.MonitorSourceIndex
 	}
 	var sources proto.GetSourceInfoListReply
-	if err := p.c.Request(&proto.GetSourceInfoList{}, &sources); err != nil {
+	if err := c.Request(&proto.GetSourceInfoList{}, &sources); err != nil {
 		return s, err
 	}
 	monitor := map[uint32]bool{}
@@ -473,17 +521,21 @@ func (p *pulseCapture) list() (paSnapshot, error) {
 		monitor[src.SourceIndex] = src.MonitorSourceIndex != proto.Undefined
 	}
 	var outs proto.GetSourceOutputInfoListReply
-	if err := p.c.Request(&proto.GetSourceOutputInfoList{}, &outs); err != nil {
+	if err := c.Request(&proto.GetSourceOutputInfoList{}, &outs); err != nil {
 		return s, err
 	}
 	for _, o := range outs {
 		s.Outputs = append(s.Outputs, paStream{
 			Index: o.SourceOutpuIndex, Device: o.SourceIndex, Corked: o.Corked, OnMonitor: monitor[o.SourceIndex],
+			Meter: isMeter(o.ResampleMethod, map[string]string{
+				"stream.monitor": prop(o.Properties, "stream.monitor"),
+				"resample.peaks": prop(o.Properties, "resample.peaks"),
+			}),
 			App: prop(o.Properties, "application.name"), Binary: prop(o.Properties, "application.process.binary"), PID: prop(o.Properties, "application.process.id"),
 		})
 	}
 	var ins proto.GetSinkInputInfoListReply
-	if err := p.c.Request(&proto.GetSinkInputInfoList{}, &ins); err != nil {
+	if err := c.Request(&proto.GetSinkInputInfoList{}, &ins); err != nil {
 		return s, err
 	}
 	for _, in := range ins {

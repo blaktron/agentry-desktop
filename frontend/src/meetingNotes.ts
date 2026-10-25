@@ -72,3 +72,19 @@ export function downloadWords(done: number, total: number): string {
 export function isNo(err: unknown): boolean {
   return String(err).includes("not confirmed");
 }
+
+/** The offer of a detected call, as its card's title says it. */
+export function offerTitle(app: string): string {
+  return `Record this meeting? (${app || "a meeting app"})`;
+}
+
+/** A longest-recording choice, "1 hour" or "4 hours". */
+export function hoursLabel(h: number): string {
+  return h === 1 ? "1 hour" : `${h} hours`;
+}
+
+/** How a meeting app's calls are handled, as its choice reads. */
+export const AUTO_CHOICES = [
+  { value: "ask", label: "Ask each time" },
+  { value: "auto", label: "Record automatically" },
+] as const;
