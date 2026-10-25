@@ -465,9 +465,8 @@ func TestAnAutomaticAppTakesThePlaceOfAStandingOffer(t *testing.T) {
 		st := h.m.Status().Recording
 		return st != nil && st.How == Automatically
 	})
-	if h.offer() != nil || !h.withdrew(tagOffer) {
-		t.Fatal("Chrome's offer still stands while Zoom records")
-	}
+	// The offer is withdrawn once the recording has begun.
+	waitFor(t, "Chrome's offer withdrawn", func() bool { return h.offer() == nil && h.withdrew(tagOffer) })
 	if err := h.m.Stop(); err != nil {
 		t.Fatal(err)
 	}

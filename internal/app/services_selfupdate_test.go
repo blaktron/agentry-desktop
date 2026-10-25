@@ -61,7 +61,7 @@ func signedChannel(t *testing.T, version, commit string, retired bool) (*httptes
 // service takes both as fields precisely so a test needs no global to swap.
 func api(t *testing.T, channel string, keys *selfupdate.KeySet, client *http.Client) *SelfUpdateAPI {
 	t.Helper()
-	u := newSelfUpdateAPI(&App{})
+	u := newSelfUpdateAPI(&App{}, nil)
 	u.channel = channel
 	u.keys = func() (*selfupdate.KeySet, error) { return keys, nil }
 	u.client = client
@@ -442,6 +442,9 @@ func TestInstallDownloadsAndAppliesAVerifiedRelease(t *testing.T) {
 	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
 	fake := &fakeApplier{}
 	u.applier = fake
+	// What must not outlive the process ends before the installer runs.
+	var endedFirst bool
+	u.beforeApply = func() { endedFirst = fake.applied == "" }
 
 	if _, err := u.SelfUpdateCheckNow(); err != nil {
 		t.Fatal(err)
@@ -451,6 +454,9 @@ func TestInstallDownloadsAndAppliesAVerifiedRelease(t *testing.T) {
 	}
 	if fake.applied == "" {
 		t.Fatal("nothing was applied")
+	}
+	if !endedFirst {
+		t.Error("the work that must not outlive the process was not ended before the installer ran")
 	}
 	if string(fake.bytes) != string(want) {
 		t.Error("what was applied is not what the release signed")

@@ -126,7 +126,7 @@ func (m *Manager) writeWindowsLocked(ws []Window) error {
 	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, m.windowsPath())
+	return replaceFile(tmp, m.windowsPath())
 }
 
 // Arm keeps a window from start-lead to end+tail for the meeting w names,

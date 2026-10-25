@@ -386,7 +386,10 @@ func (m *Manager) announce(r *recording) error {
 	app, far, paused, how, title := r.m.App, r.m.FarSide, r.paused, r.how, r.m.Title
 	m.mu.Unlock()
 	what := "your microphone and everything your computer plays"
-	if far != FarSideWholeDevice && app != "" {
+	switch {
+	case far == FarSideAppDevice && app != "":
+		what = "your microphone and everything played on the speakers or headset " + app + " uses"
+	case far != FarSideWholeDevice && app != "":
 		what = "your microphone and " + app
 	}
 	n := Notice{Tag: tagRecording, Resident: true, Title: "Recording a meeting", Body: "Agentry is recording " + what + ". " + ConsentSentence}

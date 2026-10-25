@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -477,6 +478,11 @@ func TestTheSidecarIsLookedForBesideTheAppOnly(t *testing.T) {
 		{"/tmp/loose", "darwin", ""},
 	}
 	for _, c := range cases {
+		// Paths are this computer's own: another platform's are checked on
+		// that platform.
+		if c.goos != runtime.GOOS && (runtime.GOOS == "windows" || c.goos == "windows") {
+			continue
+		}
 		if got := sidecarBeside(c.dir, c.goos); got != c.want {
 			t.Errorf("sidecarBeside(%q, %s) = %q, want %q", c.dir, c.goos, got, c.want)
 		}
@@ -489,7 +495,8 @@ func TestTheSidecarIsLookedForBesideTheAppOnly(t *testing.T) {
 	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := CheckSidecar(p); !errors.Is(err, ErrNoSidecar) {
+	// Windows has no execute bit: a regular file is a program there.
+	if err := CheckSidecar(p); runtime.GOOS != "windows" && !errors.Is(err, ErrNoSidecar) {
 		t.Fatalf("a sidecar that cannot be run: %v", err)
 	}
 	if err := os.Chmod(p, 0o700); err != nil { //nolint:gosec // a test's own stand-in
@@ -594,7 +601,8 @@ func TestCopyIntoShareNeverShowsAWalkerAPartialFile(t *testing.T) {
 		t.Fatalf("names %v, want the second numbered", names[:2])
 	}
 	fi, err := os.Stat(filepath.Join(dir, names[0]))
-	if err != nil || fi.Mode().Perm() != 0o644 {
+	// Windows keeps no Unix permissions: a writable file reads as 0666.
+	if err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o644) {
 		t.Fatalf("the copy: %v %v, want it readable as a file the person adds", fi.Mode(), err)
 	}
 	if left, _ := os.ReadDir(filepath.Join(root, "staging")); len(left) != 0 {

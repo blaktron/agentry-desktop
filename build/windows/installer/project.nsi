@@ -162,6 +162,17 @@ Section
     SetOutPath $INSTDIR
     !endif
 
+    # The transcriber Meeting notes runs (whisper.cpp's whisper-cli and the
+    # libraries beside it), when the build carries it: a release puts the
+    # signed sidecar into build/whisper/whisper-cli-windows-amd64; a PR build
+    # has none, and the app then offers no Meeting notes. The app ends a
+    # transcription before an update replaces these files.
+    !if /FileExists "..\..\whisper\whisper-cli-windows-amd64\whisper-cli.exe"
+    SetOutPath "$INSTDIR\bin\whisper"
+    File /x SHA256SUMS "..\..\whisper\whisper-cli-windows-amd64\*"
+    SetOutPath $INSTDIR
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles
