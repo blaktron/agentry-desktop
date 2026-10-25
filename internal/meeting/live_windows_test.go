@@ -23,8 +23,9 @@ import (
 // standInEnv, when set to a WAV file, makes this test binary a stand-in
 // meeting app: it reads the default microphone, waits standInLead, plays
 // the file, waits standInGap, plays it again, and goes on reading the
-// microphone until it is ended. It plays at a tenth of full volume, through
-// the default output.
+// microphone until it is ended or its standard input closes, which happens
+// when the test that started it ends however it ends. It plays at a tenth
+// of full volume, through the default output.
 const standInEnv = "AGENTRY_MEETING_STAND_IN"
 
 const (
@@ -62,6 +63,10 @@ func standIn(wav string) int {
 		return 1
 	}
 	defer mic.Close()
+	go func() {
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		os.Exit(0)
+	}()
 	go func() {
 		const sndFilename, sndNoDefault = 0x00020000, 0x0002
 		p, _ := windows.UTF16PtrFromString(wav)
@@ -108,6 +113,11 @@ func startStandIn(t *testing.T) *exec.Cmd {
 	cmd := exec.Command(exe) //nolint:gosec // the copy made above
 	cmd.Env = append(os.Environ(), standInEnv+"="+wav)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	// Held open while the test runs: its end, a crash included, ends the
+	// stand-in.
+	if _, err := cmd.StdinPipe(); err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
