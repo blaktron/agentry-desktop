@@ -14,7 +14,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -84,7 +84,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
       {note && <p className="small" role="status">{note}</p>}
       {agents.map((a) => {
         const enabled = a.state !== AGENT_STATES.disabled;
-        const running = a.state === AGENT_STATES.running;
+        const running = isLive(a);
         const isMain = a.name === MAIN_AGENT;
         const isCoder = a.name === CODER_AGENT;
         return (
@@ -116,7 +116,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
             <StartFailure agent={a} />
             {a.state === AGENT_STATES.elsewhere && (
-              <Notice>It is running in {a.holder || "another client"}. Stop it there to start it here.</Notice>
+              <Notice>It is running in {a.holder || "another client"}. You can talk to it and stop it here.</Notice>
             )}
             <div className="row gap">
               {(a.state === AGENT_STATES.stopped || (isMain && !enabled)) && <Button variant="primary" disabled={busy !== null} onClick={() => void start(a.name)}>Start</Button>}
