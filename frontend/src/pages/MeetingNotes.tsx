@@ -379,7 +379,8 @@ export default function MeetingNotes() {
           </label>
         )}
         {assistant.enabled && (
-          <Field label={capitalised(assistant.name)} hint={`${capitalised(assistant.name)} summarises each transcript with its meeting-notes skill and files the meeting in its memory. It is never started for this.`}>
+          <div className="meeting-assistant" data-meeting-assistant>
+            <p className="meeting-assistant-title">{capitalised(assistant.name)}</p>
             <label className="check-row">
               <input type="checkbox" role="switch" data-meeting-send checked={assistant.sendToAssistant} disabled={busy}
                 onChange={(e) => act(() => MeetingAPI.SetSendToAssistant(e.target.checked))} />
@@ -392,7 +393,11 @@ export default function MeetingNotes() {
                 Ask me first: each transcript waits in {possessive(assistant.name)} share folder until I ask {assistant.name} to summarise it
               </label>
             )}
-          </Field>
+            <p className="small muted">
+              {capitalised(assistant.name)} summarises each transcript with its meeting-notes skill and files the meeting in its memory. It is
+              never started for this.
+            </p>
+          </div>
         )}
         <label className="check-row">
           <input type="checkbox" role="switch" data-meeting-keep checked={view.keepAudio} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetKeepAudio(e.target.checked))} />

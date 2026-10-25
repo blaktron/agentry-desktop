@@ -375,7 +375,7 @@ func (m *MeetingAPI) SetSendToAssistant(on bool) (*MeetingNotesView, error) {
 		if err := m.app.askConsent("Give your meeting transcripts to "+who+"?",
 			"Each transcript Meeting notes writes is copied into "+possessive(who)+" share folder, and "+who+
 				" is asked to summarise it and file it in its memory, unless you choose to be asked first. Its model provider reads the transcript. "+
-				who+" is never started for this."); err != nil {
+				capitalised(who)+" is never started for this."); err != nil {
 			return nil, err
 		}
 	}
