@@ -48,6 +48,11 @@ func New(notices string) *Services {
 		mainAgent:      newAgentLink(app, ops, run.runnerHome, mainAgent),
 		assistantAgent: newAgentLink(app, ops, run.runnerHome, assistantAgent),
 	}
+	persistentAPI := &PersistentAPI{app: app, run: run, links: links}
+	// The Assistant's meeting tools are Meeting notes', and Meeting notes
+	// hands its transcripts to the Assistant.
+	meetings := &MeetingAPI{app: app, assistant: persistentAssistant{p: persistentAPI}}
+	links[assistantAgent].meetings = meetings.answerTool
 	return &Services{
 		app:          app,
 		settings:     &SettingsAPI{app: app},
@@ -64,8 +69,8 @@ func New(notices string) *Services {
 		schedule:     schedule,
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},
-		persistent:   &PersistentAPI{app: app, run: run, links: links},
-		meeting:      &MeetingAPI{app: app},
+		persistent:   persistentAPI,
+		meeting:      meetings,
 	}
 }
 

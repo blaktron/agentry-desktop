@@ -751,3 +751,31 @@ func TestTheHomeAgentIsKeptAndResetHomeClearsIt(t *testing.T) {
 		t.Fatalf("Reset Home kept the agent %q:\n%s", got, readRaw(t))
 	}
 }
+
+// Turning Meeting notes on adds its card once, Large, after every other
+// card; one the person hid stays hidden when it is turned on again.
+func TestMeetingsCardAddedOnceAndHiddenStaysHidden(t *testing.T) {
+	isolate(t)
+	for range 2 {
+		if err := AddMeetingsToHome(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, _, _ := homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults,meetings"; got != want {
+		t.Fatalf("layout = %s, want %s", got, want)
+	}
+	if c := l.Cards[6]; c.Size != HomeLarge || c.Hidden {
+		t.Fatalf("the Meeting notes card = %+v, want Large and shown", c)
+	}
+	if err := SetHomeCardShown(HomeMeetings, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddMeetingsToHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if c := l.Cards[6]; c.Kind != HomeMeetings || !c.Hidden {
+		t.Fatalf("after hiding and turning on again: %+v, want it still hidden", c)
+	}
+}

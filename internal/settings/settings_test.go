@@ -353,3 +353,38 @@ func TestSaveNeverChangesTheMeetingAutomaticList(t *testing.T) {
 		t.Fatalf("after taking zoom off: %+v", s.MeetingNotes)
 	}
 }
+
+// Sending transcripts to the Assistant is written by
+// SetMeetingSendToAssistant alone: a save cannot turn it on, and one made
+// from settings loaded before it went on cannot turn it off.
+func TestSaveNeverChangesSendingToTheAssistant(t *testing.T) {
+	isolate(t)
+	stale, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.SendToAssistant = true
+	stale.MeetingNotes.AskFirst = true
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.MeetingNotes.SendToAssistant || !s.MeetingNotes.AskFirst {
+		t.Fatalf("after Save: %+v, want ask-first saved and sending still off", s.MeetingNotes)
+	}
+	if err := SetMeetingSendToAssistant(true); err != nil {
+		t.Fatal(err)
+	}
+	stale.MeetingNotes.SendToAssistant = false
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); !s.MeetingNotes.SendToAssistant {
+		t.Fatal("Save turned sending off")
+	}
+	if err := SetMeetingSendToAssistant(false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.MeetingNotes.SendToAssistant || !s.MeetingNotes.AskFirst {
+		t.Fatalf("after SetMeetingSendToAssistant(false): %+v", s.MeetingNotes)
+	}
+}

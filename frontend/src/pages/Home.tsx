@@ -17,6 +17,8 @@ import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
 import { DeliverablesCard } from "./home/DeliverablesCard";
 import { ScheduledCard } from "./home/ScheduledCard";
+import { MeetingsCard } from "./home/MeetingsCard";
+import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
 import { AgentCard } from "./home/AgentCard";
 import { HomeGrid } from "./home/HomeGrid";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
@@ -64,6 +66,8 @@ export type HomeOpen = {
   settings: () => void;
   // The Scheduled card's page.
   scheduled: () => void;
+  // The Meeting notes card's page.
+  meetings: () => void;
   // The agent card: Settings → Persistent Agents for Agentry Helper, any
   // other agent's own page, and Settings → Provider where no model is set
   // up.
@@ -106,6 +110,14 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const [recent, setRecent] = useState<Got<app.RecentRunsView>>(pending);
   const [deliverables, setDeliverables] = useState<Got<app.RecentDeliverablesView>>(pending);
   const [scheduled, setScheduled] = useState<Got<app.ScheduledCardView>>(pending);
+  // Whether this copy records meetings: the Meeting notes card is drawn
+  // only where it does.
+  const [meetings, setMeetings] = useState(false);
+  useEffect(() => {
+    let live = true;
+    MeetingAPI.Status().then((v) => { if (live) setMeetings(v.available); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
 
@@ -229,6 +241,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
         onRun={(rec) => (rec.local ? setRunningLocal(rec) : open.runAgent(rec.origin, rec.namespace, rec.name))} />
     ),
     scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} weeks={weeks} title={monthTitle(now.getFullYear(), now.getMonth())} onOpen={open.scheduled} />,
+    ...(meetings ? { meetings: () => <MeetingsCard onOpen={open.meetings} /> } : {}),
   };
   const cards = layout.value || layout.error
     ? cardsToDraw(layout.value?.cards ?? FALLBACK, new Set(Object.keys(renderers)))

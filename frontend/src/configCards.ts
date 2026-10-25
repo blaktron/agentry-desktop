@@ -89,7 +89,7 @@ export type CardIcon = { kind: "glyph"; key: string } | { kind: "image"; src: st
  *  its table is typed by this list, so neither can lack one. */
 export const GLYPH_KEYS = [
   "git", "encyclopedia", "docs", "scan", "weather", "map", "mail", "search", "server",
-  "folder", "box", "memory", "clock", "terminal", "globe", "browser", "host", "plug", "book", "skill", "key", "person",
+  "folder", "box", "memory", "clock", "terminal", "globe", "browser", "host", "plug", "book", "skill", "key", "person", "mic",
 ] as const;
 export type GlyphKey = (typeof GLYPH_KEYS)[number];
 const GLYPHS: ReadonlySet<string> = new Set(GLYPH_KEYS);
@@ -106,7 +106,7 @@ export function cardIcon(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "nam
   if (e.iconKey && GLYPHS.has(e.iconKey)) return { kind: "glyph", key: e.iconKey };
   const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser" };
   if (Object.hasOwn(byID, e.id)) return { kind: "glyph", key: byID[e.id] };
-  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person" };
+  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic" };
   if (Object.hasOwn(byKind, e.kind)) return { kind: "glyph", key: byKind[e.kind] };
   return { kind: "monogram", text: monogram(e.name) };
 }

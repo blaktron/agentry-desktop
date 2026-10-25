@@ -88,3 +88,60 @@ export const AUTO_CHOICES = [
   { value: "ask", label: "Ask each time" },
   { value: "auto", label: "Record automatically" },
 ] as const;
+
+/** A meeting's hand-over to the Assistant, as its row says it: nothing
+ *  until it is handed on. */
+export function deliveryWords(m: { delivery?: string; deliveryError?: string }, name: string): string {
+  switch (m.delivery) {
+    case "waiting":
+      return `In ${possessive(name)} share folder, waiting for you to ask ${name} to summarise it`;
+    case "sending":
+      return `Being given to ${name}`;
+    case "sent":
+      return `Given to ${name} to summarise`;
+    case "failed":
+      return `Not given to ${name}: ${m.deliveryError || "it could not be copied or sent"}`;
+    default:
+      return "";
+  }
+}
+
+/** Whether a meeting's row offers "Ask … to summarise": a transcript the
+ *  Assistant was not given, while the person gives it transcripts. */
+export function canAskAssistant(m: { state: string; hasTranscript: boolean; delivery?: string }, a: { enabled: boolean; sendToAssistant: boolean }): boolean {
+  return a.enabled && a.sendToAssistant && m.state === "done" && m.hasTranscript && m.delivery !== "sent" && m.delivery !== "sending";
+}
+
+/** A name with its possessive ending: "Ada's", "the Assistant's". */
+export function possessive(name: string): string {
+  return name.endsWith("s") ? `${name}'` : `${name}'s`;
+}
+
+/** A sentence's start: "the Assistant" begins one as "The Assistant". */
+export function capitalised(s: string): string {
+  return s.startsWith("the ") ? `The ${s.slice(4)}` : s;
+}
+
+/** When an armed window records, "14:55 to 16:15", with its day when it is
+ *  not today. */
+export function windowWhen(opens: string, closes: string, now: Date): string {
+  const o = new Date(opens);
+  const c = new Date(closes);
+  const t = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const day = o.toDateString() === now.toDateString() ? "" : `${o.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, `;
+  return `${day}${t(o)} to ${t(c)}`;
+}
+
+/** Where an armed window stands, in words. */
+export function windowStateWords(w: { state: string; recorded: number }): string {
+  switch (w.state) {
+    case "waiting":
+      return "Waiting to open";
+    case "open":
+      return w.recorded > 0 ? "Open, recorded" : "Open: a call Agentry notices now is recorded";
+    case "recording":
+      return "Recording";
+    default:
+      return w.recorded > 0 ? "Recorded" : "Closed: no call was noticed";
+  }
+}
