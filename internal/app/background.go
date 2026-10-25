@@ -86,8 +86,14 @@ func (s *Services) startBackground(ctx context.Context) {
 		s.quit(ctx)
 	}()
 	s.persistent.onState = func() { s.followAgents(ctx) }
-	// A click on a task's notification opens its agent's page.
+	// A click on a task's notification opens its agent's page, and one on
+	// Meeting notes' opens that page.
 	notify.SetOnClick(func(name string) {
+		if name == meetingNoticeKey {
+			windowShow(ctx)
+			emitEvent(s.app, eventOpenMeetings)
+			return
+		}
 		if !slices.Contains(shownAgents, name) {
 			return
 		}

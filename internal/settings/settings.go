@@ -167,6 +167,31 @@ type Settings struct {
 	// HomeAgent is the persistent agent Home's agent card runs, by its
 	// name: "" for Agentry Helper, the default (home.go).
 	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`
+
+	// MeetingNotes is the Meeting notes page's settings.
+	MeetingNotes MeetingNotes `yaml:"meetingNotes,omitempty" json:"-"`
+}
+
+// MeetingNotes is Meeting notes' settings: the switch, the language
+// profile and model, the folder transcripts go to and whether recordings
+// are kept for a week.
+type MeetingNotes struct {
+	// On is the feature's switch, off by default. Save does not write it:
+	// only SetMeetingNotesOn does, which the app calls after a native
+	// confirmation of what turning it on means.
+	On bool `yaml:"on,omitempty"`
+	// Profile is the language profile's id, "" for English.
+	Profile string `yaml:"profile,omitempty"`
+	// Model is the model the person chose, "" for automatic.
+	Model string `yaml:"model,omitempty"`
+	// OutputDir is the folder transcripts go to, chosen through the native
+	// picker and nowhere else, "" for Meeting notes inside the
+	// Deliverables folder's default place.
+	OutputDir string `yaml:"outputDir,omitempty"`
+	// KeepAudio keeps each recording for seven days after its transcript;
+	// off by default, when the audio is deleted once the transcript is
+	// written.
+	KeepAudio bool `yaml:"keepAudio,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer
@@ -293,16 +318,32 @@ var saveMu sync.Mutex
 // Save writes the settings file with 0600 permissions (it may carry a PAT
 // when the keychain is unavailable).
 //
-// It never changes the Unsafe Mode switch: whatever s.UnsafeMode says, the file
-// keeps the value it has. Every other setting is saved by a binding that loads,
+// It never changes the Unsafe Mode switch or Meeting notes' switch: whatever
+// s says, the file keeps the values it has. Every other setting is saved by a binding that loads,
 // changes one field and saves, with no lock across the three; were the switch
 // saved the same way, a save that loaded it on before it was turned off would
-// turn it back on with no confirmation. SetUnsafeMode is its one writer.
+// turn it back on with no confirmation. SetUnsafeMode and SetMeetingNotesOn
+// are their one writers.
 func Save(s Settings) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()
 	cur, err := Load()
 	s.UnsafeMode = err == nil && cur.UnsafeMode
+	s.MeetingNotes.On = err == nil && cur.MeetingNotes.On
+	return write(s)
+}
+
+// SetMeetingNotesOn writes Meeting notes' switch and nothing else. The
+// caller is the one binding that may: MeetingAPI's TurnOn after the native
+// confirmation, and its TurnOff.
+func SetMeetingNotesOn(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.MeetingNotes.On = on
 	return write(s)
 }
 

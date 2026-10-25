@@ -7,6 +7,7 @@ import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/app/SelfUpdat
 import { UpdatesStatus } from "../wailsjs/go/app/InstallAPI";
 import { UnsafeLive } from "../wailsjs/go/app/RunAPI";
 import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
+import * as MeetingAPI from "../wailsjs/go/app/MeetingAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { app } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
@@ -37,6 +38,7 @@ import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
+import MeetingNotes from "./pages/MeetingNotes";
 import { useAgents } from "./agents";
 import { agentNavEntries, CODER_AGENT, coderRunning, viewingAgent } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
@@ -59,6 +61,8 @@ export type Route =
   | { page: "scheduled"; focus?: string }
   // A persistent agent's page, by its name.
   | { page: "persistent"; id: string }
+  // Meeting notes: record a meeting, transcribe it here.
+  | { page: "meetings" }
   // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).
   | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" }
@@ -131,6 +135,11 @@ export default function App() {
   const [unsafeLive, setUnsafeLive] = useState(false);
   // The persistent agents, for the sidebar's entries.
   const agents = useAgents();
+  // Whether this copy records meetings here, for Meeting notes' entry.
+  const [meetings, setMeetings] = useState(false);
+  useEffect(() => {
+    MeetingAPI.Status().then((v) => setMeetings(v.available)).catch(() => setMeetings(false));
+  }, []);
   const unsafeEvents = useRef(0);
   // A run setup that made a schedule opens the Scheduled page on it.
   // The theme Go keeps; /theme.js put it on before the first paint, and
@@ -166,6 +175,8 @@ export default function App() {
       document.removeEventListener("visibilitychange", report);
     };
   }, [route]);
+  // A click on Meeting notes' notification opens its page.
+  useEffect(() => EventsOn("tray:open-meetings", () => setRoute({ page: "meetings" })), []);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
     if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
   }), []);
@@ -272,6 +283,7 @@ export default function App() {
             agents={agentNavEntries(agents)}
             agent={route.page === "persistent" ? route.id : undefined}
             onOpenAgent={(id) => nav({ page: "persistent", id })}
+            meetings={meetings}
             sections={SECTIONS}
             section={route.page === "settings" ? route.section : undefined}
             onOpenSection={(id) => nav({ page: "settings", section: id as SettingsSection })}
@@ -391,6 +403,7 @@ export default function App() {
               />
             )}
             {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} />}
+            {route.page === "meetings" && <MeetingNotes />}
             {route.page === "browse" && (
               // Browse takes its query only when it mounts, so the key gives
               // a new search from the Library a fresh Browse.
