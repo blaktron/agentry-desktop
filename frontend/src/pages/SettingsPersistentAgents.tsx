@@ -14,7 +14,7 @@ import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords } from "../persistentAgents";
+import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -326,7 +326,32 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
               }
             })()}>Export memory…</Button>
           )}
+          {agent.keepsMemory && (
+            <Button disabled={busy || (agent.state !== "running" && agent.state !== "elsewhere")}
+              title={agent.state === "running" || agent.state === "elsewhere" ? undefined : "Start the agent to compact its conversation."}
+              onClick={() => void (async () => {
+                setBusy(true);
+                setError(null);
+                setSaved("Compacting: the agent saves this conversation to its memory first, then goes on in a fresh one. This can take a few minutes.");
+                try {
+                  updateAgent(await PersistentAPI.Compact(name));
+                  setSaved("Compacted: a fresh conversation opens with the agent's handoff.");
+                } catch (e) {
+                  setSaved(null);
+                  setError(String(e));
+                } finally {
+                  setBusy(false);
+                }
+              })()}>Compact now</Button>
+          )}
         </div>
+      )}
+      {agent.keepsMemory && (agent.lastCompaction || agent.lastConsolidation) && (
+        <p className="small muted" data-testid="upkeep">
+          {agent.lastCompaction && upkeepWords(agent.lastCompaction)}
+          {agent.lastCompaction && agent.lastConsolidation && " "}
+          {agent.lastConsolidation && upkeepWords(agent.lastConsolidation)}
+        </p>
       )}
       {showTasks && <TasksView agent={agent} onClose={() => setShowTasks(false)} />}
       {isCoder && (
