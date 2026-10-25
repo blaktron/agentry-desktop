@@ -58,6 +58,9 @@ type elsewhereRig struct {
 	remote   *fakeRemote
 	stops    int
 	states   []string
+	// status is what the terminal's supervisor answers to a status query;
+	// nil answers that it is not running.
+	status *persistent.Status
 }
 
 func newElsewhereRig(t *testing.T) *elsewhereRig {
@@ -90,6 +93,14 @@ func newElsewhereRig(t *testing.T) *elsewhereRig {
 		r.mu.Unlock()
 		r.hold(t, home, false)
 		return persistent.Stopped{}, nil
+	}
+	r.p.queryStatus = func(_ context.Context, _, name string) (persistent.Status, error) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if name != "assistant" || !r.held || r.status == nil {
+			return persistent.Status{}, persistent.ErrNotRunning
+		}
+		return *r.status, nil
 	}
 	old := emitEvent
 	emitEvent = func(a *App, name string, data ...any) {
@@ -260,5 +271,59 @@ func TestAStopElsewhereIsJudgedByTheLock(t *testing.T) {
 	}
 	if v, err := r.p.Stop("assistant"); err != nil || v.State != agentStopped {
 		t.Fatalf("a stop that let the lock go: %+v, %v", v, err)
+	}
+}
+
+// An agent a terminal runs shows its running segment as its supervisor
+// answers it on the owner socket, so its usage panel reads what the segment
+// has used rather than "not running".
+func TestAnAgentATerminalRunsShowsItsSupervisorsStatus(t *testing.T) {
+	r := newElsewhereRig(t)
+	since := time.Now().Add(-5 * time.Minute).Truncate(time.Second)
+	r.mu.Lock()
+	r.status = &persistent.Status{
+		Agent: "assistant", State: persistent.StateRunning, Since: since, Segment: 3, Model: "claude-sonnet-5-5",
+		Usage: receipt.Usage{InputTokens: 1200, OutputTokens: 300, TotalTokens: 1500, CostUSD: 0.0123, UserTurns: 2, Turns: 4},
+	}
+	r.mu.Unlock()
+	r.hold(t, r.home, true)
+	v, err := r.p.Get("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.State != agentElsewhere || v.Status == nil {
+		t.Fatalf("the view: state %q, status %+v", v.State, v.Status)
+	}
+	st := v.Status
+	if st.InputTokens != 1200 || st.OutputTokens != 300 || st.TotalTokens != 1500 || st.CostUSD != 0.0123 ||
+		st.UserTurns != 2 || st.ToolCalls != 4 || st.Segment != 3 || st.Model != "claude-sonnet-5-5" || st.Since != since.Format(time.RFC3339) {
+		t.Fatalf("the segment: %+v", st)
+	}
+	r.hold(t, r.home, false)
+	if v, _ := r.p.Get("assistant"); v.Status != nil {
+		t.Fatalf("a stopped agent kept a status: %+v", v.Status)
+	}
+}
+
+// A supervisor that does not answer its status in time (still starting, or
+// another client's set-up holds the lock) leaves the segment empty and does
+// not hold up the page.
+func TestASupervisorThatDoesNotAnswerLeavesNoStatus(t *testing.T) {
+	r := newElsewhereRig(t)
+	r.p.queryStatus = func(ctx context.Context, _, _ string) (persistent.Status, error) {
+		<-ctx.Done()
+		return persistent.Status{}, ctx.Err()
+	}
+	r.hold(t, r.home, true)
+	began := time.Now()
+	v, err := r.p.Get("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(began); took > elsewhereStatusWait+2*time.Second {
+		t.Fatalf("the view waited %s on a supervisor that does not answer", took)
+	}
+	if v.State != agentElsewhere || v.Status != nil {
+		t.Fatalf("the view: state %q, status %+v", v.State, v.Status)
 	}
 }
