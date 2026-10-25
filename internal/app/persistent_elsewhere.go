@@ -25,6 +25,10 @@ const elsewhereWatch = 2 * time.Second
 // supervisor writes the segment's envelope before it answers.
 const elsewhereStopWait = 3 * time.Minute
 
+// elsewhereStatusWait bounds asking another client's supervisor for its
+// status, so a supervisor that does not answer cannot hold up the page.
+const elsewhereStatusWait = time.Second
+
 // viewer is the app's chat with an agent another client runs.
 type viewer struct{ s session.Session }
 
@@ -178,6 +182,24 @@ func (p *PersistentAPI) leaveViewers() {
 	for _, name := range shownAgents {
 		p.leaveViewer(name)
 	}
+}
+
+// statusElsewhere is the running segment of an agent another client runs,
+// as its supervisor answers it on the owner socket; nil when it does not
+// answer in time (it is still starting, or another client's set-up holds
+// the lock).
+func (p *PersistentAPI) statusElsewhere(home, name string) *PersistentStatusView {
+	query := persistent.QueryStatus
+	if p.queryStatus != nil {
+		query = p.queryStatus
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), elsewhereStatusWait)
+	defer cancel()
+	st, err := query(ctx, home, name)
+	if err != nil {
+		return nil
+	}
+	return statusView(st)
 }
 
 // sendElsewhere sends the person's message to an agent another client runs.
