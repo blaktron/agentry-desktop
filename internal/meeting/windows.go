@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/blaktron/agentry-cli/pkg/dirpublish"
 )
 
 // Armed windows: the Assistant asks, from the person's calendar, that a
@@ -122,11 +124,7 @@ func (m *Manager) writeWindowsLocked(ws []Window) error {
 	if err := os.MkdirAll(m.Root, 0o700); err != nil {
 		return err
 	}
-	tmp := m.windowsPath() + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return err
-	}
-	return replaceFile(tmp, m.windowsPath())
+	return dirpublish.ReplaceFile(m.windowsPath(), raw, 0o600)
 }
 
 // Arm keeps a window from start-lead to end+tail for the meeting w names,
