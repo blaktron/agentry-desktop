@@ -43,7 +43,12 @@ func TestATasksAnswerRaisesADesktopNotification(t *testing.T) {
 	got := make(chan notify.Notice, 8)
 	rig.p.showNotice = func(n notify.Notice) error { got <- n; return nil }
 	var minimised atomic.Bool
-	rig.p.minimised = minimised.Load
+	// Read slowly: a notice decided after the page has its event would see
+	// what the test set next, and raise or hold the wrong notification.
+	rig.p.minimised = func() bool {
+		time.Sleep(20 * time.Millisecond)
+		return minimised.Load()
+	}
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
 		t.Fatal(err)
 	}
