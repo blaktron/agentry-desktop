@@ -27,6 +27,10 @@ type fakeAgent struct {
 	done    chan struct{}
 	stopped int
 	roster  persistent.Roster
+	// compacted is what a compaction answers, and compactions counts them.
+	compacted   persistent.Compacted
+	compactErr  error
+	compactions int
 }
 
 func newFakeAgent() *fakeAgent {
@@ -44,7 +48,13 @@ func (f *fakeAgent) Status() persistent.Status {
 	return persistent.Status{State: persistent.StateRunning, Segment: 1, Run: "seg1", Since: time.Now()}
 }
 func (f *fakeAgent) Roster() persistent.Roster { return f.roster }
-func (f *fakeAgent) Done() <-chan struct{}     { return f.done }
+func (f *fakeAgent) Compact(context.Context) (persistent.Compacted, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.compactions++
+	return f.compacted, f.compactErr
+}
+func (f *fakeAgent) Done() <-chan struct{} { return f.done }
 func (f *fakeAgent) Stop(context.Context) (*receipt.Envelope, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -715,5 +725,51 @@ func TestTheCodingAgentsPortsOpenOnlyWhilePublished(t *testing.T) {
 	}
 	if _, err := rig.p.Configure("assistant", PersistentChange{AddPort: &PersistentPort{Name: "web", Port: 3000}}); err == nil {
 		t.Error("the Assistant took a port")
+	}
+}
+
+// Compact now compacts the running agent's conversation, and its view then
+// names the compaction from the agent's receipts; one that did not finish
+// says why, and an agent that is not running is refused.
+func TestCompactNowCompactsTheRunningAgent(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Compact("assistant"); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("a stopped agent: %v", err)
+	}
+	if _, err := rig.p.Compact("coder"); err == nil || !strings.Contains(err.Error(), "keeps no memory") {
+		t.Fatalf("the Coding agent: %v", err)
+	}
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	rig.agent.compacted = persistent.Compacted{Trigger: persistent.UpkeepManual, Reason: "the upkeep turn gave no answer"}
+	if _, err := rig.p.Compact("assistant"); err == nil || !strings.Contains(err.Error(), "the upkeep turn gave no answer") {
+		t.Fatalf("an unfinished compaction: %v", err)
+	}
+	dir := filepath.Join(persistent.Dir(rig.home, "assistant"), "segments", "seg1", "receipts")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "upkeep.ndjson"), []byte(
+		`{"time":"2026-10-25T09:00:00Z","trigger":"manual","swapped":true,"factsBefore":6,"factsAfter":14}`+"\n"+
+			`{"time":"2026-10-25T12:00:00Z","trigger":"consolidate","swapped":false,"factsBefore":14,"factsAfter":13}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rig.agent.compacted = persistent.Compacted{Trigger: persistent.UpkeepManual, Swapped: true}
+	v, err := rig.p.Compact("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rig.agent.compactions != 2 {
+		t.Errorf("%d compactions", rig.agent.compactions)
+	}
+	if c := v.LastCompaction; c == nil || !c.Done || c.Trigger != persistent.UpkeepManual || c.FactsAfter != 14 {
+		t.Errorf("the view's last compaction = %+v", c)
+	}
+	if c := v.LastConsolidation; c == nil || !c.Done || c.FactsAfter != 13 {
+		t.Errorf("the view's last consolidation = %+v", c)
 	}
 }

@@ -42,6 +42,10 @@ export function ChooseShare(arg1) {
   return window['go']['app']['PersistentAPI']['ChooseShare'](arg1);
 }
 
+export function Compact(arg1) {
+  return window['go']['app']['PersistentAPI']['Compact'](arg1);
+}
+
 export function Configure(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['Configure'](arg1, arg2);
 }

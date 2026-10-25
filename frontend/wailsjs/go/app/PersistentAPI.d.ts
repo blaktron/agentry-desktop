@@ -24,6 +24,8 @@ export function ChangeTask(arg1:string,arg2:string,arg3:string):Promise<Array<ap
 
 export function ChooseShare(arg1:string):Promise<app.PersistentAgentView>;
 
+export function Compact(arg1:string):Promise<app.PersistentAgentView>;
+
 export function Configure(arg1:string,arg2:app.PersistentChange):Promise<app.PersistentAgentView>;
 
 export function ExportMemory(arg1:string):Promise<app.PersistentExportView>;

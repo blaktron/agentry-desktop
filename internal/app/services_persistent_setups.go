@@ -387,3 +387,49 @@ func (p *PersistentAPI) oneShotReady(ctx context.Context, engine bool) (string, 
 	}
 	return home, pol, d, tag, nil
 }
+
+// compactWait bounds a compaction the person asked for: an upkeep turn of
+// up to five minutes, the counts of the memory and the fresh conversation's
+// start.
+const compactWait = 10 * time.Minute
+
+// Compact compacts the agent's conversation now: it saves what the
+// conversation produced to its memory and goes on in a fresh conversation
+// that opens with its handoff. The chat is told while it runs, and a message
+// sent meanwhile waits for it. An agent another client runs is compacted
+// through its supervisor's socket. A compaction that did not finish is an
+// error that says why.
+func (p *PersistentAPI) Compact(name string) (*PersistentAgentView, error) {
+	a, err := p.agent(name)
+	if err != nil {
+		return nil, err
+	}
+	if !a.Builtin.KeepsMemory() {
+		return nil, fmt.Errorf("the %s keeps no memory to compact into", a.Title)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), compactWait)
+	defer cancel()
+	var out persistent.Compacted
+	if sv, ok := p.running(a.Name); ok {
+		out, err = sv.Compact(ctx)
+	} else {
+		home, herr := p.home()
+		if herr != nil {
+			return nil, herr
+		}
+		if held, _ := p.heldElsewhere(home, a.Name); !held {
+			return nil, fmt.Errorf("the %s is not running: start it first", a.Title)
+		}
+		out, err = persistent.RequestCompact(ctx, home, a.Name)
+	}
+	switch {
+	case errors.Is(err, persistent.ErrBusy):
+		return nil, fmt.Errorf("the %s is answering a message: compact it when it has answered", a.Title)
+	case err != nil:
+		return nil, err
+	case !out.Swapped:
+		return nil, fmt.Errorf("the %s's conversation was not compacted: %s", a.Title, out.Reason)
+	}
+	p.stateChanged(a.Name)
+	return p.Get(name)
+}

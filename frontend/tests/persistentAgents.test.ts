@@ -38,6 +38,7 @@ import {
   shareCheckWords,
   chosenReset,
   isLive,
+  upkeepWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -267,4 +268,17 @@ test("an agent another client runs is live here: its chat sends and its Stop sto
   assert.equal(isLive({ state: "running" }), true);
   assert.equal(isLive({ state: "elsewhere" }), true);
   for (const state of ["stopped", "starting", "disabled"]) assert.equal(isLive({ state }), false, state);
+});
+
+test("the Configuration names the memory's last upkeep: when, why, and what came of it", () => {
+  const now = new Date("2026-10-25T15:00:00");
+  const at = new Date("2026-10-25T09:05:00").toISOString();
+  assert.match(upkeepWords({ time: at, trigger: "manual", done: true }, now), /^Last compacted today at .*, when asked: a fresh conversation opened with its handoff\.$/);
+  assert.match(upkeepWords({ time: at, trigger: "idle", done: true }, now), /after a quiet spell/);
+  assert.match(upkeepWords({ time: at, trigger: "in-use", done: false, reason: "the upkeep turn gave no answer" }, now),
+    /^The last compaction, today at .*, as its conversation grew large, did not finish: the upkeep turn gave no answer\. The conversation went on as it was\.$/);
+  assert.match(upkeepWords({ time: at, trigger: "consolidate", done: true }, now), /^Memory last tidied today at /);
+  assert.match(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "consolidate", done: false, reason: "the memory has not changed since it was last consolidated" }, now),
+    /did not run: the memory has not changed/);
+  assert.doesNotMatch(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "manual", done: true }, now), /today/);
 });
