@@ -89,6 +89,8 @@ type PersistentAPI struct {
 	starts sync.WaitGroup
 	// followers are the goroutines that carry each agent's events.
 	followers sync.WaitGroup
+	// lookups are the server icon lookups under way in the background.
+	lookups sync.WaitGroup
 	// stopping names the agents a Stop or a quit is ending, so their end
 	// is not told as one they came to by themselves.
 	stopping map[string]bool
@@ -920,8 +922,11 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor, logw *supervisor
 	go func() {
 		defer p.followers.Done()
 		for ev := range events {
-			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
+			// Whether a task's notice raises a notification is decided
+			// before the page has the event: whoever sees the event can
+			// rely on that decision being made.
 			p.noticeTask(name, ev, logw)
+			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
 		}
 	}()
 	go func() {
