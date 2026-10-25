@@ -16,10 +16,11 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
 import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
+import { MeetingNotesCard } from "./MeetingNotesCard";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
 
-type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
+export type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
 
 /** The grids. withAdds draws the Add cards (the Configuration);
  *  without them the cards are only switched (the agent's page). */
@@ -62,7 +63,9 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
         <section key={g.key} className="config-grid-section" aria-label={g.title}>
           <h3>{g.title}</h3>
           <div className="config-grid">
-            {g.entries.map((e) => (
+            {g.entries.map((e) => e.kind === "meetings" ? (
+              <MeetingNotesCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onError={onError} />
+            ) : (
               <ToggleCard key={e.id} agent={agent} entry={e} busy={busy} act={act} onSetUp={(s) => setUp(s, g.key)} />
             ))}
             {g.adds.map((kind) => (

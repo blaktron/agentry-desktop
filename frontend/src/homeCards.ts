@@ -5,7 +5,7 @@
 // of the layout's cards the page draws. A new kind is one entry here and
 // one renderer beside the page (pages/home/).
 
-export type HomeCardKind = "main" | "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled";
+export type HomeCardKind = "main" | "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled" | "meetings";
 
 export type HomeCardDescriptor = {
   kind: HomeCardKind;
@@ -36,6 +36,10 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // Reset Home removes it.
   scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
     line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Schedule page adds it." },
+  // Added when Meeting notes is turned on, where this copy records. Not a
+  // default: Reset Home removes it.
+  meetings: { kind: "meetings", title: "Meeting notes", multiple: false,
+    line: "Record, the recording under way, the meetings your Assistant set up to record, and the last meetings, with Ask to summarise." },
 };
 
 import type { settings } from "../wailsjs/go/models";
@@ -92,9 +96,9 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
  * together. */
 export const HOME_DEFAULTS: HomeCardKind[] = ["main", "deliverables", "recent-runs", "installed", "profile", "run-defaults"];
 
-/** Settings → Home's switches: the default cards, then the Scheduled card,
- * which Go shows or hides by kind like them. */
-export const HOME_SWITCHES: HomeCardKind[] = [...HOME_DEFAULTS, "scheduled"];
+/** Settings → Home's switches: the default cards, then the Scheduled card
+ * and the Meeting notes card, which Go shows or hides by kind like them. */
+export const HOME_SWITCHES: HomeCardKind[] = [...HOME_DEFAULTS, "scheduled", "meetings"];
 
 export type CardSwitch = { kind: HomeCardKind; title: string; line: string; shown: boolean };
 
@@ -105,10 +109,11 @@ export function scheduledOnHome(cards: Pick<LayoutCard, "kind" | "hidden">[]): b
 }
 
 /** Each switch's card and whether Home draws it, in the default order,
- * the Scheduled card last. A card the stored layout lacks is not drawn, so
- * it reads as off; Go adds it at the end when it is turned on. */
-export function cardSwitches(cards: Pick<LayoutCard, "kind" | "hidden">[]): CardSwitch[] {
-  return HOME_SWITCHES.map((kind) => ({
+ * the Scheduled and Meeting notes cards last; the Meeting notes card only
+ * where this copy records meetings. A card the stored layout lacks is not
+ * drawn, so it reads as off; Go adds it at the end when it is turned on. */
+export function cardSwitches(cards: Pick<LayoutCard, "kind" | "hidden">[], meetings = false): CardSwitch[] {
+  return HOME_SWITCHES.filter((kind) => kind !== "meetings" || meetings).map((kind) => ({
     kind, title: HOME_CARDS[kind].title, line: HOME_CARDS[kind].line, shown: cards.some((c) => c.kind === kind && !c.hidden),
   }));
 }

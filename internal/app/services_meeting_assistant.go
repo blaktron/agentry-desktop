@@ -353,6 +353,9 @@ func (m *MeetingAPI) AskAssistant(id string) (*MeetingNotesView, error) {
 		return nil, errors.New("that meeting has no transcript yet")
 	}
 	a := m.assistantOf()
+	if !storedMeetingNotes().SendToAssistant {
+		return nil, fmt.Errorf("turn on giving your meeting transcripts to %s first", a.name())
+	}
 	switch a.where() {
 	case assistantNotEnabled:
 		return nil, errors.New("the Assistant is not enabled: enable it in Settings → Persistent Agents")

@@ -54,6 +54,14 @@ test("Settings → Home has a switch for each default card, in the default order
   assert.deepEqual(sw.map((s) => s.shown), [false, false, true, false, false, true, false]);
 });
 
+test("Settings → Home has a switch for the Meeting notes card only where this copy records meetings", () => {
+  assert.equal(cardSwitches([{ kind: "meetings" }]).some((s) => s.kind === "meetings"), false);
+  const sw = cardSwitches([{ kind: "meetings" }], true);
+  assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled", "meetings"]);
+  assert.equal(sw.at(-1)?.shown, true);
+  assert.equal(cardSwitches([{ kind: "meetings", hidden: true }], true).at(-1)?.shown, false);
+});
+
 test("a default card the layout names twice reads as shown while any of its entries is", () => {
   const sw = cardSwitches([{ kind: "profile", hidden: true }, { kind: "profile" }]);
   assert.equal(sw.find((s) => s.kind === "profile")?.shown, true);

@@ -2433,6 +2433,26 @@ export namespace app {
 	        this.automatic = source["automatic"];
 	    }
 	}
+	export class MeetingAssistantView {
+	    enabled: boolean;
+	    name: string;
+	    running: boolean;
+	    sendToAssistant: boolean;
+	    askFirst: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingAssistantView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.name = source["name"];
+	        this.running = source["running"];
+	        this.sendToAssistant = source["sendToAssistant"];
+	        this.askFirst = source["askFirst"];
+	    }
+	}
 	export class MeetingChoice {
 	    id: string;
 	    name: string;
@@ -2447,6 +2467,34 @@ export namespace app {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.sizeBytes = source["sizeBytes"];
+	    }
+	}
+	export class MeetingWindowView {
+	    id: string;
+	    title: string;
+	    invitees: string[];
+	    app?: string;
+	    opens: string;
+	    closes: string;
+	    by?: string;
+	    state: string;
+	    recorded: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingWindowView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.invitees = source["invitees"];
+	        this.app = source["app"];
+	        this.opens = source["opens"];
+	        this.closes = source["closes"];
+	        this.by = source["by"];
+	        this.state = source["state"];
+	        this.recorded = source["recorded"];
 	    }
 	}
 	export class MeetingOfferView {
@@ -2479,6 +2527,9 @@ export namespace app {
 	    hasTranscript: boolean;
 	    hasAudio: boolean;
 	    audioUntil?: string;
+	    fromCalendar: boolean;
+	    delivery?: string;
+	    deliveryError?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingView(source);
@@ -2499,6 +2550,9 @@ export namespace app {
 	        this.hasTranscript = source["hasTranscript"];
 	        this.hasAudio = source["hasAudio"];
 	        this.audioUntil = source["audioUntil"];
+	        this.fromCalendar = source["fromCalendar"];
+	        this.delivery = source["delivery"];
+	        this.deliveryError = source["deliveryError"];
 	    }
 	}
 	export class MeetingRecordingView {
@@ -2508,6 +2562,8 @@ export namespace app {
 	    wholeDevice: boolean;
 	    paused: boolean;
 	    automatic: boolean;
+	    armed: boolean;
+	    title?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingRecordingView(source);
@@ -2521,6 +2577,8 @@ export namespace app {
 	        this.wholeDevice = source["wholeDevice"];
 	        this.paused = source["paused"];
 	        this.automatic = source["automatic"];
+	        this.armed = source["armed"];
+	        this.title = source["title"];
 	    }
 	}
 	export class MeetingNotesView {
@@ -2551,6 +2609,8 @@ export namespace app {
 	    maxHours: number;
 	    maxHoursChoices: number[];
 	    startsAtSignIn: boolean;
+	    windows: MeetingWindowView[];
+	    assistant: MeetingAssistantView;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingNotesView(source);
@@ -2585,6 +2645,8 @@ export namespace app {
 	        this.maxHours = source["maxHours"];
 	        this.maxHoursChoices = source["maxHoursChoices"];
 	        this.startsAtSignIn = source["startsAtSignIn"];
+	        this.windows = this.convertValues(source["windows"], MeetingWindowView);
+	        this.assistant = this.convertValues(source["assistant"], MeetingAssistantView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2605,6 +2667,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	
 	
 	

@@ -43,7 +43,7 @@ var meetingWarnings = []string{
 	meeting.ConsentSentence,
 	"While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.",
 	"When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so.",
-	"It downloads a speech model of about 200 MB the first time. No audio or transcript leaves this computer.",
+	"It downloads a speech model of about 200 MB the first time. No audio leaves this computer, and no transcript does unless you give your transcripts to your Assistant.",
 }
 
 // MeetingAPI is Meeting notes: record a meeting by hand, or offer one the
@@ -327,6 +327,10 @@ type MeetingRecordingView struct {
 	// Automatic: it started without asking, the app being on the
 	// automatic list.
 	Automatic bool `json:"automatic"`
+	// Armed: it started without asking, in a window the Assistant armed;
+	// Title is that meeting's, from the calendar.
+	Armed bool   `json:"armed"`
+	Title string `json:"title,omitempty"`
 }
 
 // MeetingOfferView is a detected call offered for recording.
@@ -491,7 +495,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	if r := status.Recording; r != nil {
 		v.Recording = &MeetingRecordingView{
 			ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice,
-			Paused: r.Paused, Automatic: r.How == meeting.Automatically,
+			Paused: r.Paused, Automatic: r.How == meeting.Automatically, Armed: r.How == meeting.InWindow, Title: r.Title,
 		}
 	}
 	v.Detects = v.Available && mgr.Detector != nil

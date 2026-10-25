@@ -370,6 +370,7 @@ export default function App() {
                   runAgent: (reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home", run: true }),
                   settings: () => nav({ page: "settings", ...SETTINGS_FOR.homeSettings }),
                   scheduled: () => nav({ page: "scheduled" }),
+                  meetings: () => nav({ page: "meetings" }),
                   persistentAgents: () => nav({ page: "settings", ...SETTINGS_FOR.homeMain }),
                   persistentAgent: (id) => nav({ page: "persistent", id }),
                   provider: () => nav({ page: "settings", ...SETTINGS_FOR.mainModel }),

@@ -46,3 +46,36 @@ test("an offer names its app, and the longest recording reads in hours", () => {
   assert.equal(hoursLabel(1), "1 hour");
   assert.equal(hoursLabel(4), "4 hours");
 });
+
+test("a meeting says how it was handed to the Assistant, and offers Ask only while it may", async () => {
+  const { deliveryWords, canAskAssistant, possessive, capitalised } = await import("../src/meetingNotes.ts");
+  assert.equal(deliveryWords({ delivery: "" }, "Ada"), "");
+  assert.equal(deliveryWords({ delivery: "waiting" }, "Ada"), "In Ada's share folder, waiting for you to ask Ada to summarise it");
+  assert.equal(deliveryWords({ delivery: "sent" }, "the Assistant"), "Given to the Assistant to summarise");
+  assert.equal(deliveryWords({ delivery: "failed", deliveryError: "no share" }, "Ada"), "Not given to Ada: no share");
+  const done = { state: "done", hasTranscript: true };
+  const on = { enabled: true, sendToAssistant: true };
+  assert.equal(canAskAssistant({ ...done, delivery: "waiting" }, on), true);
+  assert.equal(canAskAssistant({ ...done, delivery: "failed" }, on), true);
+  assert.equal(canAskAssistant({ ...done, delivery: "" }, on), true);
+  assert.equal(canAskAssistant({ ...done, delivery: "sent" }, on), false);
+  assert.equal(canAskAssistant({ ...done, delivery: "sending" }, on), false);
+  assert.equal(canAskAssistant({ ...done, delivery: "waiting" }, { enabled: true, sendToAssistant: false }), false);
+  assert.equal(canAskAssistant({ state: "transcribing", hasTranscript: false }, on), false);
+  assert.equal(possessive("James"), "James'");
+  assert.equal(capitalised("the Assistant"), "The Assistant");
+  assert.equal(capitalised("Ada"), "Ada");
+});
+
+test("an armed window says when it records and where it stands", async () => {
+  const { windowWhen, windowStateWords } = await import("../src/meetingNotes.ts");
+  const now = new Date(2026, 9, 25, 13, 0);
+  const today = windowWhen(new Date(2026, 9, 25, 13, 55).toISOString(), new Date(2026, 9, 25, 15, 15).toISOString(), now);
+  assert.match(today, /^13:55 to 15:15$/);
+  const tomorrow = windowWhen(new Date(2026, 9, 26, 8, 55).toISOString(), new Date(2026, 9, 26, 9, 45).toISOString(), now);
+  assert.match(tomorrow, /, 08:55 to 09:45$/);
+  assert.equal(windowStateWords({ state: "waiting", recorded: 0 }), "Waiting to open");
+  assert.equal(windowStateWords({ state: "closed", recorded: 0 }), "Closed: no call was noticed");
+  assert.equal(windowStateWords({ state: "closed", recorded: 1 }), "Recorded");
+  assert.equal(windowStateWords({ state: "recording", recorded: 1 }), "Recording");
+});

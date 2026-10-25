@@ -5,13 +5,18 @@
 // automatic list are confirmed in Go's native dialog: this page asking is
 // not the person deciding. While it is off nothing records. The page names
 // a meeting by its id and never a path, and the output folder comes from
-// the native picker alone.
+// the native picker alone. Giving transcripts to the Assistant is turned on
+// in Go's native dialog too; the windows the Assistant armed are listed
+// with Cancel.
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
 import type { app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
-import { AUTO_CHOICES, CHAT_LINE, canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingState, offerTitle, recordingWhat } from "../meetingNotes";
+import {
+  AUTO_CHOICES, CHAT_LINE, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, hoursLabel, isNo,
+  meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
+} from "../meetingNotes";
 
 type View = app.MeetingNotesView;
 
@@ -76,10 +81,13 @@ export default function MeetingNotes() {
     );
   }
 
+  const assistant = view.assistant;
   const header = (
     <PageHeader
       title="Meeting notes"
-      sub="Record a meeting, transcribe it on this computer, and keep the transcript in a folder. No audio or transcript leaves this computer."
+      sub={assistant.sendToAssistant
+        ? `Record a meeting, transcribe it on this computer, and keep the transcript in a folder. No audio leaves this computer; each transcript is given to ${assistant.name}, whose model provider reads it.`
+        : "Record a meeting, transcribe it on this computer, and keep the transcript in a folder. No audio or transcript leaves this computer."}
     />
   );
 
@@ -163,6 +171,30 @@ export default function MeetingNotes() {
         </Card>
       )}
 
+      {view.windows.length > 0 && (
+        <Card className="meeting-windows" data-meeting-windows>
+          <h3>Set up by {assistant.name}</h3>
+          <p className="small muted">
+            {capitalised(assistant.name)} set these up from your calendar. A call Agentry notices while one is open is recorded at once, and shown
+            as it records; nothing is recorded if no call is noticed.
+          </p>
+          <ul className="meeting-window-list">
+            {view.windows.map((w) => (
+              <li key={w.id} className="meeting-window" data-meeting-window={w.state}>
+                <div>
+                  <strong>{w.title}</strong>
+                  <div className="small muted">{windowWhen(w.opens, w.closes, new Date(now))}{w.app ? ` · ${w.app}` : ""}{w.invitees.length ? ` · ${w.invitees.length} invited` : ""}</div>
+                  <div className="small">{windowStateWords(w)}</div>
+                </div>
+                {(w.state === "waiting" || w.state === "open") && (
+                  <Button variant="ghost" data-meeting-window-cancel disabled={busy} onClick={() => act(() => MeetingAPI.CancelWindow(w.id))}>Cancel</Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="meeting-recorder">
         {recording ? (
           <>
@@ -171,6 +203,11 @@ export default function MeetingNotes() {
               <strong className="meeting-clock">{elapsed(recording.started, now)}</strong>
               <span>Recording {recordingWhat(recording.app, recording.wholeDevice)}.</span>
             </div>
+            {recording.armed && (
+              <p className="small muted" data-meeting-armed>
+                It started by itself: {recording.title ? `"${recording.title}" is` : "this meeting is"} one {assistant.name} set up to record from your calendar.
+              </p>
+            )}
             {recording.automatic && (
               <p className="small muted" data-meeting-automatic>
                 It started by itself: {recording.app || "this app"} is on your list of apps recorded automatically.
@@ -252,12 +289,21 @@ export default function MeetingNotes() {
                 </div>
                 <div className={`small meeting-state tone-${st.tone}`} data-meeting-state={m.state}>{st.words}</div>
                 {m.transcriptName && <div className="small muted">{m.transcriptName}</div>}
+                {m.fromCalendar && <div className="small muted">Recorded in a window {assistant.name} set up from your calendar</div>}
+                {m.delivery && <div className={`small${m.delivery === "failed" ? " tone-warn" : " muted"}`} data-meeting-delivery={m.delivery}>{deliveryWords(m, assistant.name)}</div>}
                 {m.hasAudio && m.audioUntil && !working && (
                   <div className="small muted">The recording is kept until {new Date(m.audioUntil).toLocaleDateString()}.</div>
                 )}
                 <div className="row">
                   {m.hasTranscript && <Button variant="ghost" onClick={() => act(() => MeetingAPI.OpenTranscript(m.id))}>Open transcript</Button>}
                   {m.hasTranscript && <Button variant="ghost" onClick={() => act(() => MeetingAPI.ShowTranscript(m.id))}>Show in folder</Button>}
+                  {canAskAssistant(m, assistant) && (
+                    <Button variant="ghost" data-meeting-ask disabled={busy || !assistant.running}
+                      title={assistant.running ? undefined : `Start ${assistant.name} first`}
+                      onClick={() => act(() => MeetingAPI.AskAssistant(m.id))}>
+                      Ask {assistant.name} to summarise
+                    </Button>
+                  )}
                   {canTranscribe(m) && <Button variant="ghost" disabled={busy} onClick={() => act(() => MeetingAPI.Transcribe(m.id))}>Transcribe</Button>}
                   {m.hasAudio && !working && <Button variant="ghost" disabled={busy} onClick={() => act(() => MeetingAPI.DeleteAudio(m.id))}>Delete recording</Button>}
                   {!working && <Button variant="ghost" disabled={busy} onClick={() => act(() => MeetingAPI.Forget(m.id))}>Remove from list</Button>}
@@ -331,6 +377,22 @@ export default function MeetingNotes() {
             />
             Start Agentry when I sign in, so calls are noticed from then on
           </label>
+        )}
+        {assistant.enabled && (
+          <Field label={capitalised(assistant.name)} hint={`${capitalised(assistant.name)} summarises each transcript with its meeting-notes skill and files the meeting in its memory. It is never started for this.`}>
+            <label className="check-row">
+              <input type="checkbox" role="switch" data-meeting-send checked={assistant.sendToAssistant} disabled={busy}
+                onChange={(e) => act(() => MeetingAPI.SetSendToAssistant(e.target.checked))} />
+              Give my meeting transcripts to {assistant.name}
+            </label>
+            {assistant.sendToAssistant && (
+              <label className="check-row">
+                <input type="checkbox" role="switch" data-meeting-ask-first checked={assistant.askFirst} disabled={busy}
+                  onChange={(e) => act(() => MeetingAPI.SetAskFirst(e.target.checked))} />
+                Ask me first: each transcript waits in {possessive(assistant.name)} share folder until I ask {assistant.name} to summarise it
+              </label>
+            )}
+          </Field>
         )}
         <label className="check-row">
           <input type="checkbox" role="switch" data-meeting-keep checked={view.keepAudio} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetKeepAudio(e.target.checked))} />
