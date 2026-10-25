@@ -166,6 +166,23 @@ func TestAudioArrivingWhilePausedIsDropped(t *testing.T) {
 	}
 }
 
+// A far side that plays nothing has its track all the same, so the
+// transcript says it was silent.
+func TestASilentFarSideStillHasItsTrack(t *testing.T) {
+	f := newFakeAudio()
+	f.set(zoomSession("headset", flowRender, true), zoomSession("headset-mic", flowCapture, true))
+	f.gone["headset"] = true // the loopback delivers nothing
+	tracks := &memTracks{}
+	c, err := childRecorder{spawn: (&inProcessChild{f: f}).spawn}.Record(context.Background(), Call{PID: "4100"}, tracks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Stop() }()
+	if _, _, ok := tracks.get("far"); !ok {
+		t.Fatal("no far track while the far side is silent")
+	}
+}
+
 // A child that dies is started again, and the recording goes on on the same
 // tracks.
 func TestACrashedChildIsStartedAgain(t *testing.T) {

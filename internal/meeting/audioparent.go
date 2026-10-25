@@ -79,6 +79,16 @@ func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 	}
 	c.farSide = ev.FarSide
 	c.proc = p
+	// The far side has a track from the start: a loopback delivers nothing
+	// while nothing plays, and a far side silent throughout is a silent
+	// track in the transcript, not a missing one.
+	c.mu.Lock()
+	_, err = c.trackLocked(wireFar)
+	c.mu.Unlock()
+	if err != nil {
+		p.stop()
+		return nil, err
+	}
 	go c.supervise(ctx, out)
 	return c, nil
 }
@@ -168,6 +178,20 @@ func (c *childCapture) write(track byte, payload []byte) {
 	if c.stopped || c.paused {
 		return
 	}
+	t, err := c.trackLocked(track)
+	if err != nil {
+		log.Printf("meeting notes: a track could not be opened: %v", err)
+		return
+	}
+	samples := make([]int16, len(payload)/2)
+	for i := range samples {
+		samples[i] = int16(binary.LittleEndian.Uint16(payload[2*i:])) //nolint:gosec // the sample's bits as they are
+	}
+	t.Write(samples)
+}
+
+// trackLocked is the child's track, opened the first time it is asked for.
+func (c *childCapture) trackLocked(track byte) (Track, error) {
 	t := &c.mic
 	label, name := Me, "mic"
 	if track == wireFar {
@@ -176,16 +200,11 @@ func (c *childCapture) write(track byte, payload []byte) {
 	if *t == nil {
 		opened, err := c.tracks.Open(label, name)
 		if err != nil {
-			log.Printf("meeting notes: a track could not be opened: %v", err)
-			return
+			return nil, err
 		}
 		*t = opened
 	}
-	samples := make([]int16, len(payload)/2)
-	for i := range samples {
-		samples[i] = int16(binary.LittleEndian.Uint16(payload[2*i:])) //nolint:gosec // the sample's bits as they are
-	}
-	(*t).Write(samples)
+	return *t, nil
 }
 
 // supervise reads the child until the recording stops. A child that ends
