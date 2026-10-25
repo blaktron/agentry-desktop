@@ -222,6 +222,13 @@ smoke-darwin-selfupdate:
 # $INSTDIR\bin and puts it on the user Path, the check reads it back with
 # --cli, and the Linux packages carry build/cli/agentry as
 # /usr/bin/agentry. Without it (a PR build) neither carries a CLI.
+#
+# Meeting notes' transcriber: when build/whisper holds the signed sidecar
+# (whisper-cli-windows-amd64 and whisper-cli-linux-amd64, as a release
+# unpacks them), the installer carries the Windows one into
+# $INSTDIR\bin\whisper, the Linux packages carry the Linux one in
+# /usr/lib/agentry-desktop/whisper, and the checks read them back. Without
+# it (a PR build) the app offers no Meeting notes.
 package-windows: build-windows sign-windows finish-windows
 
 build-windows:
@@ -237,7 +244,7 @@ finish-windows:
 	cp THIRD_PARTY_NOTICES build/bin/THIRD_PARTY_NOTICES.txt
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe THIRD_PARTY_NOTICES.txt
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
-	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
+	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) $(if $(wildcard build/whisper/whisper-cli-windows-amd64/whisper-cli.exe),--whisper build/whisper/whisper-cli-windows-amd64,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing

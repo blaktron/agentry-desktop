@@ -41,6 +41,10 @@ type FarSide string
 const (
 	// FarSideApp is the meeting app's own playback streams alone.
 	FarSideApp FarSide = "app"
+	// FarSideAppDevice is everything played on the output device the
+	// meeting app plays to (Windows records a device, not an app): the
+	// meeting, and any other sound played there.
+	FarSideAppDevice FarSide = "app-device"
 	// FarSideWholeDevice is everything the output device played: no
 	// meeting app was found to record on its own, so other sounds the
 	// computer made are in the recording too.

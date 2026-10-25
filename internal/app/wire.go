@@ -65,7 +65,7 @@ func New(notices string) *Services {
 		voice:        &VoiceAPI{app: app, run: run},
 		home:         &HomeAPI{},
 		publisher:    &PublisherAPI{app: app},
-		selfUpdate:   newSelfUpdateAPI(app),
+		selfUpdate:   newSelfUpdateAPI(app, meetings.suspendForUpdate),
 		schedule:     schedule,
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},

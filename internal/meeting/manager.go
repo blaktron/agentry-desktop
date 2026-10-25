@@ -284,6 +284,11 @@ func (m *Manager) Shutdown() {
 		cancel()
 	}
 	m.wg.Wait()
+	// Stopped, and able to start again: an update that could not begin
+	// hands the feature back.
+	m.mu.Lock()
+	m.started, m.closing = false, false
+	m.mu.Unlock()
 }
 
 func (m *Manager) enqueue(id string) {
@@ -386,7 +391,10 @@ func (m *Manager) announce(r *recording) error {
 	app, far, paused, how, title := r.m.App, r.m.FarSide, r.paused, r.how, r.m.Title
 	m.mu.Unlock()
 	what := "your microphone and everything your computer plays"
-	if far != FarSideWholeDevice && app != "" {
+	switch {
+	case far == FarSideAppDevice && app != "":
+		what = "your microphone and everything played on the speakers or headset " + app + " uses"
+	case far != FarSideWholeDevice && app != "":
 		what = "your microphone and " + app
 	}
 	n := Notice{Tag: tagRecording, Resident: true, Title: "Recording a meeting", Body: "Agentry is recording " + what + ". " + ConsentSentence}

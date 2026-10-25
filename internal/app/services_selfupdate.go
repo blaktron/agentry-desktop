@@ -116,6 +116,12 @@ type SelfUpdateAPI struct {
 	// applier installs a verified artifact. A field so a test can observe
 	// what would have been installed rather than replacing the test binary.
 	applier selfupdate.Applier
+	// beforeApply ends what must not outlive this process once the
+	// installer takes over: a Windows installer cannot replace a file a
+	// process still runs (Meeting notes' transcriber), and the applier ends
+	// this process without the app's own shutdown. What it returns starts
+	// that again, for an installer that did not start.
+	beforeApply func() (resume func())
 	// goos and goarch name the platform whose artifact is chosen. Fields, not
 	// runtime constants, so that the install path can be exercised on a
 	// machine that does not install — otherwise the two most important tests
@@ -139,15 +145,16 @@ type SelfUpdateAPI struct {
 	now    func() time.Time
 }
 
-func newSelfUpdateAPI(app *App) *SelfUpdateAPI {
+func newSelfUpdateAPI(app *App, beforeApply func() (resume func())) *SelfUpdateAPI {
 	return &SelfUpdateAPI{
-		app:     app,
-		channel: selfupdate.ManifestURL,
-		keys:    selfupdate.Carried,
-		applier: selfupdate.ApplierFor(),
-		goos:    runtime.GOOS,
-		goarch:  runtime.GOARCH,
-		now:     time.Now,
+		app:         app,
+		beforeApply: beforeApply,
+		channel:     selfupdate.ManifestURL,
+		keys:        selfupdate.Carried,
+		applier:     selfupdate.ApplierFor(),
+		goos:        runtime.GOOS,
+		goarch:      runtime.GOARCH,
+		now:         time.Now,
 	}
 }
 
@@ -372,7 +379,12 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 	}
 	// Past here the application is replaced and this process ends, so there
 	// is no view to return on success.
+	resume := func() {}
+	if u.beforeApply != nil {
+		resume = u.beforeApply()
+	}
 	if err := u.applier.Apply(path, relaunch); err != nil {
+		resume()
 		return nil, err
 	}
 	return u.SelfUpdateStatus()

@@ -1,6 +1,7 @@
 build/bin
 build/linux
 build/cli
+build/whisper
 # make app-icons' working directory, left behind if a render fails
 build/.icons/
 dist

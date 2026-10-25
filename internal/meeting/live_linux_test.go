@@ -130,17 +130,6 @@ func TestLivePulseRecording(t *testing.T) {
 	}
 }
 
-func waitForLong(t *testing.T, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Minute)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("timed out")
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}
-
 // TestLivePulseDetection watches this computer's audio system for calls. It
 // runs only when AGENTRY_MEETING_LIVE is set, with AGENTRY_MEETING_AUDIO and
 // the devices TestLivePulseRecording names. A volume meter's stream beside

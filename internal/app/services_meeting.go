@@ -39,11 +39,21 @@ const MeetingOutputFolder = "Meeting notes"
 
 // meetingWarnings are what turning Meeting notes on means, listed on the
 // page and said again in the native dialog that turns it on.
-var meetingWarnings = []string{
-	meeting.ConsentSentence,
-	"While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.",
-	"When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so.",
-	"It downloads a speech model of about 200 MB the first time. No audio leaves this computer, and no transcript does unless you give your transcripts to your Assistant.",
+var meetingWarnings = meetingWarningsFor(runtime.GOOS)
+
+// meetingWarningsFor says what the far side holds as the platform records
+// it: Windows records a whole output device, never one app's sound alone.
+func meetingWarningsFor(goos string) []string {
+	far := "When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so."
+	if goos == "windows" {
+		far = "It records everything played on the speakers or headset the meeting app uses, other sounds there included, or everything your computer plays when no meeting app is found, and the transcript says which."
+	}
+	return []string{
+		meeting.ConsentSentence,
+		"While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.",
+		far,
+		"It downloads a speech model of about 200 MB the first time. No audio leaves this computer, and no transcript does unless you give your transcripts to your Assistant.",
+	}
 }
 
 // MeetingAPI is Meeting notes: record a meeting by hand, or offer one the
@@ -119,8 +129,8 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 		if m.notifyWithdraw != nil {
 			withdraw = m.notifyWithdraw
 		}
-		if runtime.GOOS != "linux" {
-			m.unavailable = "Meeting notes records on Linux only."
+		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+			m.unavailable = "Meeting notes records on Linux and Windows only."
 		} else if err := meeting.CheckSidecar(sidecar); err != nil {
 			m.unavailable = err.Error() + "."
 		}
@@ -286,6 +296,17 @@ func (m *MeetingAPI) start(ctx context.Context) {
 func (m *MeetingAPI) shutdown() {
 	if m.mgr != nil {
 		m.mgr.Shutdown()
+	}
+}
+
+// suspendForUpdate is shutdown before an installer replaces the app, with
+// what starts the feature again should the installer not start.
+func (m *MeetingAPI) suspendForUpdate() (resume func()) {
+	m.shutdown()
+	return func() {
+		if m.mgr != nil {
+			m.start(m.app.ctxOrBackground())
+		}
 	}
 }
 

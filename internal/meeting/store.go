@@ -9,7 +9,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/blaktron/agentry-cli/pkg/dirpublish"
 )
 
 // Where a meeting stands.
@@ -84,6 +87,12 @@ type Store struct {
 	Dir string
 }
 
+// recordMu keeps a meeting's record from being read while it is replaced:
+// Windows refuses to rename over a file this process has open, and a
+// replacement that moves the old file aside first (dirpublish.ReplaceFile,
+// when a scanner holds it) leaves an instant with no file.
+var recordMu sync.RWMutex
+
 func (s Store) folder(id string) string { return filepath.Join(s.Dir, id) }
 
 // Create makes a meeting's folder and record.
@@ -103,11 +112,9 @@ func (s Store) Save(m *Meeting) error {
 	if err != nil {
 		return err
 	}
-	tmp := filepath.Join(s.folder(m.ID), "meeting.json.tmp")
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(s.folder(m.ID), "meeting.json"))
+	recordMu.Lock()
+	defer recordMu.Unlock()
+	return dirpublish.ReplaceFile(filepath.Join(s.folder(m.ID), "meeting.json"), raw, 0o600)
 }
 
 // Get reads one meeting.
@@ -115,7 +122,9 @@ func (s Store) Get(id string) (*Meeting, error) {
 	if !validID(id) {
 		return nil, fmt.Errorf("no meeting %q", id)
 	}
+	recordMu.RLock()
 	raw, err := os.ReadFile(filepath.Join(s.folder(id), "meeting.json")) //nolint:gosec // a meeting folder of ours, by a checked id
+	recordMu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
