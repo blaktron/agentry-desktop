@@ -177,7 +177,9 @@ func (p *PersistentAPI) lookUpIcon(agent string, srv manifest.MCPServer) {
 	}
 	p.iconLookups[srv.SourceID()] = true
 	p.mu.Unlock()
+	p.lookups.Add(1)
 	go func() {
+		defer p.lookups.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		b, mt, err := findIcon(ctx, srv)

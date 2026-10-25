@@ -89,6 +89,8 @@ type PersistentAPI struct {
 	starts sync.WaitGroup
 	// followers are the goroutines that carry each agent's events.
 	followers sync.WaitGroup
+	// lookups are the server icon lookups under way in the background.
+	lookups sync.WaitGroup
 	// stopping names the agents a Stop or a quit is ending, so their end
 	// is not told as one they came to by themselves.
 	stopping map[string]bool

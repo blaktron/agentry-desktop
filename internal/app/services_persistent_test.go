@@ -98,10 +98,12 @@ func newPersistentRig(t *testing.T) *persistentRig {
 		}
 	}
 	t.Cleanup(func() { emitEvent = old })
-	// Before the seam goes back: every agent stopped and its followers done.
+	// Before the seam goes back: every agent stopped, its followers done
+	// and every icon lookup ended, since each can tell the page.
 	t.Cleanup(func() {
 		rig.p.stopAll()
 		rig.p.followers.Wait()
+		rig.p.lookups.Wait()
 	})
 	return rig
 }
