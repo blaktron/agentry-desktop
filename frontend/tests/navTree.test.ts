@@ -28,6 +28,15 @@ test("the enabled persistent agents come straight after Home, each opening its o
   assert.equal(rs[2].running, false);
 });
 
+test("Meeting notes comes after the persistent agents, only where this copy records", () => {
+  const agents = [{ id: "assistant", label: "Ada", running: true }];
+  assert.deepEqual(labels(rows({ page: "home", agents })), ["Home", "Ada", "Library", "Schedule", "Build", "Settings"]);
+  const rs = rows({ page: "meetings", agents, meetings: true });
+  assert.deepEqual(labels(rs), ["Home", "Ada", "Meeting notes", "Library", "Schedule", "Build", "Settings"]);
+  assert.deepEqual(current(rs), ["Meeting notes"]);
+  assert.deepEqual(rs[2].target, { kind: "page", page: "meetings" });
+});
+
 test("Library shows Browse beneath it, and Publisher only while signed in", () => {
   assert.deepEqual(labels(rows({ page: "library" })), ["Home", "Library", "Browse", "Schedule", "Build", "Settings"]);
   assert.deepEqual(labels(rows({ page: "library", signedIn: true })), ["Home", "Library", "Browse", "Publisher", "Schedule", "Build", "Settings"]);

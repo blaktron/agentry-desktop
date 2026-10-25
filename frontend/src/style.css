@@ -1672,3 +1672,17 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   .agent-usage { grid-column: 1; grid-row: 2; }
   .agent-roster { grid-column: 1; grid-row: 3; max-height: 30vh; }
 }
+
+/* Meeting notes */
+.meeting-notes .meeting-warning { margin: 8px 0 14px; padding-left: 20px; }
+.meeting-notes .meeting-warning li { margin: 4px 0; }
+.meeting-notes .meeting-live { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.meeting-notes .meeting-clock { font-variant-numeric: tabular-nums; font-size: 1.2em; }
+.meeting-notes .meeting-chat-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.meeting-notes .meeting-chat-line code { white-space: normal; }
+.meeting-notes .meeting-list { display: grid; gap: 10px; margin-bottom: 18px; }
+.meeting-notes .meeting-row-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.meeting-notes .meeting-state { margin: 4px 0; }
+.meeting-notes .meeting-state.tone-ok { color: var(--color-ok); }
+.meeting-notes .meeting-state.tone-warn { color: var(--color-sev-medium); }
+.meeting-notes .meeting-settings code { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

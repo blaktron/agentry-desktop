@@ -7,7 +7,7 @@ import { inBuild, navRows, type NavAgent, type NavPage, type NavRow, type NavSec
 
 export type { NavAgent, NavPage, NavSection };
 
-export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false, agents = [], agent, onOpenAgent, sections = [], section, onOpenSection }: {
+export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false, agents = [], agent, onOpenAgent, meetings = false, sections = [], section, onOpenSection }: {
   page: NavPage;
   onNav?: (page: NavPage) => void;
   installedUpdates?: number;
@@ -17,6 +17,8 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
   agents?: NavAgent[];
   agent?: string;
   onOpenAgent?: (id: string) => void;
+  /** This copy records meetings here: Meeting notes is shown. */
+  meetings?: boolean;
   /** Settings' sections, listed beneath Settings while it is open; section
    *  the one open. */
   sections?: NavSection[];
@@ -73,7 +75,7 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
     );
   };
 
-  const rows = navRows({ page, signedIn, agents, agent, sections, section, buildOpen });
+  const rows = navRows({ page, signedIn, agents, agent, meetings, sections, section, buildOpen });
   return (
     <nav className="sidebar-nav" aria-label="Pages">
       {rows.map((r) => draw(r, 0))}
