@@ -95,6 +95,8 @@ func (s *Services) Startup(ctx context.Context) {
 	// The background app: the quit intent, the tray, and the agents set to
 	// run when Agentry starts (background.go).
 	s.startBackground(ctx)
+	// Agents another client starts or stops are seen within seconds.
+	go s.persistent.watchElsewhere(ctx)
 	// Meeting notes' leftovers recovered and its old audio swept; no
 	// audio device is opened until the person presses Record.
 	s.meeting.start(ctx)

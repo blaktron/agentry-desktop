@@ -150,6 +150,13 @@ export function mainStatusLine(a: Pick<app.PersistentAgentView, "state" | "lifet
 
 /** The words for an agent's state: while it starts, the step its start is
  *  on, in the runner's words ("Getting images ready…"). */
+/** isLive says the agent runs, in this app or in another client (a
+ *  terminal's agentry agent start): either way its chat sends and its Stop
+ *  stops it here. */
+export function isLive(a: Pick<app.PersistentAgentView, "state">): boolean {
+  return a.state === AGENT_STATES.running || a.state === AGENT_STATES.elsewhere;
+}
+
 export function agentStateWords(a: Pick<app.PersistentAgentView, "state" | "holder" | "stage">): string {
   switch (a.state) {
     case "running":
