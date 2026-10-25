@@ -726,7 +726,9 @@ const harnessAssistant = {
   mailProviders: [
     { key: "google", name: "Google", enabled: true, servers: ["server:gog"], accounts: ["sandra@example.com"], setUp: [] },
     { key: "microsoft", name: "Microsoft", enabled: false, servers: ["server:ms365"], accounts: [], setUp: ["it needs your Microsoft sign-in"] },
+    { key: "fastmail", name: "Fastmail", enabled: false, servers: ["server:url-api-fastmail-com-mcp"], accounts: [], setUp: ["it needs your Fastmail token"] },
   ],
+  fastmail: { token: false },
   microsoft: { clientID: "", tenant: "", account: "", signoff: "" },
   google: { client: true, clientAt: "2026-10-24T10:00:00Z", account: "sandra@example.com", at: "2026-10-24T10:02:00Z" },
   resets: [
@@ -901,6 +903,8 @@ g.go = { app: {
     SetMicrosoftSignoff: async () => harnessAssistant,
     MicrosoftSignIn: async () => harnessAssistant,
     CancelMicrosoftSignIn: async () => {},
+    SetFastmailToken: async () => harnessAssistant,
+    RemoveFastmailToken: async () => harnessAssistant,
     Transcript: async (name: string) => (name === "main" ? [
       { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
       { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },
