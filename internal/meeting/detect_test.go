@@ -67,6 +67,17 @@ func detecting(t *testing.T, lapse time.Duration) (*harness, *fakeDetector) {
 
 func (h *harness) offer() *Offer { return h.m.Status().Offer }
 
+// waitOffer waits for an offer and for its own notification: the offer
+// stands a moment before the notification that offers it is raised.
+func (h *harness) waitOffer(t *testing.T) {
+	t.Helper()
+	waitFor(t, "the offer and its notification", func() bool {
+		o := h.offer()
+		n, ok := h.lastRaised(tagOffer)
+		return o != nil && ok && len(n.Actions) > 0 && strings.HasSuffix(n.Actions[0].ID, o.ID)
+	})
+}
+
 func (h *harness) lastRaised(tag string) (Notice, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -110,7 +121,7 @@ func actionIDs(n Notice) []string {
 func TestADetectedCallIsOnlyOfferedAndLapses(t *testing.T) {
 	h, d := detecting(t, 150*time.Millisecond)
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the offer", func() bool { return h.offer() != nil })
+	h.waitOffer(t)
 	n, ok := h.lastRaised(tagOffer)
 	if !ok || !strings.Contains(n.Title, "Zoom Meeting") || !strings.Contains(n.Body, "consent") {
 		t.Fatalf("the offer's notification = %+v, want one naming the app with the consent sentence", n)
@@ -151,7 +162,7 @@ func TestADetectedCallIsOnlyOfferedAndLapses(t *testing.T) {
 func TestNotNowRecordsNothingAndTheEndWithdrawsTheOffer(t *testing.T) {
 	h, d := detecting(t, time.Minute)
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the offer", func() bool { return h.offer() != nil })
+	h.waitOffer(t)
 	if err := h.m.HandleAction(ActionNotNow + ":" + h.offer().ID); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +186,7 @@ func TestRecordOnTheOfferRecordsThatCallAndShowsIt(t *testing.T) {
 	h, d := detecting(t, time.Minute)
 	h.rec.tracks = []fakeTrackSpec{{Me, "mic", speech(1600)}}
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the offer", func() bool { return h.offer() != nil })
+	h.waitOffer(t)
 	if err := h.m.HandleAction(ActionRecord + ":" + h.offer().ID); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +242,7 @@ func TestEveryWayIntoARecordingIsShown(t *testing.T) {
 		},
 		FromOffer: func(h *harness, d *fakeDetector) {
 			d.events <- CallEvent{Call: zoom}
-			waitFor(t, "the offer", func() bool { return h.offer() != nil })
+			h.waitOffer(t)
 			if _, err := h.m.AcceptOffer(context.Background(), h.offer().ID); err != nil {
 				t.Fatal(err)
 			}

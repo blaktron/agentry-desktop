@@ -200,6 +200,14 @@ type MeetingNotes struct {
 	Automatic []string `yaml:"automatic,omitempty"`
 	// MaxHours ends a recording that has run this many hours; 0 for four.
 	MaxHours int `yaml:"maxHours,omitempty"`
+	// SendToAssistant copies each transcript into the Assistant's share
+	// folder and asks it to summarise it; off by default. Save does not
+	// write it: only SetMeetingSendToAssistant does, which the app calls
+	// after a native confirmation when it turns it on.
+	SendToAssistant bool `yaml:"sendToAssistant,omitempty"`
+	// AskFirst leaves each transcript in the share for the person to hand
+	// to the Assistant, from Home or Meeting notes, instead of sending it.
+	AskFirst bool `yaml:"askFirst,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer
@@ -326,8 +334,9 @@ var saveMu sync.Mutex
 // Save writes the settings file with 0600 permissions (it may carry a PAT
 // when the keychain is unavailable).
 //
-// It never changes the Unsafe Mode switch or Meeting notes' switch: whatever
-// s says, the file keeps the values it has. Every other setting is saved by a binding that loads,
+// It never changes the Unsafe Mode switch, Meeting notes' switch, its
+// automatic list or its sending to the Assistant: whatever s says, the file
+// keeps the values it has. Every other setting is saved by a binding that loads,
 // changes one field and saves, with no lock across the three; were the switch
 // saved the same way, a save that loaded it on before it was turned off would
 // turn it back on with no confirmation. SetUnsafeMode and SetMeetingNotesOn
@@ -338,6 +347,7 @@ func Save(s Settings) error {
 	cur, err := Load()
 	s.UnsafeMode = err == nil && cur.UnsafeMode
 	s.MeetingNotes.On = err == nil && cur.MeetingNotes.On
+	s.MeetingNotes.SendToAssistant = err == nil && cur.MeetingNotes.SendToAssistant
 	s.MeetingNotes.Automatic = nil
 	if err == nil {
 		s.MeetingNotes.Automatic = cur.MeetingNotes.Automatic
@@ -375,6 +385,20 @@ func SetMeetingAutomatic(key string, on bool) error {
 		list = append(list, key)
 	}
 	s.MeetingNotes.Automatic = list
+	return write(s)
+}
+
+// SetMeetingSendToAssistant writes whether transcripts go to the Assistant,
+// and nothing else. The caller is the one binding that may: MeetingAPI's
+// SetSendToAssistant, after the native confirmation when it turns it on.
+func SetMeetingSendToAssistant(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.MeetingNotes.SendToAssistant = on
 	return write(s)
 }
 

@@ -1568,7 +1568,7 @@ function HomePreview() {
       banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
-        runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"),
+        runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"), meetings: mark("meetings"),
         persistentAgents: mark("persistent-agents"), provider: mark("provider"),
         persistentAgent: (name) => { document.body.dataset.open = `persistent:${name}`; },
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },

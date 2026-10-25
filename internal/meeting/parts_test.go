@@ -1,12 +1,14 @@
 package meeting
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -523,5 +525,79 @@ func TestCalibrationSpeaksForAtLeastAMinute(t *testing.T) {
 	}
 	if _, _, err := calibrationAudio(clip, filepath.Join(dir, "cal")); err == nil {
 		t.Fatal("a stereo clip was taken")
+	}
+}
+
+// A transcript copied into the share is staged outside it and linked in:
+// a walk of the share racing the copies sees each file whole or not at
+// all, and never a temporary file; a name taken gets a number, and the
+// first stage that cannot be used gives way to the next.
+func TestCopyIntoShareNeverShowsAWalkerAPartialFile(t *testing.T) {
+	root := t.TempDir()
+	share := filepath.Join(root, "share")
+	dir := filepath.Join(share, "meetings")
+	content := []byte(strings.Repeat("[00:00:01] Me: a line of the meeting\n", 30000))
+	notAFolder := filepath.Join(root, "file")
+	if err := os.WriteFile(notAFolder, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stages := []string{filepath.Join(notAFolder, "staging"), filepath.Join(root, "staging")}
+
+	var stop atomic.Bool
+	var walks atomic.Int64
+	failed := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for !stop.Load() {
+			walks.Add(1)
+			_ = filepath.WalkDir(share, func(p string, d fs.DirEntry, err error) error {
+				if err != nil || d.IsDir() {
+					return nil
+				}
+				var why string
+				if !strings.HasSuffix(p, ".md") {
+					why = "a temporary file in the share: " + p
+				} else if b, err := os.ReadFile(p); err == nil && !bytes.Equal(b, content) {
+					why = fmt.Sprintf("a partial file: %s, %d of %d bytes", p, len(b), len(content))
+				}
+				if why != "" {
+					select {
+					case failed <- why:
+					default:
+					}
+					return filepath.SkipAll
+				}
+				return nil
+			})
+		}
+	}()
+	var names []string
+	for range 40 {
+		out, err := CopyIntoShare(dir, stages, "2026-10-25-1000-budget-sync.md", content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, filepath.Base(out))
+	}
+	stop.Store(true)
+	<-done
+	select {
+	case why := <-failed:
+		t.Fatal(why)
+	default:
+	}
+	if walks.Load() < 2 {
+		t.Fatalf("the walker ran %d times", walks.Load())
+	}
+	if names[0] != "2026-10-25-1000-budget-sync.md" || names[1] != "2026-10-25-1000-budget-sync-2.md" {
+		t.Fatalf("names %v, want the second numbered", names[:2])
+	}
+	fi, err := os.Stat(filepath.Join(dir, names[0]))
+	if err != nil || fi.Mode().Perm() != 0o644 {
+		t.Fatalf("the copy: %v %v, want it readable as a file the person adds", fi.Mode(), err)
+	}
+	if left, _ := os.ReadDir(filepath.Join(root, "staging")); len(left) != 0 {
+		t.Fatalf("the stage kept %d files", len(left))
 	}
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
 import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
 import { install, app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
@@ -63,12 +64,16 @@ export function HomeSettings() {
     }
   };
 
+  const [meetings, setMeetings] = useState(false);
   useEffect(() => {
     let live = true;
     HomeAPI.Layout().then((v) => { if (live) setView(v); }).catch((e) => { if (live) setErr(String(e)); });
     // Only to say each pin's version, or that it is gone: a failed read
     // leaves the pins listed without either.
     InstallAPI.ListInstalled().then((v) => { if (live) setRecords(v ?? []); }).catch(() => { if (live) setRecordsFailed(true); });
+    // The Meeting notes card's switch is offered only where this copy
+    // records meetings.
+    MeetingAPI.Status().then((v) => { if (live) setMeetings(v.available); }).catch(() => undefined);
     return () => { live = false; };
   }, []);
 
@@ -92,7 +97,7 @@ export function HomeSettings() {
   // read what Home draws (the defaults) and are held, its pins are not
   // listed, and Reset is the way to start again.
   const kept = view.newer || view.unreadable;
-  const switches = cardSwitches(view.cards);
+  const switches = cardSwitches(view.cards, meetings);
   const pinCards = kept ? [] : view.cards.filter((c) => c.kind === "pinned" && (c.pins?.length ?? 0) > 0);
   const pins = kept ? [] : pinsOf(view.cards);
   // The Scheduled card is no default, so Reset removes it.

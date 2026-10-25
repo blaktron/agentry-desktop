@@ -72,6 +72,8 @@ const (
 	FromOffer How = "offer"
 	// Automatically is a detected call of an app on the automatic list.
 	Automatically How = "automatic"
+	// InWindow is a detected call inside a window the Assistant armed.
+	InWindow How = "armed"
 )
 
 // Manager runs Meeting notes: one recording at a time, then its
@@ -102,7 +104,10 @@ type Manager struct {
 	OfferFor time.Duration
 	// Changed is told whenever the status changes.
 	Changed func()
-	Now     func() time.Time
+	// Transcribed is told each meeting whose transcript has just been
+	// written, in the transcription worker: it hands the transcript on.
+	Transcribed func(id string)
+	Now         func() time.Time
 
 	mu sync.Mutex
 	// noticeMu orders the recording's notification: raised, replaced and
@@ -145,6 +150,8 @@ type RecordingStatus struct {
 	FarSide FarSide   `json:"farSide"`
 	Paused  bool      `json:"paused"`
 	How     How       `json:"how"`
+	// Title is the calendar's, for a recording made in an armed window.
+	Title string `json:"title,omitempty"`
 }
 
 // Status is the feature's state as a page shows it.
@@ -176,6 +183,8 @@ type recording struct {
 	paused   bool
 	stopping bool
 	how      How
+	// window is the armed window it was started in, "" for none.
+	window string
 }
 
 func (m *Manager) now() time.Time {
@@ -234,6 +243,7 @@ func (m *Manager) Start(ctx context.Context) {
 		}
 	}
 	_ = st.Sweep(m.now(), m.Settings().KeepAudio)
+	m.rearm()
 	m.wg.Add(3)
 	go m.work(ctx)
 	go m.watch(ctx)
@@ -315,7 +325,11 @@ func (m *Manager) Status() Status {
 }
 
 func (r *recording) status() *RecordingStatus {
-	return &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how}
+	st := &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how}
+	if r.window != "" {
+		st.Title = r.m.Title
+	}
+	return st
 }
 
 // indicate tells Indicate the recording as it now stands.
@@ -369,7 +383,7 @@ func (m *Manager) announce(r *recording) error {
 		m.mu.Unlock()
 		return nil
 	}
-	app, far, paused, how := r.m.App, r.m.FarSide, r.paused, r.how
+	app, far, paused, how, title := r.m.App, r.m.FarSide, r.paused, r.how, r.m.Title
 	m.mu.Unlock()
 	what := "your microphone and everything your computer plays"
 	if far != FarSideWholeDevice && app != "" {
@@ -379,6 +393,10 @@ func (m *Manager) announce(r *recording) error {
 	if how == Automatically {
 		n.Title = "Recording a meeting automatically"
 		n.Body = "Agentry is recording " + what + ", which you chose to record automatically. " + ConsentSentence
+	}
+	if how == InWindow {
+		n.Title = "Recording " + title
+		n.Body = "Agentry is recording " + what + " for this meeting from your calendar, which your Assistant set up to record. " + ConsentSentence
 	}
 	pause := NoticeAction{ID: ActionPause, Label: "Pause"}
 	if paused {
@@ -403,12 +421,14 @@ var ErrOff = errors.New("meeting notes is off: turn it on first")
 // or the whole default devices when there is none. It refuses while the
 // feature is off or while another recording runs.
 func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
-	return m.startRecording(ctx, Call{}, ByHand)
+	return m.startRecording(ctx, Call{}, ByHand, nil)
 }
 
 // startRecording is every way into a recording: it records call (zero for
-// whatever the recorder finds) and announces it, whatever started it.
-func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meeting, error) {
+// whatever the recorder finds) and announces it, whatever started it. w is
+// the armed window it is recorded in, nil for none: the meeting takes its
+// title and invitees.
+func (m *Manager) startRecording(ctx context.Context, call Call, how How, w *Window) (*Meeting, error) {
 	s := m.Settings()
 	if !s.On {
 		return nil, ErrOff
@@ -430,6 +450,12 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meet
 		return nil, err
 	}
 	r := &recording{m: mt, names: map[string]bool{}, how: how}
+	if w != nil {
+		mt.Title, mt.Window, mt.Invitees = w.Title, w.ID, w.Invitees
+		r.window = w.ID
+		_ = st.Save(mt)
+		m.recordedInLocked(w.ID, mt.ID)
+	}
 	m.rec = r
 	offer := m.offer
 	m.offer = nil
@@ -469,7 +495,7 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meet
 	_ = st.Save(mt)
 	m.mu.Unlock()
 
-	if err := m.announce(r); err != nil && how == Automatically {
+	if err := m.announce(r); err != nil && (how == Automatically || how == InWindow) {
 		// Nobody pressed Record, and nothing could say it is recording:
 		// what was started is let go and nothing is kept.
 		m.abandon(r)
@@ -787,6 +813,33 @@ func (m *Manager) transcribe(ctx context.Context, id string) {
 		mt.AudioUntil = m.now()
 		_ = st.Save(mt)
 	}
+	if m.Transcribed != nil {
+		m.Transcribed(id)
+	}
+}
+
+// Meeting reads one meeting's record.
+func (m *Manager) Meeting(id string) (*Meeting, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.store().Get(id)
+}
+
+// Update changes a meeting's record under the manager's lock, so two
+// changes are never lost to each other.
+func (m *Manager) Update(id string, change func(*Meeting)) (*Meeting, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st := m.store()
+	mt, err := st.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	change(mt)
+	if err := st.Save(mt); err != nil {
+		return nil, err
+	}
+	return mt, nil
 }
 
 func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, error) {
@@ -845,6 +898,7 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	info := TranscriptInfo{
 		Title: mt.Title, Started: mt.Started, Ended: mt.Ended, App: mt.App, FarSide: mt.FarSide,
 		Language: lang, Profile: profile.ID, Model: model, Gaps: mt.Gaps,
+		FromCalendar: mt.Window != "", Participants: mt.Invitees,
 	}
 	for _, l := range []Label{Me, Them} {
 		if silent[l] {
@@ -859,6 +913,9 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		return "", errors.New("no output folder is set for the transcripts")
 	}
 	slug := mt.App
+	if mt.Window != "" {
+		slug = mt.Title
+	}
 	if slug == "" {
 		slug = "meeting"
 	}
