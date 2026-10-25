@@ -1,10 +1,10 @@
 // Package notify raises the app's desktop notifications: a title and a body
 // the platform draws as plain text, a click that brings the app forward on
 // the page the notification is about, and on Linux buttons, a notification
-// replaced in place by its tag and one taken away. Each platform's own facility
-// carries it (notify_*.go): org.freedesktop.Notifications over the session
-// bus on Linux, UserNotifications in the app's bundle on macOS, and a toast
-// under the app's own AppUserModelID on Windows.
+// replaced in place by its tag and one taken away. Each platform's own
+// facility carries it (notify_*.go): org.freedesktop.Notifications over the
+// session bus on Linux, UserNotifications in the app's bundle on macOS, and
+// a toast under the app's own AppUserModelID on Windows.
 //
 // What a notification says comes from an agent's answer, so it is text and
 // nothing else on every platform: one line each, control characters

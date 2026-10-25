@@ -127,12 +127,12 @@ func (m *Manager) detect(ctx context.Context) {
 // forgetCalls drops what is known of the calls under way and any offer.
 func (m *Manager) forgetCalls() {
 	m.mu.Lock()
-	m.live = map[string]Call{}
+	m.live, m.handled, m.order = map[string]Call{}, map[string]bool{}, nil
 	had := m.offer != nil
 	m.offer = nil
 	m.mu.Unlock()
 	if had {
-		m.withdraw(tagOffer)
+		m.withdrawOffer()
 		m.changed()
 	}
 }
@@ -151,8 +151,8 @@ func (m *Manager) maxLength() time.Duration {
 	return DefaultMaxLength
 }
 
-// hours is a length of time said in whole hours, or minutes below one.
-func hours(d time.Duration) string {
+// lengthWords is a length of time said in whole hours, or minutes below one.
+func lengthWords(d time.Duration) string {
 	if d < time.Hour {
 		return fmt.Sprintf("%d minutes", int(d.Minutes()))
 	}
@@ -162,74 +162,116 @@ func hours(d time.Duration) string {
 	return "1 hour"
 }
 
-// callEvent acts on a call starting or ending. A call that starts is
-// recorded at once when its app is on the automatic list and nothing else
-// records; otherwise it is offered, unless an offer already stands. A call
-// is offered once: Not now, or an offer that lapses, holds until the call
-// has ended.
+// callEvent follows a call starting or ending, then considers the calls
+// under way.
 func (m *Manager) callEvent(ev CallEvent) {
 	key := ev.Call.AppKey()
 	if key == "" {
 		return
 	}
-	s := m.Settings()
 	m.mu.Lock()
-	if !s.On || m.ctx == nil {
+	if m.ctx == nil {
 		m.mu.Unlock()
 		return
 	}
 	if ev.Ended {
 		delete(m.live, key)
-		var gone bool
-		if m.offer != nil && m.offer.call.AppKey() == key {
-			m.offer, gone = nil, true
+		delete(m.handled, key)
+		m.order = slices.DeleteFunc(m.order, func(k string) bool { return k == key })
+		gone := m.offer != nil && m.offer.call.AppKey() == key
+		if gone {
+			m.offer = nil
 		}
 		m.mu.Unlock()
 		if gone {
-			m.withdraw(tagOffer)
+			m.withdrawOffer()
 			m.changed()
 		}
+		m.consider()
 		return
 	}
-	if _, known := m.live[key]; known {
-		m.live[key] = ev.Call
-		m.mu.Unlock()
-		return
-	}
+	_, known := m.live[key]
 	m.live[key] = ev.Call
-	ctx := m.ctx
-	busy := m.rec != nil || m.offer != nil
+	if !known {
+		m.order = append(m.order, key)
+	}
 	m.mu.Unlock()
-	m.rememberApp(ev.Call)
-	if busy {
-		return
+	if !known {
+		m.rememberApp(ev.Call)
 	}
-	if slices.Contains(s.Automatic, key) {
-		if _, err := m.startRecording(ctx, ev.Call, Automatically); err != nil {
-			log.Printf("meeting notes: recording %s automatically: %v", ev.Call.App, err)
-			m.notify(Notice{Title: "A meeting was not recorded", Body: "Agentry could not record " + ev.Call.App + ": " + err.Error()})
-		}
-		return
-	}
-	m.makeOffer(ev.Call)
+	m.consider()
 }
 
-// makeOffer offers a call for recording, and lets the offer lapse after
-// OfferFor.
-func (m *Manager) makeOffer(call Call) {
-	o := &Offer{ID: offerID(), App: call.App, Expires: m.now().Add(m.offerFor()), call: call}
+// consider acts on the calls under way that have not been answered, in the
+// order they started, while nothing records: a call of an app on the
+// automatic list is recorded at once, taking the place of an offer that
+// stands (that call waits its turn); otherwise the first is offered, one
+// offer at a time. A call is answered once, by its offer, its automatic
+// recording or the person's Stop, and is not taken up again until it has
+// ended.
+func (m *Manager) consider() {
+	s := m.Settings()
 	m.mu.Lock()
-	if m.offer != nil || m.rec != nil {
+	if !s.On || m.ctx == nil || m.ctx.Err() != nil || m.closing || m.rec != nil {
 		m.mu.Unlock()
 		return
 	}
-	m.offer = o
-	m.mu.Unlock()
-	name := call.App
+	var auto, ask *Call
+	for _, k := range m.order {
+		if m.handled[k] {
+			continue
+		}
+		c := m.live[k]
+		if slices.Contains(s.Automatic, k) {
+			if auto == nil {
+				auto = &c
+			}
+		} else if ask == nil {
+			ask = &c
+		}
+	}
+	ctx := m.ctx
+	switch {
+	case auto != nil:
+		m.handled[auto.AppKey()] = true
+		if o := m.offer; o != nil {
+			delete(m.handled, o.call.AppKey())
+		}
+		m.mu.Unlock()
+		// startRecording takes away an offer that stands.
+		if _, err := m.startRecording(ctx, *auto, Automatically); err != nil {
+			log.Printf("meeting notes: recording %s automatically: %v", auto.App, err)
+			_ = m.notify(Notice{Title: "A meeting was not recorded", Body: "Agentry could not record " + auto.App + ": " + err.Error()})
+		}
+	case ask != nil && m.offer == nil:
+		m.handled[ask.AppKey()] = true
+		o := &Offer{ID: offerID(), App: ask.App, Expires: m.now().Add(m.offerFor()), call: *ask}
+		m.offer = o
+		m.mu.Unlock()
+		m.raiseOffer(o)
+	default:
+		m.mu.Unlock()
+	}
+}
+
+// raiseOffer raises an offer's notification, and lets the offer lapse after
+// OfferFor.
+func (m *Manager) raiseOffer(o *Offer) {
+	name := o.App
 	if name == "" {
 		name = "a meeting app"
 	}
-	m.notify(Notice{
+	// noticeMu orders this against a recording's start, which takes the
+	// offer away: an offer answered already is not raised.
+	m.noticeMu.Lock()
+	m.mu.Lock()
+	standing := m.offer == o
+	m.mu.Unlock()
+	if !standing {
+		m.noticeMu.Unlock()
+		return
+	}
+	_ = m.notify(Notice{
 		Tag: tagOffer, Resident: true,
 		Title: "Record this meeting? (" + name + ")",
 		Body:  "Agentry can record your microphone and " + name + " and transcribe them on this computer. " + ConsentSentence,
@@ -238,8 +280,17 @@ func (m *Manager) makeOffer(call Call) {
 			{ID: ActionNotNow + ":" + o.ID, Label: "Not now"},
 		},
 	})
+	m.noticeMu.Unlock()
 	m.changed()
 	time.AfterFunc(m.offerFor(), func() { _ = m.DeclineOffer(o.ID) })
+}
+
+// withdrawOffer takes the offer's notification away, under noticeMu, so an
+// offer being raised at the same moment is taken away after it.
+func (m *Manager) withdrawOffer() {
+	m.noticeMu.Lock()
+	defer m.noticeMu.Unlock()
+	m.withdraw(tagOffer)
 }
 
 // offerID names an offer: random, so an answer to one that lapsed never
@@ -264,7 +315,7 @@ func (m *Manager) takeOffer(id string) (*Offer, error) {
 	}
 	m.offer = nil
 	m.mu.Unlock()
-	m.withdraw(tagOffer)
+	m.withdrawOffer()
 	m.changed()
 	return o, nil
 }
@@ -282,10 +333,13 @@ func (m *Manager) AcceptOffer(ctx context.Context, id string) (*Meeting, error) 
 }
 
 // DeclineOffer lets the offer go: nothing is recorded, and the call is not
-// offered again.
+// offered again. Another call waiting its turn is considered.
 func (m *Manager) DeclineOffer(id string) error {
-	_, err := m.takeOffer(id)
-	return err
+	if _, err := m.takeOffer(id); err != nil {
+		return err
+	}
+	m.consider()
+	return nil
 }
 
 // HandleAction answers a press on one of the feature's notification

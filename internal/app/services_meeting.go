@@ -127,14 +127,16 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			Settings:    meetingSettings,
 			Tier:        meeting.TierCPU,
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
-			Notify: func(n meeting.Notice) {
+			Notify: func(n meeting.Notice) error {
 				out := notify.Notice{Title: n.Title, Body: n.Body, Key: meetingNoticeKey, Tag: n.Tag, Resident: n.Resident}
 				for _, a := range n.Actions {
 					out.Actions = append(out.Actions, notify.Action{ID: a.ID, Label: a.Label})
 				}
-				if err := show(out); err != nil {
+				err := show(out)
+				if err != nil {
 					log.Printf("meeting notes: notification: %v", err)
 				}
+				return err
 			},
 			Withdraw: func(tag string) {
 				if err := withdraw(tag); err != nil {
@@ -491,13 +493,14 @@ func (m *MeetingAPI) TurnOn() (*MeetingNotesView, error) {
 // TurnOff turns Meeting notes off. A recording in progress is stopped
 // first and kept; it is transcribed when the feature is on again.
 func (m *MeetingAPI) TurnOff() (*MeetingNotesView, error) {
+	// The switch goes off first, so the Stop below starts nothing new.
+	if err := settings.SetMeetingNotesOn(false); err != nil {
+		return nil, err
+	}
 	if mgr := m.manager(); mgr != nil && mgr.Status().Recording != nil {
 		if err := mgr.Stop(); err != nil {
 			return nil, err
 		}
-	}
-	if err := settings.SetMeetingNotesOn(false); err != nil {
-		return nil, err
 	}
 	m.stateChanged()
 	return m.Status()

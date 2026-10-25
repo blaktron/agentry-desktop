@@ -48,6 +48,9 @@ type background struct {
 	quitting atomic.Bool
 	// hidden: the app was launched with loginitem.HiddenFlag.
 	hidden bool
+	// trayMu orders the tray's updates: each reads the state and draws it
+	// before the next reads, so an older state is never drawn last.
+	trayMu sync.Mutex
 	// launching is the work the app starts on goroutines of its own: the
 	// start of the agents set to run when Agentry starts, and the stop of
 	// Main as the window closes. A caller that needs it over waits for it.
@@ -151,6 +154,8 @@ func (s *Services) startBackground(ctx context.Context) {
 // enabled or Meeting notes is on, and keeps its menu to the agents running
 // and the meeting being recorded.
 func (s *Services) followAgents(ctx context.Context) {
+	s.bg.trayMu.Lock()
+	defer s.bg.trayMu.Unlock()
 	if s.keepsRunning() {
 		trayStart(tray.Menu{
 			Tooltip: "Agentry",
@@ -225,8 +230,12 @@ func (s *Services) noteBackgroundOnce(ctx context.Context) {
 	case meetings:
 		what = "Meeting notes still notices your calls with the window closed."
 	}
+	quits := "quits Agentry and stops them."
+	if !s.persistent.keepsRunning() {
+		quits = "quits Agentry."
+	}
 	go notice(ctx, "Agentry is still running",
-		what+" The Agentry icon in "+where+" opens the window again, or quits Agentry."+extra)
+		what+" The Agentry icon in "+where+" opens the window again, or "+quits+extra)
 }
 
 // notice is the OS information dialog, a test's seam.

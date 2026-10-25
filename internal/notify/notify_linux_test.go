@@ -228,7 +228,7 @@ func TestOnlyTheNewestKeysAreKept(t *testing.T) {
 
 func TestButtonsReplacingAndWithdrawing(t *testing.T) {
 	f := &fakeServer{caps: []string{"actions", "body"}}
-	server, _ := privateBus(t, f)
+	server, addr := privateBus(t, f)
 	presses := make(chan string, 4)
 	SetOnAction(func(key, action string) { presses <- key + " " + action })
 	t.Cleanup(func() { SetOnAction(nil) })
@@ -253,6 +253,21 @@ func TestButtonsReplacingAndWithdrawing(t *testing.T) {
 	}
 	if c := f.last(t); c.replaces != 1 {
 		t.Errorf("the same tag replaced id %d, want 1", c.replaces)
+	}
+
+	// Another program on the bus cannot press a button for the person.
+	other, err := dbus.Connect(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Close() }()
+	if err := other.Emit(busPath, busIface+".ActionInvoked", uint32(1), "record:1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case p := <-presses:
+		t.Fatalf("another program's signal pressed %q", p)
+	case <-time.After(300 * time.Millisecond):
 	}
 
 	// A button it did not offer does nothing; one it offered comes back with

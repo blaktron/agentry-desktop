@@ -92,8 +92,8 @@ type Manager struct {
 	// EngineReady says whether the transcriber can run; nil means it can.
 	EngineReady func() error
 	// Notify raises a desktop notification, and Withdraw takes away the
-	// one with a tag.
-	Notify   func(Notice)
+	// one with a tag. An error says it was not raised.
+	Notify   func(Notice) error
 	Withdraw func(tag string)
 	// Indicate is told the recording in progress each time it starts,
 	// pauses, resumes or ends (nil): the tray shows it.
@@ -118,8 +118,12 @@ type Manager struct {
 	// live are the calls under way, by AppKey; offer is the one offer
 	// standing; refresh asks the watcher to read the switch again.
 	live    map[string]Call
+	order   []string
+	handled map[string]bool
 	offer   *Offer
 	refresh chan struct{}
+	// closing is set as the app quits: nothing new starts.
+	closing bool
 	// wg is the background work Shutdown waits for.
 	wg sync.WaitGroup
 }
@@ -202,7 +206,7 @@ func (m *Manager) Start(ctx context.Context) {
 	m.started = true
 	m.queue = make(chan string, 64)
 	m.jobs = map[string]int{}
-	m.live = map[string]Call{}
+	m.live, m.handled = map[string]Call{}, map[string]bool{}
 	m.refresh = make(chan struct{}, 1)
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.ctx = ctx
@@ -259,6 +263,7 @@ func (m *Manager) Start(ctx context.Context) {
 // for it: a download or a transcription in flight is cancelled.
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
+	m.closing = true
 	r := m.rec
 	cancel := m.cancel
 	m.mu.Unlock()
@@ -327,10 +332,11 @@ func (m *Manager) indicate() {
 	m.Indicate(st)
 }
 
-func (m *Manager) notify(n Notice) {
-	if m.Notify != nil {
-		m.Notify(n)
+func (m *Manager) notify(n Notice) error {
+	if m.Notify == nil {
+		return nil
 	}
+	return m.Notify(n)
 }
 
 func (m *Manager) withdraw(tag string) {
@@ -351,8 +357,9 @@ const (
 )
 
 // announce raises, or replaces, the notification that says a recording is
-// under way, with its Pause or Resume and its Stop.
-func (m *Manager) announce(r *recording) {
+// under way, with its Pause or Resume and its Stop. An error says it was not
+// raised.
+func (m *Manager) announce(r *recording) error {
 	// noticeMu orders this against finish's withdrawal: a recording that
 	// has stopped is never announced again.
 	m.noticeMu.Lock()
@@ -360,7 +367,7 @@ func (m *Manager) announce(r *recording) {
 	m.mu.Lock()
 	if m.rec != r || r.stopping {
 		m.mu.Unlock()
-		return
+		return nil
 	}
 	app, far, paused, how := r.m.App, r.m.FarSide, r.paused, r.how
 	m.mu.Unlock()
@@ -380,7 +387,7 @@ func (m *Manager) announce(r *recording) {
 		pause = NoticeAction{ID: ActionResume, Label: "Resume"}
 	}
 	n.Actions = []NoticeAction{pause, {ID: ActionStop, Label: "Stop"}}
-	m.notify(n)
+	return m.notify(n)
 }
 
 // Meetings lists the meetings, newest first.
@@ -428,7 +435,7 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meet
 	m.offer = nil
 	m.mu.Unlock()
 	if offer != nil {
-		m.withdraw(tagOffer)
+		m.withdrawOffer()
 	}
 
 	capture, err := m.Recorder.Record(ctx, call, &recordingTracks{m: m, r: r})
@@ -452,11 +459,36 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meet
 	_ = st.Save(mt)
 	m.mu.Unlock()
 
-	m.announce(r)
+	if err := m.announce(r); err != nil && how == Automatically {
+		// Nobody pressed Record, and nothing could say it is recording:
+		// what was started is let go and nothing is kept.
+		m.abandon(r)
+		return nil, fmt.Errorf("no notification could say it is recording: %w", err)
+	}
 	m.indicate()
 	go m.follow(ctx, r, capture)
 	m.changed()
 	return mt, nil
+}
+
+// abandon lets a recording go that has only just started, keeping nothing.
+func (m *Manager) abandon(r *recording) {
+	m.mu.Lock()
+	if m.rec != r {
+		m.mu.Unlock()
+		return
+	}
+	r.stopping = true
+	m.rec = nil
+	m.mu.Unlock()
+	if r.capture != nil {
+		_ = r.capture.Stop()
+	}
+	for _, t := range r.tracks {
+		t.End()
+	}
+	_ = m.store().Delete(r.m.ID)
+	m.changed()
 }
 
 // follow watches a recording until it ends: a capture whose far side
@@ -488,12 +520,12 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 			m.mu.Unlock()
 			if limit := m.maxLength(); ran >= limit {
 				_ = m.finish(r, true)
-				m.notify(Notice{Title: "Meeting recording stopped", Body: "Agentry stopped recording after " + hours(limit) + ", the longest a recording runs. The transcript is on its way."})
+				_ = m.notify(Notice{Title: "Meeting recording stopped", Body: "Agentry stopped recording after " + lengthWords(limit) + ", the longest a recording runs. The transcript is on its way."})
 				return
 			}
 			if widened {
-				m.notify(Notice{Title: "Recording everything your computer plays", Body: "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so."})
-				m.announce(r)
+				_ = m.notify(Notice{Title: "Recording everything your computer plays", Body: "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so."})
+				_ = m.announce(r)
 				m.changed()
 			}
 		}
@@ -520,7 +552,7 @@ func (m *Manager) SetPaused(paused bool) error {
 	}
 	defer m.changed()
 	defer func() {
-		m.announce(r)
+		_ = m.announce(r)
 		m.indicate()
 	}()
 	m.mu.Lock()
@@ -574,6 +606,8 @@ func (m *Manager) finish(r *recording, transcribe bool) error {
 		m.withdraw(tagRecording)
 		m.noticeMu.Unlock()
 		m.indicate()
+		// A call that waited while this one recorded has its turn.
+		m.consider()
 	}()
 	m.mu.Lock()
 	defer m.mu.Unlock()

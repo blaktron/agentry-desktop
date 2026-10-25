@@ -2,8 +2,9 @@
 // a menu of Open Agentry, a meeting being recorded (what it records, Pause
 // or Resume, and Stop), an item for each persistent agent that is running
 // (it opens the agent's page) and Quit, and a left click that shows the
-// window. While a meeting is recorded the icon carries a red dot. It is fyne.io/systray started beside the window's own loop as each
-// platform needs (start_*.go).
+// window. While a meeting is recorded the icon carries a red dot. It is
+// fyne.io/systray started beside the window's own loop as each platform
+// needs (start_*.go).
 //
 // The library calls back on the platform's UI thread, and a call into the
 // window's runtime from there re-enters that loop (on macOS it crashed the

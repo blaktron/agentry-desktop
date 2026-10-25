@@ -156,6 +156,7 @@ type harness struct {
 	raised    []Notice
 	withdrawn []string
 	shown     []*RecordingStatus
+	notifyErr error
 	out       string
 	configure func(*Manager)
 	mu        sync.Mutex
@@ -187,11 +188,12 @@ func newHarnessWith(t *testing.T, configure func(*Manager)) *harness {
 			defer h.mu.Unlock()
 			return *h.settings
 		},
-		Notify: func(n Notice) {
+		Notify: func(n Notice) error {
 			h.mu.Lock()
 			defer h.mu.Unlock()
 			h.notices = append(h.notices, n.Title+": "+n.Body)
 			h.raised = append(h.raised, n)
+			return h.notifyErr
 		},
 		Withdraw: func(tag string) {
 			h.mu.Lock()

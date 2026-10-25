@@ -339,8 +339,8 @@ func TestARecordingStopsAtItsLongestLength(t *testing.T) {
 	if last := h.notices[len(h.notices)-1]; !strings.Contains(last, "Agentry stopped recording after") {
 		t.Fatalf("the last notice = %q, want the stop explained", last)
 	}
-	if hours(DefaultMaxLength) != "4 hours" || hours(time.Hour) != "1 hour" || hours(30*time.Minute) != "30 minutes" {
-		t.Fatalf("hours: %q %q %q", hours(DefaultMaxLength), hours(time.Hour), hours(30*time.Minute))
+	if lengthWords(DefaultMaxLength) != "4 hours" || lengthWords(time.Hour) != "1 hour" || lengthWords(30*time.Minute) != "30 minutes" {
+		t.Fatalf("lengthWords: %q %q %q", lengthWords(DefaultMaxLength), lengthWords(time.Hour), lengthWords(30*time.Minute))
 	}
 }
 
@@ -411,4 +411,75 @@ func TestADropAndRejoinStaysOneCall(t *testing.T) {
 	if ev := tr.update(call, at(time.Hour)); len(ev) != 1 || ev[0].Ended {
 		t.Fatalf("the next call: %+v", ev)
 	}
+}
+
+// An automatic recording that no notification can show is let go: nothing
+// records unseen without the person's Record.
+func TestAnAutomaticRecordingNobodyCanSeeIsNotKept(t *testing.T) {
+	h, d := detecting(t, time.Minute)
+	h.set(func(s *Settings) { s.Automatic = []string{"zoom"} })
+	h.mu.Lock()
+	h.notifyErr = errors.New("no notification server")
+	h.mu.Unlock()
+	d.events <- CallEvent{Call: zoom}
+	waitFor(t, "the recorder to be asked", func() bool { return h.rec.count() == 1 })
+	waitFor(t, "the capture to be let go", func() bool {
+		h.rec.mu.Lock()
+		defer h.rec.mu.Unlock()
+		h.rec.capture.mu.Lock()
+		defer h.rec.capture.mu.Unlock()
+		return h.rec.capture.stopped
+	})
+	if st := h.m.Status().Recording; st != nil {
+		t.Fatalf("an unseen automatic recording runs: %+v", st)
+	}
+	if ms, _ := h.m.Meetings(); len(ms) != 0 {
+		t.Fatalf("an unseen automatic recording was kept: %+v", ms)
+	}
+}
+
+// A call of an app on the automatic list takes the place of an offer that
+// stands; the offered call waits its turn and is offered once nothing
+// records.
+func TestAnAutomaticAppTakesThePlaceOfAStandingOffer(t *testing.T) {
+	h, d := detecting(t, time.Minute)
+	h.set(func(s *Settings) { s.Automatic = []string{"zoom"} })
+	chrome := Call{App: "Google Chrome", Binary: "chrome", PID: "7"}
+	d.events <- CallEvent{Call: chrome}
+	waitFor(t, "Chrome's offer", func() bool { return h.offer() != nil })
+	d.events <- CallEvent{Call: zoom}
+	waitFor(t, "Zoom's automatic recording", func() bool {
+		st := h.m.Status().Recording
+		return st != nil && st.How == Automatically
+	})
+	if h.offer() != nil || !h.withdrew(tagOffer) {
+		t.Fatal("Chrome's offer still stands while Zoom records")
+	}
+	if err := h.m.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Chrome offered again", func() bool { o := h.offer(); return o != nil && o.App == "Google Chrome" })
+	// Zoom's call, stopped by the person, is not recorded again.
+	time.Sleep(50 * time.Millisecond)
+	if st := h.m.Status().Recording; st != nil {
+		t.Fatalf("a call the person stopped was recorded again: %+v", st)
+	}
+}
+
+// A call that starts while a meeting records is offered once the recording
+// ends, if it is still under way.
+func TestACallThatStartedDuringARecordingIsOfferedAfter(t *testing.T) {
+	h, d := detecting(t, time.Minute)
+	if _, err := h.m.Record(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d.events <- CallEvent{Call: zoom}
+	time.Sleep(50 * time.Millisecond)
+	if h.offer() != nil {
+		t.Fatal("a call was offered while a meeting records")
+	}
+	if err := h.m.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the waiting call's offer", func() bool { o := h.offer(); return o != nil && o.App == "Zoom Meeting" })
 }
