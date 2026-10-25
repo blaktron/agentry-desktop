@@ -920,8 +920,11 @@ func (p *PersistentAPI) follow(name string, sv agentSupervisor, logw *supervisor
 	go func() {
 		defer p.followers.Done()
 		for ev := range events {
-			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
+			// Whether a task's notice raises a notification is decided
+			// before the page has the event: whoever sees the event can
+			// rely on that decision being made.
 			p.noticeTask(name, ev, logw)
+			emitEvent(p.app, eventAgentEvent, PersistentEventView{Agent: name, Event: eventView(ev)})
 		}
 	}()
 	go func() {
