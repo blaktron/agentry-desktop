@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
@@ -47,11 +47,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
       setBusy(false);
     }
   };
-  const [panel, setPanel] = useState<"google" | "microsoft" | null>(null);
+  const [panel, setPanel] = useState<"google" | "microsoft" | "fastmail" | null>(null);
   const setUp = (s: SetUp, grid: GridKey) => {
     const form = setUpForm(s, grid);
     if (!form) {
-      setPanel(s.kind === "microsoft" ? "microsoft" : "google");
+      setPanel(s.kind === "microsoft" || s.kind === "fastmail" ? s.kind : "google");
       return;
     }
     setAdding(form);
@@ -93,6 +93,11 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
           {panel === "microsoft" && g.key === "mail" && agent.microsoft && (
             <div className="config-add-panel">
               <MicrosoftSetUp agent={agent} busy={busy} act={act} onError={onError} onChanged={onChanged} onDone={() => setPanel(null)} />
+            </div>
+          )}
+          {panel === "fastmail" && g.key === "mail" && agent.fastmail && (
+            <div className="config-add-panel">
+              <FastmailSetUp agent={agent} busy={busy} act={act} onDone={() => setPanel(null)} />
             </div>
           )}
         </section>
@@ -614,6 +619,50 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
           Save the signoff
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Fastmail's set-up: the person's own Fastmail API token, typed here and
+ *  handed to Go, which asks Fastmail whether it accepts it before keeping
+ *  it in the system keychain. The token never comes back to the page. */
+function FastmailSetUp({ agent, busy, act, onDone }: {
+  agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void;
+}) {
+  const f = agent.fastmail;
+  const [token, setToken] = useState("");
+  const [removing, setRemoving] = useState(false);
+  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
+  const keep = async () => {
+    if (await act(() => PersistentAPI.SetFastmailToken(agent.name, token.trim()), "the Fastmail token")) setToken("");
+  };
+  return (
+    <div className="config-google-form">
+      <p className="small">{fastmailWords(f)}</p>
+      {running && <Notice>Stop {agentCalled(agent)} first.</Notice>}
+      <p className="small muted">
+        Fastmail&apos;s own server reaches your mail, contacts and calendars with an API token you make in Fastmail, under
+        Settings, Privacy &amp; Security: choose the MCP type, and Read only unless you want {agentCalled(agent)} to change or
+        send things, since it can do whatever the token allows. Fastmail&apos;s Basic plan has no API tokens. The fastmail-setup
+        skill walks you through it: ask {agentCalled(agent)} to help you set up Fastmail. Never paste the token into the chat.
+      </p>
+      <Field label={f?.token ? "A new Fastmail API token" : "Your Fastmail API token"} hint="Fastmail is asked whether it accepts it before it is kept.">
+        <Input type="password" value={token} autoComplete="off" spellCheck={false} onChange={(e) => setToken(e.target.value)} />
+      </Field>
+      <div className="row gap">
+        <Button variant="primary" disabled={busy || running || !secretValueOK(token.trim())} onClick={() => void keep()}>
+          {f?.token ? "Replace the token" : "Keep the token"}
+        </Button>
+        {f?.token && !removing && <Button disabled={busy || running} onClick={() => setRemoving(true)}>Remove the token</Button>}
+        <Button variant="ghost" onClick={onDone}>Close</Button>
+      </div>
+      {removing && (
+        <div className="row gap" role="group" aria-label="Remove the Fastmail token">
+          <p className="small">This removes the token from this computer. It stays valid at Fastmail until you delete it there.</p>
+          <Button variant="primary" disabled={busy} onClick={() => void act(() => PersistentAPI.RemoveFastmailToken(agent.name), "the Fastmail token's removal").then(() => setRemoving(false))}>Remove</Button>
+          <Button variant="ghost" onClick={() => setRemoving(false)}>Keep it</Button>
+        </div>
+      )}
     </div>
   );
 }

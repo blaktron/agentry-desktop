@@ -25,6 +25,7 @@ import {
   ENTRA_ID,
   microsoftWords,
   microsoftScopeWords,
+  fastmailWords,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -258,4 +259,17 @@ test("an enabled Microsoft's server and switches are drawn in Mail and calendar 
   assert.deepEqual(mail?.entries.map((e) => e.id), ["server:gog", "server:gog:writes", "server:ms365", "server:ms365:send"]);
   assert.equal(cardMenu(a.roster[3], a).disable?.key, "microsoft");
   assert.equal(cardMenu(a.roster[4], a).disable, null);
+});
+
+test("Fastmail's Set up is its own panel, before or after its token is kept, never the secret's form", () => {
+  const fm = { setUpFastmail: true, setUpSecret: "FASTMAIL_TOKEN" };
+  assert.deepEqual(setUpOf(entry({ state: "needs-set-up", ...fm })), { kind: "fastmail" });
+  assert.deepEqual(setUpOf(entry({ state: "on", ...fm })), { kind: "fastmail" });
+  assert.equal(setUpForm({ kind: "fastmail" }, "mail"), null);
+});
+
+test("the Fastmail set-up says whether a token is kept, never the token", () => {
+  assert.equal(fastmailWords(undefined), "No Fastmail token yet.");
+  assert.equal(fastmailWords({ token: false }), "No Fastmail token yet.");
+  assert.match(fastmailWords({ token: true }), /kept in your system keychain/);
 });
