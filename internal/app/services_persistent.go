@@ -146,13 +146,15 @@ type PersistentAPI struct {
 	browse        func(url string) error
 	// elsewhere is what the owner-lock watch last saw of each agent:
 	// whether another client runs it. viewers are the app's chats with
-	// those agents. held, attach and requestStop stand in for the CLI's
-	// lock probe, its Attach and its RequestStop in a test.
+	// those agents. held, attach, requestStop and queryStatus stand in for
+	// the CLI's lock probe, its Attach, its RequestStop and its QueryStatus
+	// in a test.
 	elsewhere   map[string]bool
 	viewers     map[string]*viewer
 	held        func(home, name string) (bool, *persistent.Holder)
 	attach      func(ctx context.Context, home, name string, history []session.Event) (session.Session, error)
 	requestStop func(ctx context.Context, home, name string) (persistent.Stopped, error)
+	queryStatus func(ctx context.Context, home, name string) (persistent.Status, error)
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -517,6 +519,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		if held, holder := p.heldElsewhere(home, a.Name); held {
 			v.State = agentElsewhere
 			v.Holder = holderWords(holder)
+			v.Status = p.statusElsewhere(home, a.Name)
 		} else if cfg.Enabled {
 			v.State = agentStopped
 		} else {
