@@ -2493,7 +2493,7 @@ export namespace app {
 	    available: boolean;
 	    unavailable?: string;
 	    on: boolean;
-	    warning: string;
+	    warnings: string[];
 	    recording?: MeetingRecordingView;
 	    preparing: boolean;
 	    prepareStep?: string;
@@ -2521,7 +2521,7 @@ export namespace app {
 	        this.available = source["available"];
 	        this.unavailable = source["unavailable"];
 	        this.on = source["on"];
-	        this.warning = source["warning"];
+	        this.warnings = source["warnings"];
 	        this.recording = this.convertValues(source["recording"], MeetingRecordingView);
 	        this.preparing = source["preparing"];
 	        this.prepareStep = source["prepareStep"];

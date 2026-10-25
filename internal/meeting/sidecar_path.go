@@ -2,26 +2,24 @@ package meeting
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
 
-// The sidecar is carried with the app, never fetched: it is found beside
-// the running executable, where the packages put it, and nowhere a page or
-// a setting can point.
-//
-//   - Linux packages: /usr/lib/agentry-desktop/whisper/whisper-cli for
-//     /usr/bin/agentry-desktop, with its libraries beside it.
-//   - Any other Linux copy: whisper/whisper-cli beside the executable.
-//   - Windows: bin\whisper\whisper-cli.exe beside agentry-desktop.exe.
-//   - macOS: Contents/Resources/whisper/whisper-cli in the bundle.
+// sidecarDir is the sidecar's own folder, its libraries beside it.
 const sidecarDir = "whisper"
 
 // sidecarBeside is where a copy whose executable is in dir carries the
-// sidecar, "" where it carries none.
+// sidecar, "" where it carries none. The sidecar is carried with the app,
+// never fetched, and found nowhere a page or a setting can point:
+//
+//   - Linux packages: /usr/lib/agentry-desktop/whisper/whisper-cli for
+//     /usr/bin/agentry-desktop.
+//   - Any other Linux copy: whisper/whisper-cli beside the executable.
+//   - Windows: bin\whisper\whisper-cli.exe beside agentry-desktop.exe.
+//   - macOS: Contents/Resources/whisper/whisper-cli in the bundle.
 func sidecarBeside(dir, goos string) string {
 	dir = filepath.Clean(dir)
 	switch goos {
@@ -64,10 +62,10 @@ func CheckSidecar(path string) error {
 	}
 	st, err := os.Stat(path)
 	if err != nil || !st.Mode().IsRegular() {
-		return fmt.Errorf("%w (looked for %s)", ErrNoSidecar, path)
+		return ErrNoSidecar
 	}
 	if runtime.GOOS != "windows" && st.Mode().Perm()&0o111 == 0 {
-		return fmt.Errorf("%w (%s cannot be run)", ErrNoSidecar, path)
+		return ErrNoSidecar
 	}
 	return nil
 }

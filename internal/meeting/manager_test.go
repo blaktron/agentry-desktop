@@ -61,14 +61,22 @@ type fakeCapture struct {
 	mu      sync.Mutex
 	call    Call
 	far     FarSide
+	widened bool
 	tracks  []Track
 	paused  []bool
 	stopped bool
 	ended   chan struct{}
 }
 
-func (c *fakeCapture) Call() Call             { return c.call }
-func (c *fakeCapture) FarSide() FarSide       { return c.far }
+func (c *fakeCapture) Call() Call { return c.call }
+func (c *fakeCapture) FarSide() FarSide {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.widened {
+		return FarSideWholeDevice
+	}
+	return c.far
+}
 func (c *fakeCapture) Ended() <-chan struct{} { return c.ended }
 func (c *fakeCapture) SetPaused(p bool) error {
 	c.mu.Lock()
@@ -487,5 +495,27 @@ func TestAFastCalibrationKeepsTheDefault(t *testing.T) {
 	}
 	if _, measured := h.m.readCalibration().RTF["base"]; measured {
 		t.Fatal("the fallback was measured though the default was fast enough")
+	}
+}
+
+func TestAFarSideThatWidensIsSaidAndWritten(t *testing.T) {
+	h := newHarness(t)
+	h.rec.tracks = []fakeTrackSpec{{Them, "far-1", speech(SampleRate)}}
+	h.eng.byFile["far-1.wav"] = []Segment{{Start: 0, End: time.Second, Text: "Hello."}}
+	mt, _ := h.m.Record(context.Background())
+	h.rec.capture.mu.Lock()
+	h.rec.capture.widened = true
+	h.rec.capture.mu.Unlock()
+	waitFor(t, "the widening", func() bool { return h.meeting(t, mt.ID).FarSide == FarSideWholeDevice })
+	waitFor(t, "its notification", func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return len(h.notices) == 2 && strings.Contains(h.notices[1], "everything")
+	})
+	_ = h.m.Stop()
+	waitFor(t, "the transcript", func() bool { return h.meeting(t, mt.ID).State == StateDone })
+	raw, _ := os.ReadFile(h.meeting(t, mt.ID).Transcript)
+	if !strings.Contains(string(raw), "far_side: whole-device") {
+		t.Fatalf("the widening is not in the transcript:\n%s", raw)
 	}
 }

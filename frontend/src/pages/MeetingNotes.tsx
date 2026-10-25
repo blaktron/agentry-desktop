@@ -65,7 +65,7 @@ export default function MeetingNotes() {
   const header = (
     <PageHeader
       title="Meeting notes"
-      sub="Record a meeting, transcribe it on this computer, and keep the transcript in a folder. Nothing is sent anywhere."
+      sub="Record a meeting, transcribe it on this computer, and keep the transcript in a folder. No audio or transcript leaves this computer."
     />
   );
 
@@ -86,10 +86,7 @@ export default function MeetingNotes() {
         <Card>
           <h3>Before you turn it on</h3>
           <ul className="meeting-warning" data-meeting-warning>
-            <li>Recording others may need their consent; tell them you are recording.</li>
-            <li>While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.</li>
-            <li>When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so.</li>
-            <li>It downloads a speech model of about 200 MB the first time.</li>
+            {view.warnings.map((w) => <li key={w}>{w}</li>)}
           </ul>
           <div className="row">
             <Button variant="primary" data-meeting-turn-on disabled={busy} onClick={() => act(MeetingAPI.TurnOn)}>Turn on Meeting notes…</Button>

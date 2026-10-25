@@ -109,7 +109,10 @@ type Capture interface {
 }
 
 // ErrUnsupported is a platform this build cannot record on yet.
-var ErrUnsupported = errors.New("meeting notes cannot record on this computer yet")
+var ErrUnsupported = errors.New("meeting notes cannot record on this computer")
+
+// ConsentSentence is said wherever a recording is turned on or started.
+const ConsentSentence = "Recording others may need their consent; tell them you are recording."
 
 // Segment is one piece of transcribed speech, its times from the start of
 // the recording.

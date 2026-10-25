@@ -4,7 +4,7 @@ package meeting
 
 import "context"
 
-// NewRecorder is this platform's recorder; Windows and macOS come later.
+// NewRecorder is this platform's recorder: none here.
 func NewRecorder() Recorder { return unsupported{} }
 
 type unsupported struct{}

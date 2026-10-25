@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,23 +30,20 @@ const eventMeetingChanged = "meeting:changed"
 const meetingNoticeKey = "meeting-notes"
 
 // eventOpenMeetings asks the page to open Meeting notes.
-const eventOpenMeetings = "tray:open-meetings"
+const eventOpenMeetings = "meeting:open"
 
 // MeetingOutputFolder is the folder inside the Agentry folder in Documents
 // that transcripts go to unless the person chose another.
 const MeetingOutputFolder = "Meeting notes"
 
-// The consent sentence, said where turning the feature on and every
-// recording are confirmed.
-const meetingConsent = "Recording others may need their consent; tell them you are recording."
-
-// meetingWarning is what turning Meeting notes on means, shown on the page
-// and again in the native dialog that turns it on.
-const meetingWarning = "Meeting notes records your meetings on this computer and transcribes them here; nothing is sent anywhere. " +
-	meetingConsent + " " +
-	"While it records a meeting it captures your microphone even when you muted yourself in the meeting app, so use Pause for anything you do not want kept. " +
-	"When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so. " +
-	"It downloads a speech model of about 200 MB the first time."
+// meetingWarnings are what turning Meeting notes on means, listed on the
+// page and said again in the native dialog that turns it on.
+var meetingWarnings = []string{
+	meeting.ConsentSentence,
+	"While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.",
+	"When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so.",
+	"It downloads a speech model of about 200 MB the first time. No audio or transcript leaves this computer.",
+}
 
 // MeetingAPI is Meeting notes: record a meeting by hand, transcribe it on
 // this computer, and write the transcript to a folder.
@@ -98,9 +96,9 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			show = m.notifyShow
 		}
 		if runtime.GOOS != "linux" {
-			m.unavailable = "Meeting notes records on Linux in this version."
+			m.unavailable = "Meeting notes records on Linux only."
 		} else if err := meeting.CheckSidecar(sidecar); err != nil {
-			m.unavailable = err.Error()
+			m.unavailable = err.Error() + "."
 		}
 		m.mgr = &meeting.Manager{
 			Root: root, Catalogue: cat, Recorder: rec(),
@@ -144,16 +142,17 @@ func defaultMeetingFolder() (string, error) {
 }
 
 // start is the feature's part of OnStartup: an earlier session's leftovers
-// recovered, old audio swept, and the transcription worker started; with
-// the feature on, the model checked, fetched or measured if it was not.
-// Nothing here opens an audio device.
+// recovered, old audio swept, and the transcription worker started, even
+// in a copy that cannot record, so no audio outlives its keep; with the
+// feature on where it records, the model checked, fetched or measured if
+// it was not. Nothing here opens an audio device.
 func (m *MeetingAPI) start(ctx context.Context) {
 	mgr := m.manager()
-	if mgr == nil || m.unavailable != "" {
+	if mgr == nil {
 		return
 	}
 	mgr.Start(ctx)
-	if meetingSettings().On {
+	if m.unavailable == "" && meetingSettings().On {
 		mgr.Prepare(ctx)
 	}
 }
@@ -167,11 +166,20 @@ func (m *MeetingAPI) shutdown() {
 
 // available is the manager when this copy can record, else why not.
 func (m *MeetingAPI) available() (*meeting.Manager, error) {
-	mgr := m.manager()
-	if mgr == nil || m.unavailable != "" {
+	mgr, err := m.built()
+	if err != nil || m.unavailable != "" {
 		return nil, errors.New(m.unavailable)
 	}
 	return mgr, nil
+}
+
+// built is the manager, for what a copy that cannot record still does
+// with the meetings it has: list, delete, open.
+func (m *MeetingAPI) built() (*meeting.Manager, error) {
+	if mgr := m.manager(); mgr != nil {
+		return mgr, nil
+	}
+	return nil, errors.New(m.unavailable)
 }
 
 // MeetingChoice is a language profile or a model in a list to pick from.
@@ -218,8 +226,8 @@ type MeetingNotesView struct {
 	Available   bool   `json:"available"`
 	Unavailable string `json:"unavailable,omitempty"`
 	On          bool   `json:"on"`
-	// Warning is what turning it on means.
-	Warning   string                `json:"warning"`
+	// Warnings are what turning it on means.
+	Warnings  []string              `json:"warnings"`
 	Recording *MeetingRecordingView `json:"recording,omitempty"`
 	// Preparing is the model's download or calibration, PrepareStep what
 	// it is doing, PrepareError what stopped it.
@@ -253,7 +261,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	}
 	mn := st.MeetingNotes
 	v := &MeetingNotesView{
-		On: mn.On, Warning: meetingWarning, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
+		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 	}
 	mgr := m.manager()
@@ -316,7 +324,7 @@ func (m *MeetingAPI) TurnOn() (*MeetingNotesView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := m.app.askConsent("Turn on Meeting notes?", meetingWarning); err != nil {
+	if err := m.app.askConsent("Turn on Meeting notes?", "Meeting notes records your meetings on this computer and transcribes them here. "+strings.Join(meetingWarnings, " ")); err != nil {
 		return nil, err
 	}
 	if err := settings.SetMeetingNotesOn(true); err != nil {
@@ -364,7 +372,7 @@ func (m *MeetingAPI) Record() (*MeetingNotesView, error) {
 	if !meetingSettings().On {
 		return nil, meeting.ErrOff
 	}
-	if err := m.app.askConsent("Record this meeting?", "Agentry records your microphone and the meeting app's sound until you press Stop or the meeting app stops. "+meetingConsent); err != nil {
+	if err := m.app.askConsent("Record this meeting?", "Agentry records your microphone and the meeting app's sound until you press Stop or the meeting app stops. "+meeting.ConsentSentence); err != nil {
 		return nil, err
 	}
 	if _, err := mgr.Record(m.app.ctxOrBackground()); err != nil {
@@ -416,9 +424,9 @@ func (m *MeetingAPI) Transcribe(id string) (*MeetingNotesView, error) {
 
 // DeleteAudio deletes a meeting's kept audio now.
 func (m *MeetingAPI) DeleteAudio(id string) (*MeetingNotesView, error) {
-	mgr := m.manager()
-	if mgr == nil {
-		return nil, errors.New(m.unavailable)
+	mgr, err := m.built()
+	if err != nil {
+		return nil, err
 	}
 	if err := mgr.DeleteAudio(id); err != nil {
 		return nil, err
@@ -429,9 +437,9 @@ func (m *MeetingAPI) DeleteAudio(id string) (*MeetingNotesView, error) {
 // Forget takes a meeting off the list, with any audio it keeps; its
 // transcript stays in the output folder.
 func (m *MeetingAPI) Forget(id string) (*MeetingNotesView, error) {
-	mgr := m.manager()
-	if mgr == nil {
-		return nil, errors.New(m.unavailable)
+	mgr, err := m.built()
+	if err != nil {
+		return nil, err
 	}
 	if err := mgr.Forget(id); err != nil {
 		return nil, err
@@ -442,9 +450,9 @@ func (m *MeetingAPI) Forget(id string) (*MeetingNotesView, error) {
 // transcriptOf is a finished meeting's transcript, by the meeting's id:
 // the page names a meeting, never a path.
 func (m *MeetingAPI) transcriptOf(id string) (string, error) {
-	mgr := m.manager()
-	if mgr == nil {
-		return "", errors.New(m.unavailable)
+	mgr, err := m.built()
+	if err != nil {
+		return "", err
 	}
 	ms, err := mgr.Meetings()
 	if err != nil {
@@ -507,14 +515,14 @@ func saveMeetingNotes(change func(*settings.MeetingNotes) error) error {
 // SetProfile picks the language profile; a model chosen for another
 // profile goes back to automatic.
 func (m *MeetingAPI) SetProfile(id string) (*MeetingNotesView, error) {
-	mgr := m.manager()
-	if mgr == nil {
-		return nil, errors.New(m.unavailable)
+	mgr, err := m.built()
+	if err != nil {
+		return nil, err
 	}
 	if mgr.Catalogue.Profile(id).ID != id {
 		return nil, fmt.Errorf("no language profile %q", id)
 	}
-	err := saveMeetingNotes(func(mn *settings.MeetingNotes) error {
+	err = saveMeetingNotes(func(mn *settings.MeetingNotes) error {
 		mn.Profile = id
 		if mn.Model != "" && !mgr.Catalogue.Allowed(id, mn.Model) {
 			mn.Model = ""
@@ -530,11 +538,11 @@ func (m *MeetingAPI) SetProfile(id string) (*MeetingNotesView, error) {
 
 // SetModel picks the model, "" for automatic.
 func (m *MeetingAPI) SetModel(id string) (*MeetingNotesView, error) {
-	mgr := m.manager()
-	if mgr == nil {
-		return nil, errors.New(m.unavailable)
+	mgr, err := m.built()
+	if err != nil {
+		return nil, err
 	}
-	err := saveMeetingNotes(func(mn *settings.MeetingNotes) error {
+	err = saveMeetingNotes(func(mn *settings.MeetingNotes) error {
 		if id != "" && !mgr.Catalogue.Allowed(mgr.Catalogue.Profile(mn.Profile).ID, id) {
 			return fmt.Errorf("the language profile does not offer the model %q", id)
 		}

@@ -176,7 +176,7 @@ export default function App() {
     };
   }, [route]);
   // A click on Meeting notes' notification opens its page.
-  useEffect(() => EventsOn("tray:open-meetings", () => setRoute({ page: "meetings" })), []);
+  useEffect(() => EventsOn("meeting:open", () => setRoute({ page: "meetings" })), []);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
     if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
   }), []);

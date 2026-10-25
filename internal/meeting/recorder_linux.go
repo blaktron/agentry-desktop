@@ -54,6 +54,7 @@ func (r PulseRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 		c: c, conn: conn, tracks: tracks, me: strconv.Itoa(os.Getpid()),
 		changed: make(chan struct{}, 1), done: make(chan struct{}), ended: make(chan struct{}),
 		lostInputs: map[uint32]bool{}, farByInput: map[uint32]*paRecord{},
+		monitors: map[uint32]*paRecord{}, monitorTracks: map[uint32]Track{},
 	}
 	c.Callback = p.callback
 	props := proto.PropList{
@@ -125,7 +126,12 @@ type pulseCapture struct {
 	farByInput map[uint32]*paRecord
 	lostInputs map[uint32]bool // playback streams recorded and gone: never taken up again
 	whole      []*paRecord
-	quietSince time.Time
+	// monitors record a sink's whole output where one of the app's
+	// playback streams could not be recorded on its own, by sink; their
+	// tracks, kept for a monitor taken up again.
+	monitors      map[uint32]*paRecord
+	monitorTracks map[uint32]Track
+	quietSince    time.Time
 
 	changed chan struct{}
 	done    chan struct{}
@@ -133,8 +139,13 @@ type pulseCapture struct {
 	endOnce sync.Once
 }
 
-func (p *pulseCapture) Call() Call       { return p.call }
-func (p *pulseCapture) FarSide() FarSide { return p.farSide }
+func (p *pulseCapture) Call() Call { return p.call }
+
+func (p *pulseCapture) FarSide() FarSide {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.farSide
+}
 
 func (p *pulseCapture) Ended() <-chan struct{} { return p.ended }
 
@@ -241,14 +252,26 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 		}
 		rec, err := p.openLocked(t, mon, "", in.Index, "Agentry meeting notes ("+in.App+")")
 		if err != nil {
-			// A stream that went between the listing and the request.
 			t.End()
 			p.lostInputs[in.Index] = true
+			if p.inputListed(in.Index) {
+				// The stream plays on but cannot be recorded on its own:
+				// the whole of its sink is, and the recording says so.
+				if err := p.recordMonitorLocked(in.Device, mon); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		p.farByInput[in.Index] = rec
 	}
-	if p.mic == nil && len(p.farByInput) == 0 {
+	if len(appPlayback(s, pid)) == 0 {
+		for sink, rec := range p.monitors {
+			p.dropLocked(rec)
+			delete(p.monitors, sink)
+		}
+	}
+	if p.mic == nil && len(p.farByInput) == 0 && len(p.monitors) == 0 {
 		if p.quietSince.IsZero() {
 			p.quietSince = time.Now()
 		} else if time.Since(p.quietSince) > endWait {
@@ -269,6 +292,36 @@ func alive(s paSnapshot, rec *paRecord) bool {
 		}
 	}
 	return false
+}
+
+// inputListed asks whether a playback stream is still there.
+func (p *pulseCapture) inputListed(index uint32) bool {
+	var reply proto.GetSinkInputInfoReply
+	return p.c.Request(&proto.GetSinkInputInfo{SinkInputIndex: index}, &reply) == nil
+}
+
+// recordMonitorLocked records the whole output of sink, through its monitor
+// source mon, unless it is already recorded, and marks the far side as the
+// whole device.
+func (p *pulseCapture) recordMonitorLocked(sink, mon uint32) error {
+	if p.monitors[sink] != nil {
+		return nil
+	}
+	t := p.monitorTracks[sink]
+	if t == nil {
+		var err error
+		if t, err = p.tracks.Open(Them, fmt.Sprintf("far-sink-%d", sink)); err != nil {
+			return err
+		}
+		p.monitorTracks[sink] = t
+	}
+	rec, err := p.openLocked(t, mon, "", proto.Undefined, "Agentry meeting notes (output)")
+	if err != nil {
+		return err
+	}
+	p.monitors[sink] = rec
+	p.farSide = FarSideWholeDevice
+	return nil
 }
 
 // recordWholeDevice records the default microphone and the monitor of the
@@ -346,6 +399,9 @@ func (p *pulseCapture) allLocked() []*paRecord {
 	for _, rec := range p.farByInput {
 		out = append(out, rec)
 	}
+	for _, rec := range p.monitors {
+		out = append(out, rec)
+	}
 	return out
 }
 
@@ -388,7 +444,10 @@ func (p *pulseCapture) stopAll() {
 	if p.micTrack != nil {
 		p.micTrack.End()
 	}
-	p.mic, p.whole, p.farByInput = nil, nil, map[uint32]*paRecord{}
+	for _, t := range p.monitorTracks {
+		t.End()
+	}
+	p.mic, p.whole, p.farByInput, p.monitors = nil, nil, map[uint32]*paRecord{}, map[uint32]*paRecord{}
 	p.mu.Unlock()
 	close(p.done)
 	_ = p.conn.Close()

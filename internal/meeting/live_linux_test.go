@@ -22,7 +22,7 @@ import (
 //	                         side) and intruder.wav (another app's sound)
 //
 // and three devices made beforehand so nothing plays aloud: a null sink
-// m1_out (the speakers), a null sink m1_micfeed and a remap source m1_mic
+// agentry_test_out (the speakers), a null sink agentry_test_micfeed and a remap source agentry_test_mic
 // of its monitor (the microphone).
 //
 // A pair of pw-record and pw-play processes that share an
@@ -45,9 +45,9 @@ func TestLivePulseRecording(t *testing.T) {
 		return cmd
 	}
 	app := `{ application.process.id = "424242" application.name = "TestMeet" }`
-	start("pw-play", "--target", "m1_micfeed", filepath.Join(audio, "mic-long.wav"))
-	appMicStream := start("pw-record", "--target", "m1_mic", "-P", app, filepath.Join(t.TempDir(), "app-mic.wav"))
-	appFar := start("pw-play", "--target", "m1_out", "-P", app, filepath.Join(audio, "far-pad.wav"))
+	start("pw-play", "--target", "agentry_test_micfeed", filepath.Join(audio, "mic-long.wav"))
+	appMicStream := start("pw-record", "--target", "agentry_test_mic", "-P", app, filepath.Join(t.TempDir(), "app-mic.wav"))
+	appFar := start("pw-play", "--target", "agentry_test_out", "-P", app, filepath.Join(audio, "far-pad.wav"))
 	time.Sleep(700 * time.Millisecond)
 
 	cat, err := LoadCatalogue()
@@ -77,7 +77,7 @@ func TestLivePulseRecording(t *testing.T) {
 	// The far side's stream ends; another app then plays on the same sink.
 	_ = appFar.Wait()
 	time.Sleep(1500 * time.Millisecond)
-	start("pw-play", "--target", "m1_out", filepath.Join(audio, "intruder.wav"))
+	start("pw-play", "--target", "agentry_test_out", filepath.Join(audio, "intruder.wav"))
 	time.Sleep(5 * time.Second)
 	// The app stops reading the microphone, which goes on being fed.
 	_ = appMicStream.Process.Kill()

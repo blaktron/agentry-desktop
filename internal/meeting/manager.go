@@ -2,7 +2,6 @@ package meeting
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -239,7 +238,7 @@ func (m *Manager) Meetings() ([]*Meeting, error) { return m.store().List() }
 // HasAudio says whether a meeting's audio is still kept.
 func (m *Manager) HasAudio(mt *Meeting) bool { return m.store().HasAudio(mt) }
 
-// ErrOff is any recording asked for while the feature is off.
+// ErrOff refuses a recording or a transcription while the feature is off.
 var ErrOff = errors.New("meeting notes is off: turn it on first")
 
 // Record starts recording. It refuses while the feature is off or while
@@ -292,17 +291,46 @@ func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
 		what = "your microphone and " + mt.App
 	}
 	if m.Notify != nil {
-		m.Notify("Recording a meeting", "Agentry is recording "+what+". Recording others may need their consent; tell them you are recording.")
+		m.Notify("Recording a meeting", "Agentry is recording "+what+". "+ConsentSentence)
 	}
-	go func() {
+	go m.follow(ctx, r, capture)
+	m.changed()
+	return mt, nil
+}
+
+// follow watches a recording until it ends: a capture whose far side
+// widens to the whole device is said in its meeting and a notification,
+// and a capture that ends by itself is finished and transcribed.
+func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
 		select {
 		case <-capture.Ended():
 			_ = m.finish(r, true)
+			return
 		case <-ctx.Done():
+			return
+		case <-tick.C:
+			m.mu.Lock()
+			if m.rec != r || r.stopping {
+				m.mu.Unlock()
+				return
+			}
+			widened := capture.FarSide() == FarSideWholeDevice && r.m.FarSide != FarSideWholeDevice
+			if widened {
+				r.m.FarSide = FarSideWholeDevice
+				_ = m.store().Save(r.m)
+			}
+			m.mu.Unlock()
+			if widened {
+				if m.Notify != nil {
+					m.Notify("Recording everything your computer plays", "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so.")
+				}
+				m.changed()
+			}
 		}
-	}()
-	m.changed()
-	return mt, nil
+	}
 }
 
 // SetPaused pauses or resumes the recording in progress.
@@ -803,63 +831,4 @@ func calibrationAudio(clip, dir string) (string, float64, error) {
 		return "", 0, err
 	}
 	return out, float64(len(all)) / SampleRate, nil
-}
-
-// readPCM16 reads the samples of a 16 kHz mono 16-bit PCM WAV, wherever
-// its data chunk is.
-func readPCM16(path string) ([]int16, error) {
-	raw, err := os.ReadFile(path) //nolint:gosec // the pinned clip in the models folder
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) < 12 || string(raw[:4]) != "RIFF" || string(raw[8:12]) != "WAVE" {
-		return nil, errors.New("not a WAV file")
-	}
-	var fmtOK bool
-	for off := 12; off+8 <= len(raw); {
-		id, size := string(raw[off:off+4]), int(binary.LittleEndian.Uint32(raw[off+4:]))
-		body := off + 8
-		if size < 0 || body+size > len(raw) {
-			size = len(raw) - body
-		}
-		switch id {
-		case "fmt ":
-			if size < 16 {
-				return nil, errors.New("a short format chunk")
-			}
-			format, channels := binary.LittleEndian.Uint16(raw[body:]), binary.LittleEndian.Uint16(raw[body+2:])
-			rate, bits := binary.LittleEndian.Uint32(raw[body+4:]), binary.LittleEndian.Uint16(raw[body+14:])
-			if format != 1 || channels != 1 || rate != SampleRate || bits != 16 {
-				return nil, fmt.Errorf("not 16 kHz mono 16-bit PCM (format %d, %d channels, %d Hz, %d bits)", format, channels, rate, bits)
-			}
-			fmtOK = true
-		case "data":
-			if !fmtOK {
-				return nil, errors.New("no format before the data")
-			}
-			return int16s(raw[body : body+size]), nil
-		}
-		off = body + size + size%2
-	}
-	return nil, errors.New("no data chunk")
-}
-
-// repairWAV writes the header of a WAV whose recording was cut short, from
-// the file's length.
-func repairWAV(path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR, 0) //nolint:gosec // a track in a meeting folder of ours
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-	st, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	if st.Size() < wavHeaderSize {
-		return errors.New("too short to be a recording")
-	}
-	samples := (st.Size() - wavHeaderSize) / 2
-	_, err = f.WriteAt(wavHeader(samples), 0)
-	return err
 }

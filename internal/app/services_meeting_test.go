@@ -104,7 +104,7 @@ func TestMeetingNotesIsOffUntilTheDialogSaysYes(t *testing.T) {
 		t.Fatalf("fresh status: available %v (%s), on %v", v.Available, v.Unavailable, v.On)
 	}
 	for _, want := range []string{"consent", "muted yourself in the meeting app", "everything your computer plays"} {
-		if !strings.Contains(v.Warning, want) {
+		if !strings.Contains(strings.Join(v.Warnings, " "), want) {
 			t.Errorf("the turn-on warning lacks %q", want)
 		}
 	}
@@ -115,7 +115,7 @@ func TestMeetingNotesIsOffUntilTheDialogSaysYes(t *testing.T) {
 	if st, _ := settings.Load(); st.MeetingNotes.On {
 		t.Fatal("a No turned Meeting notes on")
 	}
-	if len(ma.asked) != 1 || !strings.Contains(ma.asked[0], v.Warning) {
+	if len(ma.asked) != 1 || !strings.Contains(ma.asked[0], strings.Join(v.Warnings, " ")) {
 		t.Fatalf("the dialog asked %q, want the warning", ma.asked)
 	}
 	ma.answer = true
@@ -215,6 +215,21 @@ func TestMeetingSettingsTakeOnlyWhatTheCatalogueAndThePickerGive(t *testing.T) {
 
 func TestATranscriptIsOpenedByMeetingNeverByPath(t *testing.T) {
 	ma := newMeetingApp(t)
+	outside := filepath.Join(t.TempDir(), "keep")
+	if err := os.MkdirAll(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"..", "../..", outside, "a/../.."} {
+		if _, err := ma.api.Forget(id); err == nil {
+			t.Fatalf("Forget(%q) succeeded", id)
+		}
+		if _, err := ma.api.DeleteAudio(id); err == nil {
+			t.Fatalf("DeleteAudio(%q) succeeded", id)
+		}
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("a folder outside the meetings went: %v", err)
+	}
 	if err := ma.api.OpenTranscript("../../etc/passwd"); err == nil {
 		t.Fatal("OpenTranscript took a path")
 	}

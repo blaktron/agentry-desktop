@@ -35,7 +35,7 @@ type Sidecar struct {
 	Run func(ctx context.Context, path string, args []string, stderr io.Writer) error
 }
 
-// Threads is the default thread count: half the logical CPUs, from 1 to 8.
+// defaultThreads is half the logical CPUs, from 1 to 8.
 // A call goes on while a transcription runs, so it does not take them all.
 func defaultThreads() int {
 	return min(max(runtime.NumCPU()/2, 1), 8)

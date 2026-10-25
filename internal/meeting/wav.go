@@ -210,3 +210,62 @@ func SilentWAV(path string) (bool, error) {
 		}
 	}
 }
+
+// readPCM16 reads the samples of a 16 kHz mono 16-bit PCM WAV, wherever
+// its data chunk is.
+func readPCM16(path string) ([]int16, error) {
+	raw, err := os.ReadFile(path) //nolint:gosec // the pinned clip in the models folder
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) < 12 || string(raw[:4]) != "RIFF" || string(raw[8:12]) != "WAVE" {
+		return nil, errors.New("not a WAV file")
+	}
+	var fmtOK bool
+	for off := 12; off+8 <= len(raw); {
+		id, size := string(raw[off:off+4]), int(binary.LittleEndian.Uint32(raw[off+4:]))
+		body := off + 8
+		if size < 0 || body+size > len(raw) {
+			size = len(raw) - body
+		}
+		switch id {
+		case "fmt ":
+			if size < 16 {
+				return nil, errors.New("a short format chunk")
+			}
+			format, channels := binary.LittleEndian.Uint16(raw[body:]), binary.LittleEndian.Uint16(raw[body+2:])
+			rate, bits := binary.LittleEndian.Uint32(raw[body+4:]), binary.LittleEndian.Uint16(raw[body+14:])
+			if format != 1 || channels != 1 || rate != SampleRate || bits != 16 {
+				return nil, fmt.Errorf("not 16 kHz mono 16-bit PCM (format %d, %d channels, %d Hz, %d bits)", format, channels, rate, bits)
+			}
+			fmtOK = true
+		case "data":
+			if !fmtOK {
+				return nil, errors.New("no format before the data")
+			}
+			return int16s(raw[body : body+size]), nil
+		}
+		off = body + size + size%2
+	}
+	return nil, errors.New("no data chunk")
+}
+
+// repairWAV writes the header of a WAV whose recording was cut short, from
+// the file's length.
+func repairWAV(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0) //nolint:gosec // a track in a meeting folder of ours
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if st.Size() < wavHeaderSize {
+		return errors.New("too short to be a recording")
+	}
+	samples := (st.Size() - wavHeaderSize) / 2
+	_, err = f.WriteAt(wavHeader(samples), 0)
+	return err
+}
