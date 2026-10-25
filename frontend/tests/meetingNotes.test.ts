@@ -69,11 +69,14 @@ test("a meeting says how it was handed to the Assistant, and offers Ask only whi
 
 test("an armed window says when it records and where it stands", async () => {
   const { windowWhen, windowStateWords } = await import("../src/meetingNotes.ts");
+  // Times in this computer's own format, whatever its locale.
+  const t = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const now = new Date(2026, 9, 25, 13, 0);
-  const today = windowWhen(new Date(2026, 9, 25, 13, 55).toISOString(), new Date(2026, 9, 25, 15, 15).toISOString(), now);
-  assert.match(today, /^13:55 to 15:15$/);
-  const tomorrow = windowWhen(new Date(2026, 9, 26, 8, 55).toISOString(), new Date(2026, 9, 26, 9, 45).toISOString(), now);
-  assert.match(tomorrow, /, 08:55 to 09:45$/);
+  const [o, c] = [new Date(2026, 9, 25, 13, 55), new Date(2026, 9, 25, 15, 15)];
+  assert.equal(windowWhen(o.toISOString(), c.toISOString(), now), `${t(o)} to ${t(c)}`);
+  const [o2, c2] = [new Date(2026, 9, 26, 8, 55), new Date(2026, 9, 26, 9, 45)];
+  const tomorrow = windowWhen(o2.toISOString(), c2.toISOString(), now);
+  assert.ok(tomorrow.endsWith(`, ${t(o2)} to ${t(c2)}`) && tomorrow.length > `, ${t(o2)} to ${t(c2)}`.length, tomorrow);
   assert.equal(windowStateWords({ state: "waiting", recorded: 0 }), "Waiting to open");
   assert.equal(windowStateWords({ state: "closed", recorded: 0 }), "Closed: no call was noticed");
   assert.equal(windowStateWords({ state: "closed", recorded: 1 }), "Recorded");

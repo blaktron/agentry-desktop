@@ -381,6 +381,11 @@ func TestOnlyTheAssistantsLinkAnswersTheMeetingTools(t *testing.T) {
 // share folder its config names.
 func TestThePersistentAssistantIsFoundWhereItRuns(t *testing.T) {
 	r := newElsewhereRig(t)
+	// The default share is under HOME, which the share check wants named
+	// as itself: a temporary folder can sit behind a link (macOS's /var).
+	if home, err := filepath.EvalSymlinks(os.Getenv("HOME")); err == nil {
+		t.Setenv("HOME", home)
+	}
 	a := persistentAssistant{p: r.p}
 	if _, err := r.p.SetEnabled("assistant", false); err != nil {
 		t.Fatal(err)
