@@ -7,7 +7,7 @@ require (
 	fyne.io/systray v1.12.2
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.6.23
+	github.com/blaktron/agentry v0.6.24
 	github.com/blaktron/agentry-cli v0.6.200
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
