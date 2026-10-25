@@ -201,9 +201,11 @@ func TestAnAppOnTheAutomaticListIsRecordedVisibly(t *testing.T) {
 	waitFor(t, "Chrome's offer", func() bool { return h.offer() != nil })
 	_ = h.m.DeclineOffer(h.offer().ID)
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the automatic recording", func() bool { return h.m.Status().Recording != nil })
+	// The recording shows in the status as it starts, and is announced once
+	// the capture runs.
+	waitFor(t, "the automatic recording's announcement", func() bool { _, ok := h.lastRaised(tagRecording); return ok })
 	st := h.m.Status().Recording
-	if st.How != Automatically {
+	if st == nil || st.How != Automatically {
 		t.Fatalf("recording = %+v, want automatic", st)
 	}
 	n, ok := h.lastRaised(tagRecording)
@@ -482,4 +484,39 @@ func TestACallThatStartedDuringARecordingIsOfferedAfter(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "the waiting call's offer", func() bool { o := h.offer(); return o != nil && o.App == "Zoom Meeting" })
+}
+
+// A Stop while the capture is starting lets the capture go: no device stays
+// open for a recording nobody sees.
+func TestAStopWhileTheCaptureStartsLetsItGo(t *testing.T) {
+	h := newHarness(t)
+	gate := make(chan struct{})
+	h.m.Recorder = recorderFunc(func(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
+		<-gate
+		return h.rec.Record(ctx, call, tracks)
+	})
+	errc := make(chan error, 1)
+	go func() { _, err := h.m.Record(context.Background()); errc <- err }()
+	waitFor(t, "the recording to begin", func() bool { return h.m.Status().Recording != nil })
+	if err := h.m.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	close(gate)
+	if err := <-errc; err == nil {
+		t.Fatal("a recording stopped as it started went on")
+	}
+	h.rec.mu.Lock()
+	c := h.rec.capture
+	h.rec.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.stopped {
+		t.Fatal("the capture of a stopped recording was left running")
+	}
+}
+
+type recorderFunc func(context.Context, Call, Tracks) (Capture, error)
+
+func (f recorderFunc) Record(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
+	return f(ctx, call, tracks)
 }

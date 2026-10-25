@@ -450,6 +450,16 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How) (*Meet
 		return nil, err
 	}
 	m.mu.Lock()
+	if m.rec != r || r.stopping {
+		// Stopped while the capture was starting: let it go at once, so no
+		// device stays open for a recording nobody sees.
+		m.mu.Unlock()
+		_ = capture.Stop()
+		for _, t := range r.tracks {
+			t.End()
+		}
+		return nil, errors.New("the recording was stopped as it started")
+	}
 	r.capture = capture
 	mt.App = capture.Call().App
 	if mt.App == "" {
