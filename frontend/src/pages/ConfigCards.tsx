@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
@@ -575,6 +575,9 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
           <option value="org">One organization (its tenant id)</option>
         </Select>
       </Field>
+      {microsoftAdminWords(tenant, agentCalled(agent)) && (
+        <Notice>{microsoftAdminWords(tenant, agentCalled(agent))}</Notice>
+      )}
       {tenant === "org" && (
         <Field label="Directory (tenant) ID" hint="From your app's Overview, for an app limited to one organization.">
           <Input value={tenantID} autoComplete="off" spellCheck={false} disabled={waiting} onChange={(e) => setTenantID(e.target.value)} />

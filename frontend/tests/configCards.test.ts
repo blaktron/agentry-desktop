@@ -24,6 +24,7 @@ import {
   providerWords,
   ENTRA_ID,
   microsoftWords,
+  microsoftAdminWords,
   microsoftScopeWords,
   fastmailWords,
 } from "../src/configCards.ts";
@@ -272,4 +273,11 @@ test("the Fastmail set-up says whether a token is kept, never the token", () => 
   assert.equal(fastmailWords(undefined), "No Fastmail token yet.");
   assert.equal(fastmailWords({ token: false }), "No Fastmail token yet.");
   assert.match(fastmailWords({ token: true }), /kept in your system keychain/);
+});
+
+test("the Microsoft set-up says a work or school account needs its administrator's approval, and a personal one nothing", () => {
+  assert.equal(microsoftAdminWords("consumers", "the Assistant"), "");
+  assert.match(microsoftAdminWords("organizations", "the Assistant"), /administrator will most likely have to approve your app/);
+  assert.match(microsoftAdminWords("org", "Ada"), /Ask Ada to help you set up Microsoft 365 for a work account/);
+  assert.match(microsoftAdminWords("", "the Assistant"), /^A work or school account usually needs its administrator/);
 });
