@@ -111,7 +111,7 @@ func TestAWindowTakesOnlyItsAppAndACancelledOneNothing(t *testing.T) {
 	w := armNow(t, h, "Budget sync", "zoom")
 	discord := Call{App: "Discord", Binary: "discord", PID: "5150"}
 	d.events <- CallEvent{Call: discord}
-	waitFor(t, "the offer", func() bool { return h.offer() != nil })
+	h.waitOffer(t)
 	if h.rec.count() != 0 {
 		t.Fatal("another app's call was recorded in the window")
 	}
@@ -196,5 +196,14 @@ func TestWindowsAreKeptAcrossARestart(t *testing.T) {
 	ws := m2.Windows()
 	if len(ws) != 1 || ws[0].ID != w.ID || ws[0].Title != "Budget sync" || ws[0].Invitees[0] != "Sam Li" || !ws[0].Opens.Equal(w.Opens) {
 		t.Fatalf("after a restart: %+v, want %+v", ws, w)
+	}
+}
+
+// A launch writes no windows file: nothing is armed until the Assistant
+// arms a window.
+func TestALaunchWritesNoWindowsFile(t *testing.T) {
+	h := newHarness(t)
+	if _, err := os.Stat(h.m.windowsPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("windows.json after a launch: %v", err)
 	}
 }
