@@ -89,7 +89,8 @@ func newPersistentRig(t *testing.T) *persistentRig {
 		rig.asked = append(rig.asked, title+"\n"+msg)
 		return rig.answer, nil
 	}}
-	rig.p = &PersistentAPI{app: app, run: &RunAPI{app: app, runnerHomeDir: home}}
+	rig.p = &PersistentAPI{app: app, run: &RunAPI{app: app, runnerHomeDir: home},
+		agentryApp: func(context.Context) string { return "" }}
 	rig.p.start = func(_ context.Context, opts persistent.Options) (agentSupervisor, error) {
 		rig.mu.Lock()
 		defer rig.mu.Unlock()
