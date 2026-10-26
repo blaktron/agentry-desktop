@@ -402,7 +402,7 @@ func TestTheSidecarRunsWithVoiceDetectionAndNoContextAndRetriesOnTheCPU(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 2 || slices.Contains(runs[0], "-ng") || !strings.Contains(strings.Join(runs[0], " "), "-dev 1") || !slices.Contains(runs[1], "-ng") {
+	if len(runs) != 2 || slices.Contains(runs[0], "-ng") || !strings.Contains(strings.Join(runs[0], " "), "-dev 1") || !slices.Contains(runs[1], "-ng") || slices.Contains(runs[1], "-dev") {
 		t.Fatalf("runs %v, want one on device 1 then one with -ng", runs)
 	}
 	if res.Backend != "" {
@@ -469,6 +469,14 @@ func TestTheSidecarRunsOnTheCPUUnlessAskedAndSaysWhereItRan(t *testing.T) {
 	}
 	if res.Backend != "Vulkan1" || !slices.Equal(res.Devices, want) {
 		t.Fatalf("a graphics run: backend %q, devices %q", res.Backend, res.Devices)
+	}
+	// The first device is the sidecar's own default, named by no flag.
+	req.Device = 0
+	if _, err := s.Transcribe(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if last := runs[len(runs)-1]; slices.Contains(last, "-dev") || slices.Contains(last, "-ng") {
+		t.Fatalf("a run on the first device: %v", last)
 	}
 }
 

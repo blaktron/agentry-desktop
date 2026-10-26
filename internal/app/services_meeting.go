@@ -149,7 +149,7 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			Models:      &meeting.Models{Dir: filepath.Join(root, "models"), Client: m.client},
 			Settings:    meetingSettings,
 			Tier:        meeting.HardwareTier(),
-			ProbeGPU:    meeting.OffersGPU(),
+			MeasuresGPU: meeting.OffersGPU(),
 			EngineID:    func() string { return sidecarID(sidecar) },
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
 			Notify: func(n meeting.Notice) error {
@@ -210,7 +210,7 @@ func meetingSettings() meeting.Settings {
 		out, _ = defaultMeetingFolder()
 	}
 	return meeting.Settings{
-		On: mn.On, Profile: mn.Profile, Model: mn.Model, Backend: mn.Backend, OutputDir: out, KeepAudio: mn.KeepAudio,
+		On: mn.On, Profile: mn.Profile, Model: mn.Model, Hardware: meeting.Hardware(mn.Hardware), OutputDir: out, KeepAudio: mn.KeepAudio,
 		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour,
 	}
 }
@@ -560,9 +560,9 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	}
 	status := mgr.Status()
 	v.Model, v.ModelName, v.ModelReady = status.Model, status.ModelName, status.ModelReady
-	v.ChecksGPU, v.GPUChecked = v.Available && mgr.ProbeGPU, status.GPUChecked
+	v.ChecksGPU, v.GPUChecked = v.Available && mgr.MeasuresGPU, status.GPUChecked
 	if g := status.GPU; g != nil && v.ChecksGPU {
-		better := cat.Models[cat.Choices(profile.ID, meeting.TierGPU)[0]]
+		better := mgr.GPUModel(s)
 		v.GPU = &MeetingGPUView{
 			Name: g.Name, Fast: g.Fast(), On: status.OnGPU, Offer: status.GPUOffer,
 			ModelName: better.Name, SizeBytes: better.Size,
@@ -1015,22 +1015,29 @@ func (m *MeetingAPI) prepareIfOn(mgr *meeting.Manager) {
 
 // UseGPU answers the offer of the graphics card, or changes the answer in
 // Settings: on, transcriptions run on the graphics card measured fastest,
-// with the better model; off, on the processor, and the offer is not made
-// again. Either way the model goes back to automatic, so it is one the
-// chosen side runs.
+// with the better model (the model goes back to automatic); off, on the
+// processor, keeping a model chosen for it, and the offer is not made
+// again.
 func (m *MeetingAPI) UseGPU(on bool) (*MeetingNotesView, error) {
 	mgr, err := m.built()
 	if err != nil {
 		return nil, err
 	}
-	backend := meeting.BackendCPU
+	hw := meeting.HardwareCPU
 	if on {
 		if mgr.Status().GPU == nil {
 			return nil, errors.New("no graphics card here ran a transcription when Agentry measured it")
 		}
-		backend = meeting.BackendGPU
+		hw = meeting.HardwareGPU
 	}
-	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.Backend, mn.Model = backend, ""; return nil }); err != nil {
+	err = saveMeetingNotes(func(mn *settings.MeetingNotes) error {
+		mn.Hardware = string(hw)
+		if on || (mn.Model != "" && !slices.Contains(mgr.Catalogue.Choices(mgr.Catalogue.Profile(mn.Profile).ID, meeting.TierCPU), mn.Model)) {
+			mn.Model = ""
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	m.prepareIfOn(mgr)

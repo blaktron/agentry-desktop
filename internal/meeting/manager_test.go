@@ -640,7 +640,7 @@ func probed(t *testing.T, h *harness) {
 }
 
 func TestTheGraphicsCardIsOfferedOnceAndADeclineIsKept(t *testing.T) {
-	h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = true })
+	h := newHarnessWith(t, func(m *Manager) { m.MeasuresGPU = true })
 	h.eng.took = 3 * time.Second // the CPU keeps up with small
 	h.eng.devices = []string{"Integrated", "Discrete"}
 	// About a minute of speech: the integrated card at half real time is
@@ -657,23 +657,23 @@ func TestTheGraphicsCardIsOfferedOnceAndADeclineIsKept(t *testing.T) {
 	}
 	// Nothing ran on a graphics card unasked but the measurement, and the
 	// CPU's own measurement ran on the CPU.
-	var warmed1 int
+	var secondCardRuns int
 	for _, r := range h.eng.requests() {
 		if r.GPU && r.Model == "" {
 			t.Fatalf("a run on the graphics card without a model: %+v", r)
 		}
 		if r.GPU && r.Device == 1 {
-			warmed1++
+			secondCardRuns++
 		}
 		if !r.GPU && filepath.Base(r.Audio) != "calibration.wav" {
 			t.Fatalf("a CPU run on %s", r.Audio)
 		}
 	}
-	if warmed1 != 2 {
-		t.Fatalf("the second card ran %d times, want a warm-up and a timed run", warmed1)
+	if secondCardRuns != 2 {
+		t.Fatalf("the second card ran %d times, want a warm-up and a timed run", secondCardRuns)
 	}
 
-	h.set(func(s *Settings) { s.Backend = BackendGPU })
+	h.set(func(s *Settings) { s.Hardware = HardwareGPU })
 	st = h.m.Status()
 	if st.GPUOffer || !st.OnGPU {
 		t.Fatalf("taken: offer %v, on %v", st.GPUOffer, st.OnGPU)
@@ -685,7 +685,7 @@ func TestTheGraphicsCardIsOfferedOnceAndADeclineIsKept(t *testing.T) {
 		t.Fatalf("taken: gpu %v device %d, want the discrete card", gpu, dev)
 	}
 
-	h.set(func(s *Settings) { s.Backend = BackendCPU })
+	h.set(func(s *Settings) { s.Hardware = HardwareCPU })
 	h.m.Prepare(context.Background())
 	waitFor(t, "the preparation", func() bool { return !h.m.Status().Prepare.Busy })
 	if st := h.m.Status(); st.GPUOffer || st.OnGPU || st.GPU == nil {
@@ -709,7 +709,7 @@ func TestNoGraphicsOfferWithoutACardThatKeepsUp(t *testing.T) {
 		"a card slower than the better model needs": {probe: true, devices: []string{"Card"}, gpuTook: map[int]time.Duration{0: 20 * time.Second}, known: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = tc.probe })
+			h := newHarnessWith(t, func(m *Manager) { m.MeasuresGPU = tc.probe })
 			h.eng.took = 3 * time.Second
 			h.eng.devices, h.eng.gpuTook = tc.devices, tc.gpuTook
 			if tc.probe {
@@ -734,7 +734,7 @@ func TestNoGraphicsOfferWithoutACardThatKeepsUp(t *testing.T) {
 				t.Fatalf("offer %v, on %v, gpu %+v", st.GPUOffer, st.OnGPU, st.GPU)
 			}
 			// Choosing the card where none ran stays on the CPU.
-			h.set(func(s *Settings) { s.Backend = BackendGPU })
+			h.set(func(s *Settings) { s.Hardware = HardwareGPU })
 			if gpu, _ := h.m.gpuFor(h.m.Settings()); gpu != tc.known {
 				t.Fatalf("the graphics card chosen: gpu %v, want %v", gpu, tc.known)
 			}
@@ -743,12 +743,12 @@ func TestNoGraphicsOfferWithoutACardThatKeepsUp(t *testing.T) {
 }
 
 func TestAMeetingIsTranscribedOnTheCardTaken(t *testing.T) {
-	h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = true })
+	h := newHarnessWith(t, func(m *Manager) { m.MeasuresGPU = true })
 	h.eng.took = 3 * time.Second
 	h.eng.devices = []string{"Integrated", "Discrete"}
 	h.eng.gpuTook = map[int]time.Duration{1: 6 * time.Second}
 	probed(t, h)
-	h.set(func(s *Settings) { s.Backend = BackendGPU })
+	h.set(func(s *Settings) { s.Hardware = HardwareGPU })
 	h.rec.tracks = []fakeTrackSpec{{Them, "far-1", speech(SampleRate)}}
 	h.eng.byFile["far-1.wav"] = []Segment{{Start: 0, End: time.Second, Text: "Hello."}}
 	mt, err := h.m.Record(context.Background())
@@ -772,7 +772,7 @@ func TestAMeetingIsTranscribedOnTheCardTaken(t *testing.T) {
 	}
 }
 
-func TestACalibrationFromBeforeTheCPUWasPinnedIsTakenAgain(t *testing.T) {
+func TestAnUnversionedCalibrationIsMeasuredAgain(t *testing.T) {
 	h := newHarness(t)
 	if err := os.WriteFile(h.m.calibrationPath(), []byte(`{"rtf":{"small":5}}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -784,6 +784,25 @@ func TestACalibrationFromBeforeTheCPUWasPinnedIsTakenAgain(t *testing.T) {
 	h.m.Prepare(context.Background())
 	waitFor(t, "the calibration", func() bool { return !h.m.Status().Prepare.Busy && h.m.readCalibration().RTF["small"] > 0 })
 	if c := h.m.readCalibration(); c.RTF["small"] >= 1 {
-		t.Fatalf("the old measurement stands: %+v", c)
+		t.Fatalf("the unversioned measurement stands: %+v", c)
+	}
+}
+
+func TestAMeasuredDeviceOutOfRangeIsNeverUsed(t *testing.T) {
+	h := newHarnessWith(t, func(m *Manager) { m.MeasuresGPU = true })
+	cal := h.m.readCalibration()
+	cal.GPU = &GPUProbe{Model: "small", Devices: []GPUDevice{
+		{Index: -1, Name: "Below", Backend: "Vulkan0", RTF: 0.01},
+		{Index: maxDevices, Name: "Above", Backend: "Vulkan9", RTF: 0.01},
+	}}
+	if err := h.m.writeCalibration(cal); err != nil {
+		t.Fatal(err)
+	}
+	h.set(func(s *Settings) { s.Hardware = HardwareGPU })
+	if st := h.m.Status(); st.GPU != nil || st.GPUOffer || st.OnGPU {
+		t.Fatalf("a device numbered out of range: %+v", st)
+	}
+	if gpu, _ := h.m.gpuFor(h.m.Settings()); gpu {
+		t.Fatal("a device numbered out of range was used")
 	}
 }

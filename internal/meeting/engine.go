@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -71,14 +72,19 @@ func (s Sidecar) Transcribe(ctx context.Context, req TranscribeRequest) (Transcr
 		"-oj", "-of", filepath.Join(out, "out"),
 		"-pp", "-t", strconv.Itoa(threads),
 	}
+	onCPU := slices.Concat(args, []string{"-ng"})
 	var r runResult
 	if req.GPU {
-		r, err = s.run(ctx, append(args, "-dev", strconv.Itoa(req.Device)), req.Progress)
+		gpu := args
+		if req.Device != 0 {
+			gpu = slices.Concat(args, []string{"-dev", strconv.Itoa(req.Device)})
+		}
+		r, err = s.run(ctx, gpu, req.Progress)
 		if err != nil && ctx.Err() == nil {
-			r, err = s.run(ctx, append(args, "-ng"), req.Progress)
+			r, err = s.run(ctx, onCPU, req.Progress)
 		}
 	} else {
-		r, err = s.run(ctx, append(args, "-ng"), req.Progress)
+		r, err = s.run(ctx, onCPU, req.Progress)
 	}
 	if err != nil {
 		return Transcription{}, err
