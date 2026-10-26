@@ -2,7 +2,7 @@
 // connection, and what it holds Run for.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectionBlockers, connectionLine, connectionsStatus, hostedConnectAsk, pastedProblem, sharedGrantWarning, signInRecap, type ServerConn } from "../src/connections.ts";
+import { clientWords, connectionBlockers, connectionLine, connectionsStatus, hostedConnectAsk, pastedProblem, sharedGrantWarning, signInRecap, type ServerConn } from "../src/connections.ts";
 import { needList, signInNeed } from "../src/runSetup.ts";
 
 const gmail = "https://gmailmcp.googleapis.com/mcp/v1";
@@ -93,4 +93,11 @@ test("Disconnect warns by name when other connections share the client's grant",
   assert.match(w, /acme\/digest@2\.0\.0 → pypi:workspace-mcp/);
   assert.match(w, /The other connection made with the same client then stops working too, and asks for your consent at its next run: /);
   assert.match(sharedGrantWarning("accounts.google.com", ["a", "b"]) ?? "", /The 2 other connections made with the same client then stop working too, and ask .* their next run: a; b\.$/);
+});
+
+test("a connection made with Agentry's own app says so", () => {
+  assert.equal(clientWords("agentry"), "Agentry's own app");
+  assert.match(connectionLine({ ...connected, client: "agentry" }), /^Connected at accounts\.google\.com, as Agentry's own app/);
+  assert.equal(clientWords("dcr"), "Agentry Desktop");
+  assert.equal(clientWords("own"), "your own OAuth client");
 });
