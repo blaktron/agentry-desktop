@@ -398,12 +398,15 @@ func TestTheSidecarRunsWithVoiceDetectionAndNoContextAndRetriesOnTheCPU(t *testi
 		return os.WriteFile(of+".json", []byte(whisperOut), 0o600)
 	}}
 	var progress []int
-	res, err := s.Transcribe(context.Background(), TranscribeRequest{Audio: audio, Model: "m.bin", VADModel: "v.bin", Language: "en", Progress: func(p int) { progress = append(progress, p) }})
+	res, err := s.Transcribe(context.Background(), TranscribeRequest{Audio: audio, Model: "m.bin", VADModel: "v.bin", Language: "en", GPU: true, Device: 1, Progress: func(p int) { progress = append(progress, p) }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 2 || slices.Contains(runs[0], "-ng") || !slices.Contains(runs[1], "-ng") {
-		t.Fatalf("runs %v, want one on the GPU then one with -ng", runs)
+	if len(runs) != 2 || slices.Contains(runs[0], "-ng") || !strings.Contains(strings.Join(runs[0], " "), "-dev 1") || !slices.Contains(runs[1], "-ng") || slices.Contains(runs[1], "-dev") {
+		t.Fatalf("runs %v, want one on device 1 then one with -ng", runs)
+	}
+	if res.Backend != "" {
+		t.Fatalf("the run that fell back reports backend %q", res.Backend)
 	}
 	args := strings.Join(runs[0], " ")
 	for _, want := range []string{"--vad -vm v.bin", "-mc 0", "-ml 1 -sow", "-oj", "-l en", "-m m.bin", "-t 2"} {
@@ -416,6 +419,79 @@ func TestTheSidecarRunsWithVoiceDetectionAndNoContextAndRetriesOnTheCPU(t *testi
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Fatalf("the sidecar's output was left beside the audio: %v", entries)
+	}
+}
+
+// sidecarStderr is what whisper-cli prints as it loads with two Vulkan
+// devices and runs on the second.
+const sidecarStderr = `ggml_vulkan: Found 2 Vulkan devices:
+ggml_vulkan: 0 = Intel(R) HD Graphics 630 (KBL GT2) (Intel open-source Mesa driver) | uma: 1 | fp16: 1 | bf16: 0 | warp size: 32
+ggml_vulkan: 1 = Quadro M1200 (NVK GM107) (NVK) | uma: 0 | fp16: 0 | bf16: 0 | warp size: 32
+load_backend: loaded Vulkan backend from /opt/whisper/libggml-vulkan.so
+whisper_backend_init_gpu: device 1: Vulkan1 (type: 1)
+whisper_backend_init_gpu: using Vulkan1 backend
+whisper_print_timings:     load time =   200.00 ms
+whisper_print_timings:    total time =  1200.00 ms
+`
+
+func TestTheSidecarRunsOnTheCPUUnlessAskedAndSaysWhereItRan(t *testing.T) {
+	dir := t.TempDir()
+	var runs [][]string
+	s := Sidecar{Path: "/opt/whisper-cli", Threads: 2, Run: func(_ context.Context, path string, args []string, stderr io.Writer) error {
+		runs = append(runs, args)
+		if slices.Contains(args, "-ng") {
+			_, _ = io.WriteString(stderr, strings.Replace(sidecarStderr, "whisper_backend_init_gpu: using Vulkan1 backend", "whisper_backend_init_gpu: no GPU found", 1))
+		} else {
+			_, _ = io.WriteString(stderr, sidecarStderr)
+		}
+		of := args[slices.Index(args, "-of")+1]
+		return os.WriteFile(of+".json", []byte(whisperOut), 0o600)
+	}}
+	req := TranscribeRequest{Audio: filepath.Join(dir, "mic.wav"), Model: "m.bin", VADModel: "v.bin", Language: "en"}
+	res, err := s.Transcribe(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || !slices.Contains(runs[0], "-ng") || slices.Contains(runs[0], "-dev") {
+		t.Fatalf("a CPU run's arguments %v, want -ng and no device", runs)
+	}
+	want := []string{"Intel(R) HD Graphics 630 (KBL GT2) (Intel open-source Mesa driver)", "Quadro M1200 (NVK GM107) (NVK)"}
+	if res.Backend != "" || !slices.Equal(res.Devices, want) || res.Took != time.Second {
+		t.Fatalf("a CPU run: backend %q, devices %q, took %v", res.Backend, res.Devices, res.Took)
+	}
+	req.GPU, req.Device = true, 1
+	res, err = s.Transcribe(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 || slices.Contains(runs[1], "-ng") || !strings.Contains(strings.Join(runs[1], " "), "-dev 1") {
+		t.Fatalf("a graphics run's arguments %v", runs[1])
+	}
+	if res.Backend != "Vulkan1" || !slices.Equal(res.Devices, want) {
+		t.Fatalf("a graphics run: backend %q, devices %q", res.Backend, res.Devices)
+	}
+	// The first device is the sidecar's own default, named by no flag.
+	req.Device = 0
+	if _, err := s.Transcribe(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if last := runs[len(runs)-1]; slices.Contains(last, "-dev") || slices.Contains(last, "-ng") {
+		t.Fatalf("a run on the first device: %v", last)
+	}
+}
+
+func TestACUDADeviceListingIsRead(t *testing.T) {
+	devs := listDevice(nil, "1", "NVIDIA GeForce RTX 4070 ")
+	if m := cudaDevice.FindStringSubmatch("  Device 0: NVIDIA GeForce RTX 4070, compute capability 8.9, VMM: yes"); m == nil {
+		t.Fatal("the CUDA listing was not read")
+	} else {
+		devs = listDevice(devs, m[1], m[2])
+	}
+	if !slices.Equal(devs, []string{"NVIDIA GeForce RTX 4070", "NVIDIA GeForce RTX 4070"}) {
+		t.Fatalf("devices %q", devs)
+	}
+	if got := listDevice(nil, "99", "far"); len(got) != 0 {
+		t.Fatalf("a device numbered past the limit was listed: %q", got)
 	}
 }
 

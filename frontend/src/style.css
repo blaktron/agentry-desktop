@@ -1688,6 +1688,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .meeting-notes .meeting-settings code { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .meeting-notes .meeting-offer { border-color: var(--color-accent); }
 .meeting-notes .meeting-offer h3 { margin-top: 0; }
+.meeting-notes .meeting-gpu-offer { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.meeting-notes .meeting-gpu-offer h3 { margin-top: 0; }
 .meeting-notes .meeting-apps { display: grid; gap: 6px; }
 .meeting-notes .meeting-app { justify-content: space-between; align-items: center; flex-wrap: nowrap; }
 .meeting-notes .meeting-app select { width: auto; min-width: 220px; }

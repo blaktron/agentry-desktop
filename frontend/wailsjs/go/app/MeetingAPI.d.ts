@@ -6,6 +6,8 @@ export function AskAssistant(arg1:string):Promise<app.MeetingNotesView>;
 
 export function CancelWindow(arg1:string):Promise<app.MeetingNotesView>;
 
+export function CheckGPU():Promise<app.MeetingNotesView>;
+
 export function ChooseOutputDir():Promise<app.MeetingNotesView>;
 
 export function DeleteAudio(arg1:string):Promise<app.MeetingNotesView>;
@@ -59,3 +61,5 @@ export function Transcribe(arg1:string):Promise<app.MeetingNotesView>;
 export function TurnOff():Promise<app.MeetingNotesView>;
 
 export function TurnOn():Promise<app.MeetingNotesView>;
+
+export function UseGPU(arg1:boolean):Promise<app.MeetingNotesView>;

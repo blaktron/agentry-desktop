@@ -20,6 +20,10 @@ type Settings struct {
 	Profile string
 	// Model is the model the person chose, "" for automatic.
 	Model string
+	// Hardware is what the person chose to transcribe on, where a
+	// graphics card is offered: HardwareGPU or HardwareCPU, or "" until
+	// they answer the offer, which is the CPU.
+	Hardware Hardware
 	// OutputDir is the folder transcripts go to.
 	OutputDir string
 	// KeepAudio keeps recordings for KeepFor after their transcript.
@@ -31,6 +35,16 @@ type Settings struct {
 	// DefaultMaxLength.
 	MaxLength time.Duration
 }
+
+// Hardware is what transcriptions run on, as the person chose it.
+type Hardware string
+
+// The hardware a person can choose between where a graphics card is
+// offered.
+const (
+	HardwareGPU Hardware = "gpu"
+	HardwareCPU Hardware = "cpu"
+)
 
 // DefaultMaxLength is how long a recording runs at most unless the person
 // chose otherwise.
@@ -91,6 +105,12 @@ type Manager struct {
 	Settings func() Settings
 	// Tier is this computer's hardware tier.
 	Tier string
+	// MeasuresGPU: on the CPU tier, the transcriber's graphics devices are
+	// measured, to offer the graphics tier's model where one keeps up.
+	MeasuresGPU bool
+	// EngineID names the transcriber as installed, so a newer one's
+	// graphics devices are measured again; nil names none.
+	EngineID func() string
 	// EngineReady says whether the transcriber can run; nil means it can.
 	EngineReady func() error
 	// Notify raises a desktop notification, and Withdraw takes away the
@@ -169,6 +189,14 @@ type Status struct {
 	ModelReady bool   `json:"modelReady"`
 	// EngineError says why the transcriber cannot run, "" when it can.
 	EngineError string `json:"engineError,omitempty"`
+	// GPU is the graphics device measured fastest here, nil when none ran
+	// a transcription; GPUChecked says the devices were measured; OnGPU
+	// says transcriptions use it now, and GPUOffer that its model is
+	// offered and the offer not yet answered.
+	GPU        *GPUDevice `json:"gpu,omitempty"`
+	GPUChecked bool       `json:"gpuChecked"`
+	OnGPU      bool       `json:"onGPU"`
+	GPUOffer   bool       `json:"gpuOffer"`
 	// Transcribing is each meeting being transcribed, by id, with its
 	// progress from 0 to 100.
 	Transcribing map[string]int `json:"transcribing"`
@@ -312,6 +340,15 @@ func (m *Manager) Status() Status {
 		On: s.On, Model: model, ModelName: asset.Name,
 		ModelReady:   m.Models.Present(asset) && m.Models.Present(m.Catalogue.VAD),
 		Transcribing: map[string]int{},
+		OnGPU:        m.tierFor(s) == TierGPU,
+		GPUOffer:     m.GPUOffered(s),
+	}
+	if m.MeasuresGPU {
+		cal := m.readCalibration()
+		if d, ok := cal.GPU.best(); ok {
+			st.GPU = &d
+		}
+		st.GPUChecked = cal.GPU != nil
 	}
 	if m.EngineReady != nil {
 		if err := m.EngineReady(); err != nil {
@@ -884,6 +921,7 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	profile := m.Catalogue.Profile(mt.Profile)
 	model := m.ChosenModel(s)
 	mt.Model = model
+	gpu, device := m.gpuFor(s)
 	modelPath, err := m.Models.Ensure(ctx, m.Catalogue.Models[model], nil)
 	if err != nil {
 		return "", err
@@ -913,10 +951,14 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	for i, t := range todo {
 		res, err := m.Engine.Transcribe(ctx, TranscribeRequest{
 			Audio: st.TrackPath(mt, t), Model: modelPath, VADModel: vadPath, Language: profile.Language,
+			GPU: gpu, Device: device,
 			Progress: func(p int) { m.setJob(mt.ID, (i*100+p)/len(todo)) },
 		})
 		if err != nil {
 			return "", err
+		}
+		if res.Backend != "" {
+			mt.Backend = res.Backend
 		}
 		if res.Language != "" && lang == "auto" {
 			lang = res.Language
@@ -955,10 +997,69 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 }
 
 // calibration is calibration.json: each CPU model's measured real-time
-// factor on this computer (processing time over audio time).
+// factor on this computer (processing time over audio time), and the
+// graphics devices' measurement.
 type calibration struct {
-	RTF map[string]float64 `json:"rtf"`
+	Version int                `json:"version"`
+	RTF     map[string]float64 `json:"rtf"`
+	GPU     *GPUProbe          `json:"gpu,omitempty"`
 }
+
+// calibrationVersion is the measurement's version: a measurement of
+// another version is taken again. A CPU model's pace is measured with the
+// graphics backends held off, which a measurement without a version
+// cannot be counted on to have done.
+const calibrationVersion = 2
+
+// GPUProbe is the measurement of the transcriber's graphics devices: each
+// device's pace with Model, the CPU tier's first model.
+type GPUProbe struct {
+	// Engine is the transcriber measured (Manager.EngineID).
+	Engine  string      `json:"engine"`
+	Model   string      `json:"model"`
+	Devices []GPUDevice `json:"devices"`
+}
+
+// GPUDevice is one graphics device as measured. Backend is "" when the
+// run on it did not use it (it failed, or fell back to the CPU).
+type GPUDevice struct {
+	Index   int     `json:"index"`
+	Name    string  `json:"name"`
+	Backend string  `json:"backend,omitempty"`
+	RTF     float64 `json:"rtf,omitempty"`
+}
+
+// gpuTierCost is how much longer the graphics tier's model takes than the
+// CPU tier's first model on the same audio and device: large-v3-turbo
+// against small.en, on a minute of speech, took 2.7 times as long on an
+// integrated graphics card, 3.6 on a discrete one and 3.7 on the CPU.
+const gpuTierCost = 4.0
+
+// best is the device that ran fastest, if one ran at all.
+func (p *GPUProbe) best() (GPUDevice, bool) {
+	var out GPUDevice
+	found := false
+	if p == nil {
+		return out, false
+	}
+	for _, d := range p.Devices {
+		if d.Backend != "" && d.RTF > 0 && d.Index >= 0 && d.Index < maxDevices && (!found || d.RTF < out.RTF) {
+			out, found = d, true
+		}
+	}
+	return out, found
+}
+
+// usable says whether the fastest device is expected to run the graphics
+// tier's model faster than real time.
+func (p *GPUProbe) usable() bool {
+	d, ok := p.best()
+	return ok && d.Fast()
+}
+
+// Fast says whether the device is expected to run the graphics tier's
+// model faster than real time.
+func (d GPUDevice) Fast() bool { return d.Backend != "" && d.RTF > 0 && d.RTF*gpuTierCost <= 1 }
 
 func (m *Manager) calibrationPath() string { return filepath.Join(m.Root, "calibration.json") }
 
@@ -967,9 +1068,13 @@ func (m *Manager) readCalibration() calibration {
 	if raw, err := os.ReadFile(m.calibrationPath()); err == nil {
 		_ = json.Unmarshal(raw, &c)
 	}
+	if c.Version < calibrationVersion {
+		c = calibration{}
+	}
 	if c.RTF == nil {
 		c.RTF = map[string]float64{}
 	}
+	c.Version = calibrationVersion
 	return c
 }
 
@@ -984,6 +1089,54 @@ func (m *Manager) writeCalibration(c calibration) error {
 	return os.WriteFile(m.calibrationPath(), raw, 0o600)
 }
 
+// onCPUTier says whether this computer's own tier is the CPU's, where a
+// graphics card may be offered.
+func (m *Manager) onCPUTier() bool { return m.Tier == TierCPU || m.Tier == "" }
+
+// tierFor is the hardware tier transcriptions use: the computer's, or the
+// graphics tier where the person chose the graphics card and a device ran
+// a transcription when measured.
+func (m *Manager) tierFor(s Settings) string {
+	if !m.onCPUTier() {
+		return m.Tier
+	}
+	if m.MeasuresGPU && s.Hardware == HardwareGPU {
+		if _, ok := m.readCalibration().GPU.best(); ok {
+			return TierGPU
+		}
+	}
+	return TierCPU
+}
+
+// gpuFor says whether transcriptions run on a graphics device, and which.
+func (m *Manager) gpuFor(s Settings) (bool, int) {
+	switch m.tierFor(s) {
+	case TierCPU:
+		return false, 0
+	case TierGPU:
+		d, _ := m.readCalibration().GPU.best()
+		return true, d.Index
+	}
+	return true, 0
+}
+
+// GPUModel is the graphics tier's model for the person's language profile.
+func (m *Manager) GPUModel(s Settings) Asset {
+	return m.Catalogue.Models[m.Catalogue.Choices(m.Catalogue.Profile(s.Profile).ID, TierGPU)[0]]
+}
+
+// GPUOffered says whether the graphics tier's model is offered: a device
+// measured fast enough for it, and the person has not answered the offer,
+// either way.
+func (m *Manager) GPUOffered(s Settings) bool {
+	return m.MeasuresGPU && m.onCPUTier() && s.Hardware == "" && m.readCalibration().GPU.usable()
+}
+
+// ModelChoices are the models offered where transcriptions run now.
+func (m *Manager) ModelChoices(s Settings) []string {
+	return m.Catalogue.Choices(m.Catalogue.Profile(s.Profile).ID, m.tierFor(s))
+}
+
 // ChosenModel is the model a transcription uses: the person's choice when
 // the profile offers it; otherwise the tier's first model, or on the CPU
 // the first that calibration measured faster than real time (the last one
@@ -993,8 +1146,9 @@ func (m *Manager) ChosenModel(s Settings) string {
 	if s.Model != "" && m.Catalogue.Allowed(p.ID, s.Model) {
 		return s.Model
 	}
-	choices := m.Catalogue.Choices(p.ID, m.Tier)
-	if m.Tier != TierCPU && m.Tier != "" {
+	tier := m.tierFor(s)
+	choices := m.Catalogue.Choices(p.ID, tier)
+	if tier != TierCPU {
 		return choices[0]
 	}
 	cal := m.readCalibration()
@@ -1064,11 +1218,20 @@ func (m *Manager) prepare(ctx context.Context) error {
 	}
 	p := m.Catalogue.Profile(s.Profile)
 	auto := s.Model == "" || !m.Catalogue.Allowed(p.ID, s.Model)
-	if !auto || (m.Tier != TierCPU && m.Tier != "") {
+	if !auto || m.tierFor(s) != TierCPU {
 		model := m.ChosenModel(s)
-		_, err := m.fetch(ctx, m.Catalogue.Models[model], "Downloading "+m.Catalogue.Models[model].Name)
+		if _, err := m.fetch(ctx, m.Catalogue.Models[model], "Downloading "+m.Catalogue.Models[model].Name); err != nil {
+			return err
+		}
+	} else if err := m.calibrateCPU(ctx, p, vad); err != nil {
 		return err
 	}
+	return m.probeGPU(ctx, p, vad)
+}
+
+// calibrateCPU measures each CPU model in turn until one runs faster than
+// real time.
+func (m *Manager) calibrateCPU(ctx context.Context, p Profile, vad string) error {
 	cal := m.readCalibration()
 	choices := m.Catalogue.Choices(p.ID, TierCPU)
 	for i, id := range choices {
@@ -1081,11 +1244,7 @@ func (m *Manager) prepare(ctx context.Context) error {
 			if m.EngineReady != nil && m.EngineReady() != nil {
 				return nil // nothing to measure with; the first model stays the choice
 			}
-			clip, err := m.fetch(ctx, m.Catalogue.Calibration, "Downloading the calibration clip")
-			if err != nil {
-				return err
-			}
-			audio, seconds, err := calibrationAudio(clip, filepath.Join(m.Root, "calibration"))
+			_, audio, seconds, err := m.calibrationClip(ctx)
 			if err != nil {
 				return err
 			}
@@ -1105,6 +1264,100 @@ func (m *Manager) prepare(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// calibrationClip fetches the calibration clip and writes from it the
+// minute of speech a measurement transcribes; it returns both. The caller
+// removes the minute's folder.
+func (m *Manager) calibrationClip(ctx context.Context) (clip, audio string, seconds float64, err error) {
+	clip, err = m.fetch(ctx, m.Catalogue.Calibration, "Downloading the calibration clip")
+	if err != nil {
+		return "", "", 0, err
+	}
+	audio, seconds, err = calibrationAudio(clip, filepath.Join(m.Root, "calibration"))
+	return clip, audio, seconds, err
+}
+
+// probeGPU measures every graphics device the transcriber finds, once for
+// each transcriber installed, with the CPU tier's first model (the one
+// gpuTierCost is measured against), and only once it is downloaded. Each
+// device has a warm-up run first, since its first run compiles shaders and
+// can take half a minute, then a minute of speech timed. A device whose
+// run fails or falls back to the CPU is recorded as not running it, and is
+// not the preparation's failure: transcriptions stay on the CPU.
+func (m *Manager) probeGPU(ctx context.Context, p Profile, vad string) error {
+	if !m.MeasuresGPU || !m.onCPUTier() {
+		return nil
+	}
+	if m.EngineReady != nil && m.EngineReady() != nil {
+		return nil
+	}
+	engine := ""
+	if m.EngineID != nil {
+		engine = m.EngineID()
+	}
+	cal := m.readCalibration()
+	if cal.GPU != nil && cal.GPU.Engine == engine {
+		return nil
+	}
+	modelID := m.Catalogue.Choices(p.ID, TierCPU)[0]
+	asset := m.Catalogue.Models[modelID]
+	if !m.Models.Present(asset) {
+		return nil // measured once the model is downloaded
+	}
+	path, err := m.Models.Ensure(ctx, asset, nil)
+	if err != nil {
+		return err
+	}
+	clip, audio, seconds, err := m.calibrationClip(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(filepath.Dir(audio)) }()
+	probe := &GPUProbe{Engine: engine, Model: modelID, Devices: []GPUDevice{}}
+	req := TranscribeRequest{Model: path, VADModel: vad, Language: p.Language, GPU: true}
+	m.step("Checking your graphics card", 0, 0)
+	warm := req
+	warm.Audio = clip
+	first, err := m.Engine.Transcribe(ctx, warm)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	devices := first.Devices
+	if len(devices) == 0 && first.Backend != "" {
+		devices = []string{first.Backend}
+	}
+	if err == nil {
+		for i, name := range devices {
+			d := GPUDevice{Index: i, Name: name}
+			run := req
+			run.Device = i
+			if i > 0 {
+				warm.Device = i
+				_, _ = m.Engine.Transcribe(ctx, warm)
+			}
+			run.Audio = audio
+			res, err := m.Engine.Transcribe(ctx, run)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if err == nil && res.Backend != "" {
+				d.Backend, d.RTF = res.Backend, res.Took.Seconds()/seconds
+			}
+			probe.Devices = append(probe.Devices, d)
+		}
+	}
+	cal = m.readCalibration()
+	cal.GPU = probe
+	return m.writeCalibration(cal)
+}
+
+// ForgetGPU drops the graphics devices' measurement, so the next
+// preparation measures them again.
+func (m *Manager) ForgetGPU() error {
+	cal := m.readCalibration()
+	cal.GPU = nil
+	return m.writeCalibration(cal)
 }
 
 // calibrationSeconds is how much speech a calibration run transcribes.

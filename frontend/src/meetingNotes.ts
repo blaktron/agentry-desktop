@@ -145,3 +145,16 @@ export function windowStateWords(w: { state: string; recorded: number }): string
       return w.recorded > 0 ? "Recorded" : "Closed: no call was noticed";
   }
 }
+
+/** The offer of the graphics card, as its card's title says it. */
+export function gpuOfferTitle(sizeBytes: number): string {
+  return `Use your graphics card with the better model (${Math.round(sizeBytes / 1_000_000)} MB)`;
+}
+
+/** What the Settings choice of where to transcribe says about the card
+ *  measured here. */
+export function gpuHint(g: { name: string; fast: boolean; modelName: string }): string {
+  return g.fast
+    ? `The graphics card runs ${g.modelName}, the more accurate model. Agentry measured ${g.name} fast enough to keep up with a meeting.`
+    : `The graphics card runs ${g.modelName}, the more accurate model, but Agentry measured ${g.name} too slow to keep up with a meeting: transcripts may take longer than the meeting did.`;
+}

@@ -2469,6 +2469,28 @@ export namespace app {
 	        this.sizeBytes = source["sizeBytes"];
 	    }
 	}
+	export class MeetingGPUView {
+	    name: string;
+	    fast: boolean;
+	    on: boolean;
+	    offer: boolean;
+	    modelName: string;
+	    sizeBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MeetingGPUView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.fast = source["fast"];
+	        this.on = source["on"];
+	        this.offer = source["offer"];
+	        this.modelName = source["modelName"];
+	        this.sizeBytes = source["sizeBytes"];
+	    }
+	}
 	export class MeetingWindowView {
 	    id: string;
 	    title: string;
@@ -2603,6 +2625,9 @@ export namespace app {
 	    models: MeetingChoice[];
 	    profile: string;
 	    profiles: MeetingChoice[];
+	    checksGPU: boolean;
+	    gpuChecked: boolean;
+	    gpu?: MeetingGPUView;
 	    outputDir: string;
 	    outputDirChosen: boolean;
 	    keepAudio: boolean;
@@ -2639,6 +2664,9 @@ export namespace app {
 	        this.models = this.convertValues(source["models"], MeetingChoice);
 	        this.profile = source["profile"];
 	        this.profiles = this.convertValues(source["profiles"], MeetingChoice);
+	        this.checksGPU = source["checksGPU"];
+	        this.gpuChecked = source["gpuChecked"];
+	        this.gpu = this.convertValues(source["gpu"], MeetingGPUView);
 	        this.outputDir = source["outputDir"];
 	        this.outputDirChosen = source["outputDirChosen"];
 	        this.keepAudio = source["keepAudio"];
