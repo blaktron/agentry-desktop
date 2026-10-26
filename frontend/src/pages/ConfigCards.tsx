@@ -536,6 +536,19 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   const [signoff, setSignoff] = useState(m?.signoff ?? "");
   const [started, setStarted] = useState(false);
   const [code, setCode] = useState<{ url: string; code: string } | null>(null);
+  // Whether the registry offers Agentry's own Microsoft app, asked when the
+  // set-up opens and only while no Entra app is kept.
+  const [agentryApp, setAgentryApp] = useState(false);
+  useEffect(() => {
+    let live = true;
+    if (m?.clientID) {
+      setAgentryApp(false);
+    } else {
+      PersistentAPI.MicrosoftAgentryApp(agent.name).then((ok) => { if (live) setAgentryApp(ok); }, () => { if (live) setAgentryApp(false); });
+    }
+    return () => { live = false; };
+  }, [agent.name, m?.clientID]);
+  const canSignIn = microsoftCanSignIn(m, agentryApp);
   const waiting = started || !!m?.waiting;
   const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
   const clientOK = ENTRA_ID.test(clientID.trim());
@@ -562,9 +575,9 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   };
   return (
     <div className="config-google-form">
-      <p className="small">{microsoftWords(m)}</p>
+      <p className="small">{microsoftWords(m, agentryApp)}</p>
       {running && <Notice>Stop {agentCalled(agent)} first: its Microsoft 365 server holds what the set-up writes.</Notice>}
-      {m?.agentryAppOffered && !m.clientID ? (
+      {agentryApp && !m?.clientID ? (
         <p className="small muted">
           Microsoft 365 can sign in with Agentry&apos;s own Microsoft app, so you need no app of your own: enter your account
           below and sign in. To use an Entra app of your own instead, keep its id here; it then comes first.
@@ -600,11 +613,11 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         </Button>
       </div>
       <Field label="Your Microsoft account" hint="The address you sign in to Microsoft with.">
-        <Input value={email} autoComplete="off" spellCheck={false} disabled={!microsoftCanSignIn(m) || waiting} onChange={(e) => setEmail(e.target.value)} />
+        <Input value={email} autoComplete="off" spellCheck={false} disabled={!canSignIn || waiting} onChange={(e) => setEmail(e.target.value)} />
       </Field>
       <p className="small muted">{microsoftScopeWords(agent.roster)}</p>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || waiting || running || !microsoftCanSignIn(m) || !emailOK} onClick={() => void signIn()}>
+        <Button variant="primary" disabled={busy || waiting || running || !canSignIn || !emailOK} onClick={() => void signIn()}>
           {m?.account ? "Sign in again" : "Sign in with Microsoft"}
         </Button>
         {waiting && <Button onClick={() => void PersistentAPI.CancelMicrosoftSignIn(agent.name)}>Cancel</Button>}
