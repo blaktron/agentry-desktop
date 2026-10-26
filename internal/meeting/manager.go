@@ -152,6 +152,9 @@ type RecordingStatus struct {
 	How     How       `json:"how"`
 	// Title is the calendar's, for a recording made in an armed window.
 	Title string `json:"title,omitempty"`
+	// Warning is what the recorder found the person should put right, if
+	// anything.
+	Warning *Warning `json:"warning,omitempty"`
 }
 
 // Status is the feature's state as a page shows it.
@@ -185,6 +188,8 @@ type recording struct {
 	how      How
 	// window is the armed window it was started in, "" for none.
 	window string
+	// warning is the capture's warning, once it raised one.
+	warning *Warning
 }
 
 func (m *Manager) now() time.Time {
@@ -330,7 +335,7 @@ func (m *Manager) Status() Status {
 }
 
 func (r *recording) status() *RecordingStatus {
-	st := &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how}
+	st := &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how, Warning: r.warning}
 	if r.window != "" {
 		st.Title = r.m.Title
 	}
@@ -536,9 +541,10 @@ func (m *Manager) abandon(r *recording) {
 }
 
 // follow watches a recording until it ends: a capture whose far side
-// widens to the whole device is said in its meeting and a notification,
-// and a capture that ends by itself, or reaches the longest a recording
-// runs, is finished and transcribed.
+// widens to the whole device is said in its meeting and a notification, a
+// warning the capture raises is said once in a notification and shown with
+// the recording, and a capture that ends by itself, or reaches the longest
+// a recording runs, is finished and transcribed.
 func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
@@ -560,8 +566,26 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 				r.m.FarSide = FarSideWholeDevice
 				_ = m.store().Save(r.m)
 			}
+			// A new warning is said; one that cleared is taken off the page.
+			var warned *Warning
+			cleared := false
+			if w, ok := capture.(Warner); ok {
+				got := w.Warning()
+				switch {
+				case got != nil && (r.warning == nil || *r.warning != *got):
+					r.warning, warned = got, got
+				case got == nil && r.warning != nil:
+					r.warning, cleared = nil, true
+				}
+			}
 			ran := m.now().Sub(r.m.Started)
 			m.mu.Unlock()
+			if warned != nil {
+				_ = m.notify(Notice{Title: "Meeting notes may not be hearing the meeting", Body: warned.Text})
+			}
+			if warned != nil || cleared {
+				m.changed()
+			}
 			if limit := m.maxLength(); ran >= limit {
 				_ = m.finish(r, true)
 				_ = m.notify(Notice{Title: "Meeting recording stopped", Body: "Agentry stopped recording after " + lengthWords(limit) + ", the longest a recording runs. The transcript is on its way."})

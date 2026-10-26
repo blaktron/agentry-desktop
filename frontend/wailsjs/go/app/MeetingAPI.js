@@ -30,6 +30,10 @@ export function OpenOutputFolder() {
   return window['go']['app']['MeetingAPI']['OpenOutputFolder']();
 }
 
+export function OpenPrivacySettings(arg1) {
+  return window['go']['app']['MeetingAPI']['OpenPrivacySettings'](arg1);
+}
+
 export function OpenTranscript(arg1) {
   return window['go']['app']['MeetingAPI']['OpenTranscript'](arg1);
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -39,21 +40,29 @@ const MeetingOutputFolder = "Meeting notes"
 
 // meetingWarnings are what turning Meeting notes on means, listed on the
 // page and said again in the native dialog that turns it on.
-var meetingWarnings = meetingWarningsFor(runtime.GOOS)
+var meetingWarnings = meetingWarningsFor(runtime.GOOS, meeting.HardwareTier())
 
 // meetingWarningsFor says what the far side holds as the platform records
-// it: Windows records a whole output device, never one app's sound alone.
-func meetingWarningsFor(goos string) []string {
+// it (Windows records a whole output device, never one app's sound alone),
+// what macOS asks, and the size of the model the tier downloads.
+func meetingWarningsFor(goos, tier string) []string {
 	far := "When no meeting app can be recorded on its own, it records everything your computer plays, other sounds included, and the transcript says so."
 	if goos == "windows" {
 		far = "It records everything played on the speakers or headset the meeting app uses, other sounds there included, or everything your computer plays when no meeting app is found, and the transcript says which."
 	}
-	return []string{
+	model := "about 200 MB"
+	if tier != meeting.TierCPU {
+		model = "about 570 MB"
+	}
+	out := []string{
 		meeting.ConsentSentence,
 		"While it records a meeting, it captures your microphone even when you muted yourself in the meeting app. Use Pause for anything you do not want kept.",
 		far,
-		"It downloads a speech model of about 200 MB the first time. No audio leaves this computer, and no transcript does unless you give your transcripts to your Assistant.",
 	}
+	if goos == "darwin" {
+		out = append(out, "The first time it records, macOS asks whether Agentry Desktop may use the microphone and record system audio. Without both, the transcript misses that side.")
+	}
+	return append(out, "It downloads a speech model of "+model+" the first time. No audio leaves this computer, and no transcript does unless you give your transcripts to your Assistant.")
 }
 
 // MeetingAPI is Meeting notes: record a meeting by hand, or offer one the
@@ -129,8 +138,8 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 		if m.notifyWithdraw != nil {
 			withdraw = m.notifyWithdraw
 		}
-		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
-			m.unavailable = "Meeting notes records on Linux and Windows only."
+		if s := meeting.PlatformSupport(); s != "" {
+			m.unavailable = s
 		} else if err := meeting.CheckSidecar(sidecar); err != nil {
 			m.unavailable = err.Error() + "."
 		}
@@ -139,7 +148,7 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			Engine:      meeting.Sidecar{Path: sidecar},
 			Models:      &meeting.Models{Dir: filepath.Join(root, "models"), Client: m.client},
 			Settings:    meetingSettings,
-			Tier:        meeting.TierCPU,
+			Tier:        meeting.HardwareTier(),
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
 			Notify: func(n meeting.Notice) error {
 				out := notify.Notice{Title: n.Title, Body: n.Body, Key: meetingNoticeKey, Tag: n.Tag, Resident: n.Resident}
@@ -352,6 +361,12 @@ type MeetingRecordingView struct {
 	// Title is that meeting's, from the calendar.
 	Armed bool   `json:"armed"`
 	Title string `json:"title,omitempty"`
+	// Warning is what the person should put right for the recording to
+	// hear both sides, and WarningSettings the privacy settings that do it
+	// (meeting.SettingsMicrophone, meeting.SettingsAudio,
+	// meeting.SettingsPrivacy), "" for none.
+	Warning         string `json:"warning,omitempty"`
+	WarningSettings string `json:"warningSettings,omitempty"`
 }
 
 // MeetingOfferView is a detected call offered for recording.
@@ -517,6 +532,9 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		v.Recording = &MeetingRecordingView{
 			ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice,
 			Paused: r.Paused, Automatic: r.How == meeting.Automatically, Armed: r.How == meeting.InWindow, Title: r.Title,
+		}
+		if w := r.Warning; w != nil {
+			v.Recording.Warning, v.Recording.WarningSettings = w.Text, w.Settings
 		}
 	}
 	v.Detects = v.Available && mgr.Detector != nil
@@ -864,6 +882,31 @@ func (m *MeetingAPI) OpenOutputFolder() error {
 		return err
 	}
 	return openFolderInFileManager(dir)
+}
+
+// meetingPrivacyPanes are the System Settings panes a recording's warning
+// links to, by the warning's Settings: the only addresses
+// OpenPrivacySettings opens.
+var meetingPrivacyPanes = map[string]string{
+	meeting.SettingsMicrophone: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+	meeting.SettingsAudio:      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+	meeting.SettingsPrivacy:    "x-apple.systempreferences:com.apple.preference.security?Privacy",
+}
+
+// OpenPrivacySettings opens the macOS privacy settings a recording's
+// warning names: Microphone, Screen & System Audio Recording, or Privacy &
+// Security itself for both.
+func (m *MeetingAPI) OpenPrivacySettings(which string) error {
+	pane, ok := meetingPrivacyPanes[which]
+	if !ok || runtime.GOOS != "darwin" {
+		return fmt.Errorf("no privacy settings named %q to open here", which)
+	}
+	cmd := exec.Command("/usr/bin/open", pane)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // saveMeetingNotes changes Meeting notes' settings, never its switch.

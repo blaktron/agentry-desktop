@@ -2564,6 +2564,8 @@ export namespace app {
 	    automatic: boolean;
 	    armed: boolean;
 	    title?: string;
+	    warning?: string;
+	    warningSettings?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingRecordingView(source);
@@ -2579,6 +2581,8 @@ export namespace app {
 	        this.automatic = source["automatic"];
 	        this.armed = source["armed"];
 	        this.title = source["title"];
+	        this.warning = source["warning"];
+	        this.warningSettings = source["warningSettings"];
 	    }
 	}
 	export class MeetingNotesView {
