@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
@@ -564,11 +564,18 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
     <div className="config-google-form">
       <p className="small">{microsoftWords(m)}</p>
       {running && <Notice>Stop {agentCalled(agent)} first: its Microsoft 365 server holds what the set-up writes.</Notice>}
-      <p className="small muted">
-        Microsoft 365 signs in with an Entra app of your own, registered as a public client with Allow public client flows on. The
-        microsoft-365-setup skill walks you through it: ask {agentCalled(agent)} to help you set up Microsoft 365. Only the
-        app&apos;s id is kept; there is no secret.
-      </p>
+      {m?.agentryAppOffered && !m.clientID ? (
+        <p className="small muted">
+          Microsoft 365 can sign in with Agentry&apos;s own Microsoft app, so you need no app of your own: enter your account
+          below and sign in. To use an Entra app of your own instead, keep its id here; it then comes first.
+        </p>
+      ) : (
+        <p className="small muted">
+          Microsoft 365 signs in with an Entra app of your own, registered as a public client with Allow public client flows on. The
+          microsoft-365-setup skill walks you through it: ask {agentCalled(agent)} to help you set up Microsoft 365. Only the
+          app&apos;s id is kept; there is no secret.
+        </p>
+      )}
       <Field label="Application (client) ID" hint="From your app's Overview in Microsoft Entra.">
         <Input value={clientID} autoComplete="off" spellCheck={false} disabled={waiting} onChange={(e) => setClientID(e.target.value)} />
       </Field>
@@ -593,11 +600,11 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         </Button>
       </div>
       <Field label="Your Microsoft account" hint="The address you sign in to Microsoft with.">
-        <Input value={email} autoComplete="off" spellCheck={false} disabled={!m?.clientID || waiting} onChange={(e) => setEmail(e.target.value)} />
+        <Input value={email} autoComplete="off" spellCheck={false} disabled={!microsoftCanSignIn(m) || waiting} onChange={(e) => setEmail(e.target.value)} />
       </Field>
       <p className="small muted">{microsoftScopeWords(agent.roster)}</p>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || waiting || running || !m?.clientID || !emailOK} onClick={() => void signIn()}>
+        <Button variant="primary" disabled={busy || waiting || running || !microsoftCanSignIn(m) || !emailOK} onClick={() => void signIn()}>
           {m?.account ? "Sign in again" : "Sign in with Microsoft"}
         </Button>
         {waiting && <Button onClick={() => void PersistentAPI.CancelMicrosoftSignIn(agent.name)}>Cancel</Button>}
