@@ -149,6 +149,8 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			Models:      &meeting.Models{Dir: filepath.Join(root, "models"), Client: m.client},
 			Settings:    meetingSettings,
 			Tier:        meeting.HardwareTier(),
+			ProbeGPU:    meeting.OffersGPU(),
+			EngineID:    func() string { return sidecarID(sidecar) },
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
 			Notify: func(n meeting.Notice) error {
 				out := notify.Notice{Title: n.Title, Body: n.Body, Key: meetingNoticeKey, Tag: n.Tag, Resident: n.Resident}
@@ -185,6 +187,16 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 	return m.mgr
 }
 
+// sidecarID names the transcriber as installed, by its size and time: an
+// update that brings another one has its graphics devices measured again.
+func sidecarID(path string) string {
+	st, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d-%d", st.Size(), st.ModTime().Unix())
+}
+
 // meetingSettings reads Meeting notes' settings, the output folder
 // defaulted.
 func meetingSettings() meeting.Settings {
@@ -198,7 +210,7 @@ func meetingSettings() meeting.Settings {
 		out, _ = defaultMeetingFolder()
 	}
 	return meeting.Settings{
-		On: mn.On, Profile: mn.Profile, Model: mn.Model, OutputDir: out, KeepAudio: mn.KeepAudio,
+		On: mn.On, Profile: mn.Profile, Model: mn.Model, Backend: mn.Backend, OutputDir: out, KeepAudio: mn.KeepAudio,
 		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour,
 	}
 }
@@ -426,6 +438,21 @@ type MeetingWindowView struct {
 	Recorded int    `json:"recorded"`
 }
 
+// MeetingGPUView is the graphics card transcriptions may use here.
+type MeetingGPUView struct {
+	// Name is the device's, as its driver names it.
+	Name string `json:"name"`
+	// Fast: it was measured fast enough for the better model.
+	Fast bool `json:"fast"`
+	// On: transcriptions use it now.
+	On bool `json:"on"`
+	// Offer: the better model on it is offered, and the offer not yet
+	// answered; ModelName and SizeBytes are that model's.
+	Offer     bool   `json:"offer"`
+	ModelName string `json:"modelName"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
 // MeetingAssistantView is the Assistant as Meeting notes hands it
 // transcripts.
 type MeetingAssistantView struct {
@@ -465,7 +492,13 @@ type MeetingNotesView struct {
 	Models      []MeetingChoice `json:"models"`
 	Profile     string          `json:"profile"`
 	Profiles    []MeetingChoice `json:"profiles"`
-	OutputDir   string          `json:"outputDir"`
+	// ChecksGPU: graphics cards are measured here, for the better model;
+	// GPUChecked: they were. GPU is the card measured fastest, nil where
+	// none ran a transcription.
+	ChecksGPU  bool            `json:"checksGPU"`
+	GPUChecked bool            `json:"gpuChecked"`
+	GPU        *MeetingGPUView `json:"gpu,omitempty"`
+	OutputDir  string          `json:"outputDir"`
 	// OutputDirChosen: the person chose the folder.
 	OutputDirChosen bool          `json:"outputDirChosen"`
 	KeepAudio       bool          `json:"keepAudio"`
@@ -521,12 +554,20 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	for _, p := range cat.Profiles {
 		v.Profiles = append(v.Profiles, MeetingChoice{ID: p.ID, Name: p.Name})
 	}
-	for _, id := range cat.Choices(profile.ID, mgr.Tier) {
+	for _, id := range mgr.ModelChoices(s) {
 		a := cat.Models[id]
 		v.Models = append(v.Models, MeetingChoice{ID: id, Name: a.Name, SizeBytes: a.Size})
 	}
 	status := mgr.Status()
 	v.Model, v.ModelName, v.ModelReady = status.Model, status.ModelName, status.ModelReady
+	v.ChecksGPU, v.GPUChecked = v.Available && mgr.ProbeGPU, status.GPUChecked
+	if g := status.GPU; g != nil && v.ChecksGPU {
+		better := cat.Models[cat.Choices(profile.ID, meeting.TierGPU)[0]]
+		v.GPU = &MeetingGPUView{
+			Name: g.Name, Fast: g.Fast(), On: status.OnGPU, Offer: status.GPUOffer,
+			ModelName: better.Name, SizeBytes: better.Size,
+		}
+	}
 	v.Preparing, v.PrepareStep, v.PrepareDone, v.PrepareTotal, v.PrepareError = status.Prepare.Busy, status.Prepare.Step, status.Prepare.Done, status.Prepare.Total, status.Prepare.Error
 	if r := status.Recording; r != nil {
 		v.Recording = &MeetingRecordingView{
@@ -970,6 +1011,43 @@ func (m *MeetingAPI) prepareIfOn(mgr *meeting.Manager) {
 	if m.unavailable == "" && meetingSettings().On {
 		mgr.Prepare(m.app.ctxOrBackground())
 	}
+}
+
+// UseGPU answers the offer of the graphics card, or changes the answer in
+// Settings: on, transcriptions run on the graphics card measured fastest,
+// with the better model; off, on the processor, and the offer is not made
+// again. Either way the model goes back to automatic, so it is one the
+// chosen side runs.
+func (m *MeetingAPI) UseGPU(on bool) (*MeetingNotesView, error) {
+	mgr, err := m.built()
+	if err != nil {
+		return nil, err
+	}
+	backend := meeting.BackendCPU
+	if on {
+		if mgr.Status().GPU == nil {
+			return nil, errors.New("no graphics card here ran a transcription when Agentry measured it")
+		}
+		backend = meeting.BackendGPU
+	}
+	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.Backend, mn.Model = backend, ""; return nil }); err != nil {
+		return nil, err
+	}
+	m.prepareIfOn(mgr)
+	return m.Status()
+}
+
+// CheckGPU measures the graphics cards again, after a new driver or card.
+func (m *MeetingAPI) CheckGPU() (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	if err := mgr.ForgetGPU(); err != nil {
+		return nil, err
+	}
+	m.prepareIfOn(mgr)
+	return m.Status()
 }
 
 // SetKeepAudio keeps recordings for seven days, or deletes kept audio at

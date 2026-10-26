@@ -14,8 +14,8 @@ import type { app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
 import {
-  AUTO_CHOICES, CHAT_LINE, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, hoursLabel, isNo,
-  meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
+  AUTO_CHOICES, CHAT_LINE, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint, gpuOfferTitle,
+  hoursLabel, isNo, meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
 } from "../meetingNotes";
 
 type View = app.MeetingNotesView;
@@ -278,9 +278,24 @@ export default function MeetingNotes() {
             </div>
           </Notice>
         ) : view.modelReady ? (
-          <p className="small muted" data-meeting-model>Transcribing on this computer with {view.modelName}.</p>
+          <p className="small muted" data-meeting-model>
+            Transcribing on this computer with {view.modelName}{view.gpu?.on ? ", on the graphics card" : ""}.
+          </p>
         ) : (
           <p className="small muted">The {view.modelName} model is downloaded when a meeting is first transcribed.</p>
+        )}
+        {view.gpu?.offer && !view.preparing && (
+          <div className="meeting-gpu-offer" data-meeting-gpu-offer>
+            <h3>{gpuOfferTitle(view.gpu.sizeBytes)}</h3>
+            <p>
+              Agentry measured your graphics card, {view.gpu.name}: it can transcribe with {view.gpu.modelName}, a more accurate model,
+              as fast as a meeting is spoken. The model is downloaded once. You can change this in Settings.
+            </p>
+            <div className="row">
+              <Button variant="primary" data-meeting-gpu-use disabled={busy} onClick={() => act(() => MeetingAPI.UseGPU(true))}>Use the graphics card</Button>
+              <Button variant="ghost" data-meeting-gpu-decline disabled={busy} onClick={() => act(() => MeetingAPI.UseGPU(false))}>Keep the processor</Button>
+            </div>
+          </div>
         )}
       </Card>
 
@@ -340,6 +355,30 @@ export default function MeetingNotes() {
             {view.models.map((m) => <option key={m.id} value={m.id}>{m.name} ({Math.round((m.sizeBytes ?? 0) / 1_000_000)} MB)</option>)}
           </Select>
         </Field>
+        {view.checksGPU && (
+          <Field label="Transcribe on" htmlFor="meeting-backend" hint={view.gpu ? gpuHint(view.gpu) : undefined}>
+            {view.gpu ? (
+              <Select id="meeting-backend" data-meeting-backend value={view.gpu.on ? "gpu" : "cpu"} disabled={busy}
+                onChange={(e) => act(() => MeetingAPI.UseGPU(e.target.value === "gpu"))}>
+                <option value="cpu">The processor</option>
+                <option value="gpu">The graphics card ({view.gpu.name})</option>
+              </Select>
+            ) : (
+              <p className="small muted" data-meeting-backend-none>
+                {view.gpuChecked
+                  ? "The processor: no graphics card here ran a transcription when Agentry measured it."
+                  : "The processor. Agentry measures your graphics card once the speech model is ready."}
+              </p>
+            )}
+            {view.gpuChecked && (
+              <div className="row">
+                <Button variant="ghost" data-meeting-gpu-check disabled={busy || view.preparing} onClick={() => act(MeetingAPI.CheckGPU)}>
+                  Measure the graphics card again
+                </Button>
+              </div>
+            )}
+          </Field>
+        )}
         <Field label="Transcripts folder">
           <div className="row">
             <code className="nowrap" title={view.outputDir}>{view.outputDir}</code>

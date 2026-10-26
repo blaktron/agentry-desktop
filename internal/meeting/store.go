@@ -38,19 +38,22 @@ type TrackRecord struct {
 // Meeting is one recording, kept as meeting.json in its own folder beside
 // its tracks.
 type Meeting struct {
-	ID         string        `json:"id"`
-	Title      string        `json:"title"`
-	App        string        `json:"app,omitempty"`
-	FarSide    FarSide       `json:"farSide"`
-	Started    time.Time     `json:"started"`
-	Ended      time.Time     `json:"ended,omitempty"`
-	State      string        `json:"state"`
-	Error      string        `json:"error,omitempty"`
-	Transcript string        `json:"transcript,omitempty"`
-	Profile    string        `json:"profile,omitempty"`
-	Model      string        `json:"model,omitempty"`
-	Tracks     []TrackRecord `json:"tracks,omitempty"`
-	Gaps       []Gap         `json:"gaps,omitempty"`
+	ID         string    `json:"id"`
+	Title      string    `json:"title"`
+	App        string    `json:"app,omitempty"`
+	FarSide    FarSide   `json:"farSide"`
+	Started    time.Time `json:"started"`
+	Ended      time.Time `json:"ended,omitempty"`
+	State      string    `json:"state"`
+	Error      string    `json:"error,omitempty"`
+	Transcript string    `json:"transcript,omitempty"`
+	Profile    string    `json:"profile,omitempty"`
+	Model      string    `json:"model,omitempty"`
+	// Backend is the graphics backend it was transcribed on, "" for the
+	// CPU.
+	Backend string        `json:"backend,omitempty"`
+	Tracks  []TrackRecord `json:"tracks,omitempty"`
+	Gaps    []Gap         `json:"gaps,omitempty"`
 	// AudioUntil is when the kept audio is deleted; zero once it is gone.
 	AudioUntil time.Time `json:"audioUntil,omitempty"`
 	// Window is the armed window it was recorded in, and Invitees that

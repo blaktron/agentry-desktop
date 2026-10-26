@@ -10,6 +10,10 @@ export function CancelWindow(arg1) {
   return window['go']['app']['MeetingAPI']['CancelWindow'](arg1);
 }
 
+export function CheckGPU() {
+  return window['go']['app']['MeetingAPI']['CheckGPU']();
+}
+
 export function ChooseOutputDir() {
   return window['go']['app']['MeetingAPI']['ChooseOutputDir']();
 }
@@ -116,4 +120,8 @@ export function TurnOff() {
 
 export function TurnOn() {
   return window['go']['app']['MeetingAPI']['TurnOn']();
+}
+
+export function UseGPU(arg1) {
+  return window['go']['app']['MeetingAPI']['UseGPU'](arg1);
 }

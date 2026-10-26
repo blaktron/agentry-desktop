@@ -82,3 +82,10 @@ test("an armed window says when it records and where it stands", async () => {
   assert.equal(windowStateWords({ state: "closed", recorded: 1 }), "Recorded");
   assert.equal(windowStateWords({ state: "recording", recorded: 1 }), "Recording");
 });
+
+test("the graphics card's offer names the download, and Settings says how it measured", async () => {
+  const { gpuOfferTitle, gpuHint } = await import("../src/meetingNotes.ts");
+  assert.equal(gpuOfferTitle(574_041_195), "Use your graphics card with the better model (574 MB)");
+  assert.match(gpuHint({ name: "Arc A770", fast: true, modelName: "Large v3 Turbo" }), /Arc A770 fast enough/);
+  assert.match(gpuHint({ name: "HD 630", fast: false, modelName: "Large v3 Turbo" }), /too slow to keep up/);
+});

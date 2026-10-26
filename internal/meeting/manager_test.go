@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,22 +108,39 @@ func (c *fakeCapture) Stop() error {
 }
 
 // fakeEngine answers each track with the segments set for its file name.
+// It lists devices as its graphics devices, and a run asked for one of
+// them takes gpuTook[device] on it, or falls back to the CPU when the
+// device has no time set.
 type fakeEngine struct {
-	mu     sync.Mutex
-	byFile map[string][]Segment
-	seen   []string
-	err    error
-	took   time.Duration
+	mu      sync.Mutex
+	byFile  map[string][]Segment
+	seen    []string
+	reqs    []TranscribeRequest
+	err     error
+	took    time.Duration
+	devices []string
+	gpuTook map[int]time.Duration
 }
 
 func (e *fakeEngine) Transcribe(_ context.Context, req TranscribeRequest) (Transcription, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen = append(e.seen, filepath.Base(req.Audio))
+	e.reqs = append(e.reqs, req)
 	if e.err != nil {
 		return Transcription{}, e.err
 	}
-	return Transcription{Segments: e.byFile[filepath.Base(req.Audio)], Language: "en", Took: e.took}, nil
+	res := Transcription{Segments: e.byFile[filepath.Base(req.Audio)], Language: "en", Took: e.took, Devices: e.devices}
+	if took, ok := e.gpuTook[req.Device]; req.GPU && ok {
+		res.Took, res.Backend = took, fmt.Sprintf("Vulkan%d", req.Device)
+	}
+	return res, nil
+}
+
+func (e *fakeEngine) requests() []TranscribeRequest {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]TranscribeRequest(nil), e.reqs...)
 }
 
 func (e *fakeEngine) files() []string {
@@ -148,8 +166,9 @@ func testCatalogue(t *testing.T, dir string) Catalogue {
 		Models: map[string]Asset{
 			"small": asset("small.bin", "small model"),
 			"base":  asset("base.bin", "base model"),
+			"large": asset("large.bin", "large model"),
 		},
-		Profiles: []Profile{{ID: "english", Name: "English", Language: "en", Tiers: map[string][]string{TierCPU: {"small", "base"}}}},
+		Profiles: []Profile{{ID: "english", Name: "English", Language: "en", Tiers: map[string][]string{TierCPU: {"small", "base"}, TierGPU: {"large"}}}},
 	}
 }
 
@@ -606,5 +625,165 @@ func TestAFarSideThatWidensIsSaidAndWritten(t *testing.T) {
 	raw, _ := os.ReadFile(h.meeting(t, mt.ID).Transcript)
 	if !strings.Contains(string(raw), "far_side: whole-device") {
 		t.Fatalf("the widening is not in the transcript:\n%s", raw)
+	}
+}
+
+// probed prepares h's manager and waits for its graphics devices'
+// measurement.
+func probed(t *testing.T, h *harness) {
+	t.Helper()
+	h.m.Prepare(context.Background())
+	waitFor(t, "the graphics measurement", func() bool { return !h.m.Status().Prepare.Busy && h.m.readCalibration().GPU != nil })
+	if st := h.m.Status(); st.Prepare.Error != "" {
+		t.Fatal(st.Prepare.Error)
+	}
+}
+
+func TestTheGraphicsCardIsOfferedOnceAndADeclineIsKept(t *testing.T) {
+	h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = true })
+	h.eng.took = 3 * time.Second // the CPU keeps up with small
+	h.eng.devices = []string{"Integrated", "Discrete"}
+	// About a minute of speech: the integrated card at half real time is
+	// too slow for the better model, the discrete one at a tenth is not.
+	h.eng.gpuTook = map[int]time.Duration{0: 30 * time.Second, 1: 6 * time.Second}
+	probed(t, h)
+
+	st := h.m.Status()
+	if !st.GPUOffer || st.GPU == nil || st.GPU.Name != "Discrete" || st.OnGPU {
+		t.Fatalf("after measuring: offer %v, gpu %+v, on %v; want the discrete card offered, not used", st.GPUOffer, st.GPU, st.OnGPU)
+	}
+	if got := h.m.ChosenModel(h.m.Settings()); got != "small" {
+		t.Fatalf("before the offer is answered: %s, want small on the CPU", got)
+	}
+	// Nothing ran on a graphics card unasked but the measurement, and the
+	// CPU's own measurement ran on the CPU.
+	var warmed1 int
+	for _, r := range h.eng.requests() {
+		if r.GPU && r.Model == "" {
+			t.Fatalf("a run on the graphics card without a model: %+v", r)
+		}
+		if r.GPU && r.Device == 1 {
+			warmed1++
+		}
+		if !r.GPU && filepath.Base(r.Audio) != "calibration.wav" {
+			t.Fatalf("a CPU run on %s", r.Audio)
+		}
+	}
+	if warmed1 != 2 {
+		t.Fatalf("the second card ran %d times, want a warm-up and a timed run", warmed1)
+	}
+
+	h.set(func(s *Settings) { s.Backend = BackendGPU })
+	st = h.m.Status()
+	if st.GPUOffer || !st.OnGPU {
+		t.Fatalf("taken: offer %v, on %v", st.GPUOffer, st.OnGPU)
+	}
+	if got := h.m.ChosenModel(h.m.Settings()); got != "large" {
+		t.Fatalf("taken: %s, want large", got)
+	}
+	if gpu, dev := h.m.gpuFor(h.m.Settings()); !gpu || dev != 1 {
+		t.Fatalf("taken: gpu %v device %d, want the discrete card", gpu, dev)
+	}
+
+	h.set(func(s *Settings) { s.Backend = BackendCPU })
+	h.m.Prepare(context.Background())
+	waitFor(t, "the preparation", func() bool { return !h.m.Status().Prepare.Busy })
+	if st := h.m.Status(); st.GPUOffer || st.OnGPU || st.GPU == nil {
+		t.Fatalf("declined: offer %v, on %v, gpu %+v; want no offer, the card still known for Settings", st.GPUOffer, st.OnGPU, st.GPU)
+	}
+	if got := h.m.ChosenModel(h.m.Settings()); got != "small" {
+		t.Fatalf("declined: %s, want small", got)
+	}
+}
+
+func TestNoGraphicsOfferWithoutACardThatKeepsUp(t *testing.T) {
+	for name, tc := range map[string]struct {
+		probe   bool
+		devices []string
+		gpuTook map[int]time.Duration
+		known   bool // a card is known to Settings
+	}{
+		"not offered on this platform":              {probe: false, devices: []string{"Card"}, gpuTook: map[int]time.Duration{0: time.Second}},
+		"no graphics device":                        {probe: true},
+		"every device fell back to the CPU":         {probe: true, devices: []string{"Card"}},
+		"a card slower than the better model needs": {probe: true, devices: []string{"Card"}, gpuTook: map[int]time.Duration{0: 20 * time.Second}, known: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = tc.probe })
+			h.eng.took = 3 * time.Second
+			h.eng.devices, h.eng.gpuTook = tc.devices, tc.gpuTook
+			if tc.probe {
+				probed(t, h)
+			} else {
+				h.m.Prepare(context.Background())
+				waitFor(t, "the preparation", func() bool { return !h.m.Status().Prepare.Busy && h.m.readCalibration().RTF["small"] > 0 })
+				for _, r := range h.eng.requests() {
+					if r.GPU {
+						t.Fatalf("a run on the graphics card where none is offered: %+v", r)
+					}
+				}
+				// A measurement left from elsewhere offers nothing here.
+				cal := h.m.readCalibration()
+				cal.GPU = &GPUProbe{Model: "small", Devices: []GPUDevice{{Name: "Card", Backend: "Vulkan0", RTF: 0.01}}}
+				if err := h.m.writeCalibration(cal); err != nil {
+					t.Fatal(err)
+				}
+			}
+			st := h.m.Status()
+			if st.GPUOffer || st.OnGPU || (st.GPU != nil) != tc.known {
+				t.Fatalf("offer %v, on %v, gpu %+v", st.GPUOffer, st.OnGPU, st.GPU)
+			}
+			// Choosing the card where none ran stays on the CPU.
+			h.set(func(s *Settings) { s.Backend = BackendGPU })
+			if gpu, _ := h.m.gpuFor(h.m.Settings()); gpu != tc.known {
+				t.Fatalf("the graphics card chosen: gpu %v, want %v", gpu, tc.known)
+			}
+		})
+	}
+}
+
+func TestAMeetingIsTranscribedOnTheCardTaken(t *testing.T) {
+	h := newHarnessWith(t, func(m *Manager) { m.ProbeGPU = true })
+	h.eng.took = 3 * time.Second
+	h.eng.devices = []string{"Integrated", "Discrete"}
+	h.eng.gpuTook = map[int]time.Duration{1: 6 * time.Second}
+	probed(t, h)
+	h.set(func(s *Settings) { s.Backend = BackendGPU })
+	h.rec.tracks = []fakeTrackSpec{{Them, "far-1", speech(SampleRate)}}
+	h.eng.byFile["far-1.wav"] = []Segment{{Start: 0, End: time.Second, Text: "Hello."}}
+	mt, err := h.m.Record(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = h.m.Stop()
+	waitFor(t, "the transcript", func() bool { return h.meeting(t, mt.ID).State == StateDone })
+	got := h.meeting(t, mt.ID)
+	if got.Model != "large" || got.Backend != "Vulkan1" {
+		t.Fatalf("transcribed with %s on %q, want large on Vulkan1", got.Model, got.Backend)
+	}
+	var track *TranscribeRequest
+	for _, r := range h.eng.requests() {
+		if filepath.Base(r.Audio) == "far-1.wav" {
+			track = &r
+		}
+	}
+	if track == nil || !track.GPU || track.Device != 1 || filepath.Base(track.Model) != "large.bin" {
+		t.Fatalf("the track's run = %+v", track)
+	}
+}
+
+func TestACalibrationFromBeforeTheCPUWasPinnedIsTakenAgain(t *testing.T) {
+	h := newHarness(t)
+	if err := os.WriteFile(h.m.calibrationPath(), []byte(`{"rtf":{"small":5}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.m.ChosenModel(h.m.Settings()); got != "small" {
+		t.Fatalf("an unversioned calibration was used: %s", got)
+	}
+	h.eng.took = 3 * time.Second
+	h.m.Prepare(context.Background())
+	waitFor(t, "the calibration", func() bool { return !h.m.Status().Prepare.Busy && h.m.readCalibration().RTF["small"] > 0 })
+	if c := h.m.readCalibration(); c.RTF["small"] >= 1 {
+		t.Fatalf("the old measurement stands: %+v", c)
 	}
 }

@@ -22,3 +22,7 @@ func HardwareTier() string {
 	}
 	return TierCPU
 }
+
+// OffersGPU is false: Apple silicon runs on Metal from the start, and an
+// Intel Mac stays on its CPU.
+func OffersGPU() bool { return false }
