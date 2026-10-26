@@ -5,8 +5,10 @@
 // The rest of the feature never imports a platform. Each platform is one
 // implementation of Recorder (and, where calls are detected, Detector):
 // recorder_linux.go over the PulseAudio protocol, which PipeWire also
-// serves. Engine is the transcriber behind its own boundary, so the sidecar
-// could be replaced by an engine in this process.
+// serves; audiochild_windows.go through WASAPI in a child process;
+// recorder_darwin.go through Core Audio's process taps. Engine is the
+// transcriber behind its own boundary, so the sidecar could be replaced by
+// an engine in this process.
 //
 // What a recording keeps, in order: two kinds of track (the microphone,
 // "Me", and the far side, "Them"), each a 16 kHz mono WAV whose sample
@@ -110,6 +112,21 @@ type Capture interface {
 	Ended() <-chan struct{}
 	// Stop ends every track and lets go of the audio stack.
 	Stop() error
+}
+
+// Warning is something the person should know while a recording runs and
+// can put right: macOS withholding a permission the recording needs.
+type Warning struct {
+	Text string `json:"text"`
+	// Settings names the privacy settings that put it right
+	// (SettingsMicrophone, SettingsAudio, SettingsPrivacy), "" for none.
+	Settings string `json:"settings,omitempty"`
+}
+
+// Warner is a Capture that can raise a Warning while it runs. Warning is
+// nil while there is none.
+type Warner interface {
+	Warning() *Warning
 }
 
 // ErrUnsupported is a platform this build cannot record on yet.

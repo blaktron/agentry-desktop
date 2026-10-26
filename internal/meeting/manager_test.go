@@ -68,6 +68,7 @@ type fakeCapture struct {
 	call    Call
 	far     FarSide
 	widened bool
+	warning *Warning
 	tracks  []Track
 	paused  []bool
 	stopped bool
@@ -84,6 +85,11 @@ func (c *fakeCapture) FarSide() FarSide {
 	return c.far
 }
 func (c *fakeCapture) Ended() <-chan struct{} { return c.ended }
+func (c *fakeCapture) Warning() *Warning {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.warning
+}
 func (c *fakeCapture) SetPaused(p bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -542,6 +548,35 @@ func TestAFastCalibrationKeepsTheDefault(t *testing.T) {
 	if _, measured := h.m.readCalibration().RTF["base"]; measured {
 		t.Fatal("the fallback was measured though the default was fast enough")
 	}
+}
+
+func TestACapturesWarningIsSaidOnceAndShownWithTheRecording(t *testing.T) {
+	h := newHarness(t)
+	h.rec.tracks = []fakeTrackSpec{{Them, "far-1", speech(SampleRate)}}
+	if _, err := h.m.Record(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	w := &Warning{Text: "macOS is giving Agentry only silence from your microphone.", Settings: SettingsMicrophone}
+	h.rec.capture.mu.Lock()
+	h.rec.capture.warning = w
+	h.rec.capture.mu.Unlock()
+	waitFor(t, "the warning's notification", func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return len(h.notices) == 2 && strings.Contains(h.notices[1], "only silence from your microphone")
+	})
+	if got := h.m.Status().Recording; got == nil || got.Warning == nil || *got.Warning != *w {
+		t.Fatalf("the recording's status = %+v, want the warning", got)
+	}
+	// The same warning is not said again.
+	time.Sleep(2500 * time.Millisecond)
+	h.mu.Lock()
+	n := len(h.notices)
+	h.mu.Unlock()
+	if n != 2 {
+		t.Fatalf("%d notices after the warning stood for two more seconds, want 2", n)
+	}
+	_ = h.m.Stop()
 }
 
 func TestAFarSideThatWidensIsSaidAndWritten(t *testing.T) {

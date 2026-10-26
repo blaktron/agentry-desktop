@@ -219,6 +219,19 @@ export default function MeetingNotes() {
                 transcript says so.
               </p>
             )}
+            {recording.warning && (
+              <Notice tone="warn">
+                <span data-meeting-warning>{recording.warning}</span>
+                {recording.warningSettings && (
+                  <>
+                    {" "}
+                    <Button data-meeting-privacy onClick={() => act(() => MeetingAPI.OpenPrivacySettings(recording.warningSettings || ""))}>
+                      Open System Settings
+                    </Button>
+                  </>
+                )}
+              </Notice>
+            )}
             <div className="row">
               {recording.paused
                 ? <Button data-meeting-resume disabled={busy} onClick={() => act(MeetingAPI.Resume)}>Resume</Button>

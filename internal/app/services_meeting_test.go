@@ -466,3 +466,17 @@ func TestMeetingNotesRunsInTheBackgroundAndTheTrayShowsTheRecording(t *testing.T
 		t.Fatalf("the tray shows %+v after Stop", m)
 	}
 }
+
+func TestOpenPrivacySettingsOpensOnlyTheNamedPanes(t *testing.T) {
+	m := &MeetingAPI{}
+	for _, which := range []string{"", "x-apple.systempreferences:com.apple.preference.security", "file:///Applications", "camera"} {
+		if err := m.OpenPrivacySettings(which); err == nil {
+			t.Errorf("OpenPrivacySettings(%q) opened something", which)
+		}
+	}
+	for _, which := range []string{meeting.SettingsMicrophone, meeting.SettingsAudio, meeting.SettingsPrivacy} {
+		if !strings.HasPrefix(meetingPrivacyPanes[which], "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+			t.Errorf("the pane for %q is %q", which, meetingPrivacyPanes[which])
+		}
+	}
+}
