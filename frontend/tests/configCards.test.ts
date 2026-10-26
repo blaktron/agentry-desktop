@@ -23,6 +23,7 @@ import {
   providerOf,
   providerWords,
   ENTRA_ID,
+  microsoftCanSignIn,
   microsoftWords,
   microsoftAdminWords,
   microsoftScopeWords,
@@ -240,6 +241,15 @@ test("Microsoft 365's cards open its own set-up, which says what it holds and wh
   assert.equal(microsoftWords({ clientID: "11111111-2222-3333-4444-555555555555", account: "", stale: false }), "Your Entra app is kept. Sign in next.");
   assert.equal(microsoftWords({ clientID: "11111111-2222-3333-4444-555555555555", account: "ana@outlook.com", stale: false }), "Signed in as ana@outlook.com.");
   assert.match(microsoftWords({ clientID: "x", account: "ana@outlook.com", stale: true }), /earlier app/);
+  // Agentry's own Microsoft app, offered where no Entra app is kept.
+  assert.equal(microsoftWords({ clientID: "", account: "", stale: false }, true), "Agentry's Microsoft app is ready. Sign in next.");
+  assert.equal(microsoftWords({ clientID: "", account: "", stale: false }, false), "No Entra app yet.");
+  assert.equal(microsoftWords({ clientID: "", account: "ana@outlook.com", stale: false, signedInWithAgentryApp: true }), "Signed in as ana@outlook.com with Agentry's Microsoft app.");
+  assert.match(microsoftWords({ clientID: "x", account: "ana@outlook.com", stale: true, signedInWithAgentryApp: true }), /sign in again to use your own app/);
+  assert.equal(microsoftCanSignIn(undefined, false), false);
+  assert.equal(microsoftCanSignIn({ clientID: "" }, false), false);
+  assert.equal(microsoftCanSignIn({ clientID: "" }, true), true);
+  assert.equal(microsoftCanSignIn({ clientID: "x" }, false), true);
   assert.match(microsoftScopeWords([{ id: "server:ms365:writes", on: false }]), /reading alone/);
   assert.match(microsoftScopeWords([{ id: "server:ms365:writes", on: true }]), /change things as well/);
   for (const ok of ["11111111-2222-3333-4444-555555555555", "ABCDEF01-2222-3333-4444-555555555555"]) assert.ok(ENTRA_ID.test(ok), ok);

@@ -139,6 +139,9 @@ type PersistentAPI struct {
 	// CLI's in a test.
 	microsoftSignIns map[string]context.CancelFunc
 	microsoftSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Microsoft, error)
+	// agentryApp stands in for asking the registry for Agentry's own
+	// Microsoft app's id in a test.
+	agentryApp func(ctx context.Context) string
 	// fastmailCheck stands in for asking Fastmail about a token in a test.
 	fastmailCheck func(ctx context.Context, token string) error
 	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)

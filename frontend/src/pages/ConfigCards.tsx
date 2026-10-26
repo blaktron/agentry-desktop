@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
@@ -536,6 +536,19 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   const [signoff, setSignoff] = useState(m?.signoff ?? "");
   const [started, setStarted] = useState(false);
   const [code, setCode] = useState<{ url: string; code: string } | null>(null);
+  // Whether the registry offers Agentry's own Microsoft app, asked when the
+  // set-up opens and only while no Entra app is kept.
+  const [agentryApp, setAgentryApp] = useState(false);
+  useEffect(() => {
+    let live = true;
+    if (m?.clientID) {
+      setAgentryApp(false);
+    } else {
+      PersistentAPI.MicrosoftAgentryApp(agent.name).then((ok) => { if (live) setAgentryApp(ok); }, () => { if (live) setAgentryApp(false); });
+    }
+    return () => { live = false; };
+  }, [agent.name, m?.clientID]);
+  const canSignIn = microsoftCanSignIn(m, agentryApp);
   const waiting = started || !!m?.waiting;
   const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
   const clientOK = ENTRA_ID.test(clientID.trim());
@@ -562,13 +575,20 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   };
   return (
     <div className="config-google-form">
-      <p className="small">{microsoftWords(m)}</p>
+      <p className="small">{microsoftWords(m, agentryApp)}</p>
       {running && <Notice>Stop {agentCalled(agent)} first: its Microsoft 365 server holds what the set-up writes.</Notice>}
-      <p className="small muted">
-        Microsoft 365 signs in with an Entra app of your own, registered as a public client with Allow public client flows on. The
-        microsoft-365-setup skill walks you through it: ask {agentCalled(agent)} to help you set up Microsoft 365. Only the
-        app&apos;s id is kept; there is no secret.
-      </p>
+      {agentryApp && !m?.clientID ? (
+        <p className="small muted">
+          Microsoft 365 can sign in with Agentry&apos;s own Microsoft app, so you need no app of your own: enter your account
+          below and sign in. To use an Entra app of your own instead, keep its id here; it then comes first.
+        </p>
+      ) : (
+        <p className="small muted">
+          Microsoft 365 signs in with an Entra app of your own, registered as a public client with Allow public client flows on. The
+          microsoft-365-setup skill walks you through it: ask {agentCalled(agent)} to help you set up Microsoft 365. Only the
+          app&apos;s id is kept; there is no secret.
+        </p>
+      )}
       <Field label="Application (client) ID" hint="From your app's Overview in Microsoft Entra.">
         <Input value={clientID} autoComplete="off" spellCheck={false} disabled={waiting} onChange={(e) => setClientID(e.target.value)} />
       </Field>
@@ -593,11 +613,11 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         </Button>
       </div>
       <Field label="Your Microsoft account" hint="The address you sign in to Microsoft with.">
-        <Input value={email} autoComplete="off" spellCheck={false} disabled={!m?.clientID || waiting} onChange={(e) => setEmail(e.target.value)} />
+        <Input value={email} autoComplete="off" spellCheck={false} disabled={!canSignIn || waiting} onChange={(e) => setEmail(e.target.value)} />
       </Field>
       <p className="small muted">{microsoftScopeWords(agent.roster)}</p>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || waiting || running || !m?.clientID || !emailOK} onClick={() => void signIn()}>
+        <Button variant="primary" disabled={busy || waiting || running || !canSignIn || !emailOK} onClick={() => void signIn()}>
           {m?.account ? "Sign in again" : "Sign in with Microsoft"}
         </Button>
         {waiting && <Button onClick={() => void PersistentAPI.CancelMicrosoftSignIn(agent.name)}>Cancel</Button>}

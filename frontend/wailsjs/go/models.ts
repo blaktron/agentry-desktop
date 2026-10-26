@@ -2969,6 +2969,7 @@ export namespace app {
 	    signoff?: string;
 	    stale?: boolean;
 	    waiting?: boolean;
+	    signedInWithAgentryApp?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersistentMicrosoftView(source);
@@ -2984,6 +2985,7 @@ export namespace app {
 	        this.signoff = source["signoff"];
 	        this.stale = source["stale"];
 	        this.waiting = source["waiting"];
+	        this.signedInWithAgentryApp = source["signedInWithAgentryApp"];
 	    }
 	}
 	export class PersistentGoogleView {

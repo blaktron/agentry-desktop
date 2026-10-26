@@ -51,14 +51,16 @@ func (k *memKeys) Delete(a string) error {
 }
 
 // fakeVendorSeams points the vendor client at v and the keychain at keys,
-// with no CIMD, and gives the runner home a folder of its own.
+// with no CIMD and no Agentry public client, and gives the runner home a
+// folder of its own.
 func fakeVendorSeams(t *testing.T, v *mcpauthtest.Vendor, keys connection.Keychain) string {
 	t.Helper()
-	oldHTTP, oldKeys, oldCIMD := vendorHTTP, connectionKeys, nativeCIMD
+	oldHTTP, oldKeys, oldCIMD, oldAgentry := vendorHTTP, connectionKeys, nativeCIMD, agentryClients
 	vendorHTTP = func() *http.Client { return v.Guard().Client() }
 	connectionKeys = func() connection.Keychain { return keys }
 	nativeCIMD = ""
-	t.Cleanup(func() { vendorHTTP, connectionKeys, nativeCIMD = oldHTTP, oldKeys, oldCIMD })
+	agentryClients = func(string, string) agentryClientFor { return noAgentryClient }
+	t.Cleanup(func() { vendorHTTP, connectionKeys, nativeCIMD, agentryClients = oldHTTP, oldKeys, oldCIMD, oldAgentry })
 	home := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", home)
 	return home
@@ -90,7 +92,7 @@ func TestAConnectionIsMadeOnceAndEveryStartAfterReusesIt(t *testing.T) {
 	if err != nil || len(before.Servers) != 1 || before.Servers[0].State != ConnNone {
 		t.Fatalf("before any consent: %+v, %v", before, err)
 	}
-	sc, err := connect(context.Background(), home, refA, digestA, m, server, browserUI(v))
+	sc, err := connect(context.Background(), home, "", refA, digestA, m, server, browserUI(v))
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -157,7 +159,7 @@ func TestAConnectionOpensForItsReleaseAloneAndAMissingOneRefusesTheRunByName(t *
 	v.DCR = true
 	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
 	m := remoteOAuthManifest(v.ServerURL())
-	if _, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+	if _, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 		t.Fatal(err)
 	}
 	for _, other := range []struct{ ref, digest string }{
@@ -199,7 +201,7 @@ func TestTheRedirectCanBePastedBack(t *testing.T) {
 			pasted <- to
 		},
 	}
-	sc, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), ui)
+	sc, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), ui)
 	if err != nil || sc.State != ConnConnected {
 		t.Fatalf("pasted back: %+v, %v", sc, err)
 	}
@@ -214,7 +216,7 @@ func TestAVendorWithNoRegistrationAsksForTheirOwnClientThenUsesIt(t *testing.T) 
 	home := fakeVendorSeams(t, v, keys)
 	m := remoteOAuthManifest(v.ServerURL())
 
-	_, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+	_, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v))
 	var own *NeedsOwnClient
 	if !errors.As(err, &own) || own.Issuer != v.URL || len(own.Guide.Steps) == 0 || own.Guide.Known {
 		t.Fatalf("want the own-client ask with the general steps, got %v (%+v)", err, own)
@@ -225,7 +227,7 @@ func TestAVendorWithNoRegistrationAsksForTheirOwnClientThenUsesIt(t *testing.T) 
 	if err := SetOwnClient(v.URL, "my-client", secret); err != nil {
 		t.Fatal(err)
 	}
-	sc, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+	sc, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v))
 	if err != nil || sc.Client != mcpauth.ClientOwn {
 		t.Fatalf("with their own client: %+v, %v", sc, err)
 	}
@@ -256,7 +258,7 @@ func TestDisconnectRevokesAtTheVendorAndRemoves(t *testing.T) {
 	v.DCR = true
 	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
 	m := remoteOAuthManifest(v.ServerURL())
-	if _, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+	if _, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 		t.Fatal(err)
 	}
 	outcome, err := Disconnect(context.Background(), refA, digestA, v.ServerURL())
@@ -274,7 +276,7 @@ func TestARefusedRefreshShowsBrokenAndConnectReplacesIt(t *testing.T) {
 	v.DCR = true
 	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
 	m := remoteOAuthManifest(v.ServerURL())
-	if _, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+	if _, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 		t.Fatal(err)
 	}
 	v.Refused = true
@@ -286,7 +288,7 @@ func TestARefusedRefreshShowsBrokenAndConnectReplacesIt(t *testing.T) {
 		t.Fatalf("not shown broken: %+v", rc.Servers[0])
 	}
 	v.Refused = false
-	sc, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+	sc, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v))
 	if err != nil || sc.State != ConnConnected {
 		t.Fatalf("connect again: %+v %v", sc, err)
 	}
@@ -305,7 +307,7 @@ func TestAPackageOnTheUnsupportedListIsRefusedBeforeConsent(t *testing.T) {
 		t.Fatalf("the list's alternative is not shown: %+v %v", rc, err)
 	}
 	presented := false
-	_, err = connect(context.Background(), home, refA, digestA, m, "pypi:mcp-gsuite", ConsentUI{Present: func(string) { presented = true }})
+	_, err = connect(context.Background(), home, "", refA, digestA, m, "pypi:mcp-gsuite", ConsentUI{Present: func(string) { presented = true }})
 	if err == nil || presented || !strings.Contains(err.Error(), rc.Servers[0].Unsupported) {
 		t.Fatalf("want a refusal naming the alternative before any consent: %v (presented %v)", err, presented)
 	}
@@ -318,7 +320,7 @@ func TestAPackageServerSignsInAtItsIssuer(t *testing.T) {
 	m := &manifest.Manifest{}
 	m.Capabilities.MCPServers = []manifest.MCPServer{{PyPI: "workspace-mcp", Version: "2.0.1",
 		OAuth: &manifest.MCPOAuth{Issuer: v.URL, Scopes: []string{"read"}}}}
-	sc, err := connect(context.Background(), home, refA, digestA, m, "pypi:workspace-mcp", browserUI(v))
+	sc, err := connect(context.Background(), home, "", refA, digestA, m, "pypi:workspace-mcp", browserUI(v))
 	if err != nil || sc.Issuer != v.URL || sc.What != "pypi:workspace-mcp (signing in at "+v.URL+")" {
 		t.Fatalf("package server: %+v %v", sc, err)
 	}
@@ -334,7 +336,7 @@ func TestRemoveConnectionsOfTakesEveryVersionOfThatQuickAgentAlone(t *testing.T)
 	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
 	m := remoteOAuthManifest(v.ServerURL())
 	for _, ref := range []string{"acme/inbox@1.0.0", "acme/inbox@1.1.0", "acme/inbox-two@1.0.0"} {
-		if _, err := connect(context.Background(), home, ref, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+		if _, err := connect(context.Background(), home, "", ref, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -358,7 +360,7 @@ func TestTheOwnClientAskCarriesThePublishersHelpForThatServer(t *testing.T) {
 		"url:" + v.ServerURL(): "Make a **native** client under Developer apps.\nThen copy its id.\u202e\u0007\t",
 		"LINEAR_TOKEN":         "a secret's help is not this server's",
 	}}
-	_, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+	_, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v))
 	var own *NeedsOwnClient
 	if !errors.As(err, &own) {
 		t.Fatalf("want the own-client ask, got %v", err)
@@ -374,7 +376,7 @@ func TestTheOwnClientAskCarriesThePublishersHelpForThatServer(t *testing.T) {
 	// address rather than its source id, carries none.
 	for _, g := range []*manifest.Guide{nil, {Connect: map[string]string{v.ServerURL(): "bare address"}}} {
 		m.Guide = g
-		_, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), browserUI(v))
+		_, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), browserUI(v))
 		if !errors.As(err, &own) || own.Guide.Help != "" {
 			t.Fatalf("guide %+v: want the ask with no help, got %v (%+v)", g, err, own)
 		}
@@ -509,7 +511,7 @@ func TestAStartRefusesAnUnsupportedPackageAndConnectAnUndeclaredServer(t *testin
 		t.Fatalf("a start with an unsupported package: %v", err)
 	}
 	presented := false
-	_, err = connect(context.Background(), home, refA, digestA, remoteOAuthManifest(v.ServerURL()), "https://elsewhere.example/mcp",
+	_, err = connect(context.Background(), home, "", refA, digestA, remoteOAuthManifest(v.ServerURL()), "https://elsewhere.example/mcp",
 		ConsentUI{Present: func(string) { presented = true }})
 	if err == nil || presented || !strings.Contains(err.Error(), "declares no MCP server") {
 		t.Fatalf("a server the release does not declare must be refused before consent: %v (presented %v)", err, presented)
@@ -532,7 +534,7 @@ func TestConnectingAgainWithTheSameClientRevokesNothing(t *testing.T) {
 		var said []string
 		ui := browserUI(v)
 		ui.Say = func(s string) { said = append(said, s) }
-		if _, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), ui); err != nil {
+		if _, err := connect(context.Background(), home, "", refA, digestA, m, v.ServerURL(), ui); err != nil {
 			t.Fatal(err)
 		}
 		if i == 1 && !strings.Contains(strings.Join(said, "\n"), "not revoked") {
@@ -557,7 +559,7 @@ func TestConnectionsSayWhichOthersShareTheirGrant(t *testing.T) {
 	}
 	m := remoteOAuthManifest(v.ServerURL())
 	for _, ref := range []string{"acme/inbox@1.0.0", "acme/digest@2.0.0"} {
-		if _, err := connect(context.Background(), home, ref, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+		if _, err := connect(context.Background(), home, "", ref, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -578,7 +580,7 @@ func TestConnectionsSayWhichOthersShareTheirGrant(t *testing.T) {
 	if _, err := ForgetOwnClient(v.URL); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := connect(context.Background(), home, "acme/other@1.0.0", digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+	if _, err := connect(context.Background(), home, "", "acme/other@1.0.0", digestA, m, v.ServerURL(), browserUI(v)); err != nil {
 		t.Fatal(err)
 	}
 	rc, _ = connectionsOf(connection.Open(home, nil), "acme/other@1.0.0", digestA, m)

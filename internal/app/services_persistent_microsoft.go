@@ -10,14 +10,19 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/persistent/assistant"
+	"github.com/blaktron/agentry-cli/pkg/runner/connection"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // Microsoft 365's set-up in the app: the person's own Entra app, its id
 // typed in a field and handed to the CLI (persistent.Microsoft.SetClient),
-// and the sign-in by a device code, whose code and page the page shows while
+// or, where none is kept, Agentry's own Microsoft app when the registry
+// offers one, and the sign-in by a device code, whose code and page the page shows while
 // the CLI waits for Microsoft. Only Microsoft's own device-login page is
 // opened. The sign-in reads as done only once the server lists the account.
 // Neither runs while the agent does, since its server holds the volume they
@@ -38,15 +43,19 @@ type PersistentMicrosoftSignInView struct {
 // app shows it: the Entra app's id (an id, never a secret) and the tenant,
 // the account the server lists once signed in, the signoff, and whether a
 // sign-in is waiting. Stale says the app changed after the sign-in.
+// SignedInWithAgentryApp says the sign-in was made with Agentry's own
+// Microsoft app, which a sign-in uses where no Entra app of the person's is
+// kept (MicrosoftAgentryApp says whether the registry offers it).
 type PersistentMicrosoftView struct {
-	ClientID string `json:"clientID,omitempty"`
-	Tenant   string `json:"tenant,omitempty"`
-	ClientAt string `json:"clientAt,omitempty"`
-	Account  string `json:"account,omitempty"`
-	At       string `json:"at,omitempty"`
-	Signoff  string `json:"signoff,omitempty"`
-	Stale    bool   `json:"stale,omitempty"`
-	Waiting  bool   `json:"waiting,omitempty"`
+	ClientID               string `json:"clientID,omitempty"`
+	Tenant                 string `json:"tenant,omitempty"`
+	ClientAt               string `json:"clientAt,omitempty"`
+	Account                string `json:"account,omitempty"`
+	At                     string `json:"at,omitempty"`
+	Signoff                string `json:"signoff,omitempty"`
+	Stale                  bool   `json:"stale,omitempty"`
+	Waiting                bool   `json:"waiting,omitempty"`
+	SignedInWithAgentryApp bool   `json:"signedInWithAgentryApp,omitempty"`
 }
 
 // microsoftView is the agent's Microsoft 365 set-up, nil for an agent with
@@ -64,20 +73,87 @@ func microsoftView(a persistent.Agent, cfg persistent.Config) *PersistentMicroso
 		v.At = in.At.Format(time.RFC3339)
 	}
 	v.Stale = v.Account != "" && in.Client.After(in.At)
+	v.SignedInWithAgentryApp = v.Account != "" && in.SignedInWith != "" && in.SignedInWith != in.ClientID
 	return v
+}
+
+// agentryAppWait bounds asking the registry whether it offers Agentry's own
+// Microsoft app when the set-up opens.
+const agentryAppWait = 15 * time.Second
+
+// MicrosoftAgentryApp says whether the registry the app is on offers
+// Agentry's own Microsoft app for the agent's sign-in: asked only when the
+// Microsoft set-up opens, never to draw a view, so starting the app asks
+// the registry nothing and writes nothing, and never where the person keeps
+// an Entra app of their own, which comes first.
+func (p *PersistentAPI) MicrosoftAgentryApp(name string) (bool, error) {
+	a, err := p.agent(name)
+	if err != nil {
+		return false, err
+	}
+	if !hasImageServer(a, assistant.MS365Key) {
+		return false, nil
+	}
+	home, err := p.home()
+	if err != nil {
+		return false, err
+	}
+	cfg, err := persistent.LoadConfig(home, a.Name)
+	if err != nil {
+		return false, err
+	}
+	if cfg.SignIns[assistant.MS365Key].ClientID != "" {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), agentryAppWait)
+	defer cancel()
+	return p.agentryMicrosoftApp(home)(ctx) != "", nil
+}
+
+// agentryMicrosoftApp is the client id of Agentry's own Microsoft app as the
+// registry the app is on serves it, or "" for none: what a sign-in uses
+// where the person keeps no Entra app, with the build's own image of the
+// server alone (the CLI holds it to that).
+func (p *PersistentAPI) agentryMicrosoftApp(home string) func(ctx context.Context) string {
+	if p.agentryApp != nil {
+		return p.agentryApp
+	}
+	reg := ""
+	if s, err := settings.Load(); err == nil {
+		reg = settings.Normalize(s.DefaultRegistry)
+	}
+	return agentryMicrosoftAppAt(home, reg)
+}
+
+// agentryMicrosoftAppAt reads Agentry's Microsoft app's id from the registry
+// at reg (GET /api/v1/connectors, without a credential, through the
+// registry's own client), kept under the runner home as the CLI keeps it.
+func agentryMicrosoftAppAt(home, reg string) func(ctx context.Context) string {
+	if reg == "" {
+		return func(context.Context) string { return "" }
+	}
+	public := connection.OpenPublicClients(home, reg, registry.HTTPClient)
+	return func(ctx context.Context) string { return public.ForConnector(ctx, persistent.MicrosoftConnector) }
 }
 
 // microsoft is the CLI's sign-in for the agent, with the engine ready and
 // the runner image in place.
 func (p *PersistentAPI) microsoft(ctx context.Context, a persistent.Agent) (persistent.Microsoft, error) {
+	var m persistent.Microsoft
 	if p.microsoftSetUp != nil {
-		return p.microsoftSetUp(ctx, a)
+		var err error
+		if m, err = p.microsoftSetUp(ctx, a); err != nil {
+			return persistent.Microsoft{}, err
+		}
+	} else {
+		home, pol, d, tag, err := p.oneShotReady(ctx, true)
+		if err != nil {
+			return persistent.Microsoft{}, err
+		}
+		m = persistent.Microsoft{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore(), Client: persistent.ClientDesktop}
 	}
-	home, pol, d, tag, err := p.oneShotReady(ctx, true)
-	if err != nil {
-		return persistent.Microsoft{}, err
-	}
-	return persistent.Microsoft{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore(), Client: persistent.ClientDesktop}, nil
+	m.AgentryClient = p.agentryMicrosoftApp(m.Home)
+	return m, nil
 }
 
 // microsoftAgent is the agent named, if it has a Microsoft 365 server and
