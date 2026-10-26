@@ -16,6 +16,8 @@ export function NotNow(arg1:string):Promise<app.MeetingNotesView>;
 
 export function OpenOutputFolder():Promise<void>;
 
+export function OpenPrivacySettings(arg1:string):Promise<void>;
+
 export function OpenTranscript(arg1:string):Promise<void>;
 
 export function Pause():Promise<app.MeetingNotesView>;
