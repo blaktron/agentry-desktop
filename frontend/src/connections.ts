@@ -38,6 +38,8 @@ export function scopeWords(scopes: string[] | undefined): string {
 /** Who the vendor's consent screen named. */
 export function clientWords(kind: string | undefined): string {
   switch (kind) {
+    case "agentry":
+      return "Agentry's own app";
     case "own":
       return "your own OAuth client";
     case "cimd":

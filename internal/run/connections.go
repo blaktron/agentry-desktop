@@ -27,15 +27,34 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/connection"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+
+	"github.com/blaktron/agentry-desktop/internal/registry"
 )
 
 // Seams for tests: the vendor client (the egress guard in production), the
-// keychain (the OS's) and Agentry's Client ID Metadata Document.
+// keychain (the OS's), Agentry's Client ID Metadata Document, and Agentry's
+// own public clients, which the registry serves.
 var (
 	vendorHTTP     = func() *http.Client { return mcpauth.Guard{}.Client() }
 	connectionKeys = func() connection.Keychain { return connection.OSKeychain{} }
 	nativeCIMD     = mcpauth.NativeClientMetadataURL
+	agentryClients = openAgentryClients
 )
+
+// agentryClientFor is the client id of Agentry's own public client for a
+// sign-in to srv at issuer, or "" for none.
+type agentryClientFor func(ctx context.Context, srv manifest.MCPServer, issuer string) string
+
+// openAgentryClients is the public client ids the registry at regURL serves
+// for the connector catalogue's connectors (GET /api/v1/connectors), asked
+// without a credential through the registry's own client and kept under the
+// runner home, as the CLI keeps them. A sign-in uses one only for a server
+// the catalogue this build carries vets for that connector, at the
+// connector's issuer.
+func openAgentryClients(home, regURL string) agentryClientFor {
+	p := connection.OpenPublicClients(home, regURL, registry.HTTPClient)
+	return p.ForServer
+}
 
 // revokeTimeout bounds one removal's revocation at the vendor, as the
 // CLI's does: a vendor that does not answer in time is recorded as a
@@ -262,9 +281,10 @@ func (e *NeedsOwnClient) Error() string {
 }
 
 // Connect makes the connection of server (a ServerConnection.Server) for
-// ref's release: discovery, the client (the person's own where they keep
-// one for the issuer, Agentry's CIMD where the vendor takes it, else a
-// dynamic registration), the vendor's consent screen, and the code
+// ref's release: discovery, the client (Agentry's own app where the
+// connector catalogue vets the server and the registry serves its id, else
+// the person's own where they keep one for the issuer, else Agentry's CIMD
+// where the vendor takes it, else a dynamic registration), the vendor's consent screen, and the code
 // exchange. The grant is kept for that release alone, replacing a broken
 // or an earlier one (whose refresh token is revoked where the vendor
 // offers that). A vendor that needs the person's own client and none is
@@ -278,10 +298,10 @@ func Connect(ctx context.Context, regURL, ref, server string, ui ConsentUI) (*Se
 	if err != nil {
 		return nil, err
 	}
-	return connect(ctx, home, sig.Ref, sig.Digest, sig.Manifest, server, ui)
+	return connect(ctx, home, sig.Registry, sig.Ref, sig.Digest, sig.Manifest, server, ui)
 }
 
-func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest, server string, ui ConsentUI) (*ServerConnection, error) {
+func connect(ctx context.Context, home, regURL, ref, digest string, m *manifest.Manifest, server string, ui ConsentUI) (*ServerConnection, error) {
 	var srv *manifest.MCPServer
 	for _, s := range oauthServers(m) {
 		if connectionServer(s) == server {
@@ -298,9 +318,11 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 	}
 	st := openStores(home)
 	store, clients, httpc := st.conns, st.clients, st.httpc
+	agentry := agentryClients(home, regURL)
 	c := mcpauth.Consent{
 		HTTP: httpc, ServerURL: srv.URL, Scopes: connectionScopes(*srv),
-		OwnClient: clients.Get, CIMDURL: nativeCIMD,
+		AgentryClient: func(ctx context.Context, issuer string) string { return agentry(ctx, *srv, issuer) },
+		OwnClient:     clients.Get, CIMDURL: nativeCIMD,
 		Pasted: ui.Pasted, Say: ui.Say, Present: ui.Present,
 	}
 	if !srv.IsRemote() {
