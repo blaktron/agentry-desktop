@@ -150,6 +150,10 @@ type TranscribeRequest struct {
 	Model    string // the model file
 	VADModel string // the Silero voice-detection model file
 	Language string // "en", or "auto" to detect it
+	// GPU runs it on the graphics device numbered Device; without it the
+	// run stays on the CPU, even where a graphics backend would load.
+	GPU    bool
+	Device int
 	// Progress, when set, is told how far along the track is, 0 to 100.
 	Progress func(percent int)
 }
@@ -168,4 +172,9 @@ type Transcription struct {
 	// Took is how long the engine ran, model loading left out where the
 	// engine reports it.
 	Took time.Duration
+	// Backend is the graphics backend the run used ("Vulkan0"), "" when it
+	// ran on the CPU. Devices are the graphics devices the engine found,
+	// by number.
+	Backend string
+	Devices []string
 }

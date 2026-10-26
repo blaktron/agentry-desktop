@@ -480,3 +480,27 @@ func TestOpenPrivacySettingsOpensOnlyTheNamedPanes(t *testing.T) {
 		}
 	}
 }
+
+func TestTheGraphicsCardIsChosenOnlyWhereOneRanAndDecliningKeepsTheModel(t *testing.T) {
+	ma := newMeetingApp(t)
+	if _, err := ma.api.UseGPU(true); err == nil {
+		t.Fatal("the graphics card was chosen where none was measured")
+	}
+	if st, _ := settings.Load(); st.MeetingNotes.Hardware != "" {
+		t.Fatalf("a refused choice was saved: %q", st.MeetingNotes.Hardware)
+	}
+	if _, err := ma.api.SetModel("base.en-q5_1"); err != nil {
+		t.Fatal(err)
+	}
+	v, err := ma.api.UseGPU(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := settings.Load()
+	if st.MeetingNotes.Hardware != "cpu" || st.MeetingNotes.Model != "base.en-q5_1" || v.ModelChoice != "base.en-q5_1" {
+		t.Fatalf("declined: hardware %q, model %q", st.MeetingNotes.Hardware, st.MeetingNotes.Model)
+	}
+	if v.GPU != nil || !v.ChecksGPU {
+		t.Fatalf("no card measured: gpu %+v, checks %v", v.GPU, v.ChecksGPU)
+	}
+}

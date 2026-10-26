@@ -185,6 +185,10 @@ type MeetingNotes struct {
 	Profile string `yaml:"profile,omitempty"`
 	// Model is the model the person chose, "" for automatic.
 	Model string `yaml:"model,omitempty"`
+	// Hardware is "gpu" when the person took the offer of the graphics
+	// card, "cpu" when they declined it or chose the processor, and "" until
+	// they answer, which is the processor.
+	Hardware string `yaml:"hardware,omitempty"`
 	// OutputDir is the folder transcripts go to, chosen through the native
 	// picker and nowhere else, "" for Meeting notes inside the
 	// Deliverables folder's default place.

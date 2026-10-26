@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,8 +25,10 @@ import (
 // It reports each word as a segment of its own (-ml 1 -sow): with voice
 // detection on, only segments are timed on the recording's own timeline,
 // so a line's time is its first word's.
-// A run that fails is tried once more on the CPU: a graphics backend that
-// loads and then fails takes the run down with it.
+// A run asked for the CPU passes -ng, so a graphics backend that would load
+// is not used unasked. A run on a graphics device that fails is tried once
+// more on the CPU: a backend that loads and then fails takes the run down
+// with it.
 type Sidecar struct {
 	// Path is the whisper-cli executable.
 	Path string
@@ -69,9 +72,19 @@ func (s Sidecar) Transcribe(ctx context.Context, req TranscribeRequest) (Transcr
 		"-oj", "-of", filepath.Join(out, "out"),
 		"-pp", "-t", strconv.Itoa(threads),
 	}
-	took, err := s.run(ctx, args, req.Progress)
-	if err != nil && ctx.Err() == nil {
-		took, err = s.run(ctx, append(args, "-ng"), req.Progress)
+	onCPU := slices.Concat(args, []string{"-ng"})
+	var r runResult
+	if req.GPU {
+		gpu := args
+		if req.Device != 0 {
+			gpu = slices.Concat(args, []string{"-dev", strconv.Itoa(req.Device)})
+		}
+		r, err = s.run(ctx, gpu, req.Progress)
+		if err != nil && ctx.Err() == nil {
+			r, err = s.run(ctx, onCPU, req.Progress)
+		}
+	} else {
+		r, err = s.run(ctx, onCPU, req.Progress)
 	}
 	if err != nil {
 		return Transcription{}, err
@@ -84,21 +97,40 @@ func (s Sidecar) Transcribe(ctx context.Context, req TranscribeRequest) (Transcr
 	if err != nil {
 		return Transcription{}, err
 	}
-	t.Took = took
+	t.Took, t.Backend, t.Devices = r.took, r.backend, r.devices
 	return t, nil
 }
 
 var (
 	progressLine = regexp.MustCompile(`progress =\s*(\d+)%`)
 	timingLine   = regexp.MustCompile(`whisper_print_timings:\s+(load|total) time =\s*([0-9.]+) ms`)
+	// backendLine is the graphics backend whisper.cpp took ("using Vulkan0
+	// backend"); a run on the CPU says "no GPU found" instead.
+	backendLine = regexp.MustCompile(`whisper_backend_init_gpu: using (\S+) backend`)
+	// The graphics devices a backend lists as it loads: Vulkan's
+	// "ggml_vulkan: 0 = <name> | uma: …", CUDA's "Device 0: <name>, compute
+	// capability …".
+	vulkanDevice = regexp.MustCompile(`^ggml_vulkan: (\d+) = ([^|]*[^|\s])`)
+	cudaDevice   = regexp.MustCompile(`^\s*Device (\d+): ([^,]+), compute capability`)
 )
 
-// run starts the sidecar once and reads its progress and timings from its
-// standard error. It returns the time the run took, its model load left
-// out, by the sidecar's own timings when it printed them.
-func (s Sidecar) run(ctx context.Context, args []string, progress func(int)) (time.Duration, error) {
+// maxDevices is the most graphics devices a run's listing is read for.
+const maxDevices = 8
+
+// runResult is what one run of the sidecar said about itself.
+type runResult struct {
+	took    time.Duration
+	backend string
+	devices []string
+}
+
+// run starts the sidecar once and reads its progress, timings, graphics
+// backend and devices from its standard error. The time is the run's, its
+// model load left out, by the sidecar's own timings when it printed them.
+func (s Sidecar) run(ctx context.Context, args []string, progress func(int)) (runResult, error) {
 	pr, pw := io.Pipe()
 	var load, total float64
+	var r runResult
 	var tail []string
 	done := make(chan struct{})
 	go func() {
@@ -111,6 +143,14 @@ func (s Sidecar) run(ctx context.Context, args []string, progress func(int)) (ti
 				if p, err := strconv.Atoi(m[1]); err == nil {
 					progress(p)
 				}
+			}
+			if m := backendLine.FindStringSubmatch(line); m != nil && m[1] != "CPU" {
+				r.backend = m[1]
+			}
+			if m := vulkanDevice.FindStringSubmatch(line); m != nil {
+				r.devices = listDevice(r.devices, m[1], m[2])
+			} else if m := cudaDevice.FindStringSubmatch(line); m != nil {
+				r.devices = listDevice(r.devices, m[1], m[2])
 			}
 			if m := timingLine.FindStringSubmatch(line); m != nil {
 				v, _ := strconv.ParseFloat(m[2], 64)
@@ -136,12 +176,27 @@ func (s Sidecar) run(ctx context.Context, args []string, progress func(int)) (ti
 	_ = pw.Close()
 	<-done
 	if err != nil {
-		return 0, fmt.Errorf("the transcriber failed: %w (%s)", err, strings.Join(tail, " | "))
+		return runResult{}, fmt.Errorf("the transcriber failed: %w (%s)", err, strings.Join(tail, " | "))
 	}
+	r.took = time.Since(began)
 	if total > 0 {
-		return time.Duration((total - load) * float64(time.Millisecond)), nil
+		r.took = time.Duration((total - load) * float64(time.Millisecond))
 	}
-	return time.Since(began), nil
+	return r, nil
+}
+
+// listDevice puts a listed device's name at its number, for the devices a
+// run is given with -dev.
+func listDevice(devices []string, num, name string) []string {
+	i, err := strconv.Atoi(num)
+	if err != nil || i < 0 || i >= maxDevices {
+		return devices
+	}
+	for len(devices) <= i {
+		devices = append(devices, "")
+	}
+	devices[i] = strings.TrimSpace(name)
+	return devices
 }
 
 func startSidecar(ctx context.Context, path string, args []string, stderr io.Writer) error {
