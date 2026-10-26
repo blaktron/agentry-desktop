@@ -2969,7 +2969,6 @@ export namespace app {
 	    signoff?: string;
 	    stale?: boolean;
 	    waiting?: boolean;
-	    agentryAppOffered?: boolean;
 	    signedInWithAgentryApp?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -2986,7 +2985,6 @@ export namespace app {
 	        this.signoff = source["signoff"];
 	        this.stale = source["stale"];
 	        this.waiting = source["waiting"];
-	        this.agentryAppOffered = source["agentryAppOffered"];
 	        this.signedInWithAgentryApp = source["signedInWithAgentryApp"];
 	    }
 	}

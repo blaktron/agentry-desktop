@@ -579,9 +579,6 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		p.mu.Lock()
 		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
 		p.mu.Unlock()
-		if v.Microsoft.ClientID == "" {
-			v.Microsoft.AgentryAppOffered = p.agentryMicrosoftApp(home)(context.Background()) != ""
-		}
 	}
 	v.Google = googleView(a, cfg)
 	if v.Google != nil {

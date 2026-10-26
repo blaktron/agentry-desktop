@@ -334,15 +334,15 @@ export function microsoftAdminWords(kind: string, who: string): string {
 
 /** microsoftWords is what the Microsoft 365 set-up says it holds: the app,
  *  the person's own Entra app or Agentry's own Microsoft app where the
- *  registry offers one and no Entra app is kept, then the account the
- *  server named, never anything secret. */
-export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale" | "agentryAppOffered" | "signedInWithAgentryApp"> | undefined): string {
+ *  registry offers one (agentryApp) and no Entra app is kept, then the
+ *  account the server named, never anything secret. */
+export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale" | "signedInWithAgentryApp"> | undefined, agentryApp = false): string {
   if (m?.account && m.signedInWithAgentryApp) {
     return m.stale
       ? `Signed in as ${m.account} with Agentry's Microsoft app: sign in again to use your own app.`
       : `Signed in as ${m.account} with Agentry's Microsoft app.`;
   }
-  if (!m || !m.clientID) return m?.agentryAppOffered ? "Agentry's Microsoft app is ready. Sign in next." : "No Entra app yet.";
+  if (!m || !m.clientID) return agentryApp ? "Agentry's Microsoft app is ready. Sign in next." : "No Entra app yet.";
   if (!m.account) return "Your Entra app is kept. Sign in next.";
   if (m.stale) return `Signed in as ${m.account} with your earlier app: sign in again with the new one.`;
   return `Signed in as ${m.account}.`;
@@ -351,8 +351,8 @@ export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" |
 /** microsoftCanSignIn says the sign-in has an app to run with: the
  *  person's own Entra app, or Agentry's own Microsoft app where the
  *  registry offers it. */
-export function microsoftCanSignIn(m: Pick<app.PersistentMicrosoftView, "clientID" | "agentryAppOffered"> | undefined): boolean {
-  return !!m?.clientID || !!m?.agentryAppOffered;
+export function microsoftCanSignIn(m: Pick<app.PersistentMicrosoftView, "clientID"> | undefined, agentryApp: boolean): boolean {
+  return !!m?.clientID || agentryApp;
 }
 
 /** microsoftScopeWords says what a sign-in asks Microsoft for: reading

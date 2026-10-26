@@ -36,6 +36,8 @@ export function GoogleSignIn(arg1:string,arg2:string):Promise<app.PersistentAgen
 
 export function List():Promise<Array<app.PersistentAgentView>>;
 
+export function MicrosoftAgentryApp(arg1:string):Promise<boolean>;
+
 export function MicrosoftSignIn(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function OpenPort(arg1:string,arg2:string):Promise<void>;

@@ -13,9 +13,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 const testEntraApp = "11111111-2222-3333-4444-555555555555"
@@ -157,10 +160,10 @@ func microsoftFake(clients *[]string) *dockerx.Fake {
 }
 
 // TestSignInWithAgentrysMicrosoftApp: where the registry offers Agentry's
-// own Microsoft app and no Entra app is kept, the view says it is offered,
+// own Microsoft app and no Entra app is kept, the set-up says it is offered,
 // the sign-in runs with it, and the view then says the sign-in was made
 // with it; an Entra app kept later comes first, and the registry is not
-// asked for a set-up that has one.
+// asked for a set-up that has one. Drawing the view never asks it.
 func TestSignInWithAgentrysMicrosoftApp(t *testing.T) {
 	rig := newPersistentRig(t)
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
@@ -172,8 +175,11 @@ func TestSignInWithAgentrysMicrosoftApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Microsoft == nil || v.Microsoft.ClientID != "" || !v.Microsoft.AgentryAppOffered || v.Microsoft.SignedInWithAgentryApp {
-		t.Fatalf("offered Agentry's app: %+v", v.Microsoft)
+	if v.Microsoft == nil || v.Microsoft.ClientID != "" || v.Microsoft.SignedInWithAgentryApp || asked != 0 {
+		t.Fatalf("the view, which asks the registry nothing: %+v, asked %d", v.Microsoft, asked)
+	}
+	if offered, err := rig.p.MicrosoftAgentryApp("assistant"); err != nil || !offered || asked != 1 {
+		t.Fatalf("offered Agentry's app: %v, %v, asked %d", offered, err, asked)
 	}
 	var clients []string
 	f := microsoftFake(&clients)
@@ -201,8 +207,8 @@ func TestSignInWithAgentrysMicrosoftApp(t *testing.T) {
 	if v, err = rig.p.Get("assistant"); err != nil {
 		t.Fatal(err)
 	}
-	if v.Microsoft.AgentryAppOffered || asked != 0 || !v.Microsoft.SignedInWithAgentryApp || !v.Microsoft.Stale {
-		t.Fatalf("with an Entra app kept since: %+v, asked %d", v.Microsoft, asked)
+	if offered, err := rig.p.MicrosoftAgentryApp("assistant"); err != nil || offered || asked != 0 || !v.Microsoft.SignedInWithAgentryApp || !v.Microsoft.Stale {
+		t.Fatalf("with an Entra app kept since: %v, %+v, asked %d", offered, v.Microsoft, asked)
 	}
 	clients = nil
 	if v, err = rig.p.MicrosoftSignIn("assistant", "ana@outlook.com"); err != nil {
@@ -214,16 +220,21 @@ func TestSignInWithAgentrysMicrosoftApp(t *testing.T) {
 }
 
 // TestWithNoAgentryMicrosoftAppTheCardAsksForAnEntraApp: with none offered,
-// the view says so and a sign-in without an Entra app is refused, as before.
+// the set-up says so and a sign-in without an Entra app is refused, as
+// before; an agent with no Microsoft 365 is never offered one.
 func TestWithNoAgentryMicrosoftAppTheCardAsksForAnEntraApp(t *testing.T) {
 	rig := newPersistentRig(t)
 	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
 		t.Fatal(err)
 	}
-	v, err := rig.p.Get("assistant")
-	if err != nil || v.Microsoft == nil || v.Microsoft.AgentryAppOffered {
-		t.Fatalf("with none offered: %+v, %v", v.Microsoft, err)
+	if offered, err := rig.p.MicrosoftAgentryApp("assistant"); err != nil || offered {
+		t.Fatalf("with none offered: %v, %v", offered, err)
 	}
+	rig.p.agentryApp = func(context.Context) string { return testAgentryApp }
+	if offered, err := rig.p.MicrosoftAgentryApp(coderAgent); err != nil || offered {
+		t.Fatalf("the Coding agent: %v, %v", offered, err)
+	}
+	rig.p.agentryApp = func(context.Context) string { return "" }
 	var clients []string
 	f := microsoftFake(&clients)
 	rig.p.microsoftSetUp = func(_ context.Context, a persistent.Agent) (persistent.Microsoft, error) {
@@ -266,5 +277,41 @@ func TestAgentrysMicrosoftAppIsReadFromTheRegistry(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(empty, "connectors")); !os.IsNotExist(err) {
 		t.Fatalf("something was kept with no registry: %v", err)
+	}
+}
+
+// TestDrawingTheAssistantAsksTheRegistryNothing: with the app's own registry
+// lookup (no stand-in), drawing the Assistant neither asks the registry nor
+// writes under the runner home; opening the Microsoft set-up asks once and
+// keeps the answer.
+func TestDrawingTheAssistantAsksTheRegistryNothing(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	asked := 0
+	reg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked++
+		_ = json.NewEncoder(w).Encode(map[string]any{"connectors": []map[string]string{{"id": "microsoft-365", "publicClientId": testAgentryApp}}})
+	}))
+	t.Cleanup(reg.Close)
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	if err := settings.Save(settings.Settings{DefaultRegistry: reg.URL}); err != nil {
+		t.Fatal(err)
+	}
+	rig.p.agentryApp = nil
+	for i := 0; i < 2; i++ {
+		if _, err := rig.p.Get("assistant"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(rig.home, "connectors")); asked != 0 || !os.IsNotExist(err) {
+		t.Fatalf("drawing the Assistant asked the registry %d times; connectors: %v", asked, err)
+	}
+	if offered, err := rig.p.MicrosoftAgentryApp("assistant"); err != nil || !offered || asked != 1 {
+		t.Fatalf("opening the set-up: %v, %v, asked %d", offered, err, asked)
+	}
+	if kept, _ := filepath.Glob(filepath.Join(rig.home, "connectors", "*.json")); len(kept) != 1 {
+		t.Fatalf("kept: %v", kept)
 	}
 }

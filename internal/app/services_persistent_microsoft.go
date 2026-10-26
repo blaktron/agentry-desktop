@@ -43,9 +43,9 @@ type PersistentMicrosoftSignInView struct {
 // app shows it: the Entra app's id (an id, never a secret) and the tenant,
 // the account the server lists once signed in, the signoff, and whether a
 // sign-in is waiting. Stale says the app changed after the sign-in.
-// AgentryAppOffered says the registry offers Agentry's own Microsoft app,
-// which a sign-in uses where no Entra app of the person's is kept;
-// SignedInWithAgentryApp says the sign-in was made with it.
+// SignedInWithAgentryApp says the sign-in was made with Agentry's own
+// Microsoft app, which a sign-in uses where no Entra app of the person's is
+// kept (MicrosoftAgentryApp says whether the registry offers it).
 type PersistentMicrosoftView struct {
 	ClientID               string `json:"clientID,omitempty"`
 	Tenant                 string `json:"tenant,omitempty"`
@@ -55,7 +55,6 @@ type PersistentMicrosoftView struct {
 	Signoff                string `json:"signoff,omitempty"`
 	Stale                  bool   `json:"stale,omitempty"`
 	Waiting                bool   `json:"waiting,omitempty"`
-	AgentryAppOffered      bool   `json:"agentryAppOffered,omitempty"`
 	SignedInWithAgentryApp bool   `json:"signedInWithAgentryApp,omitempty"`
 }
 
@@ -76,6 +75,39 @@ func microsoftView(a persistent.Agent, cfg persistent.Config) *PersistentMicroso
 	v.Stale = v.Account != "" && in.Client.After(in.At)
 	v.SignedInWithAgentryApp = v.Account != "" && in.SignedInWith != "" && in.SignedInWith != in.ClientID
 	return v
+}
+
+// agentryAppWait bounds asking the registry whether it offers Agentry's own
+// Microsoft app when the set-up opens.
+const agentryAppWait = 15 * time.Second
+
+// MicrosoftAgentryApp says whether the registry the app is on offers
+// Agentry's own Microsoft app for the agent's sign-in: asked only when the
+// Microsoft set-up opens, never to draw a view, so starting the app asks
+// the registry nothing and writes nothing, and never where the person keeps
+// an Entra app of their own, which comes first.
+func (p *PersistentAPI) MicrosoftAgentryApp(name string) (bool, error) {
+	a, err := p.agent(name)
+	if err != nil {
+		return false, err
+	}
+	if !hasImageServer(a, assistant.MS365Key) {
+		return false, nil
+	}
+	home, err := p.home()
+	if err != nil {
+		return false, err
+	}
+	cfg, err := persistent.LoadConfig(home, a.Name)
+	if err != nil {
+		return false, err
+	}
+	if cfg.SignIns[assistant.MS365Key].ClientID != "" {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), agentryAppWait)
+	defer cancel()
+	return p.agentryMicrosoftApp(home)(ctx) != "", nil
 }
 
 // agentryMicrosoftApp is the client id of Agentry's own Microsoft app as the

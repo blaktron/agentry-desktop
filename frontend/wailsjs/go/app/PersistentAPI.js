@@ -66,6 +66,10 @@ export function List() {
   return window['go']['app']['PersistentAPI']['List']();
 }
 
+export function MicrosoftAgentryApp(arg1) {
+  return window['go']['app']['PersistentAPI']['MicrosoftAgentryApp'](arg1);
+}
+
 export function MicrosoftSignIn(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['MicrosoftSignIn'](arg1, arg2);
 }
