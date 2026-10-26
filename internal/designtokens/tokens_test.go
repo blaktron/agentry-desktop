@@ -64,7 +64,7 @@ func TestDesktopTableFollowsTheSite(t *testing.T) {
 		t.Error(p)
 	}
 	if len(problems) > 0 {
-		t.Log("frontend/src/style.css follows the site's table: take the site's value, or record why not (a D-nnn entry and the deliberate list here)")
+		t.Log("frontend/src/style.css follows the site's table: take the site's value, or add the name and the reason to the deliberate list here")
 	}
 }
 
