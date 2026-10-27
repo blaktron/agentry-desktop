@@ -299,3 +299,81 @@ func TestLivePulseRoom(t *testing.T) {
 		t.Errorf("a room recorded more than its microphone")
 	}
 }
+
+// TestLivePulseMicGone records a meeting in the room on a microphone made
+// for the test (a remap source of a null sink's monitor), removes it
+// mid-recording and puts it back. It runs only when AGENTRY_MEETING_LIVE is
+// set and pactl is installed, and needs a default source that is a
+// microphone. It asks that the loss gives way to the default at once, that
+// the microphone is read again once it is back, and that both are kept as
+// changes.
+func TestLivePulseMicGone(t *testing.T) {
+	if os.Getenv("AGENTRY_MEETING_LIVE") == "" {
+		t.Skip("AGENTRY_MEETING_LIVE is not set")
+	}
+	pactl := func(args ...string) string {
+		out, err := exec.Command("pactl", args...).Output() //nolint:gosec // the test's own tool
+		if err != nil {
+			t.Fatalf("pactl %v: %v", args, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	feed := pactl("load-module", "module-null-sink", "sink_name=agentry_test_gonefeed")
+	t.Cleanup(func() { _ = exec.Command("pactl", "unload-module", feed).Run() })
+	load := func() string {
+		return pactl("load-module", "module-remap-source", "master=agentry_test_gonefeed.monitor", "source_name=agentry_test_gone",
+			"source_properties=device.description=Agentry-test-gone")
+	}
+	mod := load()
+	t.Cleanup(func() { _ = exec.Command("pactl", "unload-module", mod).Run() })
+	time.Sleep(time.Second)
+	def := pactl("get-default-source")
+	if def == "agentry_test_gone" || strings.HasSuffix(def, ".monitor") {
+		t.Skipf("the default source %q is not another microphone", def)
+	}
+	tracks := &memTracks{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c, err := PulseRecorder{}.Record(ctx, Call{Room: true, Mic: "agentry_test_gone"}, tracks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Stop() }()
+	if name, missing := c.(MicReporter).Microphone(); missing || name == "" {
+		t.Fatalf("recording %q (missing %v), want the test microphone", name, missing)
+	}
+	time.Sleep(2 * time.Second)
+	pactl("unload-module", mod)
+	changes := func() []MicChange { return c.(MicFollower).MicChanges() }
+	deadline := time.Now().Add(5 * time.Second)
+	for len(changes()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	got := changes()
+	if len(got) != 1 || got[0].Lost == "" || got[0].Now == "" {
+		t.Fatalf("after the removal: changes %+v, want the loss and the default read in its place", got)
+	}
+	t.Logf("removed: %+v", got[0])
+	// The default is recorded meanwhile, on the same track.
+	before, _, _ := tracks.get("room")
+	time.Sleep(2 * time.Second)
+	if after, _, _ := tracks.get("room"); after-before < SampleRate {
+		t.Fatalf("the default gave %d samples in 2 s", after-before)
+	}
+	mod = load()
+	deadline = time.Now().Add(5 * time.Second)
+	for len(changes()) < 2 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	got = changes()
+	if len(got) != 2 || got[1].Now != got[0].Lost {
+		t.Fatalf("after it came back: changes %+v, want the test microphone read again", got)
+	}
+	t.Logf("back: %+v", got[1])
+	if err := c.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if samples, ended, _ := tracks.get("room"); samples == 0 || !ended {
+		t.Fatalf("the room track has %d samples, ended %v", samples, ended)
+	}
+}

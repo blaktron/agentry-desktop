@@ -30,7 +30,21 @@ type fakeRecorder struct {
 	mics       []Microphone
 	micName    string
 	micMissing bool
+	// reportsOnly hands out captures that report their microphone and
+	// keep no changes of it.
+	reportsOnly bool
 }
+
+// reporterCapture is a capture that reports its microphone and keeps no
+// changes of it.
+type reporterCapture struct{ c *fakeCapture }
+
+func (r reporterCapture) Call() Call                 { return r.c.Call() }
+func (r reporterCapture) FarSide() FarSide           { return r.c.FarSide() }
+func (r reporterCapture) SetPaused(p bool) error     { return r.c.SetPaused(p) }
+func (r reporterCapture) Ended() <-chan struct{}     { return r.c.Ended() }
+func (r reporterCapture) Stop() error                { return r.c.Stop() }
+func (r reporterCapture) Microphone() (string, bool) { return r.c.Microphone() }
 
 func (f *fakeRecorder) Microphones() ([]Microphone, error) {
 	f.mu.Lock()
@@ -78,6 +92,9 @@ func (f *fakeRecorder) Record(_ context.Context, call Call, tracks Tracks) (Capt
 		c.tracks = append(c.tracks, t)
 	}
 	f.capture = c
+	if f.reportsOnly {
+		return reporterCapture{c}, nil
+	}
 	return c, nil
 }
 
@@ -100,6 +117,27 @@ type fakeCapture struct {
 
 	micName    string
 	micMissing bool
+	micChanges []MicChange
+}
+
+func (c *fakeCapture) MicChanges() []MicChange {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]MicChange(nil), c.micChanges...)
+}
+
+// change has the fake's microphone change as a recorder's would: the
+// change kept and the microphone it reports moved with it.
+func (c *fakeCapture) change(ch MicChange) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if ch.At.IsZero() {
+		ch.At = time.Now()
+	}
+	c.micChanges = append(c.micChanges, ch)
+	if ch.Now != "" {
+		c.micName = ch.Now
+	}
 }
 
 func (c *fakeCapture) Microphone() (string, bool) {
