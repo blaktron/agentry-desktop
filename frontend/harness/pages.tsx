@@ -736,7 +736,10 @@ const harnessAssistant = {
   ],
   fastmail: { token: false },
   readsCalendars: true,
-  calendarFeeds: [{ name: "Family", host: "p42-caldav.icloud.com", service: "iCloud", on: true, set: "2026-10-26T18:40:00Z", entry: "calendar:Family" }],
+  calendarFeeds: [
+    { name: "Family", host: "p42-caldav.icloud.com", service: "iCloud", on: true, set: "2026-10-26T18:40:00Z", entry: "calendar:Family" },
+    { name: "Work", host: "calendar.google.com", service: "Google Calendar", on: true, set: "2026-10-27T09:15:00Z", signedIn: true, entry: "calendar:Work" },
+  ],
   microsoft: { clientID: "", tenant: "", account: "", signoff: "" },
   google: { client: true, clientAt: "2026-10-24T10:00:00Z", account: "sandra@example.com", at: "2026-10-24T10:02:00Z" },
   resets: [
@@ -753,6 +756,7 @@ const harnessAssistant = {
     { id: "server:gog", kind: "server", name: "Google Workspace (gog)", grantedBy: "built-in", state: "on", on: true, iconKey: "mail", setUpGoogle: true, line: "Uses Google Workspace (gog), reaching Google's own hosts alone, read only unless you allow changes" },
     { id: "server:gog:writes", kind: "server-switch", name: "Google Workspace: allow changes", grantedBy: "built-in", state: "off", on: false, iconKey: "mail", setUpGoogle: true, line: "Lets Google Workspace (gog) change what your Google account holds, while it is on" },
     { id: "calendar:Family", kind: "calendar", name: "Family (calendar feed)", grantedBy: "you", state: "on", on: true, line: "Reads your calendar feed Family from iCloud (p42-caldav.icloud.com), read only: the titles, times, places, people and notes of the events it publishes, which it can tell you, keep in its memory and use in what it writes; its tools fetch the feed from p42-caldav.icloud.com alone, and the address stays in your keychain: the agent is never shown it" },
+    { id: "calendar:Work", kind: "calendar", name: "Work (calendar feed)", grantedBy: "you", state: "on", on: true, line: "Reads your calendar feed Work from Google Calendar (calendar.google.com), read only: the titles, times, places, people and notes of the events it publishes, which it can tell you, keep in its memory and use in what it writes; its tools fetch the feed from calendar.google.com alone, signed in as you: with the cookies of your sign-in to calendar.google.com that the browser window kept, which are your account's sign-in to that site, not a grant for this calendar alone, and which its tools send to calendar.google.com and nowhere else; the address and the cookies stay in your keychain: the agent is never shown them" },
     { id: "server:pdf", kind: "server", name: "npm:@acme/pdf-tools@1.2.0", grantedBy: "you", state: "on", on: true, icon: keptIcon, line: "npm @acme/pdf-tools 1.2.0, reaching nothing", shareSwitch: "server:pdf:share", share: false },
     { id: "server:notes", kind: "server", name: "pypi:notes-mcp@0.4.1", grantedBy: "you", state: "failed", on: true, reason: "PyPI has no notes-mcp 0.4.1", line: "PyPI notes-mcp 0.4.1, reaching nothing" },
     { id: "secret:OPENWEATHER_KEY", kind: "secret", name: "Your secret OPENWEATHER_KEY", grantedBy: "you", state: "on", on: true, line: "Given to the servers that declare it" },
@@ -917,6 +921,8 @@ g.go = { app: {
     SetFastmailToken: async () => harnessAssistant,
     RemoveFastmailToken: async () => harnessAssistant,
     AddCalendarFeed: async () => harnessAssistant,
+    SignInCalendarFeed: async () => harnessAssistant,
+    CancelCalendarSignIn: async () => undefined,
     RenameCalendarFeed: async () => harnessAssistant,
     RemoveCalendarFeed: async () => harnessAssistant,
     Transcript: async (name: string) => (name === "main" ? [

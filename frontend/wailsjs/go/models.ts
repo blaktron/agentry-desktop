@@ -2996,6 +2996,7 @@ export namespace app {
 	    service?: string;
 	    on: boolean;
 	    set?: string;
+	    signedIn?: boolean;
 	    entry: string;
 	
 	    static createFrom(source: any = {}) {
@@ -3009,6 +3010,7 @@ export namespace app {
 	        this.service = source["service"];
 	        this.on = source["on"];
 	        this.set = source["set"];
+	        this.signedIn = source["signedIn"];
 	        this.entry = source["entry"];
 	    }
 	}
