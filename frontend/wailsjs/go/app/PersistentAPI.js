@@ -10,6 +10,10 @@ export function AccountKind(arg1) {
   return window['go']['app']['PersistentAPI']['AccountKind'](arg1);
 }
 
+export function AddCalendarFeed(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['AddCalendarFeed'](arg1, arg2, arg3);
+}
+
 export function AddFiles(arg1) {
   return window['go']['app']['PersistentAPI']['AddFiles'](arg1);
 }
@@ -82,6 +86,10 @@ export function RemoveAccount(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['RemoveAccount'](arg1, arg2);
 }
 
+export function RemoveCalendarFeed(arg1, arg2) {
+  return window['go']['app']['PersistentAPI']['RemoveCalendarFeed'](arg1, arg2);
+}
+
 export function RemoveFastmailToken(arg1) {
   return window['go']['app']['PersistentAPI']['RemoveFastmailToken'](arg1);
 }
@@ -92,6 +100,10 @@ export function RemoveSecret(arg1, arg2) {
 
 export function RemoveSkill(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['RemoveSkill'](arg1, arg2);
+}
+
+export function RenameCalendarFeed(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['RenameCalendarFeed'](arg1, arg2, arg3);
 }
 
 export function Reset(arg1) {

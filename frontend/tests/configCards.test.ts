@@ -28,6 +28,9 @@ import {
   microsoftAdminWords,
   microsoftScopeWords,
   fastmailWords,
+  calendarFeedOf,
+  calendarFeedLine,
+  calendarNameOK,
 } from "../src/configCards.ts";
 
 const entry = (e: Partial<app.PersistentRosterEntry>): app.PersistentRosterEntry =>
@@ -137,7 +140,7 @@ test("Set up asks for what an offered server needs, only while it needs it", () 
   assert.equal(setUpOf(entry({ state: "on", setUpSecret: "BRAVE_API_KEY" })), null);
   assert.deepEqual(setUpOf(entry({ state: "needs-set-up", setUpGoogle: true })), { kind: "google" });
   assert.equal(setUpOf(entry({ state: "off", setUpGoogle: true })), null);
-  assert.deepEqual(cardMenu(coder.roster[3]), { setUp: { kind: "account", host: "github.com" }, remove: null, disable: null });
+  assert.deepEqual(cardMenu(coder.roster[3]), { setUp: { kind: "account", host: "github.com" }, remove: null, disable: null, rename: null });
 });
 
 test("the secret form takes the CLI's names and values", () => {
@@ -290,4 +293,34 @@ test("the Microsoft set-up says a work or school account needs its administrator
   assert.match(microsoftAdminWords("organizations", "the Assistant"), /administrator will most likely have to approve your app/);
   assert.match(microsoftAdminWords("org", "Ada"), /Ask Ada to help you set up Microsoft 365 for a work account/);
   assert.match(microsoftAdminWords("", "the Assistant"), /^A work or school account usually needs its administrator/);
+});
+
+test("calendar feeds are cards in Mail and calendar, after an Add a calendar feed card the Assistant alone has", () => {
+  const feed = entry({ id: "calendar:Work", kind: "calendar", name: "Work (calendar feed)", grantedBy: "you", line: "Reads your calendar feed Work from Google Calendar (calendar.google.com), read only" });
+  const a = { ...assistant(true), roster: [...assistant(true).roster, feed], readsCalendars: true };
+  const mail = configGrids(a).find((g) => g.key === "mail");
+  assert.deepEqual(mail && [mail.entries.map((e) => e.id), mail.adds], [["server:gog", "server:gog:writes", "calendar:Work"], ["calendar"]]);
+  // With no feed yet, the section is its Add card; without readsCalendars there is none.
+  const none = configGrids({ ...assistant(false), readsCalendars: true }).find((g) => g.key === "mail");
+  assert.deepEqual(none?.adds, ["provider", "calendar"]);
+  assert.equal(configGrids(coder).some((g) => g.adds.includes("calendar")), false);
+  assert.deepEqual(cardIcon(feed), { kind: "glyph", key: "calendar" });
+  assert.deepEqual(cardMenu(feed, a), { setUp: null, remove: { kind: "calendar", name: "Work", what: "The calendar feed Work" }, disable: null, rename: "Work" });
+  assert.equal(cardMenu(a.roster[1], a).rename, null);
+});
+
+test("a calendar feed's card says where it is from and when its address was checked, never the address", () => {
+  const views = [{ name: "Work", host: "calendar.google.com", service: "Google Calendar", on: true, set: "2026-10-27T09:30:00Z", entry: "calendar:Work" }] as app.PersistentCalendarFeedView[];
+  const e = entry({ id: "calendar:Work", kind: "calendar" });
+  assert.equal(calendarFeedOf(e, { calendarFeeds: views })?.name, "Work");
+  assert.equal(calendarFeedOf(entry({ id: "calendar:Work", kind: "server" }), { calendarFeeds: views }), undefined);
+  assert.match(calendarFeedLine(views[0], "en-GB"), /^Google Calendar · checked 27 Oct 2026, \d\d:30$/);
+  assert.equal(calendarFeedLine({ host: "cal.example.org", set: "" }), "cal.example.org");
+});
+
+test("a calendar feed's name is 1 to 64 bytes with no control character", () => {
+  assert.equal(calendarNameOK("Work"), true);
+  assert.equal(calendarNameOK("  "), false);
+  assert.equal(calendarNameOK("x".repeat(65)), false);
+  assert.equal(calendarNameOK("Work\tHome"), false);
 });

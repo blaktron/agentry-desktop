@@ -144,6 +144,9 @@ type PersistentAPI struct {
 	agentryApp func(ctx context.Context) string
 	// fastmailCheck stands in for asking Fastmail about a token in a test.
 	fastmailCheck func(ctx context.Context, token string) error
+	// calendarCheck stands in for fetching and reading a calendar feed's
+	// address in a test.
+	calendarCheck func(ctx context.Context, address string) (string, int, error)
 	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
 	pickFile      func() (string, error)
 	browse        func(url string) error
@@ -317,9 +320,13 @@ type PersistentAgentView struct {
 	// Fastmail is the agent's Fastmail set-up, for an agent that has that
 	// server.
 	Fastmail *PersistentFastmailView `json:"fastmail,omitempty"`
-	Status   *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime PersistentUsageView     `json:"lifetime"`
-	Volumes  PersistentVolumesView   `json:"volumes"`
+	// ReadsCalendars says the agent takes calendar feeds, listed in
+	// CalendarFeeds by name (never an address).
+	ReadsCalendars bool                         `json:"readsCalendars"`
+	CalendarFeeds  []PersistentCalendarFeedView `json:"calendarFeeds"`
+	Status         *PersistentStatusView        `json:"status,omitempty"`
+	Lifetime       PersistentUsageView          `json:"lifetime"`
+	Volumes        PersistentVolumesView        `json:"volumes"`
 	// LastCompaction and LastConsolidation are the newest records of the
 	// memory's upkeep, for an agent that keeps a memory; none before the
 	// first.
@@ -575,6 +582,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.MailProviders = mailProviderViews(a, cfg)
 	v.Microsoft = microsoftView(a, cfg)
 	v.Fastmail = fastmailView(a, cfg)
+	v.ReadsCalendars, v.CalendarFeeds = a.Builtin.ReadsCalendars(), calendarFeedViews(a, cfg)
 	if v.Microsoft != nil {
 		p.mu.Lock()
 		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
@@ -1271,12 +1279,12 @@ func resetViews(a persistent.Agent) []PersistentResetView {
 		return []PersistentResetView{all}
 	}
 	all.Title = "Reset all"
-	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
+	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored, its calendar feeds and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
 	return []PersistentResetView{
 		{Kind: resetHistory, Title: "Reset history",
-			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept."},
+			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored, its calendar feeds and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept."},
 		{Kind: resetAgent, Title: "Reset agent",
-			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept."},
+			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored, its calendar feeds and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in or address. Its share folder, the files in it, its usage and the receipts of its segments are kept."},
 		all,
 	}
 }
