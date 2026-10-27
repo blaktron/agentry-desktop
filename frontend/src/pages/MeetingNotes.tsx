@@ -16,7 +16,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
 import {
   AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,
-  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
+  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
 } from "../meetingNotes";
 
 type View = app.MeetingNotesView;
@@ -209,6 +209,11 @@ export default function MeetingNotes() {
                 A meeting in the room{recording.microphone ? `, through ${recording.microphone}` : ""}. Nothing your computer plays is recorded.
                 If nobody speaks for 15 minutes, Agentry asks whether the meeting is still on.
               </p>
+            )}
+            {recording.micLost && (
+              <Notice tone="warn">
+                <span data-meeting-mic-lost>{micLostText(recording.micLost, recording.micNone, recording.microphone)}</span>
+              </Notice>
             )}
             {recording.micMissing && (
               <Notice tone="warn">

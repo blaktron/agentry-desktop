@@ -162,6 +162,10 @@ type childCapture struct {
 	// recording that follows no app.
 	micName    string
 	micMissing bool
+	// micChanges are the microphone's changes, from every child so far;
+	// childChanges is where the running child's own begin.
+	micChanges   []MicChange
+	childChanges int
 
 	trackMu  sync.Mutex
 	mic, far Track
@@ -368,8 +372,27 @@ func (c *childCapture) follow(out *bufio.Reader) error {
 			}
 			// A child started again chooses the microphone again: what it
 			// found is what the recording says.
+			if ev.Type == evStarted {
+				// A child started again chooses the microphone again: one
+				// other than was read, or one after none, is a change.
+				n := len(c.micChanges)
+				none := n > 0 && c.micChanges[n-1].Now == ""
+				if ev.MicName != "" && (ev.MicName != c.micName || none) {
+					c.micChanges = append(c.micChanges, MicChange{At: time.Now(), Now: ev.MicName})
+				}
+				c.childChanges = len(c.micChanges)
+			}
 			if ev.Type == evStarted && ev.MicName != "" {
 				c.micName, c.micMissing = ev.MicName, ev.MicMissing
+			}
+			c.mu.Unlock()
+		case evMic:
+			c.mu.Lock()
+			// The capacity bound makes append copy, so a list handed out
+			// by MicChanges is never written under it.
+			c.micChanges = append(c.micChanges[:c.childChanges:c.childChanges], ev.MicChanges...)
+			if ev.MicName != "" {
+				c.micName = ev.MicName
 			}
 			c.mu.Unlock()
 		case evEnded:
@@ -400,6 +423,13 @@ func (c *childCapture) Microphone() (string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.micName, c.micMissing
+}
+
+// MicChanges is each change of the microphone read, after the start.
+func (c *childCapture) MicChanges() []MicChange {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]MicChange(nil), c.micChanges...)
 }
 
 // SetPaused tells the child to let go of the devices, or to take them up

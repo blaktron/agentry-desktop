@@ -194,8 +194,13 @@ type childRecording struct {
 	// missing.
 	room       bool
 	fixedMic   string
+	ownName    string
 	micName    string
 	micMissing bool
+	// follow is which microphone a recording that follows no app reads as
+	// microphones come and go; sent counts the changes the parent has.
+	follow     micFollow
+	sentChange []MicChange
 	paused     bool
 	ended      bool
 	logged     map[string]bool
@@ -240,11 +245,9 @@ func (r *childRecording) closeFar() {
 func (r *childRecording) scan(first bool) error {
 	defRender, _ := r.sys.Default(flowRender)
 	var micEP, farEP string
+	now := r.now()
 	if r.target.zero() {
-		micEP = r.fixedMic
-		if micEP == "" {
-			micEP, _ = r.sys.Default(flowCapture)
-		}
+		micEP = r.ownMic(now)
 		farEP = defRender
 	} else {
 		sessions, err := r.sys.Sessions()
@@ -265,10 +268,18 @@ func (r *childRecording) scan(first bool) error {
 		}
 	}
 	if r.paused {
+		r.sendChanges()
 		return nil
 	}
 	if err := r.followMic(micEP); err != nil && first {
 		return err
+	}
+	if r.target.zero() {
+		if r.mic != nil && r.micEP != r.follow.id {
+			r.follow.reading(r.micEP, r.ownName, now)
+			r.micName = r.ownName
+		}
+		r.sendChanges()
 	}
 	if r.room {
 		return nil
@@ -286,7 +297,12 @@ func (r *childRecording) followMic(ep string) error {
 	if r.micEP != "" && ep != "" {
 		r.log("the microphone moved to another device")
 	}
-	r.closeMic()
+	// A microphone of the recording's own is let go only once the next is
+	// open, so a refused one leaves it read; an app's follows the app.
+	own := r.target.zero()
+	if !own || ep == "" {
+		r.closeMic()
+	}
 	if ep == "" {
 		return nil
 	}
@@ -295,8 +311,39 @@ func (r *childRecording) followMic(ep string) error {
 		r.log("the microphone could not be recorded: %v", err)
 		return fmt.Errorf("the microphone could not be recorded: %w", err)
 	}
+	r.closeMic()
 	r.mic, r.micEP = s, ep
 	return nil
+}
+
+// ownMic is the microphone a recording that follows no app reads, by
+// micFollow's rule: one no longer listed is a loss, and gives way to the
+// default; the one kept is read again once it is listed. ownName is the
+// name of the one it returns.
+func (r *childRecording) ownMic(now time.Time) string {
+	mics, err := r.sys.Endpoints(flowCapture)
+	if err != nil {
+		return r.micEP
+	}
+	def, _ := r.sys.Default(flowCapture)
+	gone, id, name := r.follow.look(mics, def, now)
+	if gone {
+		r.log("the microphone went away")
+		r.closeMic()
+	}
+	r.ownName = name
+	return id
+}
+
+// sendChanges tells the parent the microphone's changes, when there are
+// new ones.
+func (r *childRecording) sendChanges() {
+	changes := r.follow.list()
+	if slices.Equal(changes, r.sentChange) {
+		return
+	}
+	r.sentChange = changes
+	_ = r.out.event(wireEvent{Type: evMic, MicName: r.micName, MicChanges: changes})
 }
 
 func (r *childRecording) followFar(ep, def string, first bool) error {
@@ -375,6 +422,9 @@ func (r *childRecording) chooseMic(chosen string) error {
 		r.fixedMic = id
 	}
 	r.micName, r.micMissing = name, missing
+	r.follow.pinned = r.fixedMic
+	r.follow.started(id, name)
+	r.ownName = name
 	return nil
 }
 

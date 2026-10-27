@@ -42,6 +42,7 @@ const (
 	evLog      = "log"
 	evError    = "error"
 	evMics     = "mics"
+	evMic      = "mic"
 )
 
 // The child's tracks.
@@ -77,7 +78,9 @@ type wireCommand struct {
 //   - "ended": the call's app stopped using the microphone long enough;
 //   - "log": something worth the parent's log, such as a device followed;
 //   - "error": the child cannot go on, and why;
-//   - "mics": the microphones, the answer to "mics".
+//   - "mics": the microphones, the answer to "mics";
+//   - "mic": the microphone a recording that follows no app reads changed:
+//     MicName is the one read now, MicChanges every change this child made.
 //
 // A "started" with no app followed also names the microphone recorded
 // (MicName) and whether the one chosen was missing (MicMissing).
@@ -90,6 +93,7 @@ type wireEvent struct {
 	Mics       []Microphone   `json:"mics,omitempty"`
 	MicName    string         `json:"micName,omitempty"`
 	MicMissing bool           `json:"micMissing,omitempty"`
+	MicChanges []MicChange    `json:"micChanges,omitempty"`
 }
 
 // frameWriter writes whole frames from any goroutine.

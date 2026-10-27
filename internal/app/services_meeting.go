@@ -407,6 +407,10 @@ type MeetingRecordingView struct {
 	InRoom     bool   `json:"inRoom"`
 	Microphone string `json:"microphone,omitempty"`
 	MicMissing bool   `json:"micMissing"`
+	// MicLost is the microphone that went away during the recording and is
+	// not read again, and MicNone that no microphone is read because of it.
+	MicLost string `json:"micLost,omitempty"`
+	MicNone bool   `json:"micNone"`
 }
 
 // MeetingOfferView is a detected call offered for recording.
@@ -625,6 +629,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 			ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice,
 			Paused: r.Paused, Automatic: r.How == meeting.Automatically, Armed: r.How == meeting.InWindow, Title: r.Title,
 			InRoom: r.How == meeting.InRoom, Microphone: r.Microphone, MicMissing: r.MicMissing,
+			MicLost: r.MicLost, MicNone: r.MicNone,
 		}
 		if w := r.Warning; w != nil {
 			v.Recording.Warning, v.Recording.WarningSettings = w.Text, w.Settings

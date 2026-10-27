@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, offerTitle, recordingWhat,
+  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, recordingWhat,
 } from "../src/meetingNotes.ts";
 
 test("durations read in seconds, minutes, then hours", () => {
@@ -97,4 +97,9 @@ test("the graphics card's offer names the download, and Settings says how it mea
   assert.equal(gpuOfferTitle(574_041_195), "Use your graphics card with the better model (574 MB)");
   assert.match(gpuHint({ name: "Arc A770", fast: true, modelName: "Large v3 Turbo" }), /Arc A770 fast enough/);
   assert.match(gpuHint({ name: "HD 630", fast: false, modelName: "Large v3 Turbo" }), /too slow to keep up/);
+});
+
+test("a microphone that went away says what is recorded instead, or that nothing is", () => {
+  assert.equal(micLostText("USB Speakerphone", false, "Built-in Audio"), "USB Speakerphone was disconnected, so Built-in Audio is recorded instead.");
+  assert.match(micLostText("USB Speakerphone", true), /nothing is recorded from a microphone until one can be\. The transcript marks the gap\./);
 });

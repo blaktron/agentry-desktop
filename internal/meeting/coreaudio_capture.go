@@ -114,6 +114,9 @@ func (s *caStream) look(now time.Time) (stalled, heard bool) {
 // while the app reads one. With no call it records the microphone chosen
 // (else the default input) and everything but this app, the whole device. A
 // meeting in the room records that microphone alone: no tap, no far side.
+// Where the recording reads a microphone of its own like this, one that is
+// no longer listed gives way to the default at once and is taken up again
+// when it is back (micFollow), and each change is said.
 // A pause lets go of every device; the call's end is followed meanwhile.
 type caCapture struct {
 	sys    caSystem
@@ -139,6 +142,8 @@ type caCapture struct {
 	// when it started, "" to follow the default input.
 	room   bool
 	micUID string
+	// follow is which microphone a recording that follows no app reads.
+	follow micFollow
 
 	// The rest belongs to run, and to the start and Stop before and after it.
 	far, mic           *caStream
@@ -278,8 +283,12 @@ func (c *caCapture) setFarSide(f FarSide) {
 	}
 }
 
-func (c *caCapture) startMic(now time.Time) error {
-	src, err := c.sys.StartMic(c.micUID)
+func (c *caCapture) startMic(now time.Time) error { return c.startMicOn(now, c.micUID) }
+
+// startMicOn reads the input device with UID uid, the default input when
+// uid is "".
+func (c *caCapture) startMicOn(now time.Time, uid string) error {
+	src, err := c.sys.StartMic(uid)
 	if err != nil {
 		c.logOnce(err)
 		return err
@@ -324,6 +333,8 @@ func (c *caCapture) chooseMic(chosen string) error {
 	}
 	c.mu.Lock()
 	c.micName, c.micMissing = name, missing
+	c.follow.pinned = c.micUID
+	c.follow.started(id, name)
 	c.mu.Unlock()
 	return nil
 }
@@ -424,8 +435,11 @@ func (c *caCapture) look(now time.Time) {
 		return
 	}
 	// The microphone, only while the app reads one, opened again when the
-	// default input changes or macOS has just allowed it.
+	// default input changes or macOS has just allowed it. A recording that
+	// follows no app reads its own (followMic).
 	switch {
+	case c.key == "":
+		c.followMic(now)
 	case input && c.mic == nil:
 		_ = c.startMic(now)
 	case !input && c.mic != nil:
@@ -456,6 +470,54 @@ func (c *caCapture) look(now time.Time) {
 	c.mu.Lock()
 	c.warning = w
 	c.mu.Unlock()
+}
+
+// followMic keeps a recording that follows no app on a microphone of its
+// own: one no longer listed is a loss; then the one micFollow names is
+// read, opened again where macOS has just allowed it, and each change is
+// kept for the recording to say.
+func (c *caCapture) followMic(now time.Time) {
+	mics, def, err := c.sys.Mics()
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	gone, id, name := c.follow.look(mics, def, now)
+	reading := c.follow.id
+	c.mu.Unlock()
+	if gone {
+		c.stopMic()
+	}
+	if id == "" {
+		return
+	}
+	if c.mic != nil && id == reading && (c.micAllowed || !c.sys.MicAllowed()) {
+		return
+	}
+	// The next is open before the one read is let go, so one that cannot
+	// be opened yet leaves the one read, and is tried again at the next
+	// look.
+	old := c.mic
+	c.mic = nil
+	if err := c.startMicOn(now, id); err != nil {
+		c.mic = old
+		return
+	}
+	if old != nil {
+		old.drain(c.unlessPaused(c.micTrack), make([]float32, 4096))
+		old.src.Stop()
+	}
+	c.mu.Lock()
+	c.follow.reading(id, name, now)
+	c.micName = name
+	c.mu.Unlock()
+}
+
+// MicChanges is each change of the microphone read, after the start.
+func (c *caCapture) MicChanges() []MicChange {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.follow.list()
 }
 
 // lookFar rebuilds the far side's tap where it must be built again, and

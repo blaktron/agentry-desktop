@@ -22,6 +22,10 @@ type fakeCoreAudio struct {
 	micErr    error
 	calls     []string
 	sources   []*fakeSource
+	// mics, when set, are the input devices listed in place of the two
+	// below; unplugged are left out.
+	mics      []Microphone
+	unplugged map[string]bool
 }
 
 type fakeSource struct {
@@ -102,9 +106,21 @@ func (f *fakeCoreAudio) StartTap(objects []uint32, global bool) (caSource, error
 	return s, nil
 }
 
-// Mics are a Mac's own microphone, the default, and a USB speakerphone.
+// Mics are a Mac's own microphone and a USB speakerphone; the default is
+// the speakerphone while the default input is device 4, else the Mac's own.
 func (f *fakeCoreAudio) Mics() ([]Microphone, string, error) {
-	return []Microphone{{ID: "builtin", Name: "MacBook Pro Microphone"}, {ID: "usb", Name: "USB Speakerphone"}}, "builtin", nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	mics := f.mics
+	if mics == nil {
+		mics = []Microphone{{ID: "builtin", Name: "MacBook Pro Microphone"}, {ID: "usb", Name: "USB Speakerphone"}}
+	}
+	mics = slices.DeleteFunc(slices.Clone(mics), func(m Microphone) bool { return f.unplugged[m.ID] })
+	def := "builtin"
+	if f.in == 4 {
+		def = "usb"
+	}
+	return mics, def, nil
 }
 func (f *fakeCoreAudio) StartMic(uid string) (caSource, error) {
 	f.mu.Lock()
@@ -479,8 +495,11 @@ func TestAMissingChosenMicGivesWayToTheDefaultInput(t *testing.T) {
 	f.in = 4
 	f.mu.Unlock()
 	c.look(t0.Add(time.Second))
-	if want := []string{"ask", "global[1]", "mic", "mic"}; !slices.Equal(f.calls, want) {
+	if want := []string{"ask", "global[1]", "mic", "mic:usb"}; !slices.Equal(f.calls, want) {
 		t.Fatalf("Record with no call: Core Audio was asked %v, want %v", f.calls, want)
+	}
+	if got := c.MicChanges(); len(got) != 1 || got[0].Lost != "" || got[0].Now != "USB Speakerphone" {
+		t.Fatalf("Record with no call: changes %+v, want the new default said", got)
 	}
 }
 
@@ -520,5 +539,58 @@ func TestARoomWhoseMicrophoneWillNotStartFails(t *testing.T) {
 	}
 	if n := len(f.running()); n != 0 {
 		t.Fatalf("%d sources left running", n)
+	}
+}
+
+// A room's microphone unplugged mid-recording gives way to the default
+// input at once, and is read again when it is plugged back in.
+func TestARoomsUnpluggedMicGivesWayToTheDefaultInputAndComesBack(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true, unplugged: map[string]bool{}}
+	c, tracks, t0 := startFake(t, f, Call{Room: true, Mic: "usb"})
+	f.mu.Lock()
+	f.unplugged["usb"] = true
+	f.mu.Unlock()
+	c.look(t0.Add(time.Second))
+	if got := f.running(); !slices.Equal(got, []string{"mic:builtin[]"}) {
+		t.Fatalf("running %v, want the default input alone", got)
+	}
+	if got := c.MicChanges(); len(got) != 1 || got[0].Lost != "USB Speakerphone" || got[0].Now != "MacBook Pro Microphone" {
+		t.Fatalf("changes %+v", got)
+	}
+	f.mu.Lock()
+	delete(f.unplugged, "usb")
+	f.mu.Unlock()
+	c.look(t0.Add(2 * time.Second))
+	if got := f.running(); !slices.Equal(got, []string{"mic:usb[]"}) {
+		t.Fatalf("running %v, want the speakerphone again", got)
+	}
+	got := c.MicChanges()
+	if len(got) != 2 || got[1].Now != "USB Speakerphone" {
+		t.Fatalf("changes %+v", got)
+	}
+	if name, _ := c.Microphone(); name != "USB Speakerphone" {
+		t.Fatalf("microphone %q", name)
+	}
+	tracks.mu.Lock()
+	defer tracks.mu.Unlock()
+	if len(tracks.tracks) != 1 {
+		t.Fatalf("tracks %+v, want the one Room track throughout", tracks.tracks)
+	}
+}
+
+// With no other input, a loss reads none, and nothing is opened until an
+// input is listed.
+func TestARoomWithNoOtherInputReadsNone(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true, unplugged: map[string]bool{}}
+	c, _, t0 := startFake(t, f, Call{Room: true, Mic: "usb"})
+	f.mu.Lock()
+	f.unplugged["usb"], f.unplugged["builtin"] = true, true
+	f.mu.Unlock()
+	c.look(t0.Add(time.Second))
+	if got := f.running(); len(got) != 0 {
+		t.Fatalf("running %v with no input listed", got)
+	}
+	if got := c.MicChanges(); len(got) != 1 || got[0].Lost != "USB Speakerphone" || got[0].Now != "" {
+		t.Fatalf("changes %+v", got)
 	}
 }

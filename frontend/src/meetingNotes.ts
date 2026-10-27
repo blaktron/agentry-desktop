@@ -54,6 +54,17 @@ export function canTranscribe(m: MeetingRow): boolean {
   return (m.state === "failed" || m.state === "pending") && m.hasAudio;
 }
 
+/**
+ * What the page says while a microphone that went away during the recording
+ * is not read again: what is read instead, or that nothing is.
+ */
+export function micLostText(lost: string, none: boolean, now?: string): string {
+  if (none) {
+    return `${lost} was disconnected, and no other microphone could be read, so nothing is recorded from a microphone until one can be. The transcript marks the gap.`;
+  }
+  return `${lost} was disconnected, so ${now || "the default microphone"} is recorded instead.`;
+}
+
 /** What a recording records, in its own words. */
 export function recordingWhat(app: string, wholeDevice: boolean, inRoom = false): string {
   if (inRoom) return "your microphone in this room";
