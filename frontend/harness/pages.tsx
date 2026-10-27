@@ -735,12 +735,14 @@ const harnessAssistant = {
     { key: "fastmail", name: "Fastmail", enabled: false, servers: ["server:url-api-fastmail-com-mcp"], accounts: [], setUp: ["it needs your Fastmail token"] },
   ],
   fastmail: { token: false },
+  readsCalendars: true,
+  calendarFeeds: [{ name: "Family", host: "p42-caldav.icloud.com", service: "iCloud", on: true, set: "2026-10-26T18:40:00Z", entry: "calendar:Family" }],
   microsoft: { clientID: "", tenant: "", account: "", signoff: "" },
   google: { client: true, clientAt: "2026-10-24T10:00:00Z", account: "sandra@example.com", at: "2026-10-24T10:02:00Z" },
   resets: [
-    { kind: "history", title: "Reset history", body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept." },
-    { kind: "agent", title: "Reset agent", body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept." },
-    { kind: "all", title: "Reset all", body: "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept." },
+    { kind: "history", title: "Reset history", body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored, its calendar feeds and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept." },
+    { kind: "agent", title: "Reset agent", body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored, its calendar feeds and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in or address. Its share folder, the files in it, its usage and the receipts of its segments are kept." },
+    { kind: "all", title: "Reset all", body: "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored, its calendar feeds and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept." },
   ],
   roster: [
     { id: "share", kind: "files", name: "Share folder", grantedBy: "built-in", state: "on", on: true, line: "Shares the folder /home/me/agentry/assistantshare with you, read and write" },
@@ -750,6 +752,7 @@ const harnessAssistant = {
     { id: "server:wikipedia", kind: "server", name: "Wikipedia", grantedBy: "built-in", state: "on", on: true, iconKey: "encyclopedia", line: "Wikipedia's articles, from en.wikipedia.org" },
     { id: "server:gog", kind: "server", name: "Google Workspace (gog)", grantedBy: "built-in", state: "on", on: true, iconKey: "mail", setUpGoogle: true, line: "Uses Google Workspace (gog), reaching Google's own hosts alone, read only unless you allow changes" },
     { id: "server:gog:writes", kind: "server-switch", name: "Google Workspace: allow changes", grantedBy: "built-in", state: "off", on: false, iconKey: "mail", setUpGoogle: true, line: "Lets Google Workspace (gog) change what your Google account holds, while it is on" },
+    { id: "calendar:Family", kind: "calendar", name: "Family (calendar feed)", grantedBy: "you", state: "on", on: true, line: "Reads your calendar feed Family from iCloud (p42-caldav.icloud.com), read only: the titles, times, places, people and notes of the events it publishes, which it can tell you, keep in its memory and use in what it writes; its tools fetch the feed from p42-caldav.icloud.com alone, and the address stays in your keychain: the agent is never shown it" },
     { id: "server:pdf", kind: "server", name: "npm:@acme/pdf-tools@1.2.0", grantedBy: "you", state: "on", on: true, icon: keptIcon, line: "npm @acme/pdf-tools 1.2.0, reaching nothing", shareSwitch: "server:pdf:share", share: false },
     { id: "server:notes", kind: "server", name: "pypi:notes-mcp@0.4.1", grantedBy: "you", state: "failed", on: true, reason: "PyPI has no notes-mcp 0.4.1", line: "PyPI notes-mcp 0.4.1, reaching nothing" },
     { id: "secret:OPENWEATHER_KEY", kind: "secret", name: "Your secret OPENWEATHER_KEY", grantedBy: "you", state: "on", on: true, line: "Given to the servers that declare it" },
@@ -915,6 +918,9 @@ g.go = { app: {
     CancelMicrosoftSignIn: async () => {},
     SetFastmailToken: async () => harnessAssistant,
     RemoveFastmailToken: async () => harnessAssistant,
+    AddCalendarFeed: async () => harnessAssistant,
+    RenameCalendarFeed: async () => harnessAssistant,
+    RemoveCalendarFeed: async () => harnessAssistant,
     Transcript: async (name: string) => (name === "main" ? [
       { kind: "user_turn", time: "2026-10-20T18:00:00Z", text: "Find me a QuickAgent that summarises PDFs" },
       { kind: "tool_call", time: "2026-10-20T18:00:01Z", text: "registry_search" },
@@ -1129,6 +1135,8 @@ g.go = { app: {
     DescribeAgainText: async () => "What the person wants changed now:\n…",
   },
   ValidateAPI: { Run: async () => validateResult },
+  // Settings asks whether Meeting notes can run here: not on this preview.
+  MeetingAPI: { Status: async () => ({ available: false }) },
   // The person's packs, for Describe it's Knowledge pick: only where a
   // knowledge state asks for them, so no other preview gains a list.
   KnowledgeAPI: { List: async () => ({ packs: describePacks, registry: "https://dev.secureagentry.net", signedIn: true }) },

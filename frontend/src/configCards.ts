@@ -8,7 +8,8 @@ import type { app } from "../wailsjs/go/models";
 import { AGENT_STATES } from "./persistentAgents.ts";
 
 /** The grids, in their order. Mail and calendar is the Assistant's alone:
- *  its enabled mail providers' servers and their switches. */
+ *  its enabled mail providers' servers and their switches, and its
+ *  calendar feeds. */
 export type GridKey = "apps" | "mail" | "accounts" | "skills" | "abilities";
 
 export const GRID_TITLES: Record<GridKey, string> = {
@@ -32,7 +33,7 @@ export function providerOf(e: { id?: string }, agent: Providers): app.Persistent
 }
 
 /** gridOf is the grid an entry is drawn in: a mail provider's server and
- *  its switches are mail and calendar; other servers and what they may
+ *  its switches, and a calendar feed, are mail and calendar; other servers and what they may
  *  change (an offered server's writes, an image server's switches) are apps; accounts and secrets are what the agent signs in with;
  *  skills are skills; the rest (folders, memory, the heartbeat, commands,
  *  egress, the browser, the dev server, ports, knowledge packs) are its
@@ -40,6 +41,8 @@ export function providerOf(e: { id?: string }, agent: Providers): app.Persistent
 export function gridOf(e: Pick<app.PersistentRosterEntry, "kind"> & { id?: string }, agent: Providers = { mailProviders: [] }): GridKey {
   if (providerOf(e, agent)) return "mail";
   switch (e.kind) {
+    case "calendar":
+      return "mail";
     case "server":
     case "server-writes":
     case "server-switch":
@@ -55,7 +58,7 @@ export function gridOf(e: Pick<app.PersistentRosterEntry, "kind"> & { id?: strin
 }
 
 /** What an Add card adds. */
-export type AddKind = "server" | "skill" | "secret" | "account" | "provider";
+export type AddKind = "server" | "skill" | "secret" | "account" | "provider" | "calendar";
 
 /** One grid as the Configuration draws it: its entries in the roster's
  *  order and its Add cards, none where the agent takes nothing of that
@@ -65,10 +68,10 @@ export type Grid = { key: GridKey; title: string; entries: app.PersistentRosterE
 /** configGrids are the agent's grids. A grid with no entry and no Add
  *  card is left out. withAdds is false where the cards are only shown, as
  *  on the agent's page. */
-export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes" | "mailProviders">, withAdds = true): Grid[] {
+export function configGrids(agent: Pick<app.PersistentAgentView, "roster" | "keepsSecrets" | "takesSkills" | "codes" | "mailProviders"> & { readsCalendars?: boolean }, withAdds = true): Grid[] {
   const adds: Record<GridKey, AddKind[]> = {
     apps: ["server"],
-    mail: disabledProviders(agent).length > 0 ? ["provider"] : [],
+    mail: [...(disabledProviders(agent).length > 0 ? (["provider"] as const) : []), ...(agent.readsCalendars ? (["calendar"] as const) : [])],
     accounts: [...(agent.codes ? (["account"] as const) : []), ...(agent.keepsSecrets ? (["secret"] as const) : [])],
     skills: agent.takesSkills ? ["skill"] : [],
     abilities: [],
@@ -89,7 +92,7 @@ export type CardIcon = { kind: "glyph"; key: string } | { kind: "image"; src: st
  *  its table is typed by this list, so neither can lack one. */
 export const GLYPH_KEYS = [
   "git", "encyclopedia", "docs", "scan", "weather", "map", "mail", "search", "server",
-  "folder", "box", "memory", "clock", "terminal", "globe", "browser", "host", "plug", "book", "skill", "key", "person", "mic",
+  "folder", "box", "memory", "clock", "terminal", "globe", "browser", "host", "plug", "book", "skill", "key", "person", "mic", "calendar",
 ] as const;
 export type GlyphKey = (typeof GLYPH_KEYS)[number];
 const GLYPHS: ReadonlySet<string> = new Set(GLYPH_KEYS);
@@ -106,7 +109,7 @@ export function cardIcon(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "nam
   if (e.iconKey && GLYPHS.has(e.iconKey)) return { kind: "glyph", key: e.iconKey };
   const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser" };
   if (Object.hasOwn(byID, e.id)) return { kind: "glyph", key: byID[e.id] };
-  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic" };
+  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic", calendar: "calendar" };
   if (Object.hasOwn(byKind, e.kind)) return { kind: "glyph", key: byKind[e.kind] };
   return { kind: "monogram", text: monogram(e.name) };
 }
@@ -168,7 +171,8 @@ export type RemoveAction =
   | { kind: "change"; change: { removeServer?: string; removeKnowledge?: string; removePort?: string }; what: string }
   | { kind: "skill"; name: string; what: string }
   | { kind: "secret"; name: string; what: string }
-  | { kind: "account"; host: string; what: string };
+  | { kind: "account"; host: string; what: string }
+  | { kind: "calendar"; name: string; what: string };
 
 // after is what an entry's id holds after its kind's prefix.
 const after = (id: string, prefix: string) => (id.startsWith(prefix) ? id.slice(prefix.length) : "");
@@ -199,6 +203,10 @@ export function removeAction(e: Pick<app.PersistentRosterEntry, "id" | "kind" | 
     case "account": {
       const host = after(e.id, "account:");
       return host ? { kind: "account", host, what: `The account on ${host}` } : null;
+    }
+    case "calendar": {
+      const name = after(e.id, "calendar:");
+      return name ? { kind: "calendar", name, what: `The calendar feed ${name}` } : null;
     }
   }
   return null;
@@ -268,15 +276,15 @@ export function googleScopeWords(roster: Pick<app.PersistentRosterEntry, "id" | 
     : "The sign-in asks Google for read-only access. To let it change things, switch Allow changes on first, then sign in again.";
 }
 
-/** A card's menu: Set up where it needs one, Details always, Remove where
- *  the person added it. */
-/** What a card's menu offers: Set up, Remove, and on a mail provider's
- *  server, Disable that provider. */
-export type CardMenu = { setUp: SetUp | null; remove: RemoveAction | null; disable: app.PersistentMailProviderView | null };
+/** What a card's menu offers: Set up, Remove, on a mail provider's
+ *  server Disable that provider, and on a calendar feed Rename, with the
+ *  feed's name. */
+export type CardMenu = { setUp: SetUp | null; remove: RemoveAction | null; disable: app.PersistentMailProviderView | null; rename: string | null };
 
 export function cardMenu(e: app.PersistentRosterEntry, agent: Providers = { mailProviders: [] }): CardMenu {
   const p = providerOf(e, agent);
-  return { setUp: setUpOf(e), remove: removeAction(e), disable: p && p.servers.includes(e.id) ? p : null };
+  const feed = e.kind === "calendar" ? after(e.id, "calendar:") : "";
+  return { setUp: setUpOf(e), remove: removeAction(e), disable: p && p.servers.includes(e.id) ? p : null, rename: feed || null };
 }
 
 /** disabledProviders are the mail providers the Add a provider card offers. */
@@ -370,4 +378,29 @@ export function fastmailWords(f: Pick<app.PersistentFastmailView, "token"> | und
   return f?.token
     ? "Your Fastmail token is kept in your system keychain. It can do what the token allows."
     : "No Fastmail token yet.";
+}
+
+/** calendarFeedOf is the calendar feed a card is, if any. */
+export function calendarFeedOf(e: Pick<app.PersistentRosterEntry, "id" | "kind">, agent: { calendarFeeds?: app.PersistentCalendarFeedView[] }): app.PersistentCalendarFeedView | undefined {
+  if (e.kind !== "calendar") return undefined;
+  return (agent.calendarFeeds ?? []).find((f) => f.entry === e.id);
+}
+
+/** calendarFeedLine is a calendar feed's line on its card: the service its
+ *  address is on (else its host), and when the address was last fetched
+ *  and read, never the address. */
+export function calendarFeedLine(f: Pick<app.PersistentCalendarFeedView, "host" | "service" | "set">, locale?: string): string {
+  const from = f.service || f.host;
+  const t = f.set ? new Date(f.set) : null;
+  if (!t || Number.isNaN(t.getTime())) return from;
+  const at = t.toLocaleString(locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return `${from} · checked ${at}`;
+}
+
+/** Whether a calendar feed's name is one the CLI takes: 1 to 64 bytes once
+ *  trimmed, with no control character. The CLI holds the rest of the rule. */
+export function calendarNameOK(name: string): boolean {
+  const n = new TextEncoder().encode(name.trim()).length;
+  // eslint-disable-next-line no-control-regex
+  return n >= 1 && n <= 64 && !/[\u0000-\u001f\u007f]/.test(name);
 }
