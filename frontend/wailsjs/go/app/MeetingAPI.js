@@ -58,6 +58,10 @@ export function RecordOffer(arg1) {
   return window['go']['app']['MeetingAPI']['RecordOffer'](arg1);
 }
 
+export function RecordRoom() {
+  return window['go']['app']['MeetingAPI']['RecordRoom']();
+}
+
 export function ResetOutputDir() {
   return window['go']['app']['MeetingAPI']['ResetOutputDir']();
 }
@@ -80,6 +84,10 @@ export function SetKeepAudio(arg1) {
 
 export function SetMaxHours(arg1) {
   return window['go']['app']['MeetingAPI']['SetMaxHours'](arg1);
+}
+
+export function SetMic(arg1) {
+  return window['go']['app']['MeetingAPI']['SetMic'](arg1);
 }
 
 export function SetModel(arg1) {

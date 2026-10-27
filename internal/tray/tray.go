@@ -1,6 +1,7 @@
 // Package tray is the app's status icon while it runs in the background:
 // a menu of Open Agentry, a meeting being recorded (what it records, Pause
-// or Resume, and Stop), an item for each persistent agent that is running
+// or Resume, and Stop) or, while none is, Record a meeting in the room, an
+// item for each persistent agent that is running
 // (it opens the agent's page) and Quit, and a left click that shows the
 // window. While a meeting is recorded the icon carries a red dot. It is
 // fyne.io/systray started beside the window's own loop as each platform
@@ -39,6 +40,9 @@ type Menu struct {
 	OnMeetingPause  func()
 	OnMeetingResume func()
 	OnMeetingStop   func()
+	// OnMeetingRecordRoom starts recording a meeting in the room; its item
+	// shows while Meeting.CanRecordRoom.
+	OnMeetingRecordRoom func()
 }
 
 // Meeting is the meeting recording the tray shows; the zero value is none.
@@ -48,11 +52,14 @@ type Meeting struct {
 	// What is what is recorded, as the menu says it: "Zoom", or "everything
 	// this computer plays".
 	What string
+	// CanRecordRoom: nothing is recorded, and a meeting in the room can be.
+	CanRecordRoom bool
 }
 
-// meetingItems are the menu's items for a meeting being recorded.
+// meetingItems are the menu's items for a meeting being recorded, and the
+// one that records a meeting in the room.
 type meetingItems struct {
-	status, pause, stop *systray.MenuItem
+	status, pause, stop, room *systray.MenuItem
 }
 
 var (
@@ -148,6 +155,11 @@ func MeetingLabels(m Meeting) (status, pause string) {
 // applyMeeting draws meeting; mu is held.
 func applyMeeting() {
 	it := meetingMenu
+	if meeting.CanRecordRoom && !meeting.Recording {
+		it.room.Show()
+	} else {
+		it.room.Hide()
+	}
 	if !meeting.Recording {
 		it.status.Hide()
 		it.pause.Hide()
@@ -219,11 +231,20 @@ func build() {
 		status: systray.AddMenuItem("Recording", "A meeting is being recorded"),
 		pause:  systray.AddMenuItem("Pause recording", "Pause or resume the meeting's recording"),
 		stop:   systray.AddMenuItem("Stop and transcribe", "Stop recording the meeting and transcribe it"),
+		room:   systray.AddMenuItem("Record a meeting in the room", "Record a meeting in this room through the microphone"),
 	}
 	mi.status.Disable()
 	mi.status.Hide()
 	mi.pause.Hide()
 	mi.stop.Hide()
+	mi.room.Hide()
+	go func() {
+		for range mi.room.ClickedCh {
+			if m.OnMeetingRecordRoom != nil {
+				m.OnMeetingRecordRoom()
+			}
+		}
+	}()
 	go func() {
 		for range mi.pause.ClickedCh {
 			mu.Lock()

@@ -211,7 +211,7 @@ func meetingSettings() meeting.Settings {
 	}
 	return meeting.Settings{
 		On: mn.On, Profile: mn.Profile, Model: mn.Model, Hardware: meeting.Hardware(mn.Hardware), OutputDir: out, KeepAudio: mn.KeepAudio,
-		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour,
+		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour, Mic: mn.Mic,
 	}
 }
 
@@ -263,6 +263,16 @@ func (m *MeetingAPI) recording() *meeting.RecordingStatus {
 		return nil
 	}
 	return m.mgr.Status().Recording
+}
+
+// recordsRoomsNow says whether a meeting in the room can be recorded now:
+// the feature is on here, its recorder records rooms, and nothing is
+// recorded.
+func (m *MeetingAPI) recordsRoomsNow() bool {
+	if !m.keepsRunning() {
+		return false
+	}
+	return m.mgr.RecordsRooms() && m.mgr.Status().Recording == nil
 }
 
 // handleAction answers a press on one of Meeting notes' notification
@@ -379,6 +389,12 @@ type MeetingRecordingView struct {
 	// meeting.SettingsPrivacy), "" for none.
 	Warning         string `json:"warning,omitempty"`
 	WarningSettings string `json:"warningSettings,omitempty"`
+	// InRoom: a meeting in the room, the microphone alone. Microphone is
+	// the microphone recorded, where the recorder says, and MicMissing
+	// that the one chosen was missing so the default is.
+	InRoom     bool   `json:"inRoom"`
+	Microphone string `json:"microphone,omitempty"`
+	MicMissing bool   `json:"micMissing"`
 }
 
 // MeetingOfferView is a detected call offered for recording.
@@ -398,10 +414,12 @@ type MeetingAppView struct {
 
 // MeetingView is one meeting in the list.
 type MeetingView struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	App             string `json:"app"`
-	WholeDevice     bool   `json:"wholeDevice"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	App         string `json:"app"`
+	WholeDevice bool   `json:"wholeDevice"`
+	// InRoom: a meeting in the room, recorded through the microphone alone.
+	InRoom          bool   `json:"inRoom"`
 	Started         string `json:"started"`
 	DurationSeconds int64  `json:"durationSeconds"`
 	// State is recording, pending, transcribing, done or failed.
@@ -519,6 +537,13 @@ type MeetingNotesView struct {
 	Windows []MeetingWindowView `json:"windows"`
 	// Assistant is the Assistant transcripts may be handed to.
 	Assistant MeetingAssistantView `json:"assistant"`
+	// RecordsRooms: a meeting in the room can be recorded here, through
+	// the microphone alone.
+	RecordsRooms bool `json:"recordsRooms"`
+	// Mic is the microphone chosen, "" for the system's default, and
+	// Microphones those that may be chosen.
+	Mic         string          `json:"mic"`
+	Microphones []MeetingChoice `json:"microphones"`
 }
 
 // Status reads the page.
@@ -532,7 +557,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
-		Windows: []MeetingWindowView{},
+		Windows: []MeetingWindowView{}, Mic: mn.Mic, Microphones: []MeetingChoice{},
 	}
 	a := m.assistantOf()
 	where := a.where()
@@ -548,6 +573,16 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	}
 	s := meetingSettings()
 	v.OutputDir = s.OutputDir
+	v.RecordsRooms = v.Available && mgr.RecordsRooms()
+	if v.Available {
+		mics, err := mgr.Microphones()
+		if err != nil {
+			log.Printf("meeting notes: microphones: %v", err)
+		}
+		for _, mic := range mics {
+			v.Microphones = append(v.Microphones, MeetingChoice{ID: mic.ID, Name: mic.Name})
+		}
+	}
 	cat := mgr.Catalogue
 	profile := cat.Profile(mn.Profile)
 	v.Profile = profile.ID
@@ -573,6 +608,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		v.Recording = &MeetingRecordingView{
 			ID: r.ID, Started: r.Started.Format(time.RFC3339), App: r.App, WholeDevice: r.FarSide == meeting.FarSideWholeDevice,
 			Paused: r.Paused, Automatic: r.How == meeting.Automatically, Armed: r.How == meeting.InWindow, Title: r.Title,
+			InRoom: r.How == meeting.InRoom, Microphone: r.Microphone, MicMissing: r.MicMissing,
 		}
 		if w := r.Warning; w != nil {
 			v.Recording.Warning, v.Recording.WarningSettings = w.Text, w.Settings
@@ -591,7 +627,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	}
 	for _, mt := range ms {
 		mv := MeetingView{
-			ID: mt.ID, Title: mt.Title, App: mt.App, WholeDevice: mt.FarSide == meeting.FarSideWholeDevice,
+			ID: mt.ID, Title: mt.Title, App: mt.App, WholeDevice: mt.FarSide == meeting.FarSideWholeDevice, InRoom: mt.FarSide == meeting.FarSideNone,
 			Started: mt.Started.Format(time.RFC3339), State: mt.State, Error: mt.Error, Progress: -1,
 			HasAudio: mgr.HasAudio(mt),
 		}
@@ -707,6 +743,53 @@ func (m *MeetingAPI) Record() (*MeetingNotesView, error) {
 		return nil, err
 	}
 	if _, err := mgr.Record(m.app.ctxOrBackground()); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// RecordRoom starts recording a meeting in the room through the microphone
+// alone, after the native dialog has asked: the page asking is not the
+// person pressing Record in the room.
+func (m *MeetingAPI) RecordRoom() (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	if !meetingSettings().On {
+		return nil, meeting.ErrOff
+	}
+	if !mgr.RecordsRooms() {
+		return nil, meeting.ErrNoRooms
+	}
+	if err := m.app.askConsent("Record a meeting in the room?", "Agentry records your microphone, and nothing your computer plays, until you press Stop. "+meeting.ConsentSentence+" Tell everyone in the room."); err != nil {
+		return nil, err
+	}
+	if _, err := mgr.RecordRoom(m.app.ctxOrBackground()); err != nil {
+		return nil, err
+	}
+	return m.Status()
+}
+
+// SetMic chooses the microphone recordings use where they do not follow a
+// meeting app's own: one the audio system lists now, or "" for the
+// system's default. Anything else is refused, so a recording never reads
+// a source that is not a microphone.
+func (m *MeetingAPI) SetMic(id string) (*MeetingNotesView, error) {
+	mgr, err := m.available()
+	if err != nil {
+		return nil, err
+	}
+	if id != "" {
+		mics, err := mgr.Microphones()
+		if err != nil {
+			return nil, err
+		}
+		if !slices.ContainsFunc(mics, func(mic meeting.Microphone) bool { return mic.ID == id }) {
+			return nil, errors.New("that microphone is not connected")
+		}
+	}
+	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.Mic = id; return nil }); err != nil {
 		return nil, err
 	}
 	return m.Status()

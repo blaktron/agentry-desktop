@@ -30,6 +30,8 @@ export function Record():Promise<app.MeetingNotesView>;
 
 export function RecordOffer(arg1:string):Promise<app.MeetingNotesView>;
 
+export function RecordRoom():Promise<app.MeetingNotesView>;
+
 export function ResetOutputDir():Promise<app.MeetingNotesView>;
 
 export function Resume():Promise<app.MeetingNotesView>;
@@ -41,6 +43,8 @@ export function SetAutomatic(arg1:string,arg2:boolean):Promise<app.MeetingNotesV
 export function SetKeepAudio(arg1:boolean):Promise<app.MeetingNotesView>;
 
 export function SetMaxHours(arg1:number):Promise<app.MeetingNotesView>;
+
+export function SetMic(arg1:string):Promise<app.MeetingNotesView>;
 
 export function SetModel(arg1:string):Promise<app.MeetingNotesView>;
 

@@ -54,11 +54,22 @@ export function canTranscribe(m: MeetingRow): boolean {
   return (m.state === "failed" || m.state === "pending") && m.hasAudio;
 }
 
-/** What the far side records, in the recording's own words. */
-export function recordingWhat(app: string, wholeDevice: boolean): string {
+/** What a recording records, in its own words. */
+export function recordingWhat(app: string, wholeDevice: boolean, inRoom = false): string {
+  if (inRoom) return "your microphone in this room";
   if (wholeDevice) return "your microphone and everything your computer plays";
   return `your microphone and ${app || "the meeting app"}`;
 }
+
+/** What a meeting in the list says it recorded: the app, a meeting in the
+ *  room, or the whole device. */
+export function meetingSource(m: { app: string; inRoom: boolean; wholeDevice: boolean }): string {
+  if (m.inRoom) return "In the room";
+  return m.app || (m.wholeDevice ? "Whole device" : "");
+}
+
+/** The microphone choice's label for the default. */
+export const DEFAULT_MIC = "The system's default";
 
 /** A download's progress, "120 of 190 MB". */
 export function downloadWords(done: number, total: number): string {

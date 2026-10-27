@@ -50,6 +50,23 @@ func Merge(me, them []Segment) []Segment {
 		s.Label = Them
 		all = append(all, s)
 	}
+	return joinTurns(all)
+}
+
+// MergeRoom is the one track of a meeting in the room as turns: its
+// segments labelled Room and consecutive lines joined.
+func MergeRoom(room []Segment) []Segment {
+	all := make([]Segment, 0, len(room))
+	for _, s := range room {
+		s.Label = Room
+		all = append(all, s)
+	}
+	return joinTurns(all)
+}
+
+// joinTurns puts segments in time order and joins consecutive lines of one
+// label into turns.
+func joinTurns(all []Segment) []Segment {
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Start < all[j].Start })
 	var out []Segment
 	for _, s := range all {
@@ -131,6 +148,13 @@ type TranscriptInfo struct {
 	// recording an armed window made; Participants are who was invited.
 	FromCalendar bool
 	Participants []string
+	// InRoom: a meeting held in the room, recorded through the microphone
+	// alone. Microphone names the microphone where the recorder said, and
+	// MicMissing that the one chosen was missing so the default was
+	// recorded.
+	InRoom     bool
+	Microphone string
+	MicMissing bool
 }
 
 type frontSpeaker struct {
@@ -165,6 +189,8 @@ type frontmatter struct {
 	FarSide         string         `yaml:"far_side"`
 	Echo            string         `yaml:"echo"`
 	OutputDevice    string         `yaml:"output_device"`
+	Setting         string         `yaml:"setting,omitempty"`
+	Microphone      string         `yaml:"microphone,omitempty"`
 	Silent          []string       `yaml:"silent,omitempty"`
 	Gaps            []frontGap     `yaml:"gaps,omitempty"`
 }
@@ -204,6 +230,18 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		Transcriber: Transcriber, FarSide: string(info.FarSide),
 		Echo: "dedupe-text", OutputDevice: "unknown",
 	}
+	if info.InRoom {
+		fm.Setting = "in-room"
+		fm.Speakers = []frontSpeaker{{Label: string(Room), Source: "microphone", Note: "everyone in the room; not split by person"}}
+		fm.App, fm.Echo, fm.OutputDevice = "none", "none", "none"
+	}
+	fm.Microphone = info.Microphone
+	if info.MicMissing {
+		fm.Microphone = "default (the one chosen was missing)"
+		if info.Microphone != "" {
+			fm.Microphone = info.Microphone + " (default; the one chosen was missing)"
+		}
+	}
 	if info.FromCalendar {
 		fm.TitleSource = "calendar"
 		if len(info.Participants) > 0 {
@@ -225,7 +263,14 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 	b.Write(head)
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", oneLine(info.Title))
-	b.WriteString("Transcript produced automatically on this computer. Speaker labels come from the audio source, not from voice recognition: \"Them\" may be several people. Words may be wrong. Times are from the start of the recording.\n")
+	if info.InRoom {
+		b.WriteString("Transcript of a meeting in the room, produced automatically on this computer from one microphone. \"Room\" is everyone in the room, not split by person. Words may be wrong. Times are from the start of the recording.\n")
+	} else {
+		b.WriteString("Transcript produced automatically on this computer. Speaker labels come from the audio source, not from voice recognition: \"Them\" may be several people. Words may be wrong. Times are from the start of the recording.\n")
+	}
+	if info.MicMissing {
+		b.WriteString("\nThe microphone chosen in the settings was not found, so the default microphone was recorded.\n")
+	}
 	switch info.FarSide {
 	case FarSideWholeDevice:
 		b.WriteString("\nNo meeting app was found to record on its own, so \"Them\" is everything the computer played, other sounds included.\n")

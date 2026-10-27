@@ -34,6 +34,9 @@ type Settings struct {
 	// MaxLength ends a recording that has run this long; 0 is
 	// DefaultMaxLength.
 	MaxLength time.Duration
+	// Mic is the microphone chosen, by its Microphone ID; "" for the
+	// system's default.
+	Mic string
 }
 
 // Hardware is what transcriptions run on, as the person chose it.
@@ -49,6 +52,10 @@ const (
 // DefaultMaxLength is how long a recording runs at most unless the person
 // chose otherwise.
 const DefaultMaxLength = 4 * time.Hour
+
+// DefaultQuietAfter is how long a meeting in the room goes without speech
+// before the person is asked whether it is still on.
+const DefaultQuietAfter = 15 * time.Minute
 
 // Notice is a desktop notification the feature raises.
 type Notice struct {
@@ -74,6 +81,7 @@ type NoticeAction struct {
 const (
 	tagRecording = "meeting-recording"
 	tagOffer     = "meeting-offer"
+	tagQuiet     = "meeting-quiet"
 )
 
 // How says how a recording started.
@@ -88,6 +96,8 @@ const (
 	Automatically How = "automatic"
 	// InWindow is a detected call inside a window the Assistant armed.
 	InWindow How = "armed"
+	// InRoom is the person's own Record in the room: the microphone alone.
+	InRoom How = "room"
 )
 
 // Manager runs Meeting notes: one recording at a time, then its
@@ -122,6 +132,10 @@ type Manager struct {
 	Indicate func(*RecordingStatus)
 	// OfferFor is how long an offer to record stands; 0 is two minutes.
 	OfferFor time.Duration
+	// QuietAfter is how long a meeting in the room goes without speech
+	// before the person is asked whether it is still on; 0 is
+	// DefaultQuietAfter.
+	QuietAfter time.Duration
 	// Changed is told whenever the status changes.
 	Changed func()
 	// Transcribed is told each meeting whose transcript has just been
@@ -175,6 +189,10 @@ type RecordingStatus struct {
 	// Warning is what the recorder found the person should put right, if
 	// anything.
 	Warning *Warning `json:"warning,omitempty"`
+	// Microphone is the microphone recorded, where the recorder says, and
+	// MicMissing that the one chosen was missing so the default is.
+	Microphone string `json:"microphone,omitempty"`
+	MicMissing bool   `json:"micMissing,omitempty"`
 }
 
 // Status is the feature's state as a page shows it.
@@ -218,6 +236,12 @@ type recording struct {
 	window string
 	// warning is the capture's warning, once it raised one.
 	warning *Warning
+	// quietFrom is when the room's silence is counted from: the start, or
+	// the last resume. quietAsked is set once the person was asked whether
+	// the meeting is still on, until someone speaks again; askedAt is when.
+	quietFrom  time.Time
+	quietAsked bool
+	askedAt    time.Time
 }
 
 func (m *Manager) now() time.Time {
@@ -372,7 +396,10 @@ func (m *Manager) Status() Status {
 }
 
 func (r *recording) status() *RecordingStatus {
-	st := &RecordingStatus{ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how, Warning: r.warning}
+	st := &RecordingStatus{
+		ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how, Warning: r.warning,
+		Microphone: r.m.Microphone, MicMissing: r.m.MicMissing,
+	}
 	if r.window != "" {
 		st.Title = r.m.Title
 	}
@@ -415,6 +442,8 @@ const (
 	// ":" and the offer's ID.
 	ActionRecord = "record"
 	ActionNotNow = "not-now"
+	// ActionKeepGoing answers "Still recording?": the meeting is still on.
+	ActionKeepGoing = "keep-going"
 )
 
 // announce raises, or replaces, the notification that says a recording is
@@ -430,16 +459,21 @@ func (m *Manager) announce(r *recording) error {
 		m.mu.Unlock()
 		return nil
 	}
-	app, far, paused, how, title := r.m.App, r.m.FarSide, r.paused, r.how, r.m.Title
+	app, far, paused, how, title, missing := r.m.App, r.m.FarSide, r.paused, r.how, r.m.Title, r.m.MicMissing
 	m.mu.Unlock()
 	what := "your microphone and everything your computer plays"
 	switch {
+	case how == InRoom:
+		what = "your microphone in this room"
 	case far == FarSideAppDevice && app != "":
 		what = "your microphone and everything played on the speakers or headset " + app + " uses"
 	case far != FarSideWholeDevice && app != "":
 		what = "your microphone and " + app
 	}
 	n := Notice{Tag: tagRecording, Resident: true, Title: "Recording a meeting", Body: "Agentry is recording " + what + ". " + ConsentSentence}
+	if how == InRoom {
+		n.Title = "Recording a meeting in the room"
+	}
 	if how == Automatically {
 		n.Title = "Recording a meeting automatically"
 		n.Body = "Agentry is recording " + what + ", which you chose to record automatically. " + ConsentSentence
@@ -447,6 +481,9 @@ func (m *Manager) announce(r *recording) error {
 	if how == InWindow {
 		n.Title = "Recording " + title
 		n.Body = "Agentry is recording " + what + " for this meeting from your calendar, which your Assistant set up to record. " + ConsentSentence
+	}
+	if missing {
+		n.Body += " " + micMissingSentence
 	}
 	pause := NoticeAction{ID: ActionPause, Label: "Pause"}
 	if paused {
@@ -457,6 +494,9 @@ func (m *Manager) announce(r *recording) error {
 	n.Actions = []NoticeAction{pause, {ID: ActionStop, Label: "Stop"}}
 	return m.notify(n)
 }
+
+// micMissingSentence says the chosen microphone was not there.
+const micMissingSentence = "The microphone chosen in Meeting notes' settings was not found, so the default microphone is recorded."
 
 // Meetings lists the meetings, newest first.
 func (m *Manager) Meetings() ([]*Meeting, error) { return m.store().List() }
@@ -471,7 +511,36 @@ var ErrOff = errors.New("meeting notes is off: turn it on first")
 // or the whole default devices when there is none. It refuses while the
 // feature is off or while another recording runs.
 func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
-	return m.startRecording(ctx, Call{}, ByHand, nil)
+	return m.startRecording(ctx, Call{Mic: m.Settings().Mic}, ByHand, nil)
+}
+
+// ErrNoRooms refuses a meeting in the room where the recorder cannot
+// record one.
+var ErrNoRooms = errors.New("recording a meeting in the room is not available on this computer yet")
+
+// RecordRoom starts recording a meeting in the room, at the person's own
+// Record in the room: the chosen microphone alone, no far side, no app
+// followed. It refuses while the feature is off, while another recording
+// runs, and where the recorder cannot record a room.
+func (m *Manager) RecordRoom(ctx context.Context) (*Meeting, error) {
+	return m.startRecording(ctx, Call{Room: true, Mic: m.Settings().Mic}, InRoom, nil)
+}
+
+// RecordsRooms says whether this computer's recorder records a meeting in
+// the room.
+func (m *Manager) RecordsRooms() bool {
+	_, ok := m.Recorder.(RoomRecorder)
+	return ok
+}
+
+// Microphones lists the microphones a recording may use, where the
+// recorder can say; none where it cannot.
+func (m *Manager) Microphones() ([]Microphone, error) {
+	rr, ok := m.Recorder.(RoomRecorder)
+	if !ok {
+		return nil, nil
+	}
+	return rr.Microphones()
 }
 
 // startRecording is every way into a recording: it records call (zero for
@@ -482,6 +551,15 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How, w *Win
 	s := m.Settings()
 	if !s.On {
 		return nil, ErrOff
+	}
+	// A room is the person's own press, never an offer, an app on the
+	// automatic list or an armed window; and only a recorder that records
+	// rooms is asked for one.
+	if call.Room != (how == InRoom) {
+		return nil, errors.New("only Record in the room records a meeting in the room")
+	}
+	if call.Room && !m.RecordsRooms() {
+		return nil, ErrNoRooms
 	}
 	m.mu.Lock()
 	if m.rec != nil {
@@ -499,7 +577,10 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How, w *Win
 		m.mu.Unlock()
 		return nil, err
 	}
-	r := &recording{m: mt, names: map[string]bool{}, how: how}
+	if call.Room {
+		mt.Title = "Meeting in the room " + started.Format("2006-01-02 15:04")
+	}
+	r := &recording{m: mt, names: map[string]bool{}, how: how, quietFrom: started}
 	if w != nil {
 		mt.Title, mt.Window, mt.Invitees = w.Title, w.ID, w.Invitees
 		r.window = w.ID
@@ -542,6 +623,9 @@ func (m *Manager) startRecording(ctx context.Context, call Call, how How, w *Win
 		mt.App = call.App
 	}
 	mt.FarSide = capture.FarSide()
+	if mr, ok := capture.(MicReporter); ok {
+		mt.Microphone, mt.MicMissing = mr.Microphone()
+	}
 	_ = st.Save(mt)
 	m.mu.Unlock()
 
@@ -615,8 +699,16 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 					r.warning, cleared = nil, true
 				}
 			}
-			ran := m.now().Sub(r.m.Started)
+			now := m.now()
+			ran := now.Sub(r.m.Started)
+			ask, spoke := m.quietLocked(r, now)
 			m.mu.Unlock()
+			if ask {
+				m.askStillOn()
+			}
+			if spoke {
+				m.withdraw(tagQuiet)
+			}
 			if warned != nil {
 				_ = m.notify(Notice{Title: "Meeting notes may not be hearing the meeting", Body: warned.Text})
 			}
@@ -635,6 +727,61 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 			}
 		}
 	}
+}
+
+// quietLocked follows a meeting in the room's silence: ask is set when it
+// has gone QuietAfter without speech and the person has not been asked in
+// this quiet stretch; spoke when someone spoke after they were asked, which
+// ends the stretch. A paused recording is not quiet: nothing is listened
+// to. m.mu is held.
+func (m *Manager) quietLocked(r *recording, now time.Time) (ask, spoke bool) {
+	if r.how != InRoom || r.paused {
+		return false, false
+	}
+	last := r.quietFrom
+	for _, t := range r.tracks {
+		if l := t.LastLoud(); l.After(last) {
+			last = l
+		}
+	}
+	if r.quietAsked {
+		if last.After(r.askedAt) {
+			r.quietAsked = false
+			return false, true
+		}
+		return false, false
+	}
+	after := m.QuietAfter
+	if after <= 0 {
+		after = DefaultQuietAfter
+	}
+	if now.Sub(last) < after {
+		return false, false
+	}
+	r.quietAsked, r.askedAt = true, now
+	return true, false
+}
+
+// askStillOn asks whether a quiet meeting in the room is still on. Without
+// an answer it goes on recording: only Stop, the longest length or quitting
+// end it.
+func (m *Manager) askStillOn() {
+	after := m.QuietAfter
+	if after <= 0 {
+		after = DefaultQuietAfter
+	}
+	_ = m.notify(Notice{
+		Tag: tagQuiet, Resident: true, Title: "Still recording?",
+		Body:    "Nobody has spoken for " + lengthWords(after) + ". Agentry is still recording your microphone in this room, and goes on until you stop it.",
+		Actions: []NoticeAction{{ID: ActionStop, Label: "Stop"}, {ID: ActionKeepGoing, Label: "Keep going"}},
+	})
+}
+
+// KeepGoing answers "Still recording?": the meeting is on, so the question
+// is taken away and not asked again until someone has spoken.
+func (m *Manager) KeepGoing() error {
+	m.withdraw(tagQuiet)
+	return nil
 }
 
 // SetPaused pauses or resumes the recording in progress.
@@ -670,6 +817,8 @@ func (m *Manager) SetPaused(paused bool) error {
 		r.pausedAt = at
 	} else {
 		r.m.Gaps = append(r.m.Gaps, Gap{From: r.pausedAt, To: at, Reason: "paused"})
+		// The silence of a room is counted again from the resume.
+		r.quietFrom = m.now()
 	}
 	r.paused = paused
 	_ = m.store().Save(r.m)
@@ -710,6 +859,9 @@ func (m *Manager) finish(r *recording, transcribe bool) error {
 		m.noticeMu.Lock()
 		m.withdraw(tagRecording)
 		m.noticeMu.Unlock()
+		if r.how == InRoom {
+			m.withdraw(tagQuiet)
+		}
 		m.indicate()
 		// A call that waited while this one recorded has its turn.
 		m.consider()
@@ -932,7 +1084,11 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	}
 	st := m.store()
 	var todo []TrackRecord
+	inRoom := mt.FarSide == FarSideNone
 	silent := map[Label]bool{Me: true, Them: true}
+	if inRoom {
+		silent = map[Label]bool{Room: true}
+	}
 	for _, t := range mt.Tracks {
 		quiet := t.Silent
 		if !quiet {
@@ -946,7 +1102,7 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 			silent[t.Label] = false
 		}
 	}
-	var me, them []Segment
+	var me, them, room []Segment
 	lang := profile.Language
 	for i, t := range todo {
 		res, err := m.Engine.Transcribe(ctx, TranscribeRequest{
@@ -963,9 +1119,12 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		if res.Language != "" && lang == "auto" {
 			lang = res.Language
 		}
-		if t.Label == Me {
+		switch t.Label {
+		case Me:
 			me = append(me, res.Segments...)
-		} else {
+		case Room:
+			room = append(room, res.Segments...)
+		default:
 			them = append(them, res.Segments...)
 		}
 	}
@@ -973,13 +1132,18 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		Title: mt.Title, Started: mt.Started, Ended: mt.Ended, App: mt.App, FarSide: mt.FarSide,
 		Language: lang, Profile: profile.ID, Model: model, Gaps: mt.Gaps,
 		FromCalendar: mt.Window != "", Participants: mt.Invitees,
+		InRoom: inRoom, Microphone: mt.Microphone, MicMissing: mt.MicMissing,
 	}
-	for _, l := range []Label{Me, Them} {
-		if silent[l] {
+	for _, l := range []Label{Me, Them, Room} {
+		if on, ok := silent[l]; ok && on {
 			info.SilentSides = append(info.SilentSides, l)
 		}
 	}
-	doc, err := Render(info, Merge(me, them))
+	lines := Merge(me, them)
+	if inRoom {
+		lines = MergeRoom(room)
+	}
+	doc, err := Render(info, lines)
 	if err != nil {
 		return "", err
 	}
@@ -989,6 +1153,9 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	slug := mt.App
 	if mt.Window != "" {
 		slug = mt.Title
+	}
+	if inRoom {
+		slug = "meeting in the room"
 	}
 	if slug == "" {
 		slug = "meeting"

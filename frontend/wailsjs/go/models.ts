@@ -2540,6 +2540,7 @@ export namespace app {
 	    title: string;
 	    app: string;
 	    wholeDevice: boolean;
+	    inRoom: boolean;
 	    started: string;
 	    durationSeconds: number;
 	    state: string;
@@ -2563,6 +2564,7 @@ export namespace app {
 	        this.title = source["title"];
 	        this.app = source["app"];
 	        this.wholeDevice = source["wholeDevice"];
+	        this.inRoom = source["inRoom"];
 	        this.started = source["started"];
 	        this.durationSeconds = source["durationSeconds"];
 	        this.state = source["state"];
@@ -2588,6 +2590,9 @@ export namespace app {
 	    title?: string;
 	    warning?: string;
 	    warningSettings?: string;
+	    inRoom: boolean;
+	    microphone?: string;
+	    micMissing: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingRecordingView(source);
@@ -2605,6 +2610,9 @@ export namespace app {
 	        this.title = source["title"];
 	        this.warning = source["warning"];
 	        this.warningSettings = source["warningSettings"];
+	        this.inRoom = source["inRoom"];
+	        this.microphone = source["microphone"];
+	        this.micMissing = source["micMissing"];
 	    }
 	}
 	export class MeetingNotesView {
@@ -2640,6 +2648,9 @@ export namespace app {
 	    startsAtSignIn: boolean;
 	    windows: MeetingWindowView[];
 	    assistant: MeetingAssistantView;
+	    recordsRooms: boolean;
+	    mic: string;
+	    microphones: MeetingChoice[];
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingNotesView(source);
@@ -2679,6 +2690,9 @@ export namespace app {
 	        this.startsAtSignIn = source["startsAtSignIn"];
 	        this.windows = this.convertValues(source["windows"], MeetingWindowView);
 	        this.assistant = this.convertValues(source["assistant"], MeetingAssistantView);
+	        this.recordsRooms = source["recordsRooms"];
+	        this.mic = source["mic"];
+	        this.microphones = this.convertValues(source["microphones"], MeetingChoice);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
