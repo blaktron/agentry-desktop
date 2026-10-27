@@ -15,7 +15,7 @@ import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, run } from "../../wailsjs/go/models";
 import { forgetChat, refreshAgents, setAgentEnabled, startAgent, stopStart, updateAgent, useAgents } from "../agents";
 import { helperSuperseded } from "../homeAgent";
-import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords } from "../persistentAgents";
+import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords, compactingWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -330,45 +330,41 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
           onChange={(e) => void change({ runOnStart: e.target.checked }, "Run when Agentry starts")} />
         Run when Agentry starts
       </label>
-      {(agent.keepsTime || agent.keepsMemory) && (
-        <div className="row gap">
-          {agent.keepsTime && <Button disabled={busy} onClick={() => setShowTasks(true)}>Tasks…</Button>}
-          {agent.keepsMemory && (
-            <Button disabled={busy} onClick={() => void (async () => {
-              setBusy(true);
-              setError(null);
+      <div className="row gap">
+        {agent.keepsTime && <Button disabled={busy} onClick={() => setShowTasks(true)}>Tasks…</Button>}
+        {agent.keepsMemory && (
+          <Button disabled={busy} onClick={() => void (async () => {
+            setBusy(true);
+            setError(null);
+            setSaved(null);
+            try {
+              const v = await PersistentAPI.ExportMemory(name);
+              if (v.folder) setSaved(exportWords(v));
+            } catch (e) {
+              setError(String(e));
+            } finally {
+              setBusy(false);
+            }
+          })()}>Export memory…</Button>
+        )}
+        <Button disabled={busy || (agent.state !== "running" && agent.state !== "elsewhere")}
+          title={agent.state === "running" || agent.state === "elsewhere" ? undefined : "Start the agent to compact its conversation."}
+          onClick={() => void (async () => {
+            setBusy(true);
+            setError(null);
+            setSaved(compactingWords(agent.keepsMemory));
+            try {
+              updateAgent(await PersistentAPI.Compact(name));
+              setSaved("Compacted: a fresh conversation opens with the agent's handoff.");
+            } catch (e) {
               setSaved(null);
-              try {
-                const v = await PersistentAPI.ExportMemory(name);
-                if (v.folder) setSaved(exportWords(v));
-              } catch (e) {
-                setError(String(e));
-              } finally {
-                setBusy(false);
-              }
-            })()}>Export memory…</Button>
-          )}
-          {agent.keepsMemory && (
-            <Button disabled={busy || (agent.state !== "running" && agent.state !== "elsewhere")}
-              title={agent.state === "running" || agent.state === "elsewhere" ? undefined : "Start the agent to compact its conversation."}
-              onClick={() => void (async () => {
-                setBusy(true);
-                setError(null);
-                setSaved("Compacting: the agent saves this conversation to its memory first, then goes on in a fresh one. This can take a few minutes.");
-                try {
-                  updateAgent(await PersistentAPI.Compact(name));
-                  setSaved("Compacted: a fresh conversation opens with the agent's handoff.");
-                } catch (e) {
-                  setSaved(null);
-                  setError(String(e));
-                } finally {
-                  setBusy(false);
-                }
-              })()}>Compact now</Button>
-          )}
-        </div>
-      )}
-      {agent.keepsMemory && (agent.lastCompaction || agent.lastConsolidation) && (
+              setError(String(e));
+            } finally {
+              setBusy(false);
+            }
+          })()}>Compact now</Button>
+      </div>
+      {(agent.lastCompaction || agent.lastConsolidation) && (
         <p className="small muted" data-testid="upkeep">
           {agent.lastCompaction && upkeepWords(agent.lastCompaction)}
           {agent.lastCompaction && agent.lastConsolidation && " "}

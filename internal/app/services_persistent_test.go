@@ -740,8 +740,8 @@ func TestCompactNowCompactsTheRunningAgent(t *testing.T) {
 	if _, err := rig.p.Compact("assistant"); err == nil || !strings.Contains(err.Error(), "not running") {
 		t.Fatalf("a stopped agent: %v", err)
 	}
-	if _, err := rig.p.Compact("coder"); err == nil || !strings.Contains(err.Error(), "keeps no memory") {
-		t.Fatalf("the Coding agent: %v", err)
+	if _, err := rig.p.Compact("coder"); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("a stopped Coding agent: %v", err)
 	}
 	if _, err := rig.p.Start("assistant"); err != nil {
 		t.Fatal(err)
@@ -772,5 +772,40 @@ func TestCompactNowCompactsTheRunningAgent(t *testing.T) {
 	}
 	if c := v.LastConsolidation; c == nil || !c.Done || c.FactsAfter != 13 {
 		t.Errorf("the view's last consolidation = %+v", c)
+	}
+}
+
+// Compact now compacts an agent that keeps no memory too: the Coding
+// agent's view names its last compaction from its receipts, and has no
+// memory tidy to name.
+func TestCompactNowCompactsTheCodingAgent(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled("coder", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Start("coder"); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(persistent.Dir(rig.home, "coder"), "segments", "seg1", "receipts")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "upkeep.ndjson"), []byte(
+		`{"time":"2026-10-27T16:19:00Z","trigger":"manual","swapped":true,"factsBefore":-1,"factsAfter":-1,"handoffBytes":1264}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rig.agent.compacted = persistent.Compacted{Trigger: persistent.UpkeepManual, Swapped: true, FactsBefore: -1, FactsAfter: -1}
+	v, err := rig.p.Compact("coder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rig.agent.compactions != 1 {
+		t.Errorf("%d compactions", rig.agent.compactions)
+	}
+	if c := v.LastCompaction; c == nil || !c.Done || c.Trigger != persistent.UpkeepManual {
+		t.Errorf("the view's last compaction = %+v", c)
+	}
+	if v.LastConsolidation != nil {
+		t.Errorf("an agent with no memory has a memory tidy: %+v", v.LastConsolidation)
 	}
 }

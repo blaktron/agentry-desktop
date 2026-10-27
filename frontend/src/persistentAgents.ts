@@ -362,7 +362,15 @@ const upkeepTriggers: Record<string, string> = {
   manual: "when asked",
 };
 
-/** One run of the memory's upkeep, as its Configuration names it. */
+/** What Compact now tells the person while it runs: an agent that keeps a
+ * memory saves to it first, and every agent writes a handoff. */
+export function compactingWords(keepsMemory: boolean): string {
+  return keepsMemory
+    ? "Compacting: the agent saves this conversation to its memory first, then goes on in a fresh one. This can take a few minutes."
+    : "Compacting: the agent writes a handoff, then goes on in a fresh conversation that opens with it. This can take a few minutes.";
+}
+
+/** One run of an agent's upkeep, as its Configuration names it. */
 export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger" | "done" | "reason">, now: Date = new Date()): string {
   const at = new Date(u.time);
   const day = at.toDateString() === now.toDateString() ? "today" : at.toLocaleDateString();
