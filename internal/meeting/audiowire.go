@@ -30,6 +30,7 @@ const (
 	cmdDetect = "detect"
 	cmdRecord = "record"
 	cmdPause  = "pause"
+	cmdMics   = "mics"
 )
 
 // The child's events.
@@ -40,6 +41,7 @@ const (
 	evEnded    = "ended"
 	evLog      = "log"
 	evError    = "error"
+	evMics     = "mics"
 )
 
 // The child's tracks.
@@ -55,12 +57,17 @@ const maxFrame = 4 << 20
 // wireCommand is the parent's instruction: "detect", to report the audio
 // stack's sessions as they change; "record", to record the call of PID or
 // Binary (or, with neither, the call found under way or the whole default
-// devices); "pause", to stop or restart the flow of audio.
+// devices; or, with Room, the microphone alone); "pause", to stop or
+// restart the flow of audio; "mics", to list the microphones once. Mic is
+// the microphone chosen, by endpoint id, for a recording that follows no
+// app.
 type wireCommand struct {
 	Cmd    string `json:"cmd"`
 	PID    string `json:"pid,omitempty"`
 	Binary string `json:"binary,omitempty"`
 	Paused bool   `json:"paused,omitempty"`
+	Room   bool   `json:"room,omitempty"`
+	Mic    string `json:"mic,omitempty"`
 }
 
 // wireEvent is the child's news:
@@ -69,13 +76,20 @@ type wireCommand struct {
 //   - "far-side": the far side is now recorded another way;
 //   - "ended": the call's app stopped using the microphone long enough;
 //   - "log": something worth the parent's log, such as a device followed;
-//   - "error": the child cannot go on, and why.
+//   - "error": the child cannot go on, and why;
+//   - "mics": the microphones, the answer to "mics".
+//
+// A "started" with no app followed also names the microphone recorded
+// (MicName) and whether the one chosen was missing (MicMissing).
 type wireEvent struct {
-	Type     string         `json:"type"`
-	Call     *Call          `json:"call,omitempty"`
-	FarSide  FarSide        `json:"farSide,omitempty"`
-	Message  string         `json:"message,omitempty"`
-	Sessions []audioSession `json:"sessions,omitempty"`
+	Type       string         `json:"type"`
+	Call       *Call          `json:"call,omitempty"`
+	FarSide    FarSide        `json:"farSide,omitempty"`
+	Message    string         `json:"message,omitempty"`
+	Sessions   []audioSession `json:"sessions,omitempty"`
+	Mics       []Microphone   `json:"mics,omitempty"`
+	MicName    string         `json:"micName,omitempty"`
+	MicMissing bool           `json:"micMissing,omitempty"`
 }
 
 // frameWriter writes whole frames from any goroutine.

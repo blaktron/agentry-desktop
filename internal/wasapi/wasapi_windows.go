@@ -47,6 +47,7 @@ var ErrGone = errors.New("the audio device went away")
 var (
 	ole32                = windows.NewLazySystemDLL("ole32.dll")
 	procCoCreateInstance = ole32.NewProc("CoCreateInstance")
+	procPropVariantClear = ole32.NewProc("PropVariantClear")
 )
 
 const (
@@ -54,6 +55,8 @@ const (
 	deviceStateActive = 1
 	eConsole          = 0
 	coinitMTA         = 0x0
+	stgmRead          = 0x0 // STGM_READ: the property store is only read
+	vtLPWSTR          = 31  // VT_LPWSTR: a PROPVARIANT holding a UTF-16 string
 	errChangedMode    = 0x80010106
 	sOK               = 0
 )
@@ -198,6 +201,73 @@ func deviceID(dev *comObj) (string, error) {
 	}
 	defer windows.CoTaskMemFree(unsafe.Pointer(p))
 	return windows.UTF16PtrToString(p), nil
+}
+
+// Endpoint is an active endpoint: its id, and the name Windows shows for
+// it ("" where it cannot be read).
+type Endpoint struct {
+	ID   string
+	Name string
+}
+
+// Endpoints lists the active endpoints of flow.
+func (s *System) Endpoints(flow Flow) ([]Endpoint, error) {
+	var coll *comObj
+	if hr := s.enum.call(slotEnumAudioEndpoints, uintptr(flow), deviceStateActive, uintptr(unsafe.Pointer(&coll))); failed(hr) {
+		return nil, hrError("the audio devices", hr)
+	}
+	defer coll.release()
+	var n uint32
+	coll.call(slotCollectionGetCount, uintptr(unsafe.Pointer(&n)))
+	out := make([]Endpoint, 0, n)
+	for i := range n {
+		var dev *comObj
+		if failed(coll.call(slotCollectionItem, uintptr(i), uintptr(unsafe.Pointer(&dev)))) {
+			continue
+		}
+		id, err := deviceID(dev)
+		if err == nil {
+			out = append(out, Endpoint{ID: id, Name: friendlyName(dev)})
+		}
+		dev.release()
+	}
+	return out, nil
+}
+
+// propertyKey is the SDK's PROPERTYKEY.
+type propertyKey struct {
+	fmtid windows.GUID
+	pid   uint32
+}
+
+// propVariant is the SDK's PROPVARIANT on a 64-bit Windows: its type, three
+// reserved words, and a union whose first word is a string's pointer when
+// the type is VT_LPWSTR.
+type propVariant struct {
+	vt       uint16
+	reserved [3]uint16
+	val      *uint16
+	pad      uintptr
+}
+
+// friendlyName is the name Windows shows for a device, "" where it cannot
+// be read.
+func friendlyName(dev *comObj) string {
+	var store *comObj
+	if failed(dev.call(slotOpenPropertyStore, stgmRead, uintptr(unsafe.Pointer(&store)))) {
+		return ""
+	}
+	defer store.release()
+	key := propertyKey{fmtid: *guid(pkeyDeviceFriendlyNameFmtID), pid: pkeyDeviceFriendlyNamePID}
+	var v propVariant
+	if failed(store.call(slotPropertyGetValue, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&v)))) {
+		return ""
+	}
+	defer procPropVariantClear.Call(uintptr(unsafe.Pointer(&v))) //nolint:errcheck // nothing to do if clearing fails
+	if v.vt != vtLPWSTR || v.val == nil {
+		return ""
+	}
+	return windows.UTF16PtrToString(v.val)
 }
 
 // Sessions lists every app's sessions on every active endpoint, the

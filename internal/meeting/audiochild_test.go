@@ -27,13 +27,24 @@ type fakeAudio struct {
 	log      []string
 	open     map[string]int
 	sessErr  error
+	mics     []Microphone
 }
 
 func newFakeAudio() *fakeAudio {
 	return &fakeAudio{
 		defaults: map[endpointFlow]string{flowRender: "speakers", flowCapture: "laptop-mic"},
 		gone:     map[string]bool{}, refuse: map[string]error{}, open: map[string]int{},
+		mics: []Microphone{{ID: "laptop-mic", Name: "Microphone Array"}, {ID: "usb-mic", Name: "USB Speakerphone"}},
 	}
+}
+
+func (f *fakeAudio) Endpoints(flow endpointFlow) ([]Microphone, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if flow != flowCapture {
+		return nil, nil
+	}
+	return slices.Clone(f.mics), nil
 }
 
 func (f *fakeAudio) set(s ...audioSession) {
@@ -451,3 +462,91 @@ func TestAnOversizedFrameIsRefused(t *testing.T) {
 }
 
 var _ = context.Background
+
+// A meeting in the room records the microphone chosen and nothing else:
+// no output, no app followed, even while a call is under way.
+func TestARoomRecordsTheChosenMicrophoneAlone(t *testing.T) {
+	f := newFakeAudio()
+	f.set(zoomSession("headset", flowRender, true), zoomSession("headset-mic", flowCapture, true))
+	frames := runChild(t, f, wireCommand{Cmd: cmdRecord, Room: true, Mic: "usb-mic", PID: "4100"})
+	started := firstEvent(t, frames, evStarted)
+	if started.Call != nil || started.FarSide != FarSideNone || started.MicName != "USB Speakerphone" || started.MicMissing {
+		t.Fatalf("started %+v", started)
+	}
+	for _, ev := range f.events() {
+		if strings.Contains(ev, "loopback") || strings.Contains(ev, "headset") || strings.Contains(ev, "laptop-mic") {
+			t.Fatalf("a room opened %q: %v", ev, f.events())
+		}
+	}
+	if !slices.Contains(f.events(), "open mic usb-mic") {
+		t.Fatalf("opened %v", f.events())
+	}
+}
+
+// A chosen microphone that is not there gives way to the default, and the
+// start says so.
+func TestAMissingChosenMicrophoneTakesTheDefaultAndSaysSo(t *testing.T) {
+	f := newFakeAudio()
+	frames := runChild(t, f, wireCommand{Cmd: cmdRecord, Room: true, Mic: "unplugged"})
+	started := firstEvent(t, frames, evStarted)
+	if started.MicName != "Microphone Array" || !started.MicMissing {
+		t.Fatalf("started %+v", started)
+	}
+	if got := f.events(); !slices.Equal(got[:1], []string{"open mic laptop-mic"}) {
+		t.Fatalf("opened %v", got)
+	}
+}
+
+// Record with no app found reads the microphone chosen in place of the
+// default one, and still the default output.
+func TestRecordWithNoAppReadsTheChosenMicrophone(t *testing.T) {
+	f := newFakeAudio()
+	frames := runChild(t, f, wireCommand{Cmd: cmdRecord, Mic: "usb-mic"})
+	started := firstEvent(t, frames, evStarted)
+	if started.FarSide != FarSideWholeDevice || started.MicName != "USB Speakerphone" {
+		t.Fatalf("started %+v", started)
+	}
+	if got := f.events(); !slices.Contains(got, "open mic usb-mic") || !slices.Contains(got, "open loopback speakers") {
+		t.Fatalf("opened %v", got)
+	}
+}
+
+// "mics" lists the microphones and opens none.
+func TestTheChildListsTheMicrophones(t *testing.T) {
+	f := newFakeAudio()
+	ev := firstEvent(t, runChild(t, f, wireCommand{Cmd: cmdMics}), evMics)
+	if len(ev.Mics) != 2 || ev.Mics[1].Name != "USB Speakerphone" {
+		t.Fatalf("mics %+v", ev.Mics)
+	}
+	if n := f.openCount(); n != 0 || len(f.events()) != 0 {
+		t.Fatalf("listing opened %v", f.events())
+	}
+}
+
+// A room keeps the microphone it starts on, the default included, when the
+// default changes; and a Mic naming an output is no microphone.
+func TestARoomKeepsItsMicrophoneAndTakesNoOutputAsOne(t *testing.T) {
+	f := newFakeAudio()
+	var out bytes.Buffer
+	r, _ := newRecording(f, recordTarget{}, &out)
+	r.room = true
+	if err := r.chooseMic(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(true); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.defaults[flowCapture] = "usb-mic"
+	f.mu.Unlock()
+	if err := r.scan(false); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.events(); !slices.Equal(got, []string{"open mic laptop-mic"}) {
+		t.Fatalf("a new default moved the room: %v", got)
+	}
+	frames := runChild(t, newFakeAudio(), wireCommand{Cmd: cmdRecord, Room: true, Mic: "speakers"})
+	if started := firstEvent(t, frames, evStarted); !started.MicMissing || started.MicName != "Microphone Array" {
+		t.Fatalf("an output as the microphone: started %+v", started)
+	}
+}

@@ -1,7 +1,8 @@
 // Core Audio for Meeting notes on macOS 14.4 and later: the processes that
 // use audio, a process tap of a meeting app's processes (or of everything
-// but this app), and the default input. Each capture fills a ring of mono
-// float samples at its own rate from Core Audio's thread; Go drains it.
+// but this app), and an input device, the default or one chosen. Each
+// capture fills a ring of mono float samples at its own rate from Core
+// Audio's thread; Go drains it.
 #ifndef AGENTRY_COREAUDIO_DARWIN_H
 #define AGENTRY_COREAUDIO_DARWIN_H
 
@@ -43,9 +44,22 @@ typedef struct ca_capture ca_capture;
 // On failure it returns NULL and writes why into err.
 ca_capture *ca_tap_start(const uint32_t *objects, int n, int global, char *err, int errlen);
 
-// ca_mic_start records the default input. On failure it returns NULL and
-// writes why into err.
-ca_capture *ca_mic_start(char *err, int errlen);
+// ca_mic is one input device: its UID, its name, and whether it is the
+// default input.
+typedef struct {
+	char uid[512];
+	char name[512];
+	int is_default;
+} ca_mic;
+
+// ca_mics fills out with up to max input devices (this app's own tap
+// devices left out) and returns how many there are, or -1.
+int ca_mics(ca_mic *out, int max);
+
+// ca_mic_start records the input device whose UID is uid, or the default
+// input when uid is NULL or empty. On failure it returns NULL and writes why
+// into err.
+ca_capture *ca_mic_start(const char *uid, char *err, int errlen);
 
 // ca_rate is the capture's sample rate.
 double ca_rate(ca_capture *c);

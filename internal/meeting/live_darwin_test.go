@@ -257,3 +257,24 @@ func TestLiveTranscriberOnMetal(t *testing.T) {
 		t.Fatalf("the sample was transcribed as %q", all)
 	}
 }
+
+// TestLiveTapDeviceIsNoMicrophone lists the microphones while a tap is
+// built: the tap's own aggregate device, an input this process sees, is
+// never one of them. It runs only when AGENTRY_MEETING_LIVE is set.
+func TestLiveTapDeviceIsNoMicrophone(t *testing.T) {
+	liveOnly(t)
+	src, err := coreAudio{}.StartTap(nil, true)
+	if err != nil {
+		t.Skipf("no tap could be built here: %v", err)
+	}
+	defer src.Stop()
+	mics, _, err := coreAudio{}.Mics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range mics {
+		if m.Name == "Agentry Meeting notes" {
+			t.Fatalf("the tap's device is listed as a microphone: %+v", m)
+		}
+	}
+}

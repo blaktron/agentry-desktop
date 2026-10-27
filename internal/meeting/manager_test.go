@@ -102,7 +102,11 @@ type fakeCapture struct {
 	micMissing bool
 }
 
-func (c *fakeCapture) Microphone() (string, bool) { return c.micName, c.micMissing }
+func (c *fakeCapture) Microphone() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.micName, c.micMissing
+}
 
 func (c *fakeCapture) Call() Call { return c.call }
 func (c *fakeCapture) FarSide() FarSide {

@@ -1,6 +1,8 @@
 package meeting
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"slices"
@@ -318,5 +320,60 @@ func waitForLong(t *testing.T, cond func() bool) {
 			t.Fatal("timed out")
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// A meeting in the room through the child has one Room track and no far
+// side, and says which microphone it records.
+func TestARoomThroughTheChild(t *testing.T) {
+	f := newFakeAudio()
+	child := &inProcessChild{f: f}
+	tracks := &memTracks{}
+	rr := RoomRecorder(childRecorder{spawn: child.spawn})
+	mics, err := rr.Microphones()
+	if err != nil || len(mics) != 2 {
+		t.Fatalf("microphones %+v, %v", mics, err)
+	}
+	c, err := rr.Record(context.Background(), Call{Room: true, Mic: "usb-mic"}, tracks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.FarSide() != FarSideNone || c.Call().PID != "" {
+		t.Fatalf("far side %q, call %+v", c.FarSide(), c.Call())
+	}
+	if name, missing := c.(MicReporter).Microphone(); name != "USB Speakerphone" || missing {
+		t.Fatalf("microphone %q, missing %v", name, missing)
+	}
+	eventually(t, "the room written", func() bool { n, _, ok := tracks.get("room"); return ok && n > 0 })
+	if err := c.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	tracks.mu.Lock()
+	defer tracks.mu.Unlock()
+	if len(tracks.tracks) != 1 || tracks.tracks["room"] == nil || tracks.tracks["room"].label != Room || !tracks.tracks["room"].ended {
+		t.Fatalf("tracks %+v, want one ended Room track", tracks.tracks)
+	}
+}
+
+// A room's capture never opens a far track, whatever a child sends.
+func TestARoomRefusesAFarTrack(t *testing.T) {
+	tracks := &memTracks{}
+	c := &childCapture{tracks: tracks, room: true}
+	c.write(wireFar, []byte{1, 0, 2, 0})
+	if _, _, ok := tracks.get("far"); ok {
+		t.Fatal("a room opened a far track")
+	}
+}
+
+// A child started again on another microphone changes what the capture
+// says it records.
+func TestARestartOnAnotherMicrophoneIsSaid(t *testing.T) {
+	c := &childCapture{room: true, micName: "USB Speakerphone", tracks: &memTracks{}}
+	var b bytes.Buffer
+	w := &frameWriter{w: &b}
+	_ = w.event(wireEvent{Type: evStarted, FarSide: FarSideNone, MicName: "Microphone Array", MicMissing: true})
+	_ = c.follow(bufio.NewReader(&b))
+	if name, missing := c.Microphone(); name != "Microphone Array" || !missing {
+		t.Fatalf("microphone %q, missing %v", name, missing)
 	}
 }
