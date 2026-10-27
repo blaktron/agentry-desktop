@@ -19,6 +19,7 @@ type fakeCoreAudio struct {
 	out, in   uint32
 	allowed   bool
 	appTapErr error
+	micErr    error
 	calls     []string
 	sources   []*fakeSource
 }
@@ -111,6 +112,10 @@ func (f *fakeCoreAudio) StartMic(uid string) (caSource, error) {
 	kind := "mic"
 	if uid != "" {
 		kind = "mic:" + uid
+	}
+	if f.micErr != nil {
+		f.calls = append(f.calls, kind+"-refused")
+		return nil, f.micErr
 	}
 	s := &fakeSource{kind: kind}
 	f.sources = append(f.sources, s)
@@ -477,5 +482,17 @@ func TestByHandWithNoCallReadsTheChosenMicrophone(t *testing.T) {
 	}
 	if c.FarSide() != FarSideWholeDevice {
 		t.Fatalf("far side %s", c.FarSide())
+	}
+}
+
+// A room whose microphone macOS will not start does not start: it would
+// record nothing at all, with nothing to say so.
+func TestARoomWhoseMicrophoneWillNotStartFails(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true, micErr: errors.New("macOS could not start the microphone")}
+	if _, err := startCoreAudio(f, Call{Room: true, Mic: "usb"}, &memTracks{}, time.Unix(1000, 0)); err == nil {
+		t.Fatal("a room started with no microphone")
+	}
+	if n := len(f.running()); n != 0 {
+		t.Fatalf("%d sources left running", n)
 	}
 }

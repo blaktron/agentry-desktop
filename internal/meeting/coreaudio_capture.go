@@ -193,8 +193,12 @@ func startCoreAudio(sys caSystem, call Call, tracks Tracks, now time.Time) (*caC
 		sys.AskMic()
 	}
 	if c.room {
+		// The microphone is all a room records: one that cannot be opened
+		// fails the start, as it does where the recorder is asked for it.
 		c.farSide = FarSideNone
-		c.startMic(now)
+		if err := c.startMic(now); err != nil {
+			return nil, err
+		}
 		return c, nil
 	}
 	if err := c.startFar(ps, now); err != nil {
@@ -209,7 +213,9 @@ func startCoreAudio(sys caSystem, call Call, tracks Tracks, now time.Time) (*caC
 	}
 	c.farTrack = far
 	if input {
-		c.startMic(now)
+		// A call's microphone that cannot be opened yet is tried again at
+		// each look.
+		_ = c.startMic(now)
 	}
 	return c, nil
 }
@@ -272,11 +278,11 @@ func (c *caCapture) setFarSide(f FarSide) {
 	}
 }
 
-func (c *caCapture) startMic(now time.Time) {
+func (c *caCapture) startMic(now time.Time) error {
 	src, err := c.sys.StartMic(c.micUID)
 	if err != nil {
 		c.logOnce(err)
-		return
+		return err
 	}
 	c.mic, c.inDev = newStream(src, now), c.sys.DefaultDevice(true)
 	c.micAllowed, c.micOpened = c.sys.MicAllowed(), true
@@ -289,6 +295,7 @@ func (c *caCapture) startMic(now time.Time) {
 			c.micTrack = t
 		}
 	}
+	return nil
 }
 
 // chooseMic settles, as a recording that follows no app starts, which
@@ -411,12 +418,12 @@ func (c *caCapture) look(now time.Time) {
 	// default input changes or macOS has just allowed it.
 	switch {
 	case input && c.mic == nil:
-		c.startMic(now)
+		_ = c.startMic(now)
 	case !input && c.mic != nil:
 		c.stopMic()
 	case input && ((c.micUID == "" && c.sys.DefaultDevice(true) != c.inDev) || (!c.micAllowed && c.sys.MicAllowed())):
 		c.stopMic()
-		c.startMic(now)
+		_ = c.startMic(now)
 	}
 	if c.room {
 		// No far side: only the microphone is listened for.
