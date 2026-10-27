@@ -3,7 +3,10 @@
 #   export GOPRIVATE=github.com/blaktron/*
 # plus git credentials for github.com/blaktron (a PAT via credential helper
 # or an url.<...>.insteadOf rewrite).
-export PATH := $(HOME)/go/bin:/opt/homebrew/bin:$(PATH)
+# The PATH the caller set up wins (a CI job's setup-go, a pinned SDK);
+# Homebrew's directory is only a fallback for tools a plain shell on a Mac
+# does not find. The wails CLI that go install puts in ~/go/bin comes first.
+export PATH := $(HOME)/go/bin:$(PATH):/opt/homebrew/bin
 GO ?= go
 # The version is git describe without the tag's leading v: a tagged commit
 # gives 0.6.0, or 0.6.1-dev.2 for a dev prerelease, whose X.Y.Z is what

@@ -8,7 +8,7 @@ import * as HomeAPI from "../wailsjs/go/app/HomeAPI";
 import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import type { app } from "../wailsjs/go/models";
-import { AGENT_STATES, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
+import { AGENT_STATES, ASSISTANT_AGENT, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
 
 export type AgentRecord = {
@@ -146,6 +146,16 @@ export function agentNamed(name: string): app.PersistentAgentView | undefined {
 }
 
 /** updateAgent puts a view a binding returned into the list. */
+/** setAgentEnabled turns an agent on or off in Go and answers its view.
+ *  Turning the Assistant on turns Agentry Helper off as well, so the list is
+ *  read again rather than waiting for Go's event. */
+export async function setAgentEnabled(name: string, on: boolean): Promise<app.PersistentAgentView> {
+  const v = await PersistentAPI.SetEnabled(name, on);
+  updateAgent(v);
+  if (on && name === ASSISTANT_AGENT) await refreshAgents();
+  return v;
+}
+
 export function updateAgent(v: app.PersistentAgentView) {
   const i = list.findIndex((a) => a.name === v.name);
   list = i < 0 ? [...list, v] : list.map((a, j) => (j === i ? v : a));
@@ -206,8 +216,8 @@ export function rereadHomeAgent() {
 }
 
 /** useHomeAgent is the agent Home's card was given, null until read. Who
- *  the card draws is homeAgentDrawn's: Agentry Helper while that agent is
- *  off. */
+ *  the card draws is homeAgentDrawn's: the Assistant or Agentry Helper
+ *  while that agent is off, or no card. */
 export function useHomeAgent(): string | null {
   const [, setBump] = useState(bump);
   useEffect(() => {
@@ -228,9 +238,8 @@ export function useHomeAgent(): string | null {
 export async function pickHomeAgent(name: string): Promise<string | null> {
   try {
     const a = agentNamed(name);
-    if (name !== MAIN_AGENT && a && a.state === AGENT_STATES.disabled) {
-      const v = await PersistentAPI.SetEnabled(name, true);
-      updateAgent(v);
+    if (a && a.state === AGENT_STATES.disabled) {
+      const v = await setAgentEnabled(name, true);
       if (v.state === AGENT_STATES.disabled) return "Nothing was changed.";
     }
     homeAgent = await HomeAPI.SetAgent(name);

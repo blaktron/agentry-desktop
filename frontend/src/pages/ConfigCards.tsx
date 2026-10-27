@@ -8,13 +8,14 @@
 // Retry) are drawn on it. Each grid ends in its Add card: a server (the
 // agent's suggestions first, one click each), a skill from a folder or a
 // .zip, a secret whose value goes to Go and is never read back, a mail
-// provider to enable. A mail provider's server card can disable its
-// provider, which keeps the sign-in.
+// provider to enable, a calendar feed whose address goes to Go the same
+// way. A mail provider's server card can disable its provider, which keeps
+// the sign-in; a calendar feed's card renames it.
 import { useEffect, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import type { app, build } from "../../wailsjs/go/models";
-import { addFormOf, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, calendarFeedLine, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
 import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
@@ -86,6 +87,7 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
               {adding.kind === "secret" && <AddSecret agent={agent} busy={busy} act={act} name={adding.secretName ?? ""} onDone={() => setAdding(null)} />}
               {adding.kind === "account" && <AddAccount key={adding.host ?? ""} agent={agent} busy={busy} act={act} host={adding.host ?? ""} onDone={() => setAdding(null)} />}
               {adding.kind === "provider" && <AddProvider agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
+              {adding.kind === "calendar" && <AddCalendarFeed agent={agent} busy={busy} act={act} onDone={() => setAdding(null)} />}
             </div>
           )}
           {panel === "google" && g.key === "mail" && agent.google && (
@@ -109,9 +111,10 @@ export function ConfigCards({ agent, onChanged, onError, onSaved, withAdds = tru
   );
 }
 
-const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret", account: "Add an account", provider: "Add a provider" };
+const ADD_TITLES: Record<AddKind, string> = { server: "Add a server", skill: "Add a skill", secret: "Add a secret", account: "Add an account", provider: "Add a provider", calendar: "Add a calendar feed" };
 const ADD_LINES: Record<AddKind, string> = {
   provider: "A service whose mail and calendar it reaches",
+  calendar: "A calendar to read by its iCal address, from Google, Outlook, iCloud or another",
   account: "An account on GitHub, GitLab or another git host, its own or yours",
   server: "A suggested one, or an npm or PyPI package, or a remote address",
   skill: "From a folder or a .zip holding a SKILL.md",
@@ -129,7 +132,10 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const [details, setDetails] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [disabling, setDisabling] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const state = cardState(agent, e);
+  const feed = calendarFeedOf(e, agent);
+  const line = feed ? calendarFeedLine(feed) : e.line;
   const switches = cardSwitches(e);
   const menu = cardMenu(e, agent);
   // A server never given the share draws no switch; why is in Details.
@@ -147,6 +153,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const items = [
     ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => menu.setUp && onSetUp(menu.setUp) }] : []),
     { key: "details", label: details ? "Hide details" : "Details", onSelect: () => setDetails(!details) },
+    ...(menu.rename ? [{ key: "rename", label: "Rename", onSelect: () => setRenaming(true), disabled: busy }] : []),
     ...(menu.remove ? [{ key: "remove", label: "Remove", onSelect: () => setRemoving(true), disabled: busy }] : []),
     ...(menu.disable ? [{ key: "disable", label: `Disable ${menu.disable.name}`, onSelect: () => setDisabling(true), disabled: busy }] : []),
   ];
@@ -157,7 +164,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
         <ConfigIcon icon={cardIcon(e)} />
         <span className="config-card-text">
           <span className="config-card-name">{e.name}</span>
-          <span className="config-card-line">{e.line}</span>
+          <span className="config-card-line">{line}</span>
           <span className="config-card-state">{state.words}</span>
         </span>
       </button>
@@ -195,6 +202,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
       )}
       {removing && menu.remove && <RemoveConfirm agent={agent} action={menu.remove} busy={busy} act={act} onCancel={() => setRemoving(false)} />}
       {disabling && menu.disable && <DisableProvider agent={agent} provider={menu.disable} busy={busy} act={act} onCancel={() => setDisabling(false)} />}
+      {renaming && menu.rename && <RenameCalendarFeed agent={agent} feed={menu.rename} busy={busy} act={act} onDone={() => setRenaming(false)} />}
     </div>
   );
 }
@@ -253,16 +261,22 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
         return act(() => PersistentAPI.RemoveSecret(agent.name, action.name), `${action.what}'s removal`);
       case "account":
         return act(() => PersistentAPI.RemoveAccount(agent.name, action.host), `${action.what}'s removal`);
+      case "calendar":
+        return act(() => PersistentAPI.RemoveCalendarFeed(agent.name, action.name), `${action.what}'s removal`);
     }
   };
+  // A calendar feed changes only while the agent is stopped.
+  const waits = action.kind === "calendar" && runsSomewhere(agent);
   return (
     <div className="config-card-confirm small" role="group" aria-label="Remove">
       <span>
-        {action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?`
-          : action.kind === "account" ? `Remove ${action.what.toLowerCase()} and its token from your keychain?`
-            : `Remove ${action.what.toLowerCase()}?`}
+        {waits ? `Stop ${agentCalled(agent)} first, then remove the feed.`
+          : action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?`
+            : action.kind === "account" ? `Remove ${action.what.toLowerCase()} and its token from your keychain?`
+              : action.kind === "calendar" ? `Remove the calendar feed ${action.name} and its address from your keychain? The address still works until you reset it in your calendar's settings.`
+                : `Remove ${action.what.toLowerCase()}?`}
       </span>
-      <Button variant="danger" className="small" disabled={busy} onClick={() => void run()}>Remove</Button>
+      <Button variant="danger" className="small" disabled={busy || waits} onClick={() => void run()}>Remove</Button>
       <Button variant="ghost" className="small" onClick={onCancel}>Cancel</Button>
     </div>
   );
@@ -689,6 +703,63 @@ function FastmailSetUp({ agent, busy, act, onDone }: {
           <Button variant="ghost" onClick={() => setRemoving(false)}>Keep it</Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The calendar feed Add card's panel: a name the person chooses and the
+ *  calendar's iCal address, in a password field. Go fetches and reads the
+ *  address once before it keeps it in the system keychain; the field is
+ *  emptied, and the address never comes back to the page. A name the
+ *  agent has already sets that feed's address again. */
+function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const running = runsSomewhere(agent);
+  return (
+    <div className="stack">
+      {running && <Notice>Stop {agentCalled(agent)} first: its calendar feeds change only while it is stopped.</Notice>}
+      <p className="small muted">
+        A calendar feed is read only: {agentCalled(agent)} reads the calendar and never changes it. Google Calendar gives the
+        address as Secret address in iCal format, in the calendar&apos;s settings under Integrate calendar; Outlook as the ICS
+        link of a calendar you publish under Settings, Calendar, Shared calendars; iCloud as a public calendar&apos;s link.
+        Whoever has the address can read the calendar, so it is kept in your system keychain and {agentCalled(agent)} is never
+        shown it. Never paste it into the chat.
+      </p>
+      <div className="persistent-server-form">
+        <Field label="Name" hint="Your name for it, such as Work or Family.">
+          <Input type="text" value={name} maxLength={64} autoComplete="off" onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Address" hint="https:// or webcal://. It is read once to check it, then never shown again.">
+          <Input type="password" value={address} autoComplete="off" spellCheck={false} onChange={(e) => setAddress(e.target.value)} />
+        </Field>
+        <Button disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
+          const a = address;
+          setAddress("");
+          void act(() => PersistentAPI.AddCalendarFeed(agent.name, name.trim(), a), `The calendar feed ${name.trim()}`).then((ok) => ok && onDone());
+        }}>
+          Read and keep the feed
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Rename, on a calendar feed's card: its address moves to the new name in
+ *  the keychain, and a feed that is on asks again under its new name. */
+function RenameCalendarFeed({ agent, feed, busy, act, onDone }: { agent: app.PersistentAgentView; feed: string; busy: boolean; act: Act; onDone: () => void }) {
+  const [to, setTo] = useState(feed);
+  const running = runsSomewhere(agent);
+  return (
+    <div className="config-card-confirm small" role="group" aria-label={`Rename ${feed}`}>
+      {running ? <span>Stop {agentCalled(agent)} first, then rename the feed.</span> : (
+        <Input type="text" aria-label="New name" value={to} maxLength={64} autoComplete="off" onChange={(e) => setTo(e.target.value)} />
+      )}
+      <Button className="small" disabled={busy || running || !calendarNameOK(to) || to.trim() === feed}
+        onClick={() => void act(() => PersistentAPI.RenameCalendarFeed(agent.name, feed, to.trim()), `The calendar feed ${to.trim()}`).then((ok) => ok && onDone())}>
+        Rename
+      </Button>
+      <Button variant="ghost" className="small" onClick={onDone}>Cancel</Button>
     </div>
   );
 }

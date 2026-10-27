@@ -144,6 +144,9 @@ type PersistentAPI struct {
 	agentryApp func(ctx context.Context) string
 	// fastmailCheck stands in for asking Fastmail about a token in a test.
 	fastmailCheck func(ctx context.Context, token string) error
+	// calendarCheck stands in for fetching and reading a calendar feed's
+	// address in a test.
+	calendarCheck func(ctx context.Context, address string) (string, int, error)
 	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
 	pickFile      func() (string, error)
 	browse        func(url string) error
@@ -317,9 +320,13 @@ type PersistentAgentView struct {
 	// Fastmail is the agent's Fastmail set-up, for an agent that has that
 	// server.
 	Fastmail *PersistentFastmailView `json:"fastmail,omitempty"`
-	Status   *PersistentStatusView   `json:"status,omitempty"`
-	Lifetime PersistentUsageView     `json:"lifetime"`
-	Volumes  PersistentVolumesView   `json:"volumes"`
+	// ReadsCalendars says the agent takes calendar feeds, listed in
+	// CalendarFeeds by name (never an address).
+	ReadsCalendars bool                         `json:"readsCalendars"`
+	CalendarFeeds  []PersistentCalendarFeedView `json:"calendarFeeds"`
+	Status         *PersistentStatusView        `json:"status,omitempty"`
+	Lifetime       PersistentUsageView          `json:"lifetime"`
+	Volumes        PersistentVolumesView        `json:"volumes"`
 	// LastCompaction and LastConsolidation are the newest records of the
 	// memory's upkeep, for an agent that keeps a memory; none before the
 	// first.
@@ -486,8 +493,15 @@ func (p *PersistentAPI) agent(name string) (persistent.Agent, error) {
 	return persistent.Lookup(name)
 }
 
-// List is every agent the app offers, as it stands.
+// List is every agent the app offers, as it stands. A Helper left enabled
+// beside the Assistant (by the CLI, or before the Assistant superseded it)
+// is disabled first, unless it is running.
 func (p *PersistentAPI) List() ([]PersistentAgentView, error) {
+	if home, err := p.home(); err == nil {
+		if err := p.supersedeHelper(home); err != nil {
+			log.Printf("agentry-desktop: turning Agentry Helper off beside the Assistant: %v", err)
+		}
+	}
 	out := make([]PersistentAgentView, 0, len(shownAgents))
 	for _, name := range shownAgents {
 		v, err := p.Get(name)
@@ -575,6 +589,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.MailProviders = mailProviderViews(a, cfg)
 	v.Microsoft = microsoftView(a, cfg)
 	v.Fastmail = fastmailView(a, cfg)
+	v.ReadsCalendars, v.CalendarFeeds = a.Builtin.ReadsCalendars(), calendarFeedViews(a, cfg)
 	if v.Microsoft != nil {
 		p.mu.Lock()
 		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
@@ -649,7 +664,9 @@ func malwareCheckOn() bool {
 // SetEnabled enables or disables an agent. A running agent is not
 // disabled: it is stopped first. Enabling the Coding agent asks first, in a
 // native dialog that says what it may do; a No changes nothing and answers
-// the agent as it was.
+// the agent as it was. The Assistant supersedes Agentry Helper, whose tools
+// it lists: enabling the Assistant stops and disables the Helper, and the
+// Helper is not enabled while the Assistant is.
 func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -662,6 +679,16 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 	_, here := p.running(a.Name)
 	if held, _ := persistent.Held(home, a.Name); (held || here) && !on {
 		return nil, fmt.Errorf("the %s is running: stop it first", a.Title)
+	}
+	if on && a.Name == mainAgent {
+		if err := helperRefused(home); err != nil {
+			return nil, err
+		}
+	}
+	if on && a.Name == assistantAgent {
+		if err := p.retireHelper(home); err != nil {
+			return nil, err
+		}
 	}
 	if on && a.Name == coderAgent {
 		if cfg, err := persistent.LoadConfig(home, a.Name); err == nil && !cfg.Enabled {
@@ -690,6 +717,82 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 	}
 	p.stateChanged(a.Name)
 	return p.Get(name)
+}
+
+// helperRefused refuses Agentry Helper while the Assistant is enabled,
+// naming the Assistant as the person knows it.
+func helperRefused(home string) error {
+	cfg, err := persistent.LoadConfig(home, assistantAgent)
+	if err != nil || !cfg.Enabled {
+		return err
+	}
+	a, err := persistent.Lookup(assistantAgent)
+	if err != nil {
+		return err
+	}
+	who := called(a, cfg)
+	return fmt.Errorf("can't turn Agentry Helper on while %s is on: %s does everything the Helper does. Turn %s off first to use the Helper instead", who, who, who)
+}
+
+// retireHelper stops Agentry Helper where this app runs it and disables it,
+// as the Assistant is enabled. A Helper another client runs is not stopped
+// from here: that is refused.
+func (p *PersistentAPI) retireHelper(home string) error {
+	if _, here := p.running(mainAgent); here {
+		if _, err := p.Stop(mainAgent); err != nil {
+			return fmt.Errorf("stopping Agentry Helper: %w", err)
+		}
+	} else if held, _ := p.heldElsewhere(home, mainAgent); held {
+		return errors.New("another client is running Agentry Helper: stop it there first")
+	}
+	return p.disableHelper(home)
+}
+
+// supersedeHelper disables Agentry Helper when it is enabled beside the
+// Assistant and is not running, starting or held by another client.
+func (p *PersistentAPI) supersedeHelper(home string) error {
+	acfg, err := persistent.LoadConfig(home, assistantAgent)
+	if err != nil || !acfg.Enabled {
+		return err
+	}
+	p.mu.Lock()
+	_, ours := p.sups[mainAgent]
+	_, starting := p.starting[mainAgent]
+	p.mu.Unlock()
+	if ours || starting {
+		return nil
+	}
+	if held, _ := p.heldElsewhere(home, mainAgent); held {
+		return nil
+	}
+	return p.disableHelper(home)
+}
+
+// disableHelper disables Agentry Helper under its owner lock, if it is
+// enabled.
+func (p *PersistentAPI) disableHelper(home string) error {
+	cfg, err := persistent.LoadConfig(home, mainAgent)
+	if err != nil || !cfg.Enabled {
+		return err
+	}
+	a, err := persistent.Lookup(mainAgent)
+	if err != nil {
+		return err
+	}
+	owner, err := persistent.Acquire(home, a.Name, persistent.ClientDesktop)
+	if err != nil {
+		return err
+	}
+	defer owner.Release()
+	if cfg, err = persistent.LoadConfig(home, a.Name); err != nil {
+		return err
+	}
+	cfg.Enabled = false
+	if err := persistent.SaveConfig(home, a.Name, cfg); err != nil {
+		return err
+	}
+	p.stateChanged(a.Name)
+	return nil
 }
 
 // coderWarning is the Coding agent's enable dialog: what it may do, and
@@ -818,11 +921,13 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	if err != nil {
 		return nil, err
 	}
-	if !cfg.Enabled && a.Name == mainAgent {
-		// Main is on while its Home card is: its first start enables it.
-		if cfg, err = p.enable(home, a); err != nil {
+	if a.Name == mainAgent {
+		if err := helperRefused(home); err != nil {
 			return nil, err
 		}
+	}
+	if !cfg.Enabled && a.Name == mainAgent {
+		return nil, errors.New("turn Agentry Helper on in Settings → Persistent Agents first: it is not enabled")
 	}
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
@@ -852,21 +957,6 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 		return nil, &startError{err}
 	}
 	return sv, nil
-}
-
-// enable turns an agent on under its owner lock, and answers its config.
-func (p *PersistentAPI) enable(home string, a persistent.Agent) (persistent.Config, error) {
-	owner, err := persistent.Acquire(home, a.Name, persistent.ClientDesktop)
-	if err != nil {
-		return persistent.Config{}, err
-	}
-	defer owner.Release()
-	cfg, err := persistent.LoadConfig(home, a.Name)
-	if err != nil {
-		return cfg, err
-	}
-	cfg.Enabled = true
-	return cfg, persistent.SaveConfig(home, a.Name, cfg)
 }
 
 // called is the agent in a sentence: the name the person gave it, or "the
@@ -1271,12 +1361,12 @@ func resetViews(a persistent.Agent) []PersistentResetView {
 		return []PersistentResetView{all}
 	}
 	all.Title = "Reset all"
-	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
+	all.Body = "This puts it back to its defaults. It wipes its conversation, its own files, its memory and tasks, its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It removes the secrets you stored, its calendar feeds and its servers' sign-ins, from your keychain too, and its usage, and it goes back to its default share folder. The files in the share folder you chose and the receipts of its segments are kept."
 	return []PersistentResetView{
 		{Kind: resetHistory, Title: "Reset history",
-			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept."},
+			Body: "This wipes its history: its conversation, its own files, its memory, its transcript and tasks, and what it read from its share folder. It keeps everything you chose and agreed to, the secrets you stored, its calendar feeds and its servers' sign-ins, so its next start begins a new conversation and does not ask you again. Its usage, the files in its share folder and the receipts of its segments are kept."},
 		{Kind: resetAgent, Title: "Reset agent",
-			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in. Its share folder, the files in it, its usage and the receipts of its segments are kept."},
+			Body: "This wipes its history and puts everything you chose back to its default: its name and personality, the servers, skills and knowledge packs added to it, its switches, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It keeps the secrets you stored, its calendar feeds and its servers' sign-ins, switched off, so turning one on asks you again and needs no new sign-in or address. Its share folder, the files in it, its usage and the receipts of its segments are kept."},
 		all,
 	}
 }

@@ -2974,6 +2974,28 @@ export namespace app {
 	        this.toolCalls = source["toolCalls"];
 	    }
 	}
+	export class PersistentCalendarFeedView {
+	    name: string;
+	    host: string;
+	    service?: string;
+	    on: boolean;
+	    set?: string;
+	    entry: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersistentCalendarFeedView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.service = source["service"];
+	        this.on = source["on"];
+	        this.set = source["set"];
+	        this.entry = source["entry"];
+	    }
+	}
 	export class PersistentFastmailView {
 	    token: boolean;
 	    set?: string;
@@ -3255,6 +3277,8 @@ export namespace app {
 	    google?: PersistentGoogleView;
 	    microsoft?: PersistentMicrosoftView;
 	    fastmail?: PersistentFastmailView;
+	    readsCalendars: boolean;
+	    calendarFeeds: PersistentCalendarFeedView[];
 	    status?: PersistentStatusView;
 	    lifetime: PersistentUsageView;
 	    volumes: PersistentVolumesView;
@@ -3297,6 +3321,8 @@ export namespace app {
 	        this.google = this.convertValues(source["google"], PersistentGoogleView);
 	        this.microsoft = this.convertValues(source["microsoft"], PersistentMicrosoftView);
 	        this.fastmail = this.convertValues(source["fastmail"], PersistentFastmailView);
+	        this.readsCalendars = source["readsCalendars"];
+	        this.calendarFeeds = this.convertValues(source["calendarFeeds"], PersistentCalendarFeedView);
 	        this.status = this.convertValues(source["status"], PersistentStatusView);
 	        this.lifetime = this.convertValues(source["lifetime"], PersistentUsageView);
 	        this.volumes = this.convertValues(source["volumes"], PersistentVolumesView);
@@ -3322,6 +3348,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	export class PersistentSwitch {
 	    id: string;
 	    on: boolean;

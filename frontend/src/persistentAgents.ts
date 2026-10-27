@@ -89,6 +89,9 @@ export function taskSummary(name: string): string {
 /** Main's name: its place is its Home card, with no sidebar entry or page. */
 export const MAIN_AGENT = "main";
 
+/** The Assistant's name: the full personal agent, which supersedes Main. */
+export const ASSISTANT_AGENT = "assistant";
+
 /** agentCalled is how a sentence names an agent: the name the person gave
  *  it, or its own title with "the" ("the Assistant"); capital starts the
  *  sentence with it. */
