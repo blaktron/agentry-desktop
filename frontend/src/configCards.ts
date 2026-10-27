@@ -387,10 +387,11 @@ export function calendarFeedOf(e: Pick<app.PersistentRosterEntry, "id" | "kind">
 }
 
 /** calendarFeedLine is a calendar feed's line on its card: the service its
- *  address is on (else its host), and when the address was last fetched
- *  and read, never the address. */
-export function calendarFeedLine(f: Pick<app.PersistentCalendarFeedView, "host" | "service" | "set">, locale?: string): string {
-  const from = f.service || f.host;
+ *  address is on (else its host), whether it is signed in through a
+ *  browser, and when the address was last fetched and read, never the
+ *  address. */
+export function calendarFeedLine(f: Pick<app.PersistentCalendarFeedView, "host" | "service" | "set" | "signedIn">, locale?: string): string {
+  const from = (f.service || f.host) + (f.signedIn ? " · signed in" : "");
   const t = f.set ? new Date(f.set) : null;
   if (!t || Number.isNaN(t.getTime())) return from;
   const at = t.toLocaleString(locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });

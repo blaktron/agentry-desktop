@@ -18,6 +18,8 @@ export function AddSkill(arg1:string,arg2:string):Promise<app.PersistentAgentVie
 
 export function AddSuggested(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
+export function CancelCalendarSignIn(arg1:string):Promise<void>;
+
 export function CancelGoogleSignIn(arg1:string):Promise<void>;
 
 export function CancelMicrosoftSignIn(arg1:string):Promise<void>;
@@ -85,6 +87,8 @@ export function SetStartsAtSignIn(arg1:boolean):Promise<boolean>;
 export function SetTaskNotifications(arg1:boolean):Promise<boolean>;
 
 export function SetViewing(arg1:string):Promise<void>;
+
+export function SignInCalendarFeed(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
 export function Start(arg1:string):Promise<app.PersistentAgentView>;
 

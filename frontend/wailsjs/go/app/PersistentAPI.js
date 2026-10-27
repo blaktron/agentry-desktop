@@ -30,6 +30,10 @@ export function AddSuggested(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['AddSuggested'](arg1, arg2);
 }
 
+export function CancelCalendarSignIn(arg1) {
+  return window['go']['app']['PersistentAPI']['CancelCalendarSignIn'](arg1);
+}
+
 export function CancelGoogleSignIn(arg1) {
   return window['go']['app']['PersistentAPI']['CancelGoogleSignIn'](arg1);
 }
@@ -164,6 +168,10 @@ export function SetTaskNotifications(arg1) {
 
 export function SetViewing(arg1) {
   return window['go']['app']['PersistentAPI']['SetViewing'](arg1);
+}
+
+export function SignInCalendarFeed(arg1, arg2, arg3) {
+  return window['go']['app']['PersistentAPI']['SignInCalendarFeed'](arg1, arg2, arg3);
 }
 
 export function Start(arg1) {

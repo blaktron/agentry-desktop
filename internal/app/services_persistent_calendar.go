@@ -30,6 +30,8 @@ type PersistentCalendarFeedView struct {
 	Service string `json:"service,omitempty"`
 	On      bool   `json:"on"`
 	Set     string `json:"set,omitempty"`
+	// SignedIn says a browser sign-in is kept for the feed.
+	SignedIn bool `json:"signedIn,omitempty"`
 	// Entry is the feed's roster id.
 	Entry string `json:"entry"`
 }
@@ -39,7 +41,7 @@ type PersistentCalendarFeedView struct {
 func calendarFeedViews(a persistent.Agent, cfg persistent.Config) []PersistentCalendarFeedView {
 	out := []PersistentCalendarFeedView{}
 	for _, f := range persistent.CalendarFeeds(a, cfg) {
-		v := PersistentCalendarFeedView{Name: f.Name, Host: f.Host, Service: f.Service, On: f.On, Entry: f.Entry}
+		v := PersistentCalendarFeedView{Name: f.Name, Host: f.Host, Service: f.Service, On: f.On, SignedIn: f.SignedIn, Entry: f.Entry}
 		if !f.Set.IsZero() {
 			v.Set = f.Set.Format(time.RFC3339)
 		}
@@ -100,55 +102,175 @@ func (p *PersistentAPI) calendarReadable(ctx context.Context, address string) (s
 // chose, once it is fetched and read as a calendar: a webcal address is
 // read as https, and anything else but https is refused in the CLI's
 // words. A name the agent has already sets that feed's address again,
-// after asking. The address goes into the keychain before the change
-// records the feed, which asks first; a check, a change refused or failed
-// puts the keychain back as it was. No error repeats the address.
+// after asking, and drops a sign-in kept for it. An address that asks for
+// a sign-in says to use Sign in in a browser window. No error repeats the
+// address.
 func (p *PersistentAPI) AddCalendarFeed(name, feed, address string) (*PersistentAgentView, error) {
 	a, _, cfg, err := p.calendarAgent(name)
 	if err != nil {
 		return nil, err
 	}
-	feed = strings.TrimSpace(feed)
-	if err := spec.CheckCalendarFeedName(feed); err != nil {
-		return nil, err
-	}
-	addr, host, err := spec.CalendarFeedAddress(strings.TrimSpace(address))
+	feed, addr, host, err := p.feedAddress(a, cfg, feed, address, false)
 	if err != nil {
 		return nil, err
-	}
-	if err := persistent.CheckSecretValue(addr); err != nil {
-		return nil, errors.New("the calendar feed's address cannot be kept in the keychain as it is")
-	}
-	if f, ok := findFeed(cfg, feed); ok {
-		// Set again under the name it was first given.
-		feed = f.Name
-		if err := p.app.askConsent("Replace the address of "+feed+"?", "This replaces the address of the calendar feed "+feed+" that "+called(a, cfg)+" reads, in your system keychain. The old address is not kept here; reset it in your calendar's settings if you no longer use it."); err != nil {
-			return nil, err
-		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	if _, _, err := p.calendarReadable(ctx, addr); err != nil {
+		if errors.Is(err, persistent.ErrCalendarFeedSignIn) {
+			return nil, fmt.Errorf("%w: use Sign in in a browser window, and sign in to the account that can see the calendar", err)
+		}
 		return nil, err
 	}
+	if err := p.keepFeed(a, feed, host, addr, ""); err != nil {
+		return nil, err
+	}
+	return p.Get(name)
+}
+
+// SignInCalendarFeed keeps a calendar's address with a browser sign-in: a
+// browser window opens at the address, the person signs in to the account
+// that can see the calendar, and once the address reads as a calendar the
+// window closes and the address and the browser's cookies for its host are
+// kept. An empty address signs a feed the agent has in again at its own
+// address. CancelCalendarSignIn ends the wait and keeps nothing.
+func (p *PersistentAPI) SignInCalendarFeed(name, feed, address string) (*PersistentAgentView, error) {
+	a, _, cfg, err := p.calendarAgent(name)
+	if err != nil {
+		return nil, err
+	}
+	feed, addr, host, err := p.feedAddress(a, cfg, feed, address, true)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p.mu.Lock()
+	if p.calendarSignIns == nil {
+		p.calendarSignIns = map[string]context.CancelFunc{}
+	}
+	if _, busy := p.calendarSignIns[a.Name]; busy {
+		p.mu.Unlock()
+		return nil, errors.New("a calendar sign-in is already waiting in a browser window: finish it or cancel it first")
+	}
+	p.calendarSignIns[a.Name] = cancel
+	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		delete(p.calendarSignIns, a.Name)
+		p.mu.Unlock()
+	}()
+	session, err := p.calendarBrowserSignIn(ctx, addr)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, errors.New("the sign-in was cancelled: nothing was kept")
+		}
+		return nil, fmt.Errorf("the browser sign-in for %s: %w", feed, err)
+	}
+	if err := p.keepFeed(a, feed, host, addr, session); err != nil {
+		return nil, err
+	}
+	return p.Get(name)
+}
+
+// CancelCalendarSignIn ends a calendar sign-in waiting in a browser
+// window: the window closes and nothing is kept.
+func (p *PersistentAPI) CancelCalendarSignIn(name string) {
+	p.mu.Lock()
+	cancel := p.calendarSignIns[name]
+	p.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// calendarBrowserSignIn is the CLI's browser sign-in, but in a test.
+func (p *PersistentAPI) calendarBrowserSignIn(ctx context.Context, address string) (string, error) {
+	if p.calendarSignIn != nil {
+		return p.calendarSignIn(ctx, address)
+	}
+	session, _, _, err := persistent.SignInCalendarFeed(ctx, address, nil)
+	return session, err
+}
+
+// feedAddress checks the feed's name and the address given for it, and
+// returns the name (a feed the agent has keeps the one it was first
+// given), the address as fetched and its host. A feed the agent has is
+// asked about before its address is replaced; with keep, an empty address
+// is that feed's own, read from the keychain.
+func (p *PersistentAPI) feedAddress(a persistent.Agent, cfg persistent.Config, feed, address string, keep bool) (string, string, string, error) {
+	feed = strings.TrimSpace(feed)
+	if err := spec.CheckCalendarFeedName(feed); err != nil {
+		return "", "", "", err
+	}
+	f, has := findFeed(cfg, feed)
+	if has {
+		// Set again under the name it was first given.
+		feed = f.Name
+	}
+	address = strings.TrimSpace(address)
+	if address == "" && keep && has {
+		kept, err := p.secretStore().Get(persistent.CalendarKeychainAccount(a.Name, feed))
+		if err != nil {
+			return "", "", "", fmt.Errorf("the address of %s could not be read from your keychain: give it again", feed)
+		}
+		address = kept
+	} else if has {
+		if err := p.app.askConsent("Replace the address of "+feed+"?", "This replaces the address of the calendar feed "+feed+" that "+called(a, cfg)+" reads, in your system keychain. The old address is not kept here; reset it in your calendar's settings if you no longer use it."); err != nil {
+			return "", "", "", err
+		}
+	}
+	addr, host, err := spec.CalendarFeedAddress(address)
+	if err != nil {
+		return "", "", "", err
+	}
+	if err := persistent.CheckSecretValue(addr); err != nil {
+		return "", "", "", errors.New("the calendar feed's address cannot be kept in the keychain as it is")
+	}
+	return feed, addr, host, nil
+}
+
+// keepFeed keeps a feed's address, and its browser sign-in or none, in the
+// keychain, then records the feed, which asks first. A change refused or
+// failed puts the keychain back as it was.
+func (p *PersistentAPI) keepFeed(a persistent.Agent, feed, host, addr, session string) error {
 	keys := p.secretStore()
 	account := persistent.CalendarKeychainAccount(a.Name, feed)
 	previous, hadPrevious := "", false
 	if v, err := keys.Get(account); err == nil {
 		previous, hadPrevious = v, true
 	}
-	if err := keys.Set(account, addr); err != nil {
-		return nil, err
-	}
-	if err := p.configure(a, persistent.Change{SetCalendarFeed: &persistent.CalendarFeed{Name: feed, Host: host, Set: time.Now().UTC()}}); err != nil {
+	previousSession, _ := persistent.CalendarSession(keys, a.Name, feed)
+	restore := func() {
 		if hadPrevious {
 			_ = keys.Set(account, previous)
 		} else {
 			_ = keys.Delete(account)
 		}
-		return nil, err
+		if previousSession != "" {
+			_ = persistent.KeepCalendarSession(keys, a.Name, feed, previousSession)
+		} else {
+			_ = persistent.ForgetCalendarSession(keys, a.Name, feed)
+		}
 	}
-	return p.Get(name)
+	if err := keys.Set(account, addr); err != nil {
+		return err
+	}
+	var err error
+	if session != "" {
+		err = persistent.KeepCalendarSession(keys, a.Name, feed, session)
+	} else {
+		err = persistent.ForgetCalendarSession(keys, a.Name, feed)
+	}
+	if err != nil {
+		restore()
+		return err
+	}
+	if err := p.configure(a, persistent.Change{SetCalendarFeed: &persistent.CalendarFeed{Name: feed, Host: host, Set: time.Now().UTC(), SignedIn: session != ""}}); err != nil {
+		restore()
+		return err
+	}
+	return nil
 }
 
 // RenameCalendarFeed gives a feed another name: its address moves to the
@@ -187,17 +309,28 @@ func (p *PersistentAPI) RenameCalendarFeed(name, feed, to string) (*PersistentAg
 	if err := keys.Set(account, addr); err != nil {
 		return nil, err
 	}
-	ch := persistent.Change{SetCalendarFeed: &persistent.CalendarFeed{Name: to, Host: f.Host, Set: f.Set}, RemoveCalendarFeed: f.Name}
+	if f.SignedIn {
+		session, err := persistent.CalendarSession(keys, a.Name, f.Name)
+		if err == nil {
+			err = persistent.KeepCalendarSession(keys, a.Name, to, session)
+		}
+		if err != nil {
+			_ = keys.Delete(account)
+			_ = persistent.ForgetCalendarSession(keys, a.Name, to)
+			return nil, fmt.Errorf("the sign-in of %s could not be moved in your keychain, so the feed is left as it is: %w", f.Name, err)
+		}
+	}
+	ch := persistent.Change{SetCalendarFeed: &persistent.CalendarFeed{Name: to, Host: f.Host, Set: f.Set, SignedIn: f.SignedIn}, RemoveCalendarFeed: f.Name}
 	for _, s := range persistent.CalendarFeeds(a, cfg) {
 		if s.Name == f.Name && !s.On {
 			ch.Switch = &persistent.Switch{ID: persistent.CalendarEntryID(to), On: false}
 		}
 	}
 	if err := p.configure(a, ch); err != nil {
-		_ = keys.Delete(account)
+		_ = persistent.ForgetCalendarFeed(keys, a.Name, to)
 		return nil, err
 	}
-	if err := keys.Delete(from); err != nil {
+	if err := persistent.ForgetCalendarFeed(keys, a.Name, f.Name); err != nil {
 		return nil, fmt.Errorf("the feed is renamed %s, but its old keychain entry %s could not be removed: %w", to, from, err)
 	}
 	return p.Get(name)
@@ -218,7 +351,7 @@ func (p *PersistentAPI) RemoveCalendarFeed(name, feed string) (*PersistentAgentV
 	if err := p.configure(a, persistent.Change{RemoveCalendarFeed: f.Name}); err != nil {
 		return nil, err
 	}
-	if err := p.secretStore().Delete(persistent.CalendarKeychainAccount(a.Name, f.Name)); err != nil {
+	if err := persistent.ForgetCalendarFeed(p.secretStore(), a.Name, f.Name); err != nil {
 		return nil, err
 	}
 	return p.Get(name)

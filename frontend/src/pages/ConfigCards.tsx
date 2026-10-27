@@ -133,6 +133,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const [removing, setRemoving] = useState(false);
   const [disabling, setDisabling] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const state = cardState(agent, e);
   const feed = calendarFeedOf(e, agent);
   const line = feed ? calendarFeedLine(feed) : e.line;
@@ -153,6 +154,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const items = [
     ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => menu.setUp && onSetUp(menu.setUp) }] : []),
     { key: "details", label: details ? "Hide details" : "Details", onSelect: () => setDetails(!details) },
+    ...(feed ? [{ key: "signin", label: feed.signedIn ? "Sign in again" : "Sign in in a browser window", onSelect: () => setSigningIn(true), disabled: busy }] : []),
     ...(menu.rename ? [{ key: "rename", label: "Rename", onSelect: () => setRenaming(true), disabled: busy }] : []),
     ...(menu.remove ? [{ key: "remove", label: "Remove", onSelect: () => setRemoving(true), disabled: busy }] : []),
     ...(menu.disable ? [{ key: "disable", label: `Disable ${menu.disable.name}`, onSelect: () => setDisabling(true), disabled: busy }] : []),
@@ -203,6 +205,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
       {removing && menu.remove && <RemoveConfirm agent={agent} action={menu.remove} busy={busy} act={act} onCancel={() => setRemoving(false)} />}
       {disabling && menu.disable && <DisableProvider agent={agent} provider={menu.disable} busy={busy} act={act} onCancel={() => setDisabling(false)} />}
       {renaming && menu.rename && <RenameCalendarFeed agent={agent} feed={menu.rename} busy={busy} act={act} onDone={() => setRenaming(false)} />}
+      {signingIn && feed && <SignInCalendarFeed agent={agent} feed={feed.name} again={!!feed.signedIn} busy={busy} act={act} onDone={() => setSigningIn(false)} />}
     </div>
   );
 }
@@ -715,6 +718,7 @@ function FastmailSetUp({ agent, busy, act, onDone }: {
 function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
   const running = runsSomewhere(agent);
   return (
     <div className="stack">
@@ -726,6 +730,13 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
         Whoever has the address can read the calendar, so it is kept in your system keychain and {agentCalled(agent)} is never
         shown it. Never paste it into the chat.
       </p>
+      <p className="small muted">
+        A Google Workspace calendar whose secret address your administrator turned off: copy its Public address in iCal format
+        and choose Sign in in a browser window. A browser opens at the address in a profile of its own; you sign in to the
+        account that can see the calendar, and the cookies that browser sends to the calendar&apos;s site, which are your
+        sign-in to that site, are kept in your keychain and sent to that site alone. Google may end the sign-in after a
+        while; the feed&apos;s card then offers Sign in again.
+      </p>
       <div className="persistent-server-form">
         <Field label="Name" hint="Your name for it, such as Work or Family.">
           <Input type="text" value={name} maxLength={64} autoComplete="off" onChange={(e) => setName(e.target.value)} />
@@ -733,14 +744,70 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
         <Field label="Address" hint="https:// or webcal://. It is read once to check it, then never shown again.">
           <Input type="password" value={address} autoComplete="off" spellCheck={false} onChange={(e) => setAddress(e.target.value)} />
         </Field>
-        <Button disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
-          const a = address;
-          setAddress("");
-          void act(() => PersistentAPI.AddCalendarFeed(agent.name, name.trim(), a), `The calendar feed ${name.trim()}`).then((ok) => ok && onDone());
-        }}>
-          Read and keep the feed
-        </Button>
+        <div className="row gap">
+          <Button disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
+            const a = address;
+            setAddress("");
+            void act(() => PersistentAPI.AddCalendarFeed(agent.name, name.trim(), a), `The calendar feed ${name.trim()}`).then((ok) => ok && onDone());
+          }}>
+            Read and keep the feed
+          </Button>
+          <Button variant="ghost" disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
+            const a = address;
+            setAddress("");
+            setSigningIn(true);
+            void act(() => PersistentAPI.SignInCalendarFeed(agent.name, name.trim(), a), `The calendar feed ${name.trim()}`)
+              .then((ok) => ok && onDone())
+              .finally(() => setSigningIn(false));
+          }}>
+            Sign in in a browser window
+          </Button>
+        </div>
+        {signingIn && <SignInWaiting agent={agent} />}
       </div>
+    </div>
+  );
+}
+
+/** What shows while a calendar sign-in waits in a browser window: what to
+ *  do there, and Cancel, which closes the window and keeps nothing. It is
+ *  never held back by the busy sign-in it cancels. */
+function SignInWaiting({ agent }: { agent: app.PersistentAgentView }) {
+  return (
+    <div className="row gap" role="status">
+      <span className="small">
+        Sign in in the browser window that opened, to the account that can see the calendar. It closes by itself once the
+        calendar can be read.
+      </span>
+      <Button variant="ghost" className="small" onClick={() => void PersistentAPI.CancelCalendarSignIn(agent.name).catch(() => undefined)}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+/** Sign in, on a calendar feed's card: a browser window opens at the
+ *  feed's own address, and the new sign-in replaces any kept. */
+function SignInCalendarFeed({ agent, feed, again, busy, act, onDone }: { agent: app.PersistentAgentView; feed: string; again: boolean; busy: boolean; act: Act; onDone: () => void }) {
+  const [waiting, setWaiting] = useState(false);
+  const running = runsSomewhere(agent);
+  return (
+    <div className="config-card-confirm small" role="group" aria-label={`Sign in to ${feed} again`}>
+      {waiting ? <SignInWaiting agent={agent} /> : (
+        <>
+          <span>{running ? `Stop ${agentCalled(agent)} first, then sign in again.` : `Open a browser window at ${feed}'s address and sign in${again ? " again" : ""}?`}</span>
+          <Button className="small" disabled={busy || running} onClick={() => {
+            setWaiting(true);
+            void act(() => PersistentAPI.SignInCalendarFeed(agent.name, feed, ""), `The calendar feed ${feed}`).finally(() => {
+              setWaiting(false);
+              onDone();
+            });
+          }}>
+            {again ? "Sign in again" : "Sign in"}
+          </Button>
+          <Button variant="ghost" className="small" onClick={onDone}>Cancel</Button>
+        </>
+      )}
     </div>
   );
 }
