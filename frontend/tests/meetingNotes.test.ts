@@ -2,7 +2,9 @@
 // state, the No of a native dialog, the offer and the longest recording.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingState, offerTitle, recordingWhat } from "../src/meetingNotes.ts";
+import {
+  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, offerTitle, recordingWhat,
+} from "../src/meetingNotes.ts";
 
 test("durations read in seconds, minutes, then hours", () => {
   assert.equal(duration(45), "45 s");
@@ -31,6 +33,13 @@ test("each meeting says where it stands", () => {
 test("what is recorded is said plainly, the whole device included", () => {
   assert.equal(recordingWhat("Zoom", false), "your microphone and Zoom");
   assert.equal(recordingWhat("", true), "your microphone and everything your computer plays");
+});
+
+test("a meeting in the room says the microphone alone", () => {
+  assert.equal(recordingWhat("", false, true), "your microphone in this room");
+  assert.equal(meetingSource({ app: "", inRoom: true, wholeDevice: false }), "In the room");
+  assert.equal(meetingSource({ app: "Zoom", inRoom: false, wholeDevice: false }), "Zoom");
+  assert.equal(meetingSource({ app: "", inRoom: false, wholeDevice: true }), "Whole device");
 });
 
 test("a download counts in megabytes, and a dialog's No is not an error", () => {

@@ -208,3 +208,94 @@ func TestLivePulseDetection(t *testing.T) {
 	}
 	t.Logf("the call ended %s after the app let go of the microphone", time.Since(gone).Round(100*time.Millisecond))
 }
+
+// TestLivePulseRoom records a meeting in the room on this computer's audio
+// system and transcribes it with the real sidecar. It runs only when
+// AGENTRY_MEETING_LIVE is set, with the variables and devices
+// TestLivePulseRecording names. The microphone chosen is the remap source
+// agentry_test_mic; another app plays on the speakers meanwhile. The test
+// asks that the chosen microphone alone is recorded, as one Room track, and
+// that nothing played on the speakers is in it.
+func TestLivePulseRoom(t *testing.T) {
+	if os.Getenv("AGENTRY_MEETING_LIVE") == "" {
+		t.Skip("AGENTRY_MEETING_LIVE is not set")
+	}
+	audio := os.Getenv("AGENTRY_MEETING_AUDIO")
+	mics, err := PulseRecorder{}.Microphones()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := false
+	for _, mic := range mics {
+		if mic.ID == "agentry_test_mic" {
+			listed = true
+		}
+		if strings.HasSuffix(mic.ID, ".monitor") {
+			t.Errorf("an output's monitor is listed as a microphone: %+v", mic)
+		}
+	}
+	if !listed {
+		t.Fatalf("microphones %+v lack agentry_test_mic", mics)
+	}
+	start := func(name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(name, args...) //nolint:gosec // the test's own tools
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		return cmd
+	}
+	cat, err := LoadCatalogue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	m := &Manager{
+		Root: t.TempDir(), Catalogue: cat, Recorder: PulseRecorder{},
+		Engine: Sidecar{Path: os.Getenv("AGENTRY_MEETING_SIDECAR")},
+		Models: &Models{Dir: os.Getenv("AGENTRY_MEETING_MODELS")}, Tier: TierCPU,
+		Settings: func() Settings {
+			return Settings{On: true, Profile: "english", Model: "base.en-q5_1", OutputDir: out, Mic: "agentry_test_mic"}
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.Start(ctx)
+	defer m.Shutdown()
+	mt, err := m.RecordRoom(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mt.FarSide != FarSideNone || mt.MicMissing {
+		t.Fatalf("recording %+v, want the room on the chosen microphone", mt)
+	}
+	start("pw-play", "--target", "agentry_test_micfeed", filepath.Join(audio, "mic-long.wav"))
+	start("pw-play", "--target", "agentry_test_out", filepath.Join(audio, "intruder.wav"))
+	time.Sleep(12 * time.Second)
+	if err := m.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitForLong(t, func() bool {
+		got, _ := m.store().Get(mt.ID)
+		return got != nil && (got.State == StateDone || got.State == StateFailed)
+	})
+	got, _ := m.store().Get(mt.ID)
+	if got.State != StateDone {
+		t.Fatalf("transcription %s: %s", got.State, got.Error)
+	}
+	if len(got.Tracks) != 1 || got.Tracks[0].Label != Room {
+		t.Fatalf("tracks %+v, want one Room track", got.Tracks)
+	}
+	raw, err := os.ReadFile(got.Transcript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := strings.ToLower(string(raw))
+	t.Logf("%s", raw)
+	if !strings.Contains(doc, "] room: ") || !strings.Contains(doc, "microphone") {
+		t.Errorf("the chosen microphone's words are not on Room lines")
+	}
+	if strings.Contains(doc, "] me: ") || strings.Contains(doc, "] them: ") || strings.Contains(doc, "pineapple") {
+		t.Errorf("a room recorded more than its microphone")
+	}
+}

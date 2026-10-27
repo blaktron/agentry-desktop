@@ -55,7 +55,7 @@ export function MeetingsCard({ onOpen }: { onOpen: () => void }) {
     : !view.on
       ? "Off"
       : recording
-        ? `${recording.paused ? "Paused" : "Recording"} ${recording.title ? `"${recording.title}"` : recordingWhat(recording.app, recording.wholeDevice)} · ${elapsed(recording.started, now)}`
+        ? `${recording.paused ? "Paused" : "Recording"} ${recording.title ? `"${recording.title}"` : recordingWhat(recording.app, recording.wholeDevice, recording.inRoom)} · ${elapsed(recording.started, now)}`
         : view.offer
           ? `A call in ${view.offer.app || "a meeting app"} is offered on the Meeting notes page`
           : "Ready to record";
@@ -72,7 +72,12 @@ export function MeetingsCard({ onOpen }: { onOpen: () => void }) {
           {recording ? (
             <Button variant="primary" data-home-meeting-stop disabled={busy} onClick={() => act(MeetingAPI.Stop)}>Stop and transcribe</Button>
           ) : (
-            <Button variant="primary" data-home-meeting-record disabled={busy} onClick={() => act(MeetingAPI.Record)}>Record…</Button>
+            <>
+              <Button variant="primary" data-home-meeting-record disabled={busy} onClick={() => act(MeetingAPI.Record)}>Record…</Button>
+              {view.recordsRooms && (
+                <Button data-home-meeting-record-room disabled={busy} onClick={() => act(MeetingAPI.RecordRoom)}>Record in the room…</Button>
+              )}
+            </>
           )}
         </div>
       )}

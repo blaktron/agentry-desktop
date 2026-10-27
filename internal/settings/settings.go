@@ -212,6 +212,10 @@ type MeetingNotes struct {
 	// AskFirst leaves each transcript in the share for the person to hand
 	// to the Assistant, from Home or Meeting notes, instead of sending it.
 	AskFirst bool `yaml:"askFirst,omitempty"`
+	// Mic is the microphone recordings use where they do not follow a
+	// meeting app's own, by the audio system's name for it; "" for the
+	// system's default.
+	Mic string `yaml:"mic,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer

@@ -26,8 +26,9 @@ func NewRecorder() Recorder { return PulseRecorder{} }
 // else the sink plays. The microphone track reads the source the app
 // reads, and only while the app reads it: when the app's stream goes, the
 // microphone stops being recorded at once. With no call it records the
-// default microphone and the monitor of the default output, the whole
-// device, and says so.
+// chosen microphone (the default when none is chosen or it is missing) and
+// the monitor of the default output, the whole device, and says so. A
+// meeting in the room records the chosen microphone alone.
 type PulseRecorder struct {
 	// Server is the server to connect to; "" for the session's own.
 	Server string
@@ -77,6 +78,16 @@ func (r PulseRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 		_ = conn.Close()
 		return nil, err
 	}
+	if call.Room {
+		p.call, p.farSide = call, FarSideNone
+		if err := p.recordRoom(call.Mic); err != nil {
+			p.stopAll()
+			return nil, err
+		}
+		go p.watch(ctx)
+		return p, nil
+	}
+	mic := call.Mic
 	if call.PID == "" {
 		call, _ = findCall(snap, p.me)
 	}
@@ -89,7 +100,7 @@ func (r PulseRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 		}
 	} else {
 		p.farSide = FarSideWholeDevice
-		if err := p.recordWholeDevice(); err != nil {
+		if err := p.recordWholeDevice(mic); err != nil {
 			p.stopAll()
 			return nil, err
 		}
@@ -139,6 +150,10 @@ type pulseCapture struct {
 	monitors      map[uint32]*paRecord
 	monitorTracks map[uint32]Track
 	quietSince    time.Time
+	// micName is the microphone a recording with no app reads, by its
+	// description, and micMissing that the one chosen was missing.
+	micName    string
+	micMissing bool
 
 	changed chan struct{}
 	done    chan struct{}
@@ -155,6 +170,12 @@ func (p *pulseCapture) FarSide() FarSide {
 }
 
 func (p *pulseCapture) Ended() <-chan struct{} { return p.ended }
+
+func (p *pulseCapture) Microphone() (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.micName, p.micMissing
+}
 
 func (p *pulseCapture) callback(msg any) {
 	switch m := msg.(type) {
@@ -367,24 +388,108 @@ func (p *pulseCapture) recordMonitorLocked(sink, mon uint32) error {
 	return nil
 }
 
-// recordWholeDevice records the default microphone and the monitor of the
-// default output.
-func (p *pulseCapture) recordWholeDevice() error {
-	var info proto.GetServerInfoReply
-	if err := p.c.Request(&proto.GetServerInfo{}, &info); err != nil {
+// recordRoom records the chosen microphone alone, as the Room track.
+func (p *pulseCapture) recordRoom(chosen string) error {
+	src, err := p.chooseMic(chosen)
+	if err != nil {
 		return err
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if info.DefaultSourceName == "" || info.DefaultSinkName == "" {
+	t, err := p.tracks.Open(Room, "room")
+	if err != nil {
+		return err
+	}
+	p.micTrack = t
+	rec, err := p.openLocked(t, proto.Undefined, src, proto.Undefined, "Agentry meeting notes (microphone)")
+	if err != nil {
+		return err
+	}
+	p.whole = append(p.whole, rec)
+	return nil
+}
+
+// chooseMic is the source a recording with no app reads: the chosen one
+// when it is there, otherwise the default, which is then said.
+func (p *pulseCapture) chooseMic(chosen string) (string, error) {
+	var info proto.GetServerInfoReply
+	if err := p.c.Request(&proto.GetServerInfo{}, &info); err != nil {
+		return "", err
+	}
+	mics, err := listMics(p.c)
+	if err != nil {
+		return "", err
+	}
+	id, name, missing := pickMic(mics, chosen, info.DefaultSourceName)
+	if id == "" {
+		return "", errors.New("this computer has no microphone")
+	}
+	p.mu.Lock()
+	p.micName, p.micMissing = name, missing
+	p.mu.Unlock()
+	return id, nil
+}
+
+// Microphones lists the sources that are not a monitor of an output.
+func (r PulseRecorder) Microphones() ([]Microphone, error) {
+	c, conn, err := proto.Connect(r.Server)
+	if err != nil {
+		return nil, fmt.Errorf("the audio system could not be reached: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+	c.SetTimeout(5 * time.Second)
+	// The server answers nothing else before the client has a name.
+	props := proto.PropList{
+		"application.name":       proto.PropListString("Agentry Desktop"),
+		"application.process.id": proto.PropListString(strconv.Itoa(os.Getpid())),
+	}
+	if err := c.Request(&proto.SetClientName{Props: props}, &proto.SetClientNameReply{}); err != nil {
+		return nil, fmt.Errorf("the audio system refused the connection: %w", err)
+	}
+	return listMics(c)
+}
+
+func listMics(c *proto.Client) ([]Microphone, error) {
+	var sources proto.GetSourceInfoListReply
+	if err := c.Request(&proto.GetSourceInfoList{}, &sources); err != nil {
+		return nil, err
+	}
+	var out []Microphone
+	for _, src := range sources {
+		if src.MonitorSourceIndex != proto.Undefined {
+			continue
+		}
+		name := src.Device
+		if name == "" {
+			name = src.SourceName
+		}
+		out = append(out, Microphone{ID: src.SourceName, Name: name})
+	}
+	return out, nil
+}
+
+// recordWholeDevice records the chosen microphone and the monitor of the
+// default output.
+func (p *pulseCapture) recordWholeDevice(chosen string) error {
+	var info proto.GetServerInfoReply
+	if err := p.c.Request(&proto.GetServerInfo{}, &info); err != nil {
+		return err
+	}
+	if info.DefaultSinkName == "" {
 		return errors.New("this computer has no default microphone or output")
 	}
+	src, err := p.chooseMic(chosen)
+	if err != nil {
+		return err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	mic, err := p.tracks.Open(Me, "mic")
 	if err != nil {
 		return err
 	}
 	p.micTrack = mic
-	rec, err := p.openLocked(mic, proto.Undefined, info.DefaultSourceName, proto.Undefined, "Agentry meeting notes (microphone)")
+	rec, err := p.openLocked(mic, proto.Undefined, src, proto.Undefined, "Agentry meeting notes (microphone)")
 	if err != nil {
 		return err
 	}

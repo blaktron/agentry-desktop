@@ -1,7 +1,8 @@
 // Meeting notes: record a meeting, by hand or on the offer of a call the
 // app noticed (at once for an app the person put on the automatic list),
-// transcribe it on this computer, and keep the transcript in a folder.
-// Turning it on, every Record from this page and every app put on the
+// or a meeting held in the room through the microphone alone (by hand
+// only), transcribe it on this computer, and keep the transcript in a
+// folder. Turning it on, every Record from this page and every app put on the
 // automatic list are confirmed in Go's native dialog: this page asking is
 // not the person deciding. While it is off nothing records. The page names
 // a meeting by its id and never a path, and the output folder comes from
@@ -14,8 +15,8 @@ import type { app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
 import {
-  AUTO_CHOICES, CHAT_LINE, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint, gpuOfferTitle,
-  hoursLabel, isNo, meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
+  AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,
+  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
 } from "../meetingNotes";
 
 type View = app.MeetingNotesView;
@@ -201,8 +202,19 @@ export default function MeetingNotes() {
             <div className="meeting-live" data-meeting-recording>
               <span className={`badge ${recording.paused ? "" : "warn"}`}>{recording.paused ? "Paused" : "Recording"}</span>
               <strong className="meeting-clock">{elapsed(recording.started, now)}</strong>
-              <span>Recording {recordingWhat(recording.app, recording.wholeDevice)}.</span>
+              <span>Recording {recordingWhat(recording.app, recording.wholeDevice, recording.inRoom)}.</span>
             </div>
+            {recording.inRoom && (
+              <p className="small muted" data-meeting-in-room>
+                A meeting in the room{recording.microphone ? `, through ${recording.microphone}` : ""}. Nothing your computer plays is recorded.
+                If nobody speaks for 15 minutes, Agentry asks whether the meeting is still on.
+              </p>
+            )}
+            {recording.micMissing && (
+              <Notice tone="warn">
+                <span data-meeting-mic-missing>The microphone chosen in the settings was not found, so the default microphone is recorded.</span>
+              </Notice>
+            )}
             {recording.armed && (
               <p className="small muted" data-meeting-armed>
                 It started by itself: {recording.title ? `"${recording.title}" is` : "this meeting is"} one {assistant.name} set up to record from your calendar.
@@ -251,8 +263,20 @@ export default function MeetingNotes() {
             <div className="row">
               <Button variant="primary" data-meeting-record disabled={busy} onClick={() => act(MeetingAPI.Record)}>Record…</Button>
             </div>
+            {view.recordsRooms && (
+              <>
+                <p data-meeting-room-hint>
+                  For a meeting held here in the room, press Record in the room: Agentry records your microphone alone, and nothing your
+                  computer plays, until you press Stop or it reaches its longest length.
+                </p>
+                <div className="row">
+                  <Button data-meeting-record-room disabled={busy} onClick={() => act(MeetingAPI.RecordRoom)}>Record in the room…</Button>
+                </div>
+              </>
+            )}
           </>
         )}
+        {!recording?.inRoom && (
         <div className="meeting-chat-line">
           <span className="small muted">To tell the others, paste this into the meeting's chat:</span>
           <code>{CHAT_LINE}</code>
@@ -265,6 +289,7 @@ export default function MeetingNotes() {
             {copied ? "Copied" : "Copy"}
           </Button>
         </div>
+        )}
       </Card>
 
       <Card className="meeting-model">
@@ -312,7 +337,7 @@ export default function MeetingNotes() {
                 <div className="meeting-row-head">
                   <strong>{m.title}</strong>
                   <span className="small muted">
-                    {[m.app || (m.wholeDevice ? "Whole device" : ""), m.durationSeconds ? duration(m.durationSeconds) : ""].filter(Boolean).join(" · ")}
+                    {[meetingSource(m), m.durationSeconds ? duration(m.durationSeconds) : ""].filter(Boolean).join(" · ")}
                   </span>
                 </div>
                 <div className={`small meeting-state tone-${st.tone}`} data-meeting-state={m.state}>{st.words}</div>
@@ -377,6 +402,16 @@ export default function MeetingNotes() {
                 </Button>
               </div>
             )}
+          </Field>
+        )}
+        {view.recordsRooms && (
+          <Field label="Microphone" htmlFor="meeting-mic"
+            hint="Used for meetings in the room, and for Record when no meeting app is found. A call a meeting app makes is recorded from the microphone that app uses.">
+            <Select id="meeting-mic" data-meeting-mic value={view.mic} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetMic(e.target.value))}>
+              <option value="">{DEFAULT_MIC}</option>
+              {view.mic && !view.microphones.some((m) => m.id === view.mic) && <option value={view.mic}>Not connected now</option>}
+              {view.microphones.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </Select>
           </Field>
         )}
         <Field label="Transcripts folder">

@@ -33,9 +33,11 @@ type wavTrack struct {
 	samples int64
 	err     error
 	ended   bool
-	// loud counts the 100 ms windows whose level was over silenceLevel.
-	loud   int
-	window []int16
+	// loud counts the 100 ms windows whose level was over silenceLevel,
+	// and lastLoud is when the latest of them arrived.
+	loud     int
+	lastLoud time.Time
+	window   []int16
 }
 
 func newWAVTrack(path string, start time.Time, now func() time.Time) (*wavTrack, error) {
@@ -94,6 +96,7 @@ func (t *wavTrack) measure(s []int16) {
 		if len(t.window) == win {
 			if rms(t.window) > silenceLevel {
 				t.loud++
+				t.lastLoud = t.now()
 			}
 			t.window = t.window[:0]
 		}
@@ -124,6 +127,14 @@ func (t *wavTrack) Silent() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.loud < minLoudWindows
+}
+
+// LastLoud is when the latest window louder than silenceLevel arrived;
+// zero while there has been none.
+func (t *wavTrack) LastLoud() time.Time {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastLoud
 }
 
 // Duration is the track's length on the timeline.

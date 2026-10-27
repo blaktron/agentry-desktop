@@ -25,13 +25,36 @@ import (
 type countingRecorder struct {
 	mu    sync.Mutex
 	calls int
+	last  meeting.Call
+	// listed counts the times the microphones were listed.
+	listed int
 }
 
-func (c *countingRecorder) Record(context.Context, meeting.Call, meeting.Tracks) (meeting.Capture, error) {
+func (c *countingRecorder) Record(_ context.Context, call meeting.Call, _ meeting.Tracks) (meeting.Capture, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
-	return &idleCapture{ended: make(chan struct{})}, nil
+	c.last = call
+	far := meeting.FarSideWholeDevice
+	if call.Room {
+		far = meeting.FarSideNone
+	}
+	return &idleCapture{ended: make(chan struct{}), far: far}, nil
+}
+
+// Microphones lists two microphones, as an audio system with a laptop's
+// own and a USB speakerphone would.
+func (c *countingRecorder) Microphones() ([]meeting.Microphone, error) {
+	c.mu.Lock()
+	c.listed++
+	c.mu.Unlock()
+	return []meeting.Microphone{{ID: "alsa_input.pci", Name: "Built-in Audio"}, {ID: "alsa_input.usb", Name: "USB Speakerphone"}}, nil
+}
+
+func (c *countingRecorder) lastCall() meeting.Call {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.last
 }
 
 func (c *countingRecorder) count() int {
@@ -40,10 +63,13 @@ func (c *countingRecorder) count() int {
 	return c.calls
 }
 
-type idleCapture struct{ ended chan struct{} }
+type idleCapture struct {
+	ended chan struct{}
+	far   meeting.FarSide
+}
 
 func (c *idleCapture) Call() meeting.Call       { return meeting.Call{} }
-func (c *idleCapture) FarSide() meeting.FarSide { return meeting.FarSideWholeDevice }
+func (c *idleCapture) FarSide() meeting.FarSide { return c.far }
 func (c *idleCapture) Ended() <-chan struct{}   { return c.ended }
 func (c *idleCapture) SetPaused(bool) error     { return nil }
 func (c *idleCapture) Stop() error              { return nil }
@@ -502,5 +528,127 @@ func TestTheGraphicsCardIsChosenOnlyWhereOneRanAndDecliningKeepsTheModel(t *test
 	}
 	if v.GPU != nil || !v.ChecksGPU {
 		t.Fatalf("no card measured: gpu %+v, checks %v", v.GPU, v.ChecksGPU)
+	}
+}
+
+// Record in the room asks the native dialog first, then records the
+// microphone chosen and nothing else; a No records nothing.
+func TestRecordInTheRoomAsksThenRecordsTheChosenMicrophone(t *testing.T) {
+	ma := newMeetingApp(t)
+	ma.answer = true
+	if _, err := ma.api.TurnOn(); err != nil {
+		t.Fatal(err)
+	}
+	v, err := ma.api.SetMic("alsa_input.usb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.RecordsRooms || v.Mic != "alsa_input.usb" || len(v.Microphones) != 2 {
+		t.Fatalf("view: records rooms %v, mic %q, microphones %+v", v.RecordsRooms, v.Mic, v.Microphones)
+	}
+	ma.answer = false
+	if _, err := ma.api.RecordRoom(); !errors.Is(err, errNotConfirmed) {
+		t.Fatalf("RecordRoom answered No: %v", err)
+	}
+	if n := ma.rec.count(); n != 0 {
+		t.Fatalf("a No recorded %d times", n)
+	}
+	ma.answer = true
+	v, err = ma.api.RecordRoom()
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked := ma.asked[len(ma.asked)-1]
+	if !strings.HasPrefix(asked, "Record a meeting in the room?") || !strings.Contains(asked, "nothing your computer plays") || !strings.Contains(asked, meeting.ConsentSentence) {
+		t.Fatalf("the dialog said %q", asked)
+	}
+	if got := ma.rec.lastCall(); !got.Room || got.Mic != "alsa_input.usb" {
+		t.Fatalf("the recorder was asked for %+v", got)
+	}
+	if v.Recording == nil || !v.Recording.InRoom {
+		t.Fatalf("recording %+v, want one in the room", v.Recording)
+	}
+	if _, err := ma.api.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	v, _ = ma.api.Status()
+	if len(v.Meetings) != 1 || !v.Meetings[0].InRoom {
+		t.Fatalf("meetings %+v, want one in the room", v.Meetings)
+	}
+}
+
+// Only a microphone the audio system lists, or the default, can be chosen:
+// a page that names anything else (an output's monitor, say) is refused.
+func TestOnlyAListedMicrophoneCanBeChosen(t *testing.T) {
+	ma := newMeetingApp(t)
+	// Off, the audio system is not asked even for its microphones.
+	if v, err := ma.api.Status(); err != nil || len(v.Microphones) != 0 {
+		t.Fatalf("status with the switch off: %v, %+v", err, v)
+	}
+	if _, err := ma.api.SetMic("alsa_input.pci"); !errors.Is(err, meeting.ErrOff) {
+		t.Fatalf("SetMic with the switch off: %v, want ErrOff", err)
+	}
+	ma.rec.mu.Lock()
+	listed := ma.rec.listed
+	ma.rec.mu.Unlock()
+	if listed != 0 {
+		t.Fatalf("the microphones were listed %d times with the switch off", listed)
+	}
+	ma.answer = true
+	if _, err := ma.api.TurnOn(); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"alsa_output.pci.monitor", "nothing"} {
+		if _, err := ma.api.SetMic(id); err == nil {
+			t.Fatalf("SetMic(%q) was taken", id)
+		}
+	}
+	if st, _ := settings.Load(); st.MeetingNotes.Mic != "" {
+		t.Fatalf("a refused microphone was kept: %q", st.MeetingNotes.Mic)
+	}
+	if _, err := ma.api.SetMic("alsa_input.pci"); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := ma.api.SetMic(""); err != nil || v.Mic != "" {
+		t.Fatalf("back to the default: %v, %+v", err, v)
+	}
+}
+
+// The tray offers Record a meeting in the room while Meeting notes is on and
+// nothing is recorded, and names a room it records.
+func TestTheTrayOffersARoomAndShowsOne(t *testing.T) {
+	r := newBGRig(t)
+	ma := newMeetingApp(t)
+	r.s.meeting = ma.api
+	var mu sync.Mutex
+	var shown []tray.Meeting
+	saved := trayMeeting
+	trayMeeting = func(m tray.Meeting) { mu.Lock(); shown = append(shown, m); mu.Unlock() }
+	t.Cleanup(func() { trayMeeting = saved })
+	last := func() tray.Meeting {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(shown) == 0 {
+			return tray.Meeting{}
+		}
+		return shown[len(shown)-1]
+	}
+	ma.api.setHooks(func() { r.s.followAgents(context.Background()) }, func(*meeting.RecordingStatus) { r.s.followAgents(context.Background()) })
+	r.s.followAgents(context.Background())
+	if last().CanRecordRoom {
+		t.Fatal("the tray offers a room with Meeting notes off")
+	}
+	ma.answer = true
+	if _, err := ma.api.TurnOn(); err != nil {
+		t.Fatal(err)
+	}
+	if m := last(); !m.CanRecordRoom || m.Recording {
+		t.Fatalf("the tray shows %+v with Meeting notes on and idle", m)
+	}
+	if _, err := ma.api.RecordRoom(); err != nil {
+		t.Fatal(err)
+	}
+	if m := last(); !m.Recording || m.CanRecordRoom || m.What != "a meeting in the room" {
+		t.Fatalf("the tray shows %+v while a room is recorded", m)
 	}
 }
