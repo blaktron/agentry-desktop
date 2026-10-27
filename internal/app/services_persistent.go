@@ -585,9 +585,10 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
 	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
+	compaction, consolidation := persistent.LastUpkeep(home, a.Name)
+	v.LastCompaction = upkeepView(compaction)
 	if v.KeepsMemory {
-		compaction, consolidation := persistent.LastUpkeep(home, a.Name)
-		v.LastCompaction, v.LastConsolidation = upkeepView(compaction), upkeepView(consolidation)
+		v.LastConsolidation = upkeepView(consolidation)
 	}
 	v.Accounts = accountViews(cfg.Accounts)
 	v.Resets = resetViews(a)

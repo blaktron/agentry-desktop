@@ -39,6 +39,7 @@ import {
   chosenReset,
   isLive,
   upkeepWords,
+  compactingWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -281,4 +282,12 @@ test("the Configuration names the memory's last upkeep: when, why, and what came
   assert.match(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "consolidate", done: false, reason: "the memory has not changed since it was last consolidated" }, now),
     /did not run: the memory has not changed/);
   assert.doesNotMatch(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "manual", done: true }, now), /today/);
+});
+
+test("Compact now says what a compaction does, naming a memory only for an agent that keeps one", () => {
+  const withMemory = compactingWords(true);
+  assert.match(withMemory, /saves this conversation to its memory first/);
+  const without = compactingWords(false);
+  assert.match(without, /writes a handoff/);
+  assert.doesNotMatch(without, /memory/);
 });

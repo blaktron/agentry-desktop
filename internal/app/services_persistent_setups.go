@@ -393,19 +393,16 @@ func (p *PersistentAPI) oneShotReady(ctx context.Context, engine bool) (string, 
 // start.
 const compactWait = 10 * time.Minute
 
-// Compact compacts the agent's conversation now: it saves what the
-// conversation produced to its memory and goes on in a fresh conversation
-// that opens with its handoff. The chat is told while it runs, and a message
-// sent meanwhile waits for it. An agent another client runs is compacted
-// through its supervisor's socket. A compaction that did not finish is an
-// error that says why.
+// Compact compacts the agent's conversation now: it writes a handoff, after
+// saving what the conversation produced to its memory when it keeps one, and
+// goes on in a fresh conversation that opens with the handoff. The chat is
+// told while it runs, and a message sent meanwhile waits for it. An agent
+// another client runs is compacted through its supervisor's socket. A
+// compaction that did not finish is an error that says why.
 func (p *PersistentAPI) Compact(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err
-	}
-	if !a.Builtin.KeepsMemory() {
-		return nil, fmt.Errorf("the %s keeps no memory to compact into", a.Title)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), compactWait)
 	defer cancel()
