@@ -495,6 +495,14 @@ func (m *Manager) announce(r *recording) error {
 	return m.notify(n)
 }
 
+// micWords names a microphone in a sentence.
+func micWords(name string) string {
+	if name == "" {
+		return "the default microphone"
+	}
+	return name
+}
+
 // micMissingSentence says the chosen microphone was not there.
 const micMissingSentence = "The microphone chosen in Meeting notes' settings was not found, so the default microphone is recorded."
 
@@ -687,6 +695,17 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 				r.m.FarSide = FarSideWholeDevice
 				_ = m.store().Save(r.m)
 			}
+			// A microphone that changes while recording (an audio child
+			// started again on another one) is said, never taken silently.
+			var micChanged bool
+			if mr, ok := capture.(MicReporter); ok {
+				name, missing := mr.Microphone()
+				if name != r.m.Microphone || missing != r.m.MicMissing {
+					micChanged = r.m.Microphone != "" || missing
+					r.m.Microphone, r.m.MicMissing = name, missing
+					_ = m.store().Save(r.m)
+				}
+			}
 			// A new warning is said; one that cleared is taken off the page.
 			var warned *Warning
 			cleared := false
@@ -719,6 +738,16 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 			}
 			if widened {
 				_ = m.notify(Notice{Title: "Recording everything your computer plays", Body: "The meeting app's sound could not be recorded on its own, so Agentry now records everything its output plays. The transcript says so."})
+				_ = m.announce(r)
+				m.changed()
+			}
+			if micChanged {
+				name, missing := capture.(MicReporter).Microphone()
+				body := "Agentry now records " + micWords(name) + "."
+				if missing {
+					body += " " + micMissingSentence
+				}
+				_ = m.notify(Notice{Title: "Recording another microphone", Body: body})
 				_ = m.announce(r)
 				m.changed()
 			}

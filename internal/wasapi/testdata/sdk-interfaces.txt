@@ -1,7 +1,9 @@
 # The COM interfaces this package calls, as the Windows SDK declares them:
 # each line is an interface, its IID, and its methods in vtable order
-# (IUnknown's three first); a "class" line is a coclass and its CLSID.
-# Extracted from the SDK's mmdeviceapi.h, Audioclient.h and audiopolicy.h
+# (IUnknown's three first); a "class" line is a coclass and its CLSID; a
+# "key" line is a property key, its format id and its property id.
+# Extracted from the SDK's mmdeviceapi.h, Audioclient.h, audiopolicy.h,
+# propsys.h and functiondiscoverykeys_devpkey.h
 # by TestTheTableIsTheSDKs, which reads a folder of those headers named by
 # AGENTRY_WINDOWS_SDK_HEADERS and fails where this file differs. Only names
 # and identifiers are kept here, not the headers' text.
@@ -14,4 +16,6 @@ IAudioSessionManager2 77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F QueryInterface AddRef
 IAudioSessionEnumerator E2F5BB11-0570-40CA-ACDD-3AA01277DEE8 QueryInterface AddRef Release GetCount GetSession
 IAudioSessionControl F4B1A599-7266-4319-A8CA-E70ACB11E8CD QueryInterface AddRef Release GetState GetDisplayName SetDisplayName GetIconPath SetIconPath GetGroupingParam SetGroupingParam RegisterAudioSessionNotification UnregisterAudioSessionNotification
 IAudioSessionControl2 BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D QueryInterface AddRef Release GetState GetDisplayName SetDisplayName GetIconPath SetIconPath GetGroupingParam SetGroupingParam RegisterAudioSessionNotification UnregisterAudioSessionNotification GetSessionIdentifier GetSessionInstanceIdentifier GetProcessId IsSystemSoundsSession SetDuckingPreference
+IPropertyStore 886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99 QueryInterface AddRef Release GetCount GetAt GetValue SetValue Commit
+key PKEY_Device_FriendlyName A45C254E-DF1C-4EFD-8020-67D146A850E0 14
 class MMDeviceEnumerator BCDE0395-E52F-467C-8E3D-C4579291692E

@@ -338,3 +338,34 @@ Transcript of a meeting in the room, produced automatically on this computer fro
 		t.Fatalf("in-room transcript:\n%s\nwant:\n%s", doc, want)
 	}
 }
+
+func TestAMicrophoneThatChangesWhileRecordingIsSaid(t *testing.T) {
+	h := newHarness(t)
+	h.rec.micName = "USB Speakerphone"
+	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
+	mt, err := h.m.RecordRoom(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := h.rec.capture
+	c.mu.Lock()
+	c.micName, c.micMissing = "Built-in Audio", true
+	c.mu.Unlock()
+	waitFor(t, "the change said", func() bool { return countTitled(h.noticesNow(), "Recording another microphone") == 1 })
+	ns := h.noticesNow()
+	var said Notice
+	for _, n := range ns {
+		if n.Title == "Recording another microphone" {
+			said = n
+		}
+	}
+	if !strings.Contains(said.Body, "Built-in Audio") || !strings.Contains(said.Body, "was not found") {
+		t.Fatalf("notice %+v", said)
+	}
+	if got := h.meeting(t, mt.ID); got.Microphone != "Built-in Audio" || !got.MicMissing {
+		t.Fatalf("meeting %+v", got)
+	}
+	if st := h.m.Status(); st.Recording == nil || !st.Recording.MicMissing {
+		t.Fatalf("status %+v", st.Recording)
+	}
+}

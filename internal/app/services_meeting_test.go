@@ -652,3 +652,15 @@ func TestTheTrayOffersARoomAndShowsOne(t *testing.T) {
 		t.Fatalf("the tray shows %+v while a room is recorded", m)
 	}
 }
+
+// The microphone setting's hint says what a call records on each platform.
+func TestTheMicrophoneHintSaysWhatACallRecords(t *testing.T) {
+	if h := micHint("darwin"); !strings.Contains(h, "default input") || !strings.Contains(h, "meetings in the room") {
+		t.Errorf("macOS hint %q", h)
+	}
+	for _, goos := range []string{"linux", "windows"} {
+		if h := micHint(goos); !strings.Contains(h, "the microphone that app uses") {
+			t.Errorf("%s hint %q", goos, h)
+		}
+	}
+}

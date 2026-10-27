@@ -109,6 +109,22 @@ func (w wasapiSystem) Sessions() ([]audioSession, error) {
 
 func (w wasapiSystem) Default(f endpointFlow) (string, error) { return w.s.Default(flowOf(f)) }
 
+func (w wasapiSystem) Endpoints(f endpointFlow) ([]Microphone, error) {
+	eps, err := w.s.Endpoints(flowOf(f))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Microphone, 0, len(eps))
+	for _, ep := range eps {
+		name := ep.Name
+		if name == "" {
+			name = ep.ID
+		}
+		out = append(out, Microphone{ID: ep.ID, Name: name})
+	}
+	return out, nil
+}
+
 func (w wasapiSystem) Record(ep string, f endpointFlow) (audioStream, error) {
 	st, err := w.s.Record(ep, flowOf(f))
 	if err != nil {

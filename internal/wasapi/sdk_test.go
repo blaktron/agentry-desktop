@@ -27,8 +27,12 @@ func sdkTable(t *testing.T) (ids map[string]string, methods map[string][]string,
 		}
 		lines = append(lines, line)
 		fields := strings.Fields(line)
-		if fields[0] == "class" {
+		switch fields[0] {
+		case "class":
 			ids["class "+fields[1]] = fields[2]
+			continue
+		case "key":
+			ids["key "+fields[1]] = fields[2] + " " + fields[3]
 			continue
 		}
 		ids[fields[0]], methods[fields[0]] = fields[1], fields[2:]
@@ -62,16 +66,17 @@ func TestEverySlotAndIdentifierIsTheSDKs(t *testing.T) {
 
 // The table is what the SDK's headers declare. The headers are not kept in
 // this repository: the test reads them from the folder
-// AGENTRY_WINDOWS_SDK_HEADERS names (mmdeviceapi.h, Audioclient.h and
-// audiopolicy.h, as the Windows SDK or Microsoft's win32metadata repository
-// carries them), and is skipped without it.
+// AGENTRY_WINDOWS_SDK_HEADERS names (mmdeviceapi.h, Audioclient.h,
+// audiopolicy.h, propsys.h and functiondiscoverykeys_devpkey.h, as the
+// Windows SDK or Microsoft's win32metadata repository carries them), and is
+// skipped without it.
 func TestTheTableIsTheSDKs(t *testing.T) {
 	dir := os.Getenv("AGENTRY_WINDOWS_SDK_HEADERS")
 	if dir == "" {
 		t.Skip("AGENTRY_WINDOWS_SDK_HEADERS names no folder of SDK headers")
 	}
 	var all strings.Builder
-	for _, name := range []string{"mmdeviceapi.h", "Audioclient.h", "audiopolicy.h"} {
+	for _, name := range []string{"mmdeviceapi.h", "Audioclient.h", "audiopolicy.h", "propsys.h", "functiondiscoverykeys_devpkey.h"} {
 		b, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // a folder the person running the test names
 		if err != nil {
 			t.Fatal(err)
@@ -87,6 +92,12 @@ func TestTheTableIsTheSDKs(t *testing.T) {
 			m := regexp.MustCompile(`class DECLSPEC_UUID\("([0-9A-Fa-f-]+)"\)\s*` + fields[1]).FindStringSubmatch(src)
 			if m == nil || !strings.EqualFold(m[1], fields[2]) {
 				t.Errorf("class %s: the headers say %v, the table %s", fields[1], m, fields[2])
+			}
+			continue
+		}
+		if fields[0] == "key" {
+			if got := headerPropertyKey(src, fields[1]); !strings.EqualFold(got, fields[2]+" "+fields[3]) {
+				t.Errorf("key %s: the headers say %q, the table %s %s", fields[1], got, fields[2], fields[3])
 			}
 			continue
 		}
@@ -108,6 +119,22 @@ func TestTheTableIsTheSDKs(t *testing.T) {
 			t.Errorf("%s: the headers' table is %v, the table's %v", name, got, fields[2:])
 		}
 	}
+}
+
+// headerPropertyKey reads a DEFINE_PROPERTYKEY of the headers as the table writes
+// it: the format id as a GUID, then the property id.
+func headerPropertyKey(src, name string) string {
+	hex := `0x([0-9A-Fa-f]+)`
+	m := regexp.MustCompile(`DEFINE_PROPERTYKEY\(\s*` + name + `\s*,\s*` + strings.Repeat(hex+`\s*,\s*`, 11) + `(\d+)\s*\)`).FindStringSubmatch(src)
+	if m == nil {
+		return ""
+	}
+	pad := func(s string, n int) string { return strings.Repeat("0", n-len(s)) + s }
+	b := make([]string, 8)
+	for i := range b {
+		b[i] = pad(m[4+i], 2)
+	}
+	return pad(m[1], 8) + "-" + pad(m[2], 4) + "-" + pad(m[3], 4) + "-" + b[0] + b[1] + "-" + strings.Join(b[2:], "") + " " + m[12]
 }
 
 // Every stream is opened in shared mode, so the meeting app keeps its
