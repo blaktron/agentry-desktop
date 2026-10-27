@@ -25,6 +25,26 @@ type fakeRecorder struct {
 	tracks  []fakeTrackSpec
 	capture *fakeCapture
 	err     error
+	// mics are the microphones it lists; micName and micMissing what its
+	// captures say they record.
+	mics       []Microphone
+	micName    string
+	micMissing bool
+}
+
+func (f *fakeRecorder) Microphones() ([]Microphone, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.mics, nil
+}
+
+func (f *fakeRecorder) lastCall() Call {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.asked) == 0 {
+		return Call{}
+	}
+	return f.asked[len(f.asked)-1]
 }
 
 type fakeTrackSpec struct {
@@ -41,11 +61,14 @@ func (f *fakeRecorder) Record(_ context.Context, call Call, tracks Tracks) (Capt
 	if f.err != nil {
 		return nil, f.err
 	}
-	got := f.call
+	got, far := f.call, f.far
 	if call.PID != "" {
 		got = call
 	}
-	c := &fakeCapture{call: got, far: f.far, ended: make(chan struct{})}
+	if call.Room {
+		got, far = call, FarSideNone
+	}
+	c := &fakeCapture{call: got, far: far, ended: make(chan struct{}), micName: f.micName, micMissing: f.micMissing}
 	for _, spec := range f.tracks {
 		t, err := tracks.Open(spec.label, spec.name)
 		if err != nil {
@@ -74,7 +97,12 @@ type fakeCapture struct {
 	paused  []bool
 	stopped bool
 	ended   chan struct{}
+
+	micName    string
+	micMissing bool
 }
+
+func (c *fakeCapture) Microphone() (string, bool) { return c.micName, c.micMissing }
 
 func (c *fakeCapture) Call() Call { return c.call }
 func (c *fakeCapture) FarSide() FarSide {

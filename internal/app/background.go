@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -79,13 +80,17 @@ func (s *Services) keepsRunning() bool {
 	return s.persistent.keepsRunning() || s.meeting.keepsRunning()
 }
 
-// meetingTray is a recording as the tray shows it.
-func meetingTray(st *meeting.RecordingStatus) tray.Meeting {
+// meetingTray is a recording as the tray shows it; canRoom says a meeting
+// in the room can be recorded while none is.
+func meetingTray(st *meeting.RecordingStatus, canRoom bool) tray.Meeting {
 	if st == nil {
-		return tray.Meeting{}
+		return tray.Meeting{CanRecordRoom: canRoom}
 	}
 	what := st.App
-	if st.FarSide == meeting.FarSideWholeDevice || what == "" {
+	switch {
+	case st.How == meeting.InRoom:
+		what = "a meeting in the room"
+	case st.FarSide == meeting.FarSideWholeDevice || what == "":
 		what = "everything this computer plays"
 	}
 	return tray.Meeting{Recording: true, Paused: st.Paused, What: what}
@@ -169,10 +174,18 @@ func (s *Services) followAgents(ctx context.Context) {
 			OnMeetingPause:  func() { s.meeting.handleAction(meeting.ActionPause) },
 			OnMeetingResume: func() { s.meeting.handleAction(meeting.ActionResume) },
 			OnMeetingStop:   func() { s.meeting.handleAction(meeting.ActionStop) },
+			// The window comes up first, so the native dialog that asks
+			// before a recording starts is seen with it.
+			OnMeetingRecordRoom: func() {
+				windowShow(ctx)
+				if _, err := s.meeting.RecordRoom(); err != nil && !errors.Is(err, errNotConfirmed) {
+					log.Printf("meeting notes: recording a meeting in the room from the tray: %v", err)
+				}
+			},
 		})
 	}
 	traySet(s.persistent.runningLabels())
-	trayMeeting(meetingTray(s.meeting.recording()))
+	trayMeeting(meetingTray(s.meeting.recording(), s.meeting.recordsRoomsNow()))
 }
 
 // quit is the person's quit: the intent, then the window's quit, which runs

@@ -14,7 +14,9 @@
 // "Me", and the far side, "Them"), each a 16 kHz mono WAV whose sample
 // position is its time since the recording started; then, after Stop, one
 // transcript per recording, merged from the tracks by time; then, unless the
-// person keeps recordings, nothing of the audio.
+// person keeps recordings, nothing of the audio. A meeting in the room is
+// recorded as one track, "Room": the microphone alone, with everyone in the
+// room on it.
 package meeting
 
 import (
@@ -35,6 +37,9 @@ const (
 	// Them is everything the meeting app played: every other participant,
 	// not split by person.
 	Them Label = "Them"
+	// Room is the microphone of a meeting held in the room: everyone in the
+	// room, not split by person.
+	Room Label = "Room"
 )
 
 // FarSide is how the far side was recorded, written into the transcript.
@@ -51,6 +56,9 @@ const (
 	// meeting app was found to record on its own, so other sounds the
 	// computer made are in the recording too.
 	FarSideWholeDevice FarSide = "whole-device"
+	// FarSideNone is a meeting in the room: there is no far side, and
+	// nothing the computer plays is recorded.
+	FarSideNone FarSide = "none"
 )
 
 // Call is a meeting app that has a call under way, as the audio stack shows
@@ -63,6 +71,14 @@ type Call struct {
 	Binary string
 	// PID is the app's process id, as the stack reports it.
 	PID string
+	// Room asks for a meeting in the room: the microphone alone, no far
+	// side and no app followed. Only the person's own Record in the room
+	// sets it.
+	Room bool
+	// Mic is the microphone chosen in the settings, by its Microphone ID,
+	// "" for the system's default. A recorder records it wherever it does
+	// not follow the meeting app's own microphone.
+	Mic string
 }
 
 // CallEvent is a Detector's news: a call started or ended.
@@ -96,6 +112,29 @@ type Tracks interface {
 // under way, or the whole default devices when it finds none.
 type Recorder interface {
 	Record(ctx context.Context, call Call, tracks Tracks) (Capture, error)
+}
+
+// RoomRecorder is a Recorder that records a meeting in the room (a Call
+// with Room set) and lists the microphones it can record. A Recorder that
+// is not one is never asked for a room.
+type RoomRecorder interface {
+	Recorder
+	Microphones() ([]Microphone, error)
+}
+
+// Microphone is an input device a recording may use.
+type Microphone struct {
+	// ID is how the audio stack names it, stable while it stays plugged in.
+	ID string `json:"id"`
+	// Name is how the person knows it.
+	Name string `json:"name"`
+}
+
+// MicReporter is a Capture that says which microphone it records: its
+// name, and whether the one chosen in the settings was missing so the
+// default is recorded instead.
+type MicReporter interface {
+	Microphone() (name string, chosenMissing bool)
 }
 
 // Capture is a recording in progress.

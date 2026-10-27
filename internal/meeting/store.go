@@ -60,6 +60,11 @@ type Meeting struct {
 	// window's attendees; "" and none for any other recording.
 	Window   string   `json:"window,omitempty"`
 	Invitees []string `json:"invitees,omitempty"`
+	// Microphone is the microphone recorded, where the recorder said, and
+	// MicMissing that the one chosen in the settings was missing so the
+	// default was recorded.
+	Microphone string `json:"microphone,omitempty"`
+	MicMissing bool   `json:"micMissing,omitempty"`
 	// Shared is the transcript's copy in the Assistant's share folder, ""
 	// until it is copied there.
 	Shared string `json:"shared,omitempty"`
@@ -68,6 +73,10 @@ type Meeting struct {
 	Delivery      string `json:"delivery,omitempty"`
 	DeliveryError string `json:"deliveryError,omitempty"`
 }
+
+// InRoom says the meeting was held in the room and recorded through the
+// microphone alone.
+func (m *Meeting) InRoom() bool { return m.FarSide == FarSideNone }
 
 // Where handing a transcript to the Assistant stands.
 const (

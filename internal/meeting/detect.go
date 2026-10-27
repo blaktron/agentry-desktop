@@ -365,6 +365,8 @@ func (m *Manager) HandleAction(action string) error {
 		return m.SetPaused(false)
 	case ActionStop:
 		return m.Stop()
+	case ActionKeepGoing:
+		return m.KeepGoing()
 	}
 	return fmt.Errorf("no such action %q", action)
 }

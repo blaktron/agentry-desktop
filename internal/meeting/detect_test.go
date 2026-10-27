@@ -251,6 +251,11 @@ func TestEveryWayIntoARecordingIsShown(t *testing.T) {
 			h.set(func(s *Settings) { s.Automatic = []string{"zoom"} })
 			d.events <- CallEvent{Call: zoom}
 		},
+		InRoom: func(h *harness, _ *fakeDetector) {
+			if _, err := h.m.RecordRoom(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 	for how, start := range ways {
 		t.Run(string(how), func(t *testing.T) {
