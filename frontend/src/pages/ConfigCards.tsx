@@ -720,10 +720,11 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
     <div className="stack">
       {running && <Notice>Stop {agentCalled(agent)} first: its calendar feeds change only while it is stopped.</Notice>}
       <p className="small muted">
-        {agentCalled(agent)} reads the calendar, never changes it. Google Calendar gives the address as Secret address in iCal
-        format, in the calendar&apos;s settings under Integrate calendar; Outlook as the ICS link of a calendar you publish under
-        Settings, Calendar, Shared calendars; iCloud as a public calendar&apos;s link. Whoever has the address can read the
-        calendar, so it is kept in your system keychain and {agentCalled(agent)} is never shown it. Never paste it into the chat.
+        A calendar feed is read only: {agentCalled(agent)} reads the calendar and never changes it. Google Calendar gives the
+        address as Secret address in iCal format, in the calendar&apos;s settings under Integrate calendar; Outlook as the ICS
+        link of a calendar you publish under Settings, Calendar, Shared calendars; iCloud as a public calendar&apos;s link.
+        Whoever has the address can read the calendar, so it is kept in your system keychain and {agentCalled(agent)} is never
+        shown it. Never paste it into the chat.
       </p>
       <div className="persistent-server-form">
         <Field label="Name" hint="Your name for it, such as Work or Family.">
