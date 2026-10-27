@@ -494,10 +494,10 @@ func TestTheAssistantAsksInItsOwnName(t *testing.T) {
 	}
 }
 
-// Reading the agents, as Home and Settings do on load, starts none: Main is
-// listed first and stays as it is until a message starts it, which enables
-// it on the way.
-func TestReadingTheAgentsStartsNothingAndMainStartsOnAsk(t *testing.T) {
+// Reading the agents, as Home and Settings do on load, starts none, and
+// Agentry Helper is off until the person turns it on: a start while it is
+// off is refused rather than turning it on.
+func TestReadingTheAgentsStartsNothingAndTheHelperIsOffUntilTurnedOn(t *testing.T) {
 	rig := newPersistentRig(t)
 	list, err := rig.p.List()
 	if err != nil {
@@ -509,15 +509,93 @@ func TestReadingTheAgentsStartsNothingAndMainStartsOnAsk(t *testing.T) {
 	if rig.started != 0 {
 		t.Fatal("reading the agents started one")
 	}
+	if _, err := rig.p.Start(mainAgent); err == nil || !strings.Contains(err.Error(), "not enabled") {
+		t.Fatalf("the Helper's start while off: %v", err)
+	}
+	if cfg, err := persistent.LoadConfig(rig.home, mainAgent); err != nil || cfg.Enabled || rig.started != 0 {
+		t.Fatalf("a refused start changed the Helper: %+v %v, started %d", cfg, err, rig.started)
+	}
+	if _, err := rig.p.SetEnabled(mainAgent, true); err != nil {
+		t.Fatal(err)
+	}
 	v, err := rig.p.Start(mainAgent)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v.State != persistent.StateRunning || rig.started != 1 {
-		t.Fatalf("Main after its start: %+v", v)
+		t.Fatalf("the Helper after its start: %+v", v)
 	}
-	cfg, err := persistent.LoadConfig(rig.home, mainAgent)
-	if err != nil || !cfg.Enabled {
-		t.Fatalf("Main's start did not enable it: %+v %v", cfg, err)
+}
+
+// The Assistant does everything Agentry Helper does, so the two are never on
+// together: turning the Assistant on stops and turns off the Helper, and the
+// Helper cannot be turned on while the Assistant is on.
+func TestTheAssistantSupersedesTheHelper(t *testing.T) {
+	rig := newPersistentRig(t)
+	if _, err := rig.p.SetEnabled(mainAgent, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Start(mainAgent); err != nil {
+		t.Fatal(err)
+	}
+	v, err := rig.p.SetEnabled(assistantAgent, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.State != agentStopped {
+		t.Fatalf("the Assistant after it was turned on: %+v", v)
+	}
+	helper, err := rig.p.Get(mainAgent)
+	if err != nil || helper.State != agentDisabled {
+		t.Fatalf("the Helper after the Assistant was turned on: %+v %v", helper, err)
+	}
+	if _, running := rig.p.running(mainAgent); running {
+		t.Fatal("the Helper still runs")
+	}
+	_, err = rig.p.SetEnabled(mainAgent, true)
+	if err == nil || !strings.Contains(err.Error(), "while the Assistant is on") {
+		t.Fatalf("the Helper turned on beside the Assistant: %v", err)
+	}
+	if cfg, _ := persistent.LoadConfig(rig.home, mainAgent); cfg.Enabled {
+		t.Fatal("a refused Helper was turned on")
+	}
+	// The refusal names the Assistant by the name the person gave it.
+	if err := persistent.SaveConfig(rig.home, assistantAgent, persistent.Config{Enabled: true, DisplayName: "Sandra"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.SetEnabled(mainAgent, true); err == nil || !strings.Contains(err.Error(), "while Sandra is on") {
+		t.Fatalf("the refusal: %v", err)
+	}
+	// With the Assistant off again, the Helper can be turned on.
+	if _, err := rig.p.SetEnabled(assistantAgent, false); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := rig.p.SetEnabled(mainAgent, true); err != nil || v.State != agentStopped {
+		t.Fatalf("the Helper with the Assistant off: %+v %v", v, err)
+	}
+}
+
+// Both turned on, as the CLI's agentry agent enable assistant or an older
+// configuration leaves them: reading the agents turns the Helper off, unless
+// it is running, and a start of it is refused.
+func TestReadingTheAgentsTurnsOffAHelperTheAssistantSupersedes(t *testing.T) {
+	rig := newPersistentRig(t)
+	for _, name := range []string{mainAgent, assistantAgent} {
+		if err := persistent.SaveConfig(rig.home, name, persistent.Config{Enabled: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := rig.p.Start(mainAgent); err == nil || !strings.Contains(err.Error(), "while the Assistant is on") {
+		t.Fatalf("the Helper's start beside the Assistant: %v", err)
+	}
+	list, err := rig.p.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list[0].Name != mainAgent || list[0].State != agentDisabled || list[1].State != agentStopped {
+		t.Fatalf("the list: %+v", list)
+	}
+	if cfg, _ := persistent.LoadConfig(rig.home, mainAgent); cfg.Enabled {
+		t.Fatal("the Helper is still enabled on disk")
 	}
 }

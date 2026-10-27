@@ -20,6 +20,9 @@ import { ScheduledCard } from "./home/ScheduledCard";
 import { MeetingsCard } from "./home/MeetingsCard";
 import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
 import { AgentCard } from "./home/AgentCard";
+import { useAgents, useHomeAgent } from "../agents";
+import { homeAgentDrawn } from "../homeAgent";
+import { MAIN_AGENT } from "../persistentAgents";
 import { HomeGrid } from "./home/HomeGrid";
 import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
@@ -68,7 +71,7 @@ export type HomeOpen = {
   scheduled: () => void;
   // The Meeting notes card's page.
   meetings: () => void;
-  // The agent card: Settings → Persistent Agents for Agentry Helper, any
+  // The agent card's title: Settings → Persistent Agents for Agentry Helper, any
   // other agent's own page, and Settings → Provider where no model is set
   // up.
   persistentAgents: () => void;
@@ -120,6 +123,10 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   }, []);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
+  // The agent the agent card shows, or null for no card.
+  const agents = useAgents();
+  const chosenAgent = useHomeAgent();
+  const agentDrawn = homeAgentDrawn(chosenAgent ?? MAIN_AGENT, agents);
 
   // Read again when an install or a run Agentry Helper asked for ends.
   const [changes, setChanges] = useState(0);
@@ -217,7 +224,8 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   // A plain object, not createFrom.
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
-    main: () => <AgentCard onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} />,
+    // The agent card is drawn while an agent it can show is on.
+    ...(agentDrawn ? { main: () => <AgentCard onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} /> } : {}),
     deliverables: () => (
       <DeliverablesCard view={deliverables.value} error={deliverables.error} now={new Date()} onOpenSettings={open.deliverables} />
     ),

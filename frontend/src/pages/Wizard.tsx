@@ -21,7 +21,7 @@ import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
 import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
-import { pickHomeAgent, updateAgent, useAgents, useHomeAgent } from "../agents";
+import { pickHomeAgent, setAgentEnabled, updateAgent, useAgents, useHomeAgent } from "../agents";
 import { homeAgentDrawn, homeChoices } from "../homeAgent";
 import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, enableOutcome } from "../persistentAgents";
 import { AgentTiles } from "./AgentTiles";
@@ -384,9 +384,11 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
 // AgentsStep: the persistent agents as tiles, each turned on or off here
 // through the same Go calls Settings → Persistent Agents makes, at once:
 // turning the Coding agent on raises its own native dialog first, and a No
-// leaves it off. An agent that is on can start when Agentry starts, and
-// Home's agent card can be given any agent that is on. Nothing is changed
-// unless a tile is clicked, so Skip leaves the agents as they were.
+// leaves it off. Every agent starts off: the Assistant is recommended, and
+// turning it on turns Agentry Helper, its lite version, off. An agent that is
+// on can start when Agentry starts, and Home's agent card can be given any
+// agent that is on. Nothing is changed unless a tile is clicked, so Skip
+// leaves the agents as they were.
 function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const agents = useAgents();
   const chosen = useHomeAgent();
@@ -411,8 +413,7 @@ function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void
     }
   };
   const toggle = (name: string, on: boolean) => act(async () => {
-    const v = await PersistentAPI.SetEnabled(name, on);
-    updateAgent(v);
+    const v = await setAgentEnabled(name, on);
     return enableOutcome(on && name === CODER_AGENT, v);
   });
   const runOnStart = (name: string, on: boolean) => act(async () => {
@@ -429,6 +430,11 @@ function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void
         <p className="page-sub">
           Persistent agents run on this computer with your model and keep their conversation between the times you talk
           to them. Turn on the ones you want; you can change this later in Settings → Persistent Agents.
+        </p>
+        <p className="page-sub" data-wizard-personal-agents>
+          The Assistant is your personal assistant. Agentry Helper is a lite version of it that works only with Agentry:
+          it finds, installs, runs and schedules QuickAgents. The Assistant does all of that too, and also keeps a memory,
+          runs tasks at times you ask for, and works with your mail, calendars and files. One of the two is on at a time.
         </p>
         {agents.length === 0 ? (
           <p className="muted small">Reading the agents…</p>

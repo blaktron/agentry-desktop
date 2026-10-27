@@ -18,6 +18,10 @@ const harnessTheme = new URLSearchParams(window.location.search).get("theme");
 // ?homeagent=assistant gives Home's agent card the Assistant; a pick is kept
 // here and recorded on the body.
 let harnessHomeAgent = new URLSearchParams(window.location.search).get("homeagent") ?? "main";
+// ?helper=on has Agentry Helper on and the Assistant off; ?helper=none has
+// both off. Otherwise the Assistant is on and the Helper, which it
+// supersedes, off.
+const harnessHelper = new URLSearchParams(window.location.search).get("helper");
 if (harnessTheme) document.documentElement.dataset.theme = harnessTheme;
 
 const hits = [
@@ -794,9 +798,10 @@ let harnessTasks = [
   { id: "t2", name: "Water the plants", cron: "0 18 * * 0", zone: "Europe/Oslo", instruction: "Remind me to water the plants.", state: "paused", madeBy: "agent" },
 ];
 
-// Main, stopped after a short conversation: Home's first card.
+// Main, stopped after a short conversation while it was on: off while the
+// Assistant is.
 const harnessMain = {
-  name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: "stopped",
+  name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: harnessHelper === "on" ? "stopped" : "disabled",
   share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: false, takesSkills: false, suggested: [],
   keepsTime: false, keepsMemory: false, codes: false, accounts: [],
   resets: [{ kind: "all", title: "Reset", body: "This puts it back to its defaults. It wipes its conversation, its own files, its name and personality, the servers and knowledge packs added to it, its switches, its dev server and ports, whether it starts with Agentry, and what you agreed to, so its next start asks you again. It goes back to its default share folder. The files in the share folder you chose, the receipts of its segments and a dev server's sign-in in your keychain are kept." }],
@@ -807,8 +812,11 @@ const harnessMain = {
   lifetime: { segments: 1, inputTokens: 0, outputTokens: 0, totalTokens: 1204, userTurns: 2, toolCalls: 3 },
   volumes: { session: "agentry-persistent-main-session", data: "agentry-persistent-main-data" },
 };
+if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state = "disabled";
 
 g.go = { app: {
+  // Meeting notes: not recorded on this computer, so Home draws no card.
+  MeetingAPI: { Status: async () => ({ available: false }) },
   ScheduleAPI: {
     // The agentry command's card in Settings: not offered off macOS.
     CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }),
@@ -916,7 +924,20 @@ g.go = { app: {
       { kind: "tool_call", time: "2026-10-20T19:00:01Z", text: "fs_read" },
       { kind: "assistant_turn", time: "2026-10-20T19:00:03Z", text: "Here is one: *Hi, could we keep the hallway clear? Thanks!*" },
     ]),
-    SetEnabled: async () => harnessAssistant,
+    // As Go answers: the Assistant turned on turns the Helper off, and the
+    // Helper is refused while the Assistant is on.
+    SetEnabled: async (name: string, on: boolean) => {
+      if (name === "main") {
+        if (on && harnessAssistant.state !== "disabled") throw new Error("can't turn Agentry Helper on while Sandra is on: Sandra does everything the Helper does. Turn Sandra off first to use the Helper instead");
+        harnessMain.state = on ? "stopped" : "disabled";
+        return harnessMain;
+      }
+      if (name === "assistant") {
+        harnessAssistant.state = on ? "stopped" : "disabled";
+        if (on) harnessMain.state = "disabled";
+      }
+      return harnessAssistant;
+    },
     Start: async () => harnessAssistant,
     Stop: async () => harnessAssistant,
     Send: async () => {},

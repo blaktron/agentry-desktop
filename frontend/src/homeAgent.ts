@@ -3,17 +3,26 @@
 // person can put on it, and the tiles the Welcome draws. Pure, so the pages
 // and node's test runner share it.
 import type { app } from "../wailsjs/go/models";
-import { AGENT_STATES, CODER_AGENT, MAIN_AGENT } from "./persistentAgents.ts";
+import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, MAIN_AGENT } from "./persistentAgents.ts";
 
 type AgentLike = Pick<app.PersistentAgentView, "name" | "state">;
 
 /** homeAgentDrawn is the agent Home's card draws: the one the person picked
- *  while this app lists it and it is on, else Agentry Helper, which is
- *  always there to talk to. */
-export function homeAgentDrawn(chosen: string, agents: AgentLike[]): string {
-  if (chosen === MAIN_AGENT) return MAIN_AGENT;
-  const a = agents.find((x) => x.name === chosen);
-  return a && a.state !== AGENT_STATES.disabled ? a.name : MAIN_AGENT;
+ *  while this app lists it and it is on, else the Assistant while it is on,
+ *  else Agentry Helper while it is on. null is no card: none of them is on,
+ *  or the agents are not read yet. */
+export function homeAgentDrawn(chosen: string, agents: AgentLike[]): string | null {
+  for (const name of [chosen, ASSISTANT_AGENT, MAIN_AGENT]) {
+    const a = agents.find((x) => x.name === name);
+    if (a && isOn(a)) return a.name;
+  }
+  return null;
+}
+
+/** helperSuperseded says Agentry Helper cannot be turned on: the Assistant,
+ *  which does everything the Helper does, is on. */
+export function helperSuperseded(agents: AgentLike[]): boolean {
+  return agents.some((a) => a.name === ASSISTANT_AGENT && isOn(a));
 }
 
 /** The last part of a share folder's path, the name the card says. */
@@ -37,16 +46,21 @@ export function agentCardHint(a: Pick<app.PersistentAgentView, "name" | "display
   }
 }
 
-/** An agent's tile: its name, one line on what it does, and its glyph. */
-export type AgentTile = { name: string; title: string; line: string; glyph: "mark" | "person" | "terminal" };
+/** An agent's tile: its name, one line on what it does, and its glyph; the
+ *  Assistant's carries a Recommended mark. */
+export type AgentTile = { name: string; title: string; line: string; glyph: "mark" | "person" | "terminal"; recommended?: boolean };
+
+/** The line on Agentry Helper's tile while the Assistant is on. */
+export const HELPER_SUPERSEDED_LINE = "Off while the Assistant is on: the Assistant does everything the Helper does.";
 
 /** The tiles the Welcome's Agents step and Settings → Home draw, in the
- *  order the app lists the agents. Agentry Helper is always on. */
+ *  order the app lists the agents. Agentry Helper is the lite personal agent
+ *  and the Assistant the full one: one of the two is on at a time. */
 export const AGENT_TILES: AgentTile[] = [
   { name: MAIN_AGENT, title: "Agentry Helper", glyph: "mark",
-    line: "Finds, installs, runs and schedules QuickAgents for you. Always on." },
-  { name: "assistant", title: "Assistant", glyph: "person",
-    line: "Your own assistant: remembers what you tell it, keeps tasks, and does all the Helper does." },
+    line: "Lite personal agent that works only with Agentry: finds, installs, runs and schedules QuickAgents for you." },
+  { name: ASSISTANT_AGENT, title: "Assistant", glyph: "person", recommended: true,
+    line: "Your personal assistant: everything the Helper does, plus a memory, tasks, and your mail, calendars and files. Turns the Helper off." },
   { name: CODER_AGENT, title: "Coding agent", glyph: "terminal",
     line: "Builds and runs software in your codingshare folder, with the web and a dev server." },
 ];
@@ -61,12 +75,12 @@ export function tilesFor(agents: Pick<app.PersistentAgentView, "name" | "display
 }
 
 /** homeChoices are the agents the card can be given without turning one
- *  on: Agentry Helper and every agent that is on. */
+ *  on: every agent that is on. */
 export function homeChoices(agents: AgentLike[]): string[] {
-  return agents.filter((a) => a.name === MAIN_AGENT || a.state !== AGENT_STATES.disabled).map((a) => a.name);
+  return agents.filter(isOn).map((a) => a.name);
 }
 
-/** isOn says whether an agent's tile reads as on: Agentry Helper always. */
+/** isOn says whether an agent is on. */
 export function isOn(a: AgentLike): boolean {
-  return a.name === MAIN_AGENT || a.state !== AGENT_STATES.disabled;
+  return a.state !== AGENT_STATES.disabled;
 }

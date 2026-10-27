@@ -3,14 +3,15 @@ import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
 import { AgentMarkdown } from "../../AgentMarkdown";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
-import { agentCardHint, homeAgentDrawn } from "../../homeAgent";
+import { agentCardHint, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
 import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, startFailureLines, taskSummary, termLines } from "../../persistentAgents";
 import { Button } from "../../ui";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
-// small. It runs Agentry Helper unless the person gave it another agent,
-// here in its switcher, in Settings → Home or in the Welcome; an agent that
-// is off is drawn as Agentry Helper until it is on again. Opening Home reads
+// small. It runs the agent the person gave it, here in its switcher, in
+// Settings → Home or in the Welcome, while that agent is on, else the
+// Assistant or Agentry Helper, whichever is on; Home draws no card while
+// none of them is (homeAgentDrawn). Opening Home reads
 // the agent's state and its last lines and starts nothing: its containers
 // start when the person sends the first message, which says "Starting…"
 // meanwhile. Without a model set up it says so and links to Settings →
@@ -25,7 +26,7 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
 }) {
   const agents = useAgents();
   const chosen = useHomeAgent();
-  const name = homeAgentDrawn(chosen ?? MAIN_AGENT, agents);
+  const name = homeAgentDrawn(chosen ?? MAIN_AGENT, agents) ?? MAIN_AGENT;
   const agent = agents.find((a) => a.name === name) ?? null;
   const rec = useAgentChat(name);
   const [modelSet, setModelSet] = useState<boolean | null>(null);
@@ -87,12 +88,15 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
   };
 
   const noModel = modelSet === false;
-  const switcher = agents.length > 1 && (
+  // Agentry Helper is no choice while the Assistant, which supersedes it,
+  // is on.
+  const choices = helperSuperseded(agents) ? agents.filter((a) => a.name !== MAIN_AGENT) : agents;
+  const switcher = choices.length > 1 && (
     <select aria-label="Agent on this card" data-home-agent-switch value={name} disabled={picking || answering}
       onChange={(e) => void pick(e.target.value)}>
-      {agents.map((a) => (
+      {choices.map((a) => (
         <option key={a.name} value={a.name}>
-          {a.displayName}{a.name !== MAIN_AGENT && a.state === AGENT_STATES.disabled ? " (turn on)" : ""}
+          {a.displayName}{a.state === AGENT_STATES.disabled ? " (turn on)" : ""}
         </option>
       ))}
     </select>

@@ -149,12 +149,13 @@ export function HomeSettings() {
         <Card>
           <p className="muted small" style={{ marginTop: 0 }}>
             The persistent agent Home&apos;s agent card talks to. Picking one that is off turns it on, as Settings → Persistent
-            Agents does. While the agent you picked is off, the card shows Agentry Helper.
+            Agents does. While the agent you picked is off, the card shows the Assistant or Agentry Helper, whichever is on,
+            and Home shows no agent card while neither is.
           </p>
           {agents.length === 0 ? (
             <p className="muted small">Reading the agents…</p>
           ) : (
-            <AgentTiles mode="pick" label="Agent" agents={agents} value={homeAgentDrawn(homeAgent ?? MAIN_AGENT, agents)} busy={busy}
+            <AgentTiles mode="pick" label="Agent" agents={agents} value={homeAgentDrawn(homeAgent ?? MAIN_AGENT, agents) ?? ""} busy={busy}
               onPick={(name) => void pickAgent(name)} />
           )}
           <Said said={said} part="agent" />
@@ -235,8 +236,8 @@ export function HomeSettings() {
           <p className="small" style={{ marginTop: 0 }}>
             Shows the {HOME_DEFAULTS.length} default cards again in their first order and sizes
             {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}
-            {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}, and puts Agentry Helper back
-            on the agent card. It uninstalls nothing and turns no agent off.
+            {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}, and gives the agent card back
+            to whichever of the Assistant and Agentry Helper is on. It uninstalls nothing and turns no agent off.
           </p>
           <Button disabled={busy} data-reset-home onClick={() => setConfirmReset(true)}>Reset Home…</Button>
           <Said said={said} part="reset" />
@@ -258,7 +259,7 @@ export function HomeSettings() {
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
             <Button variant="danger" data-reset-home-confirm
-              onClick={() => { setConfirmReset(false); void act("reset", () => HomeAPI.Reset().finally(rereadHomeAgent), "Home is back to its default cards, with Agentry Helper on the agent card."); }}>
+              onClick={() => { setConfirmReset(false); void act("reset", () => HomeAPI.Reset().finally(rereadHomeAgent), "Home is back to its default cards."); }}>
               Reset Home
             </Button>
           </div>
