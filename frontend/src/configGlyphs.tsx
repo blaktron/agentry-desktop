@@ -48,6 +48,8 @@ const PATHS: Record<GlyphKey, ReactNode> = {
   person: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4-6 8-6s7 2 8 6" /></>,
   // A microphone on its stand.
   mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>,
+  // A calendar's page: a calendar feed.
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4M7.5 14h.01M12 14h.01M16.5 14h.01M7.5 17.5h.01M12 17.5h.01" /></>,
 };
 
 /** One card's icon, 32 by 32, hidden from a screen reader: the card's name
