@@ -316,6 +316,7 @@ test("a calendar feed's card says where it is from and when its address was chec
   assert.equal(calendarFeedOf(entry({ id: "calendar:Work", kind: "server" }), { calendarFeeds: views }), undefined);
   assert.match(calendarFeedLine(views[0], "en-GB"), /^Google Calendar · checked 27 Oct 2026, \d\d:30$/);
   assert.equal(calendarFeedLine({ host: "cal.example.org", set: "" }), "cal.example.org");
+  assert.equal(calendarFeedLine({ host: "calendar.google.com", service: "Google Calendar", set: "", signedIn: true }), "Google Calendar · signed in");
 });
 
 test("a calendar feed's name is 1 to 64 bytes with no control character", () => {

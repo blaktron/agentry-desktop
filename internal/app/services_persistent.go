@@ -147,9 +147,14 @@ type PersistentAPI struct {
 	// calendarCheck stands in for fetching and reading a calendar feed's
 	// address in a test.
 	calendarCheck func(ctx context.Context, address string) (string, int, error)
-	googleSetUp   func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
-	pickFile      func() (string, error)
-	browse        func(url string) error
+	// calendarSignIn stands in for a calendar feed's browser sign-in in a
+	// test; calendarSignIns cancel the ones waiting for the person, by
+	// agent.
+	calendarSignIn  func(ctx context.Context, address string) (string, error)
+	calendarSignIns map[string]context.CancelFunc
+	googleSetUp     func(ctx context.Context, a persistent.Agent) (persistent.Google, error)
+	pickFile        func() (string, error)
+	browse          func(url string) error
 	// elsewhere is what the owner-lock watch last saw of each agent:
 	// whether another client runs it. viewers are the app's chats with
 	// those agents. held, attach, requestStop and queryStatus stand in for

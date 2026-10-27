@@ -271,3 +271,107 @@ func TestCalendarFeedsWaitForTheAgentToStop(t *testing.T) {
 		t.Fatal("a refused removal took the address")
 	}
 }
+
+const plantedSession = `[{"n":"SID","v":"planted-cookie-0123456789","d":".example.com","p":"/"}]`
+
+// TestACalendarFeedIsSignedInThroughABrowser: an address that asks for a
+// sign-in says to sign in through a browser and keeps nothing; Sign in in
+// a browser window keeps the address and the browser's cookies, and the
+// feed shows signed in; signed in again with no address, the feed's own is
+// opened; a cancelled or failed sign-in keeps the keychain as it was; set
+// again without one, the sign-in goes; a rename moves it and a removal
+// removes it. The view never carries the address or a cookie.
+func TestACalendarFeedIsSignedInThroughABrowser(t *testing.T) {
+	rig := newCalendarRig(t)
+	part := persistent.CalendarSessionAccount("assistant", "Work", 1)
+	var opened []string
+	signIn := func(ctx context.Context, address string) (string, error) {
+		opened = append(opened, address)
+		return plantedSession, nil
+	}
+	rig.p.calendarSignIn = func(ctx context.Context, address string) (string, error) { return signIn(ctx, address) }
+
+	rig.refuse = fmt.Errorf("%w at accounts.google.com", persistent.ErrCalendarFeedSignIn)
+	if _, err := rig.p.AddCalendarFeed("assistant", "Work", plantedFeed); err == nil || !strings.Contains(err.Error(), "Sign in in a browser window") || strings.Contains(err.Error(), "planted-secret") {
+		t.Fatalf("an address that asks for a sign-in: %v", err)
+	}
+	if len(rig.keys.m) != 0 {
+		t.Fatalf("kept %v", rig.keys.m)
+	}
+	v, err := rig.p.SignInCalendarFeed("assistant", "Work", plantedFeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := rig.keys.Get(part); got != plantedSession || len(opened) != 1 || opened[0] != plantedHTTP {
+		t.Fatalf("the sign-in: keys %v, opened %v", rig.keys.m, opened)
+	}
+	if f, _ := feedOf(v, "Work"); !f.SignedIn {
+		t.Fatalf("the feed's view: %+v", v.CalendarFeeds)
+	}
+	if b, _ := json.Marshal(v); strings.Contains(string(b), "planted-secret") || strings.Contains(string(b), "planted-cookie") {
+		t.Fatal("the view carries the address or the sign-in")
+	}
+	// Signed in again with no address: the feed's own is opened, and
+	// nothing asks to replace it.
+	asked := len(rig.dialogs())
+	if _, err := rig.p.SignInCalendarFeed("assistant", "work", ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 2 || opened[1] != plantedHTTP {
+		t.Fatalf("signed in again opened %v", opened)
+	}
+	if d := rig.dialogs(); len(d) > asked && strings.Contains(d[len(d)-1], "Replace the address") {
+		t.Errorf("signing in again asked to replace the address: %q", d)
+	}
+	// Cancelled: nothing changes.
+	signIn = func(ctx context.Context, _ string) (string, error) {
+		go rig.p.CancelCalendarSignIn("assistant")
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	if _, err := rig.p.SignInCalendarFeed("assistant", "Work", ""); err == nil || !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("a cancelled sign-in: %v", err)
+	}
+	signIn = func(context.Context, string) (string, error) { return "", errors.New("the browser window was closed") }
+	if _, err := rig.p.SignInCalendarFeed("assistant", "Work", ""); err == nil {
+		t.Fatal("a closed window kept a sign-in")
+	}
+	if got, _ := rig.keys.Get(part); got != plantedSession {
+		t.Fatalf("a failed sign-in changed the kept one: %q", got)
+	}
+	if _, err := rig.p.SignInCalendarFeed("assistant", "Home", ""); err == nil {
+		t.Fatal("a new feed was signed in with no address")
+	}
+	// Renamed: the sign-in moves with the address.
+	if _, err := rig.p.RenameCalendarFeed("assistant", "Work", "Office"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.keys.Get(part); err == nil {
+		t.Fatal("the old name's sign-in was left")
+	}
+	if got, _ := rig.keys.Get(persistent.CalendarSessionAccount("assistant", "Office", 1)); got != plantedSession {
+		t.Fatalf("the sign-in did not move: %v", rig.keys.m)
+	}
+	// Set again without a sign-in: it goes.
+	rig.refuse = nil
+	v, err = rig.p.AddCalendarFeed("assistant", "Office", plantedFeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := feedOf(v, "Office"); f.SignedIn {
+		t.Fatal("still signed in")
+	}
+	if _, err := rig.keys.Get(persistent.CalendarSessionAccount("assistant", "Office", 1)); err == nil {
+		t.Fatal("the sign-in was left after the address was set without one")
+	}
+	signIn = func(context.Context, string) (string, error) { return plantedSession, nil }
+	if _, err := rig.p.SignInCalendarFeed("assistant", "Office", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.RemoveCalendarFeed("assistant", "Office"); err != nil {
+		t.Fatal(err)
+	}
+	if len(rig.keys.m) != 0 {
+		t.Fatalf("a removal left %v", rig.keys.m)
+	}
+}
