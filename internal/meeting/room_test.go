@@ -230,7 +230,7 @@ func TestPickMicTakesTheChosenOneOrSaysTheDefault(t *testing.T) {
 	mics := []Microphone{{ID: "alsa_input.pci", Name: "Built-in Audio"}, {ID: "alsa_input.usb", Name: "USB Speakerphone"}}
 	cases := []struct {
 		chosen, def string
-		name, desc  string
+		id, name    string
 		missing     bool
 	}{
 		{"alsa_input.usb", "alsa_input.pci", "alsa_input.usb", "USB Speakerphone", false},
@@ -240,9 +240,101 @@ func TestPickMicTakesTheChosenOneOrSaysTheDefault(t *testing.T) {
 		{"", "alsa_output.pci.monitor", "", "", false},
 	}
 	for _, c := range cases {
-		name, desc, missing := pickMic(mics, c.chosen, c.def)
-		if name != c.name || desc != c.desc || missing != c.missing {
-			t.Errorf("pickMic(%q, %q) = %q, %q, %v; want %q, %q, %v", c.chosen, c.def, name, desc, missing, c.name, c.desc, c.missing)
+		id, name, missing := pickMic(mics, c.chosen, c.def)
+		if id != c.id || name != c.name || missing != c.missing {
+			t.Errorf("pickMic(%q, %q) = %q, %q, %v; want %q, %q, %v", c.chosen, c.def, id, name, missing, c.id, c.name, c.missing)
 		}
+	}
+}
+
+func TestARoomIsNeverAskedAboutOnceItStopped(t *testing.T) {
+	h := newHarness(t)
+	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
+	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	h.m.mu.Lock()
+	r := h.m.rec
+	h.m.mu.Unlock()
+	if err := h.m.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	// The watch decided to ask just as the recording stopped.
+	h.m.quietNotice(r, true)
+	if n := countTitled(h.noticesNow(), "Still recording?"); n != 0 {
+		t.Fatalf("a stopped recording was asked about %d times", n)
+	}
+}
+
+func TestTheQuestionSaysFifteenMinutesAndHowItEnds(t *testing.T) {
+	h := newHarness(t)
+	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
+	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	h.m.mu.Lock()
+	r := h.m.rec
+	h.m.mu.Unlock()
+	h.m.quietNotice(r, true)
+	ns := h.noticesNow()
+	ask := ns[len(ns)-1]
+	if ask.Title != "Still recording?" || !strings.Contains(ask.Body, "Nobody has spoken for 15 minutes.") || !strings.Contains(ask.Body, "until you press Stop or it has run 4 hours") {
+		t.Fatalf("question = %+v", ask)
+	}
+}
+
+func TestAnInRoomTranscriptReadsInFull(t *testing.T) {
+	loc := time.FixedZone("EDT", -4*3600)
+	info := TranscriptInfo{
+		Title: "Meeting in the room 2026-10-27 09:00", Started: time.Date(2026, 10, 27, 9, 0, 5, 0, loc), Ended: time.Date(2026, 10, 27, 9, 30, 5, 0, loc),
+		FarSide: FarSideNone, Language: "en", Profile: "english", Model: "small.en-q5_1",
+		InRoom: true, Microphone: "USB Speakerphone",
+	}
+	doc, err := Render(info, MergeRoom([]Segment{
+		{Start: 2 * time.Second, End: 3 * time.Second, Text: "Shall we start?"},
+		{Start: 3 * time.Second, End: 4 * time.Second, Text: "Yes."},
+		{Start: 90 * time.Second, End: 92 * time.Second, Text: "Next item."},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `---
+type: meeting-transcript
+format: agentry-meeting-transcript/1
+title: Meeting in the room 2026-10-27 09:00
+started: "2026-10-27T09:00:05-04:00"
+ended: "2026-10-27T09:30:05-04:00"
+duration_seconds: 1800
+timezone: EDT
+app: none
+app_detection: none
+participants: unknown
+title_source: recording
+speakers:
+    - label: Room
+      source: microphone
+      note: everyone in the room; not split by person
+language: en
+language_profile: english
+model: small.en-q5_1
+transcriber: whisper.cpp v1.9.5, voice detection silero-v6.2.0
+far_side: none
+echo: none
+output_device: none
+setting: in-room
+microphone: USB Speakerphone
+---
+
+# Meeting in the room 2026-10-27 09:00
+
+Transcript of a meeting in the room, produced automatically on this computer from one microphone. "Room" is everyone in the room, not split by person. Words may be wrong. Times are from the start of the recording.
+
+## Transcript
+
+[00:00:02] Room: Shall we start? Yes.
+[00:01:30] Room: Next item.
+`
+	if string(doc) != want {
+		t.Fatalf("in-room transcript:\n%s\nwant:\n%s", doc, want)
 	}
 }

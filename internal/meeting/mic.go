@@ -1,10 +1,10 @@
 package meeting
 
-// pickMic is the microphone to read: the chosen one when listed, otherwise
-// the default (missing says the chosen one was not listed), and none when
-// the default is not a listed microphone either. desc is how the person
-// knows it.
-func pickMic(mics []Microphone, chosen, def string) (name, desc string, missing bool) {
+// pickMic is the microphone to read, by its id: the chosen one when listed,
+// otherwise the default (missing says the chosen one was not listed), and
+// none when the default is not a listed microphone either. name is how the
+// person knows it.
+func pickMic(mics []Microphone, chosen, def string) (id, name string, missing bool) {
 	find := func(id string) (Microphone, bool) {
 		for _, m := range mics {
 			if m.ID == id {

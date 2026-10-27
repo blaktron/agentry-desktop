@@ -26,6 +26,8 @@ type countingRecorder struct {
 	mu    sync.Mutex
 	calls int
 	last  meeting.Call
+	// listed counts the times the microphones were listed.
+	listed int
 }
 
 func (c *countingRecorder) Record(_ context.Context, call meeting.Call, _ meeting.Tracks) (meeting.Capture, error) {
@@ -43,6 +45,9 @@ func (c *countingRecorder) Record(_ context.Context, call meeting.Call, _ meetin
 // Microphones lists two microphones, as an audio system with a laptop's
 // own and a USB speakerphone would.
 func (c *countingRecorder) Microphones() ([]meeting.Microphone, error) {
+	c.mu.Lock()
+	c.listed++
+	c.mu.Unlock()
 	return []meeting.Microphone{{ID: "alsa_input.pci", Name: "Built-in Audio"}, {ID: "alsa_input.usb", Name: "USB Speakerphone"}}, nil
 }
 
@@ -576,6 +581,23 @@ func TestRecordInTheRoomAsksThenRecordsTheChosenMicrophone(t *testing.T) {
 // a page that names anything else (an output's monitor, say) is refused.
 func TestOnlyAListedMicrophoneCanBeChosen(t *testing.T) {
 	ma := newMeetingApp(t)
+	// Off, the audio system is not asked even for its microphones.
+	if v, err := ma.api.Status(); err != nil || len(v.Microphones) != 0 {
+		t.Fatalf("status with the switch off: %v, %+v", err, v)
+	}
+	if _, err := ma.api.SetMic("alsa_input.pci"); !errors.Is(err, meeting.ErrOff) {
+		t.Fatalf("SetMic with the switch off: %v, want ErrOff", err)
+	}
+	ma.rec.mu.Lock()
+	listed := ma.rec.listed
+	ma.rec.mu.Unlock()
+	if listed != 0 {
+		t.Fatalf("the microphones were listed %d times with the switch off", listed)
+	}
+	ma.answer = true
+	if _, err := ma.api.TurnOn(); err != nil {
+		t.Fatal(err)
+	}
 	for _, id := range []string{"alsa_output.pci.monitor", "nothing"} {
 		if _, err := ma.api.SetMic(id); err == nil {
 			t.Fatalf("SetMic(%q) was taken", id)

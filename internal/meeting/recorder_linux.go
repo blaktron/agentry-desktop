@@ -420,14 +420,14 @@ func (p *pulseCapture) chooseMic(chosen string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name, desc, missing := pickMic(mics, chosen, info.DefaultSourceName)
-	if name == "" {
+	id, name, missing := pickMic(mics, chosen, info.DefaultSourceName)
+	if id == "" {
 		return "", errors.New("this computer has no microphone")
 	}
 	p.mu.Lock()
-	p.micName, p.micMissing = desc, missing
+	p.micName, p.micMissing = name, missing
 	p.mu.Unlock()
-	return name, nil
+	return id, nil
 }
 
 // Microphones lists the sources that are not a monitor of an output.

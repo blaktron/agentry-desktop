@@ -516,7 +516,7 @@ func (m *Manager) Record(ctx context.Context) (*Meeting, error) {
 
 // ErrNoRooms refuses a meeting in the room where the recorder cannot
 // record one.
-var ErrNoRooms = errors.New("recording a meeting in the room is not available on this computer yet")
+var ErrNoRooms = errors.New("recording a meeting in the room is not available on this computer")
 
 // RecordRoom starts recording a meeting in the room, at the person's own
 // Record in the room: the chosen microphone alone, no far side, no app
@@ -703,11 +703,8 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 			ran := now.Sub(r.m.Started)
 			ask, spoke := m.quietLocked(r, now)
 			m.mu.Unlock()
-			if ask {
-				m.askStillOn()
-			}
-			if spoke {
-				m.withdraw(tagQuiet)
+			if ask || spoke {
+				m.quietNotice(r, ask)
 			}
 			if warned != nil {
 				_ = m.notify(Notice{Title: "Meeting notes may not be hearing the meeting", Body: warned.Text})
@@ -751,30 +748,46 @@ func (m *Manager) quietLocked(r *recording, now time.Time) (ask, spoke bool) {
 		}
 		return false, false
 	}
-	after := m.QuietAfter
-	if after <= 0 {
-		after = DefaultQuietAfter
-	}
-	if now.Sub(last) < after {
+	if now.Sub(last) < m.quietAfter() {
 		return false, false
 	}
 	r.quietAsked, r.askedAt = true, now
 	return true, false
 }
 
-// askStillOn asks whether a quiet meeting in the room is still on. Without
-// an answer it goes on recording: only Stop, the longest length or quitting
-// end it.
-func (m *Manager) askStillOn() {
-	after := m.QuietAfter
-	if after <= 0 {
-		after = DefaultQuietAfter
+// quietNotice asks whether a quiet meeting in the room is still on (ask),
+// or takes the question away once someone has spoken. Without an answer
+// the recording goes on: only Stop, the longest length or quitting end it.
+// noticeMu orders it against finish's withdrawal, so a recording that has
+// stopped is never asked about.
+func (m *Manager) quietNotice(r *recording, ask bool) {
+	m.noticeMu.Lock()
+	defer m.noticeMu.Unlock()
+	m.mu.Lock()
+	gone := m.rec != r || r.stopping
+	m.mu.Unlock()
+	if gone {
+		return
+	}
+	if !ask {
+		m.withdraw(tagQuiet)
+		return
 	}
 	_ = m.notify(Notice{
 		Tag: tagQuiet, Resident: true, Title: "Still recording?",
-		Body:    "Nobody has spoken for " + lengthWords(after) + ". Agentry is still recording your microphone in this room, and goes on until you stop it.",
+		Body: "Nobody has spoken for " + lengthWords(m.quietAfter()) + ". Agentry is still recording your microphone in this room, " +
+			"until you press Stop or it has run " + lengthWords(m.maxLength()) + ".",
 		Actions: []NoticeAction{{ID: ActionStop, Label: "Stop"}, {ID: ActionKeepGoing, Label: "Keep going"}},
 	})
+}
+
+// quietAfter is how long a room goes without speech before it is asked
+// about.
+func (m *Manager) quietAfter() time.Duration {
+	if m.QuietAfter > 0 {
+		return m.QuietAfter
+	}
+	return DefaultQuietAfter
 }
 
 // KeepGoing answers "Still recording?": the meeting is on, so the question
@@ -858,10 +871,10 @@ func (m *Manager) finish(r *recording, transcribe bool) error {
 	defer func() {
 		m.noticeMu.Lock()
 		m.withdraw(tagRecording)
-		m.noticeMu.Unlock()
 		if r.how == InRoom {
 			m.withdraw(tagQuiet)
 		}
+		m.noticeMu.Unlock()
 		m.indicate()
 		// A call that waited while this one recorded has its turn.
 		m.consider()
@@ -1084,7 +1097,7 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	}
 	st := m.store()
 	var todo []TrackRecord
-	inRoom := mt.FarSide == FarSideNone
+	inRoom := mt.InRoom()
 	silent := map[Label]bool{Me: true, Them: true}
 	if inRoom {
 		silent = map[Label]bool{Room: true}

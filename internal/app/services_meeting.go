@@ -574,7 +574,9 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	s := meetingSettings()
 	v.OutputDir = s.OutputDir
 	v.RecordsRooms = v.Available && mgr.RecordsRooms()
-	if v.Available {
+	// The audio system is asked for its microphones only while the
+	// feature is on: off, Meeting notes reaches no device at all.
+	if v.RecordsRooms && s.On {
 		mics, err := mgr.Microphones()
 		if err != nil {
 			log.Printf("meeting notes: microphones: %v", err)
@@ -627,7 +629,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	}
 	for _, mt := range ms {
 		mv := MeetingView{
-			ID: mt.ID, Title: mt.Title, App: mt.App, WholeDevice: mt.FarSide == meeting.FarSideWholeDevice, InRoom: mt.FarSide == meeting.FarSideNone,
+			ID: mt.ID, Title: mt.Title, App: mt.App, WholeDevice: mt.FarSide == meeting.FarSideWholeDevice, InRoom: mt.InRoom(),
 			Started: mt.Started.Format(time.RFC3339), State: mt.State, Error: mt.Error, Progress: -1,
 			HasAudio: mgr.HasAudio(mt),
 		}
@@ -762,7 +764,7 @@ func (m *MeetingAPI) RecordRoom() (*MeetingNotesView, error) {
 	if !mgr.RecordsRooms() {
 		return nil, meeting.ErrNoRooms
 	}
-	if err := m.app.askConsent("Record a meeting in the room?", "Agentry records your microphone, and nothing your computer plays, until you press Stop. "+meeting.ConsentSentence+" Tell everyone in the room."); err != nil {
+	if err := m.app.askConsent("Record a meeting in the room?", "Agentry records your microphone, and nothing your computer plays, until you press Stop or the recording reaches its longest length. "+meeting.ConsentSentence+" Tell everyone in the room."); err != nil {
 		return nil, err
 	}
 	if _, err := mgr.RecordRoom(m.app.ctxOrBackground()); err != nil {
@@ -779,6 +781,10 @@ func (m *MeetingAPI) SetMic(id string) (*MeetingNotesView, error) {
 	mgr, err := m.available()
 	if err != nil {
 		return nil, err
+	}
+	// Off, Meeting notes reaches no device, not even to list them.
+	if !meetingSettings().On {
+		return nil, meeting.ErrOff
 	}
 	if id != "" {
 		mics, err := mgr.Microphones()

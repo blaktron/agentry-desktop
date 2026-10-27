@@ -267,7 +267,7 @@ export default function MeetingNotes() {
               <>
                 <p data-meeting-room-hint>
                   For a meeting held here in the room, press Record in the room: Agentry records your microphone alone, and nothing your
-                  computer plays, until you press Stop.
+                  computer plays, until you press Stop or it reaches its longest length.
                 </p>
                 <div className="row">
                   <Button data-meeting-record-room disabled={busy} onClick={() => act(MeetingAPI.RecordRoom)}>Record in the room…</Button>
@@ -276,7 +276,8 @@ export default function MeetingNotes() {
             )}
           </>
         )}
-        {!recording?.inRoom && <div className="meeting-chat-line">
+        {!recording?.inRoom && (
+        <div className="meeting-chat-line">
           <span className="small muted">To tell the others, paste this into the meeting's chat:</span>
           <code>{CHAT_LINE}</code>
           <Button
@@ -287,7 +288,8 @@ export default function MeetingNotes() {
           >
             {copied ? "Copied" : "Copy"}
           </Button>
-        </div>}
+        </div>
+        )}
       </Card>
 
       <Card className="meeting-model">

@@ -74,6 +74,10 @@ type Meeting struct {
 	DeliveryError string `json:"deliveryError,omitempty"`
 }
 
+// InRoom says the meeting was held in the room and recorded through the
+// microphone alone.
+func (m *Meeting) InRoom() bool { return m.FarSide == FarSideNone }
+
 // Where handing a transcript to the Assistant stands.
 const (
 	// DeliveryWaiting: the transcript is in the share, and the person asks
