@@ -1,8 +1,8 @@
 // Core Audio for Meeting notes on macOS 14.4 and later: the processes that
 // use audio, a process tap of a meeting app's processes (or of everything
 // but this app), and an input device, the default or one chosen. Each
-// capture fills a ring of mono
-// float samples at its own rate from Core Audio's thread; Go drains it.
+// capture fills a ring of mono float samples at its own rate from Core
+// Audio's thread; Go drains it.
 #ifndef AGENTRY_COREAUDIO_DARWIN_H
 #define AGENTRY_COREAUDIO_DARWIN_H
 

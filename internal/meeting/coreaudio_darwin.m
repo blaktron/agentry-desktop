@@ -255,7 +255,7 @@ ca_capture *ca_tap_start(const uint32_t *objects, int n, int global_tap, char *e
 			}
 			CATapDescription *desc = global_tap ? [[CATapDescription alloc] initMonoGlobalTapButExcludeProcesses:list]
 			                                    : [[CATapDescription alloc] initMonoMixdownOfProcesses:list];
-			desc.name = @"Agentry Meeting notes";
+			desc.name = TAP_DEVICE_NAME;
 			desc.privateTap = YES;
 			desc.muteBehavior = CATapUnmuted;
 			AudioObjectID tap = kAudioObjectUnknown;

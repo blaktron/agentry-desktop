@@ -1,6 +1,8 @@
 package meeting
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"slices"
@@ -360,5 +362,18 @@ func TestARoomRefusesAFarTrack(t *testing.T) {
 	c.write(wireFar, []byte{1, 0, 2, 0})
 	if _, _, ok := tracks.get("far"); ok {
 		t.Fatal("a room opened a far track")
+	}
+}
+
+// A child started again on another microphone changes what the capture
+// says it records.
+func TestARestartOnAnotherMicrophoneIsSaid(t *testing.T) {
+	c := &childCapture{room: true, micName: "USB Speakerphone", tracks: &memTracks{}}
+	var b bytes.Buffer
+	w := &frameWriter{w: &b}
+	_ = w.event(wireEvent{Type: evStarted, FarSide: FarSideNone, MicName: "Microphone Array", MicMissing: true})
+	_ = c.follow(bufio.NewReader(&b))
+	if name, missing := c.Microphone(); name != "Microphone Array" || !missing {
+		t.Fatalf("microphone %q, missing %v", name, missing)
 	}
 }

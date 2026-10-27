@@ -454,11 +454,12 @@ func TestARoomReadsTheChosenMicrophoneAndTapsNothing(t *testing.T) {
 }
 
 // A chosen microphone that is not there gives way to the default input,
-// which is then followed, and the recording says so.
+// and the recording says so. A room keeps that device when the default
+// input changes; Record with no call follows the default.
 func TestAMissingChosenMicGivesWayToTheDefaultInput(t *testing.T) {
 	f := &fakeCoreAudio{out: 2, in: 3, allowed: true}
 	c, _, t0 := startFake(t, f, Call{Room: true, Mic: "unplugged"})
-	if want := []string{"ask", "mic"}; !slices.Equal(f.calls, want) {
+	if want := []string{"ask", "mic:builtin"}; !slices.Equal(f.calls, want) {
 		t.Fatalf("Core Audio was asked %v, want %v", f.calls, want)
 	}
 	if name, missing := c.Microphone(); name != "MacBook Pro Microphone" || !missing {
@@ -468,10 +469,35 @@ func TestAMissingChosenMicGivesWayToTheDefaultInput(t *testing.T) {
 	f.in = 4
 	f.mu.Unlock()
 	c.look(t0.Add(time.Second))
-	if want := []string{"ask", "mic", "mic"}; !slices.Equal(f.calls, want) {
-		t.Fatalf("a new default input: Core Audio was asked %v, want %v", f.calls, want)
+	if want := []string{"ask", "mic:builtin"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("a new default input moved a room: Core Audio was asked %v, want %v", f.calls, want)
+	}
+
+	f = &fakeCoreAudio{out: 2, in: 3, allowed: true}
+	c, _, t0 = startFake(t, f, Call{Mic: "unplugged"})
+	f.mu.Lock()
+	f.in = 4
+	f.mu.Unlock()
+	c.look(t0.Add(time.Second))
+	if want := []string{"ask", "global[1]", "mic", "mic"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("Record with no call: Core Audio was asked %v, want %v", f.calls, want)
 	}
 }
+
+// A room's microphone with no track to write to fails the start.
+func TestARoomWithNoTrackFails(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true}
+	if _, err := startCoreAudio(f, Call{Room: true}, refusingTracks{}, time.Unix(1000, 0)); err == nil {
+		t.Fatal("a room started with no track")
+	}
+	if n := len(f.running()); n != 0 {
+		t.Fatalf("%d sources left running", n)
+	}
+}
+
+type refusingTracks struct{}
+
+func (refusingTracks) Open(Label, string) (Track, error) { return nil, errors.New("the disk is full") }
 
 // Record with no call reads the microphone chosen beside the whole device.
 func TestByHandWithNoCallReadsTheChosenMicrophone(t *testing.T) {

@@ -55,8 +55,8 @@ const (
 	deviceStateActive = 1
 	eConsole          = 0
 	coinitMTA         = 0x0
-	stgmRead          = 0x0
-	vtLPWSTR          = 31
+	stgmRead          = 0x0 // STGM_READ: the property store is only read
+	vtLPWSTR          = 31  // VT_LPWSTR: a PROPVARIANT holding a UTF-16 string
 	errChangedMode    = 0x80010106
 	sOK               = 0
 )

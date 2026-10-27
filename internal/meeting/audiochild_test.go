@@ -522,3 +522,31 @@ func TestTheChildListsTheMicrophones(t *testing.T) {
 		t.Fatalf("listing opened %v", f.events())
 	}
 }
+
+// A room keeps the microphone it starts on, the default included, when the
+// default changes; and a Mic naming an output is no microphone.
+func TestARoomKeepsItsMicrophoneAndTakesNoOutputAsOne(t *testing.T) {
+	f := newFakeAudio()
+	var out bytes.Buffer
+	r, _ := newRecording(f, recordTarget{}, &out)
+	r.room = true
+	if err := r.chooseMic(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.scan(true); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.defaults[flowCapture] = "usb-mic"
+	f.mu.Unlock()
+	if err := r.scan(false); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.events(); !slices.Equal(got, []string{"open mic laptop-mic"}) {
+		t.Fatalf("a new default moved the room: %v", got)
+	}
+	frames := runChild(t, newFakeAudio(), wireCommand{Cmd: cmdRecord, Room: true, Mic: "speakers"})
+	if started := firstEvent(t, frames, evStarted); !started.MicMissing || started.MicName != "Microphone Array" {
+		t.Fatalf("an output as the microphone: started %+v", started)
+	}
+}

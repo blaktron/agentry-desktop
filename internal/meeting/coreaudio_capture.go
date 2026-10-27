@@ -291,16 +291,22 @@ func (c *caCapture) startMic(now time.Time) error {
 		if c.room {
 			label, name = Room, "room"
 		}
-		if t, err := c.tracks.Open(label, name); err == nil {
-			c.micTrack = t
+		t, err := c.tracks.Open(label, name)
+		if err != nil {
+			// A source with no track is read for nothing.
+			c.mic.src.Stop()
+			c.mic = nil
+			return err
 		}
+		c.micTrack = t
 	}
 	return nil
 }
 
 // chooseMic settles, as a recording that follows no app starts, which
 // microphone it reads: the one chosen when it is there, else the default
-// input, and says which.
+// input, and says which. def is never empty in a room's id: the start
+// fails instead.
 func (c *caCapture) chooseMic(chosen string) error {
 	mics, def, err := c.sys.Mics()
 	if err != nil {
@@ -310,7 +316,10 @@ func (c *caCapture) chooseMic(chosen string) error {
 	if id == "" {
 		return errors.New("this Mac has no microphone")
 	}
-	if id != def {
+	// A room keeps the microphone it starts on, chosen or the default, so
+	// a new default input never moves it; a chosen microphone that is
+	// there is kept the same way. Otherwise the default input is followed.
+	if c.room || (chosen != "" && !missing) {
 		c.micUID = id
 	}
 	c.mu.Lock()
@@ -425,28 +434,39 @@ func (c *caCapture) look(now time.Time) {
 		c.stopMic()
 		_ = c.startMic(now)
 	}
-	if c.room {
-		// No far side: only the microphone is listened for.
-		var micHeard bool
-		if c.mic != nil {
-			_, micHeard = c.mic.look(now)
+	// The far side; a room has none.
+	var farHeard, playing bool
+	if !c.room {
+		farHeard = c.lookFar(ps, now)
+		playing = appOutput(ps, c.key)
+		if c.key == "" {
+			playing = othersPlay(ps, c.me)
 		}
-		micQuiet := c.micQuiet.note(now, micHeard, c.mic != nil)
-		micSilent := c.micOpened && !c.micQuiet.heard && (micQuiet || !c.sys.MicAllowed())
-		w := silenceWarning(micSilent, false)
-		c.mu.Lock()
-		c.warning = w
-		c.mu.Unlock()
-		return
 	}
-	// The far side.
+	// Silence: macOS gives a recording it has not allowed only zeros. A
+	// side heard once is not warned about again.
+	var micHeard bool
+	if c.mic != nil {
+		_, micHeard = c.mic.look(now)
+	}
+	farSilent := c.farQuiet.note(now, farHeard, playing)
+	micQuiet := c.micQuiet.note(now, micHeard, c.mic != nil)
+	micSilent := c.micOpened && !c.micQuiet.heard && (micQuiet || !c.sys.MicAllowed())
+	w := silenceWarning(micSilent, farSilent)
+	c.mu.Lock()
+	c.warning = w
+	c.mu.Unlock()
+}
+
+// lookFar rebuilds the far side's tap where it must be built again, and
+// says whether anything but exact silence arrived on it.
+func (c *caCapture) lookFar(ps []caProcess, now time.Time) (heard bool) {
 	tapsApp := c.key != "" && !c.farGlobal
 	objs := appObjects(ps, c.key)
-	var farHeard bool
 	rebuild := c.far == nil
 	if c.far != nil {
-		stalled, heard := c.far.look(now)
-		farHeard = heard
+		var stalled bool
+		stalled, heard = c.far.look(now)
 		rebuild = stalled || c.sys.DefaultDevice(false) != c.outDev
 	}
 	if tapsApp && !slices.Equal(objs, c.farObjects) {
@@ -460,23 +480,7 @@ func (c *caCapture) look(now time.Time) {
 		c.stopFar()
 		_ = c.startFar(ps, now)
 	}
-	// Silence: macOS gives a recording it has not allowed only zeros. A
-	// side heard once is not warned about again.
-	playing := appOutput(ps, c.key)
-	if c.key == "" {
-		playing = othersPlay(ps, c.me)
-	}
-	var micHeard bool
-	if c.mic != nil {
-		_, micHeard = c.mic.look(now)
-	}
-	farSilent := c.farQuiet.note(now, farHeard, playing)
-	micQuiet := c.micQuiet.note(now, micHeard, c.mic != nil)
-	micSilent := c.micOpened && !c.micQuiet.heard && (micQuiet || !c.sys.MicAllowed())
-	w := silenceWarning(micSilent, farSilent)
-	c.mu.Lock()
-	c.warning = w
-	c.mu.Unlock()
+	return heard
 }
 
 // othersPlay says whether any process but this app plays now.

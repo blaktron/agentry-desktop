@@ -368,7 +368,10 @@ func (r *childRecording) chooseMic(chosen string) error {
 	if id == "" {
 		return errors.New("this computer has no microphone")
 	}
-	if id != def {
+	// A room keeps the microphone it starts on, chosen or the default; a
+	// chosen microphone that is there is kept the same way. Otherwise the
+	// default is followed.
+	if r.room || (chosen != "" && !missing) {
 		r.fixedMic = id
 	}
 	r.micName, r.micMissing = name, missing
@@ -459,9 +462,6 @@ func captureMain(in io.Reader, out io.Writer, open func() (audioSystem, error), 
 		if err != nil {
 			_ = w.event(wireEvent{Type: evError, Message: "the microphones could not be listed: " + err.Error()})
 			return 1
-		}
-		if mics == nil {
-			mics = []Microphone{}
 		}
 		_ = w.event(wireEvent{Type: evMics, Mics: mics})
 		return 0

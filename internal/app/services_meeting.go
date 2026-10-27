@@ -265,9 +265,10 @@ func (m *MeetingAPI) recording() *meeting.RecordingStatus {
 	return m.mgr.Status().Recording
 }
 
-// micHint says where the microphone setting applies: rooms and Record with
-// no meeting app found, never a call's microphone, which is the app's own
-// where the audio system says which it reads and the default input on a Mac.
+// micHint says where the microphone setting applies: rooms, and Record with
+// no meeting app found. A call keeps its own microphone: the one the app
+// reads on Linux and Windows, where the audio system says which, and the
+// default input on a Mac, where it does not.
 func micHint(goos string) string {
 	call := "A call a meeting app makes is recorded from the microphone that app uses."
 	if goos == "darwin" {

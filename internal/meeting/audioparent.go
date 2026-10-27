@@ -366,6 +366,11 @@ func (c *childCapture) follow(out *bufio.Reader) error {
 			if c.farSide != FarSideWholeDevice && ev.FarSide != "" {
 				c.farSide = ev.FarSide
 			}
+			// A child started again chooses the microphone again: what it
+			// found is what the recording says.
+			if ev.Type == evStarted && ev.MicName != "" {
+				c.micName, c.micMissing = ev.MicName, ev.MicMissing
+			}
 			c.mu.Unlock()
 		case evEnded:
 			c.endOnce.Do(func() { close(c.ended) })
