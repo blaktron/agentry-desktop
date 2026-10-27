@@ -22,7 +22,11 @@
 //   3. The fonts, from the licence files kept beside them.
 //   4. The provider logos' licence.
 //   5. Microsoft WebView2 on Windows.
-//   6. The system libraries the packages do not carry.
+//   6. Meeting notes' programs: the transcriber and the speaker separation
+//      the installers, packages and bundle carry, and every library compiled
+//      into them, from the licence files kept in scripts/notices/sidecars
+//      (sidecars.json names each one, its version and its licence).
+//   7. The system libraries the packages do not carry.
 //
 // Needs the frontend's node_modules (npm ci) and the Go modules in the
 // module cache. A package or module without a licence file stops the run
@@ -395,6 +399,55 @@ function webview2Section() {
   ];
 }
 
+// The programs Meeting notes runs, which the release carries beside the app,
+// and what each is made from. A program the installer carries with no entry
+// here, a program with no licence listed, or a licence file in
+// scripts/notices/sidecars that sidecars.json does not name (or one it names
+// that is missing), stops the run.
+const SIDECARS = {
+  whisper: "whisper-cli, the transcriber: whisper.cpp built from source",
+  diarize: "sherpa-onnx-offline-speaker-diarization, the speaker separation: sherpa-onnx's static program",
+};
+
+function sidecarSection() {
+  // The sidecars the Windows installer carries, each from its build folder
+  // (build/<name>); the CLI is the agentry CLI, whose notices it carries
+  // itself. Every one must be listed here.
+  const nsi = fs.readFileSync(path.join(root, "build", "windows", "installer", "project.nsi"), "utf8");
+  const carried = [...nsi.matchAll(/!if \/FileExists "\.\.\\\.\.\\([a-z]+)\\/g)].map((m) => m[1]).filter((n) => n !== "cli");
+  for (const n of carried) {
+    if (!(n in SIDECARS)) fail(`the installer carries build/${n}, which the notices do not cover: add it to SIDECARS and scripts/notices/sidecars`);
+  }
+  const dir = path.join(root, "scripts", "notices", "sidecars");
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "sidecars.json"), "utf8"));
+  const named = new Set(manifest.map((e) => e.file));
+  const have = fs.readdirSync(dir).filter((f) => f !== "sidecars.json").sort(byCode);
+  if (have.join("\n") !== [...named].sort(byCode).join("\n")) {
+    fail(`scripts/notices/sidecars holds ${JSON.stringify(have)} but sidecars.json names ${JSON.stringify([...named].sort(byCode))}`);
+  }
+  const out = [
+    "The Windows installer, the Linux packages and the macOS bundle carry two programs",
+    "Meeting notes runs, beside the application. Each is listed with every library",
+    "compiled into it.",
+    "",
+  ];
+  for (const [key, title] of Object.entries(SIDECARS)) {
+    const entries = manifest.filter((e) => e.sidecar === key);
+    if (entries.length === 0) fail(`sidecars.json lists nothing for ${key}`);
+    for (const e of entries) {
+      if (!e.name || !e.version || !e.spdx || !e.file) fail(`sidecars.json: an entry of ${key} lacks a name, version, spdx or file`);
+    }
+    out.push(SUB, title, "");
+    for (const e of entries.filter((e) => e.note)) out.push(`${e.name}: ${e.note}`, "");
+    out.push(
+      ...renderGroups(
+        entries.map((e) => ({ name: e.name, version: e.version, spdx: e.spdx, text: readClean(path.join(dir, e.file)), notices: [] })),
+      ),
+    );
+  }
+  return out;
+}
+
 function systemSection() {
   return [
     "The Linux packages (.deb and .rpm) do not contain GTK, glib, libsoup, WebKitGTK or",
@@ -424,7 +477,8 @@ function build() {
     "  3. Fonts",
     "  4. Provider logos",
     "  5. Microsoft WebView2 (Windows)",
-    "  6. System libraries (Linux and macOS)",
+    "  6. Meeting notes' programs",
+    "  7. System libraries (Linux and macOS)",
     "",
     ...heading(1, "Interface packages"),
     `${npm.length} npm packages are compiled into the interface bundle. Their licence`,
@@ -442,7 +496,9 @@ function build() {
     ...logoSection(),
     ...heading(5, "Microsoft WebView2 (Windows)"),
     ...webview2Section(),
-    ...heading(6, "System libraries (Linux and macOS)"),
+    ...heading(6, "Meeting notes' programs"),
+    ...sidecarSection(),
+    ...heading(7, "System libraries (Linux and macOS)"),
     ...systemSection(),
   ];
   return lines.join("\n").replace(/\n+$/, "") + "\n";
