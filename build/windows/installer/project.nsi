@@ -173,6 +173,15 @@ Section
     SetOutPath $INSTDIR
     !endif
 
+    # The program that tells speakers in a room apart, when the build
+    # carries it: a release puts the signed sidecar into
+    # build/diarize/diarize-windows-amd64; a PR build has none.
+    !if /FileExists "..\..\diarize\diarize-windows-amd64\sherpa-onnx-offline-speaker-diarization.exe"
+    SetOutPath "$INSTDIR\bin\diarize"
+    File /x SHA256SUMS "..\..\diarize\diarize-windows-amd64\*"
+    SetOutPath $INSTDIR
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles

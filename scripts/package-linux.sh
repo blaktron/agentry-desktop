@@ -129,6 +129,29 @@ if [ -f "$sidecar/whisper-cli" ]; then
   echo "package-linux: carrying the transcriber in $lib/whisper ($(find "$sidecar" -maxdepth 1 ! -name SHA256SUMS \( -type f -o -type l \) | grep -c .) files)"
 fi
 
+# Meeting notes' speaker separation, when the build carries it
+# (build/diarize/diarize-linux-amd64, which a release puts there): the one
+# static program, as /usr/lib/agentry-desktop/diarize. It links only the C
+# library, so the description declares nothing more.
+diarize=build/diarize/diarize-linux-amd64
+if [ -f "$diarize/sherpa-onnx-offline-speaker-diarization" ]; then
+  if [ "$desc" = build/nfpm/nfpm.yaml ]; then
+    cp -f build/nfpm/nfpm.yaml build/linux/stage/nfpm.yaml
+    desc=build/linux/stage/nfpm.yaml
+  fi
+  mkdir -p build/linux/stage/diarize
+  lib=/usr/lib/agentry-desktop
+  cp -f "$diarize/sherpa-onnx-offline-speaker-diarization" build/linux/stage/diarize/
+  entries=""
+  grep -q "^  - dst: $lib$" "$desc" || entries="  - dst: $lib\n    type: dir\n"
+  entries+="  - dst: $lib/diarize\n    type: dir\n  - src: build/linux/stage/diarize/sherpa-onnx-offline-speaker-diarization\n    dst: $lib/diarize/sherpa-onnx-offline-speaker-diarization\n    file_info:\n      mode: 0755\n"
+  awk -v e="$entries" '{print} /^contents:$/{printf "%s", e}' "$desc" >"$desc.new"
+  mv "$desc.new" "$desc"
+  grep -q "^    dst: $lib/diarize/sherpa-onnx-offline-speaker-diarization$" "$desc" ||
+    { echo "package-linux: could not add the speaker separation to the description" >&2; exit 1; }
+  echo "package-linux: carrying the speaker separation in $lib/diarize"
+fi
+
 for fmt in deb rpm; do
   out="build/linux/agentry-desktop-${VERSION}-linux-amd64.${fmt}"
   DESKTOP_VERSION="$PKG_VERSION" nfpm package -f "$desc" -p "$fmt" -t "$out" >/dev/null

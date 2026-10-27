@@ -42,6 +42,12 @@
 #      signed as net.secureagentry.whisper-cli under the hardened runtime with
 #      no entitlements, and sealed by the bundle's signature. Without
 #      --whisper the bundle must carry no Contents/Resources/whisper.
+#  10. with --diarize <dir>, the bundle carries Meeting notes' speaker
+#      separation as Contents/Resources/diarize the same way: exactly <dir>'s
+#      files (sherpa-onnx-offline-speaker-diarization), byte-identical,
+#      universal, signed as net.secureagentry.diarize under the hardened
+#      runtime with no entitlements, sealed. Without --diarize the bundle
+#      must carry no Contents/Resources/diarize.
 #
 # The image is detached whatever happens — on the way out, and on an
 # interrupt or a cancelled CI job — because a leaked mount on a persistent
@@ -52,13 +58,15 @@ set -euo pipefail
 
 fail() { echo "check-darwin-dmg: $*" >&2; exit 1; }
 
-usage="usage: $0 [--cli <agentry>] [--whisper <dir>] <out.dmg> <agentry-desktop.app>"
+usage="usage: $0 [--cli <agentry>] [--whisper <dir>] [--diarize <dir>] <out.dmg> <agentry-desktop.app>"
 cli=
 whisper=
+diarize=
 while [ $# -gt 0 ]; do
   case "$1" in
     --cli) cli="${2:?$usage}"; shift 2; [ -f "$cli" ] || fail "$cli does not exist" ;;
     --whisper) whisper="${2:?$usage}"; shift 2; [ -f "$whisper/whisper-cli" ] || fail "$whisper holds no whisper-cli" ;;
+    --diarize) diarize="${2:?$usage}"; shift 2; [ -f "$diarize/sherpa-onnx-offline-speaker-diarization" ] || fail "$diarize holds no sherpa-onnx-offline-speaker-diarization" ;;
     --*) fail "$usage" ;;
     *) break ;;
   esac
@@ -217,4 +225,36 @@ else
   whispernote="carries whisper-cli ($w_auth)"
 fi
 
-echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), third-party notices sealed, $clinote, $whispernote"
+# 10. Meeting notes' speaker separation, or that the bundle carries none.
+carried_diarize="$mnt/$appname/Contents/Resources/diarize"
+diarizenote="no speaker separation"
+if [ -z "$diarize" ]; then
+  [ ! -e "$carried_diarize" ] || fail "the bundle on the image carries Contents/Resources/diarize, and no --diarize says which"
+else
+  [ -d "$carried_diarize" ] || fail "the bundle on the image has no Contents/Resources/diarize"
+  want_files=$(cd "$diarize" && find . -mindepth 1 -print | sed 's|^\./||' | sort)
+  got_files=$(cd "$carried_diarize" && find . -mindepth 1 -print | sed 's|^\./||' | sort)
+  [ "$got_files" = "$want_files" ] || { printf 'carried:\n%s\nwanted:\n%s\n' "$got_files" "$want_files" >&2; fail "Contents/Resources/diarize on the image does not hold exactly the files of $diarize"; }
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -f "$diarize/$f" ] && [ ! -L "$diarize/$f" ] || fail "$diarize/$f is not a regular file"
+    cmp -s "$carried_diarize/$f" "$diarize/$f" || fail "Contents/Resources/diarize/$f on the image differs from $diarize/$f"
+  done <<<"$want_files"
+  dprog="$carried_diarize/sherpa-onnx-offline-speaker-diarization"
+  [ -x "$dprog" ] || fail "the carried speaker separation is not executable"
+  d_arches=$(lipo -archs "$dprog")
+  for want in arm64 x86_64; do
+    tr ' ' '\n' <<<"$d_arches" | grep -x "$want" >/dev/null || fail "the carried speaker separation is not universal: lipo says '$d_arches'"
+  done
+  d_sig=$(codesign -dvv "$dprog" 2>&1) || fail "the carried speaker separation is not signed"
+  grep -qx 'Identifier=net.secureagentry.diarize' <<<"$d_sig" || fail "the carried speaker separation is not signed as net.secureagentry.diarize"
+  grep -qE '^CodeDirectory .*flags=0x[0-9a-f]+\(([^)]*,)?runtime[,)]' <<<"$d_sig" || fail "the carried speaker separation is not signed under the hardened runtime"
+  d_ent=$(codesign -d --entitlements - --xml "$dprog" 2>/dev/null) || fail "codesign could not read the entitlements of the carried speaker separation"
+  if grep '<key>' <<<"$d_ent" >/dev/null; then fail "the carried speaker separation carries entitlements"; fi
+  grep -q '<key>Resources/diarize/sherpa-onnx-offline-speaker-diarization</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
+    fail "the bundle's signature does not seal Contents/Resources/diarize/sherpa-onnx-offline-speaker-diarization"
+  d_auth=$(grep -E '^(Authority|Signature)=' <<<"$d_sig" | head -1 || true)
+  diarizenote="carries the speaker separation ($d_auth)"
+fi
+
+echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), third-party notices sealed, $clinote, $whispernote, $diarizenote"

@@ -5,7 +5,7 @@
 # uninstall checks (scripts/acceptance/windows-install.ps1) run by hand on a
 # Windows machine.
 #
-#   scripts/check-windows-installer.sh [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]
+#   scripts/check-windows-installer.sh [--cli FILE] [--whisper DIR] [--diarize DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]
 #
 # What it proves:
 #   1. the file name is one the download manifest admits (-setup.exe is
@@ -24,7 +24,9 @@
 #      --whisper DIR every file of DIR but its SHA256SUMS under bin/whisper/,
 #      each byte-identical to DIR's, the transcriber a build put in
 #      build/whisper; without --whisper an installer carrying bin/whisper is
-#      refused, for the same reason;
+#      refused, for the same reason; and with --diarize DIR the speaker
+#      separation under bin/diarize/ the same way, the one a build put in
+#      build/diarize, an installer carrying bin/diarize refused without it;
 #   4. the application it carries is byte-identical to the binary the zip
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
@@ -43,17 +45,19 @@ set -euo pipefail
 
 cli=""
 whisper=""
+diarize=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --cli) cli="${2:?--cli needs the CLI file}"; shift 2 ;;
     --whisper) whisper="${2:?--whisper needs the sidecar folder}"; shift 2 ;;
+    --diarize) diarize="${2:?--diarize needs the sidecar folder}"; shift 2 ;;
     --) shift; break ;;
     -*) echo "check-windows-installer: unknown option $1" >&2; exit 2 ;;
     *) break ;;
   esac
 done
-setup="${1:?usage: $0 [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
-exe="${2:?usage: $0 [--cli FILE] [--whisper DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+setup="${1:?usage: $0 [--cli FILE] [--whisper DIR] [--diarize DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+exe="${2:?usage: $0 [--cli FILE] [--whisper DIR] [--diarize DIR] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 nsi="${3:-$root_dir/build/windows/installer/project.nsi}"
 
@@ -67,6 +71,9 @@ fail() { echo "check-windows-installer: $*" >&2; exit 1; }
 # The sidecar's files, as the installer must place them.
 whisper_files=""
 [ -z "$whisper" ] || whisper_files=$(cd "$whisper" && find . -maxdepth 1 -type f ! -name SHA256SUMS | sed 's|^\./||' | sort)
+[ -z "$diarize" ] || [ -f "$diarize/sherpa-onnx-offline-speaker-diarization.exe" ] || fail "$diarize holds no sherpa-onnx-offline-speaker-diarization.exe"
+diarize_files=""
+[ -z "$diarize" ] || diarize_files=$(cd "$diarize" && find . -maxdepth 1 -type f ! -name SHA256SUMS | sed 's|^\./||' | sort)
 command -v 7z >/dev/null 2>&1 || fail "7z is needed to read the installer (apt-get install p7zip-full; dnf install p7zip p7zip-plugins)"
 
 # 1. The name.
@@ -98,12 +105,14 @@ listing=$(printf '%s\n' "$entries" | grep -v '^\$PLUGINSDIR' || true)
 expected=$'THIRD_PARTY_NOTICES.txt\nagentry-desktop.exe\nuninstall.exe'
 [ -z "$cli" ] || expected+=$'\nbin/agentry.exe'
 [ -z "$whisper_files" ] || expected+=$'\n'"$(printf '%s\n' "$whisper_files" | sed 's|^|bin/whisper/|')"
+[ -z "$diarize_files" ] || expected+=$'\n'"$(printf '%s\n' "$diarize_files" | sed 's|^|bin/diarize/|')"
 if [ "$(printf '%s\n' "$listing" | sort)" != "$(printf '%s\n' "$expected" | sort)" ]; then
   printf 'installed files:\n%s\n' "$listing" >&2
   want="agentry-desktop.exe, THIRD_PARTY_NOTICES.txt, uninstall.exe"
   [ -z "$cli" ] || want+=", bin/agentry.exe"
   [ -z "$whisper" ] || want+=", the sidecar under bin/whisper"
-  fail "the installer does not install exactly $want (a CLI is checked with --cli, the sidecar with --whisper)"
+  [ -z "$diarize" ] || want+=", the speaker separation under bin/diarize"
+  fail "the installer does not install exactly $want (a CLI is checked with --cli, the sidecars with --whisper and --diarize)"
 fi
 grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' <<<"$entries" || fail "the WebView2 bootstrapper is not in the installer"
 
@@ -133,6 +142,13 @@ fi
 for f in $whisper_files; do
   if ! 7z e -so "$setup" "bin/whisper/$f" 2>/dev/null | cmp -s - "$whisper/$f"; then
     fail "the bin/whisper/$f inside the installer differs from $whisper/$f"
+  fi
+done
+
+# 4d. The speaker separation it carries is the one build/diarize held.
+for f in $diarize_files; do
+  if ! 7z e -so "$setup" "bin/diarize/$f" 2>/dev/null | cmp -s - "$diarize/$f"; then
+    fail "the bin/diarize/$f inside the installer differs from $diarize/$f"
   fi
 done
 
