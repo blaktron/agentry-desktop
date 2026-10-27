@@ -100,12 +100,21 @@ func (f *fakeCoreAudio) StartTap(objects []uint32, global bool) (caSource, error
 	f.calls = append(f.calls, fmt.Sprintf("%s%v", kind, objects))
 	return s, nil
 }
-func (f *fakeCoreAudio) StartMic() (caSource, error) {
+
+// Mics are a Mac's own microphone, the default, and a USB speakerphone.
+func (f *fakeCoreAudio) Mics() ([]Microphone, string, error) {
+	return []Microphone{{ID: "builtin", Name: "MacBook Pro Microphone"}, {ID: "usb", Name: "USB Speakerphone"}}, "builtin", nil
+}
+func (f *fakeCoreAudio) StartMic(uid string) (caSource, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	s := &fakeSource{kind: "mic"}
+	kind := "mic"
+	if uid != "" {
+		kind = "mic:" + uid
+	}
+	s := &fakeSource{kind: kind}
 	f.sources = append(f.sources, s)
-	f.calls = append(f.calls, "mic")
+	f.calls = append(f.calls, kind)
 	return s, nil
 }
 
@@ -399,5 +408,74 @@ func TestARunningCaptureFillsItsTracksAndLetsGoOfEveryDeviceAtStop(t *testing.T)
 		if _, ended, _ := tracks.get(name); !ended {
 			t.Fatalf("the %s track did not end at Stop", name)
 		}
+	}
+}
+
+// A meeting in the room reads the microphone chosen and taps nothing, even
+// while a call is under way, and never ends by itself.
+func TestARoomReadsTheChosenMicrophoneAndTapsNothing(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true}
+	f.set(browserCall(true)...)
+	c, tracks, t0 := startFake(t, f, Call{Room: true, Mic: "usb", PID: "120"})
+	if want := []string{"ask", "mic:usb"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("Core Audio was asked %v, want %v", f.calls, want)
+	}
+	if c.FarSide() != FarSideNone || c.Call().PID != "" {
+		t.Fatalf("far side %s, call %+v", c.FarSide(), c.Call())
+	}
+	if name, missing := c.Microphone(); name != "USB Speakerphone" || missing {
+		t.Fatalf("microphone %q, missing %v", name, missing)
+	}
+	// A new default input does not move a microphone that was chosen.
+	f.mu.Lock()
+	f.in = 4
+	f.mu.Unlock()
+	c.look(t0.Add(2 * callEndWait))
+	if want := []string{"ask", "mic:usb"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("after a look Core Audio was asked %v, want %v", f.calls, want)
+	}
+	select {
+	case <-c.Ended():
+		t.Fatal("a room ended by itself")
+	default:
+	}
+	f.deliver(true)
+	c.drain(make([]float32, 4096))
+	tracks.mu.Lock()
+	defer tracks.mu.Unlock()
+	if len(tracks.tracks) != 1 || tracks.tracks["room"] == nil || tracks.tracks["room"].label != Room {
+		t.Fatalf("tracks %+v, want one Room track", tracks.tracks)
+	}
+}
+
+// A chosen microphone that is not there gives way to the default input,
+// which is then followed, and the recording says so.
+func TestAMissingChosenMicGivesWayToTheDefaultInput(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true}
+	c, _, t0 := startFake(t, f, Call{Room: true, Mic: "unplugged"})
+	if want := []string{"ask", "mic"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("Core Audio was asked %v, want %v", f.calls, want)
+	}
+	if name, missing := c.Microphone(); name != "MacBook Pro Microphone" || !missing {
+		t.Fatalf("microphone %q, missing %v", name, missing)
+	}
+	f.mu.Lock()
+	f.in = 4
+	f.mu.Unlock()
+	c.look(t0.Add(time.Second))
+	if want := []string{"ask", "mic", "mic"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("a new default input: Core Audio was asked %v, want %v", f.calls, want)
+	}
+}
+
+// Record with no call reads the microphone chosen beside the whole device.
+func TestByHandWithNoCallReadsTheChosenMicrophone(t *testing.T) {
+	f := &fakeCoreAudio{out: 2, in: 3, allowed: true}
+	c, _, _ := startFake(t, f, Call{Mic: "usb"})
+	if want := []string{"ask", "global[1]", "mic:usb"}; !slices.Equal(f.calls, want) {
+		t.Fatalf("Core Audio was asked %v, want %v", f.calls, want)
+	}
+	if c.FarSide() != FarSideWholeDevice {
+		t.Fatalf("far side %s", c.FarSide())
 	}
 }

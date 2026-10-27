@@ -60,11 +60,57 @@ type childRecorder struct {
 	spawn spawnFunc
 }
 
+// Microphones asks a child for the microphones, and lets it go.
+func (r childRecorder) Microphones() ([]Microphone, error) {
+	p, err := r.spawn()
+	if err != nil {
+		return nil, fmt.Errorf("the audio recorder could not be started: %w", err)
+	}
+	defer p.stop()
+	if err := p.send(wireCommand{Cmd: cmdMics}); err != nil {
+		return nil, fmt.Errorf("the audio recorder could not be started: %w", err)
+	}
+	type result struct {
+		mics []Microphone
+		err  error
+	}
+	res := make(chan result, 1)
+	go func() {
+		out := bufio.NewReader(p.out)
+		for {
+			kind, _, payload, err := readFrame(out)
+			if err != nil {
+				res <- result{err: fmt.Errorf("the audio recorder stopped before it answered: %w", err)}
+				return
+			}
+			var ev wireEvent
+			if kind != frameEvent || json.Unmarshal(payload, &ev) != nil {
+				continue
+			}
+			switch ev.Type {
+			case evMics:
+				res <- result{mics: ev.Mics}
+				return
+			case evError:
+				res <- result{err: errors.New(ev.Message)}
+				return
+			}
+		}
+	}()
+	select {
+	case r := <-res:
+		return r.mics, r.err
+	case <-time.After(childStartWait):
+		return nil, errors.New("the audio recorder did not answer")
+	}
+}
+
 // Record starts a child, asks it to record the call (or, with a zero Call,
-// the call it finds under way or the whole default devices) and returns
-// once it says it is recording.
+// the call it finds under way or the whole default devices; or, for a
+// meeting in the room, the microphone alone) and returns once it says it is
+// recording.
 func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
-	c := &childCapture{spawn: r.spawn, call: call, tracks: tracks, ended: make(chan struct{}), quit: make(chan struct{}), done: make(chan struct{})}
+	c := &childCapture{spawn: r.spawn, call: call, room: call.Room, tracks: tracks, ended: make(chan struct{}), quit: make(chan struct{}), done: make(chan struct{})}
 	p, out, _, err := c.startChild()
 	if err != nil {
 		return nil, err
@@ -74,20 +120,23 @@ func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 		p.stop()
 		return nil, err
 	}
-	if ev.Call != nil && call.PID == "" {
+	if ev.Call != nil && call.PID == "" && !call.Room {
 		c.call = *ev.Call
 	}
 	c.farSide = ev.FarSide
+	c.micName, c.micMissing = ev.MicName, ev.MicMissing
 	c.proc = p
 	// The far side has a track from the start: a loopback delivers nothing
 	// while nothing plays, and a far side silent throughout is a silent
-	// track in the transcript, not a missing one.
-	c.trackMu.Lock()
-	_, err = c.trackLocked(wireFar)
-	c.trackMu.Unlock()
-	if err != nil {
-		p.stop()
-		return nil, err
+	// track in the transcript, not a missing one. A room has none.
+	if !call.Room {
+		c.trackMu.Lock()
+		_, err = c.trackLocked(wireFar)
+		c.trackMu.Unlock()
+		if err != nil {
+			p.stop()
+			return nil, err
+		}
 	}
 	go c.supervise(ctx, out)
 	return c, nil
@@ -96,6 +145,9 @@ func (r childRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Ca
 type childCapture struct {
 	spawn  spawnFunc
 	tracks Tracks
+	// room is a meeting in the room, fixed at the start: the microphone
+	// alone, on a Room track.
+	room bool
 
 	// mu is the capture's state. The manager asks for Call and FarSide
 	// under its own lock, and opening a track takes that lock, so no track
@@ -106,6 +158,10 @@ type childCapture struct {
 	paused  bool
 	stopped bool
 	proc    *childProc
+	// micName and micMissing are what the child said of the microphone of a
+	// recording that follows no app.
+	micName    string
+	micMissing bool
 
 	trackMu  sync.Mutex
 	mic, far Track
@@ -125,7 +181,7 @@ func (c *childCapture) startChild() (*childProc, *bufio.Reader, bool, error) {
 		return nil, nil, false, fmt.Errorf("the audio recorder could not be started: %w", err)
 	}
 	c.mu.Lock()
-	cmd := wireCommand{Cmd: cmdRecord, PID: c.call.PID, Binary: c.call.Binary, Paused: c.paused}
+	cmd := wireCommand{Cmd: cmdRecord, PID: c.call.PID, Binary: c.call.Binary, Paused: c.paused, Room: c.call.Room, Mic: c.call.Mic}
 	c.mu.Unlock()
 	if err := p.send(cmd); err != nil {
 		p.stop()
@@ -205,8 +261,14 @@ func (c *childCapture) write(track byte, payload []byte) {
 func (c *childCapture) trackLocked(track byte) (Track, error) {
 	t := &c.mic
 	label, name := Me, "mic"
-	if track == wireFar {
+	switch {
+	case track == wireFar && c.room:
+		// A room has no far side, whatever a child sends.
+		return nil, errors.New("a meeting in the room has no far side")
+	case track == wireFar:
 		t, label, name = &c.far, Them, "far"
+	case c.room:
+		label, name = Room, "room"
 	}
 	if *t == nil {
 		opened, err := c.tracks.Open(label, name)
@@ -328,6 +390,12 @@ func (c *childCapture) FarSide() FarSide {
 }
 
 func (c *childCapture) Ended() <-chan struct{} { return c.ended }
+
+func (c *childCapture) Microphone() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.micName, c.micMissing
+}
 
 // SetPaused tells the child to let go of the devices, or to take them up
 // again; meanwhile nothing reaches the tracks.

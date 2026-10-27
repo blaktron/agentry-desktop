@@ -2651,6 +2651,7 @@ export namespace app {
 	    recordsRooms: boolean;
 	    mic: string;
 	    microphones: MeetingChoice[];
+	    micHint: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingNotesView(source);
@@ -2693,6 +2694,7 @@ export namespace app {
 	        this.recordsRooms = source["recordsRooms"];
 	        this.mic = source["mic"];
 	        this.microphones = this.convertValues(source["microphones"], MeetingChoice);
+	        this.micHint = source["micHint"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

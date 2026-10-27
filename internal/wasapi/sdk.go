@@ -1,7 +1,8 @@
 // Package wasapi is the part of Windows' audio stack that Meeting notes
 // uses, called through the COM interfaces' own tables of functions so the
-// app needs no C compiler: listing the endpoints and the audio sessions on
-// them (which app plays or records on which device), and recording from an
+// app needs no C compiler: listing the endpoints, with the names Windows
+// shows for them, and the audio sessions on them (which app plays or
+// records on which device), and recording from an
 // endpoint, a microphone in shared mode or what a speaker or headset plays
 // (loopback).
 //
@@ -11,6 +12,8 @@
 // the app, where a fault ends that process and not the app.
 package wasapi
 
+import "strconv"
+
 // The IIDs and the CLSID this package uses, as the SDK declares them.
 const (
 	clsidMMDeviceEnumerator  = "BCDE0395-E52F-467C-8E3D-C4579291692E"
@@ -19,6 +22,14 @@ const (
 	iidIAudioCaptureClient   = "C8ADBD64-E71E-48A0-A4DE-185C395CD317"
 	iidIAudioSessionManager2 = "77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"
 	iidIAudioSessionControl2 = "BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D"
+	iidIPropertyStore        = "886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"
+)
+
+// pkeyDeviceFriendlyName is the property key of the name Windows shows for
+// a device ("Microphone (USB Speakerphone)"): its format id and property id.
+const (
+	pkeyDeviceFriendlyNameFmtID = "A45C254E-DF1C-4EFD-8020-67D146A850E0"
+	pkeyDeviceFriendlyNamePID   = 14
 )
 
 // The slots this package calls, each the method's place in its interface's
@@ -34,8 +45,11 @@ const (
 	slotCollectionGetCount = 3 // IMMDeviceCollection
 	slotCollectionItem     = 4
 
-	slotActivate = 3 // IMMDevice
-	slotGetID    = 5
+	slotActivate          = 3 // IMMDevice
+	slotOpenPropertyStore = 4
+	slotGetID             = 5
+
+	slotPropertyGetValue = 5 // IPropertyStore
 
 	slotInitialize   = 3 // IAudioClient
 	slotGetMixFormat = 8
@@ -70,7 +84,10 @@ var calls = []struct {
 	{"IMMDeviceCollection", "GetCount", slotCollectionGetCount},
 	{"IMMDeviceCollection", "Item", slotCollectionItem},
 	{"IMMDevice", "Activate", slotActivate},
+	{"IMMDevice", "OpenPropertyStore", slotOpenPropertyStore},
 	{"IMMDevice", "GetId", slotGetID},
+	{"IPropertyStore", "Release", slotRelease},
+	{"IPropertyStore", "GetValue", slotPropertyGetValue},
 	{"IAudioClient", "Initialize", slotInitialize},
 	{"IAudioClient", "GetMixFormat", slotGetMixFormat},
 	{"IAudioClient", "Start", slotStart},
@@ -89,12 +106,14 @@ var calls = []struct {
 }
 
 var identifiers = map[string]string{
-	"class MMDeviceEnumerator": clsidMMDeviceEnumerator,
-	"IMMDeviceEnumerator":      iidIMMDeviceEnumerator,
-	"IAudioClient":             iidIAudioClient,
-	"IAudioCaptureClient":      iidIAudioCaptureClient,
-	"IAudioSessionManager2":    iidIAudioSessionManager2,
-	"IAudioSessionControl2":    iidIAudioSessionControl2,
+	"class MMDeviceEnumerator":     clsidMMDeviceEnumerator,
+	"IMMDeviceEnumerator":          iidIMMDeviceEnumerator,
+	"IAudioClient":                 iidIAudioClient,
+	"IAudioCaptureClient":          iidIAudioCaptureClient,
+	"IAudioSessionManager2":        iidIAudioSessionManager2,
+	"IAudioSessionControl2":        iidIAudioSessionControl2,
+	"IPropertyStore":               iidIPropertyStore,
+	"key PKEY_Device_FriendlyName": pkeyDeviceFriendlyNameFmtID + " " + strconv.Itoa(pkeyDeviceFriendlyNamePID),
 }
 
 // Shared mode, and the stream flags a stream is opened with: the engine

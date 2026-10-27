@@ -265,6 +265,17 @@ func (m *MeetingAPI) recording() *meeting.RecordingStatus {
 	return m.mgr.Status().Recording
 }
 
+// micHint says where the microphone setting applies: rooms and Record with
+// no meeting app found, never a call's microphone, which is the app's own
+// where the audio system says which it reads and the default input on a Mac.
+func micHint(goos string) string {
+	call := "A call a meeting app makes is recorded from the microphone that app uses."
+	if goos == "darwin" {
+		call = "A call a meeting app makes is recorded from the Mac's default input, as set in System Settings."
+	}
+	return "Used for meetings in the room, and for Record when no meeting app is found. " + call
+}
+
 // recordsRoomsNow says whether a meeting in the room can be recorded now:
 // the feature is on here, its recorder records rooms, and nothing is
 // recorded.
@@ -544,6 +555,8 @@ type MeetingNotesView struct {
 	// Microphones those that may be chosen.
 	Mic         string          `json:"mic"`
 	Microphones []MeetingChoice `json:"microphones"`
+	// MicHint says where the microphone setting applies on this computer.
+	MicHint string `json:"micHint"`
 }
 
 // Status reads the page.
@@ -557,7 +570,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
-		Windows: []MeetingWindowView{}, Mic: mn.Mic, Microphones: []MeetingChoice{},
+		Windows: []MeetingWindowView{}, Mic: mn.Mic, Microphones: []MeetingChoice{}, MicHint: micHint(runtime.GOOS),
 	}
 	a := m.assistantOf()
 	where := a.where()

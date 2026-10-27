@@ -21,9 +21,18 @@ func NewRecorder() Recorder { return CoreAudioRecorder{} }
 // NewDetector is this platform's detector: Core Audio's process list.
 func NewDetector() Detector { return CoreAudioDetector{list: listProcesses} }
 
-// CoreAudioRecorder records through Core Audio's process taps and the
-// default input; caCapture says how.
+// CoreAudioRecorder records through Core Audio's process taps and an input
+// device; caCapture says how.
 type CoreAudioRecorder struct{}
+
+// Microphones lists the input devices.
+func (CoreAudioRecorder) Microphones() ([]Microphone, error) {
+	if s := PlatformSupport(); s != "" {
+		return nil, errors.New(s)
+	}
+	mics, _, err := coreAudio{}.Mics()
+	return mics, err
+}
 
 // Record starts recording.
 func (CoreAudioRecorder) Record(ctx context.Context, call Call, tracks Tracks) (Capture, error) {
@@ -98,9 +107,43 @@ func (coreAudio) StartTap(objects []uint32, global bool) (caSource, error) {
 	return &coreAudioSource{c: c}, nil
 }
 
-func (coreAudio) StartMic() (caSource, error) {
+func (coreAudio) Mics() ([]Microphone, string, error) {
+	buf := make([]C.ca_mic, 16)
+	for {
+		n := int(C.ca_mics(&buf[0], C.int(len(buf))))
+		if n < 0 {
+			return nil, "", errors.New("the audio system could not list the microphones")
+		}
+		if n > len(buf) {
+			buf = make([]C.ca_mic, n+4)
+			continue
+		}
+		var def string
+		out := make([]Microphone, 0, n)
+		for i := range n {
+			m := &buf[i]
+			id := C.GoString(&m.uid[0])
+			name := C.GoString(&m.name[0])
+			if name == "" {
+				name = id
+			}
+			out = append(out, Microphone{ID: id, Name: name})
+			if m.is_default != 0 {
+				def = id
+			}
+		}
+		return out, def, nil
+	}
+}
+
+func (coreAudio) StartMic(uid string) (caSource, error) {
 	var errbuf [256]C.char
-	c := C.ca_mic_start(&errbuf[0], C.int(len(errbuf)))
+	var cuid *C.char
+	if uid != "" {
+		cuid = C.CString(uid)
+		defer C.free(unsafe.Pointer(cuid))
+	}
+	c := C.ca_mic_start(cuid, &errbuf[0], C.int(len(errbuf)))
 	if c == nil {
 		return nil, errors.New(C.GoString(&errbuf[0]))
 	}

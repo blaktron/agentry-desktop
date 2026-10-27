@@ -31,8 +31,12 @@ type caSystem interface {
 	// StartTap taps the processes objects names, or with global every
 	// process but those.
 	StartTap(objects []uint32, global bool) (caSource, error)
-	// StartMic reads the default input.
-	StartMic() (caSource, error)
+	// Mics lists the input devices, by UID and name, and says which is
+	// the default.
+	Mics() (mics []Microphone, def string, err error)
+	// StartMic reads the input device with UID uid, the default input when
+	// uid is "".
+	StartMic(uid string) (caSource, error)
 }
 
 // caSource is one running capture: mono float samples at its own rate.
@@ -107,9 +111,10 @@ func (s *caStream) look(now time.Time) (stalled, heard bool) {
 // this app, the whole device, which the recording says from then on. An app
 // whose processes have all gone leaves nothing tapped, and nothing else is
 // taken up in its place. The microphone is the default input, read only
-// while the app reads one. With no call it records the default input and
-// everything but this app, the whole device. A pause lets go of every
-// device; the call's end is followed meanwhile.
+// while the app reads one. With no call it records the microphone chosen
+// (else the default input) and everything but this app, the whole device. A
+// meeting in the room records that microphone alone: no tap, no far side.
+// A pause lets go of every device; the call's end is followed meanwhile.
 type caCapture struct {
 	sys    caSystem
 	call   Call
@@ -125,6 +130,15 @@ type caCapture struct {
 	farSide FarSide
 	paused  bool
 	warning *Warning
+	// micName and micMissing say which microphone a recording that follows
+	// no app reads, and whether the one chosen was missing.
+	micName    string
+	micMissing bool
+
+	// room is a meeting in the room; micUID the microphone chosen and found
+	// when it started, "" to follow the default input.
+	room   bool
+	micUID string
 
 	// The rest belongs to run, and to the start and Stop before and after it.
 	far, mic           *caStream
@@ -155,18 +169,33 @@ func startCoreAudio(sys caSystem, call Call, tracks Tracks, now time.Time) (*caC
 	if err != nil {
 		return nil, err
 	}
-	if call.PID == "" {
-		call, _ = findCall(processSnapshot(ps), strconv.Itoa(me))
+	if call.Room {
+		// A room follows no app, whatever else the call names.
+		call = Call{Room: true, Mic: call.Mic}
+	} else if call.PID == "" {
+		found, _ := findCall(processSnapshot(ps), strconv.Itoa(me))
+		found.Mic = call.Mic
+		call = found
 	}
 	c := &caCapture{
-		sys: sys, call: call, key: call.AppKey(), tracks: tracks, me: me, self: sys.SelfObject(),
+		sys: sys, call: call, key: call.AppKey(), tracks: tracks, me: me, self: sys.SelfObject(), room: call.Room,
 		ended: make(chan struct{}), quit: make(chan struct{}), done: make(chan struct{}),
+	}
+	if c.key == "" {
+		if err := c.chooseMic(call.Mic); err != nil {
+			return nil, err
+		}
 	}
 	input := c.key == "" || appInput(ps, c.key)
 	if input {
 		// macOS's own prompt, never waited for: the recording is announced
 		// meanwhile, and the microphone is opened again once it is allowed.
 		sys.AskMic()
+	}
+	if c.room {
+		c.farSide = FarSideNone
+		c.startMic(now)
+		return c, nil
 	}
 	if err := c.startFar(ps, now); err != nil {
 		return nil, err
@@ -244,7 +273,7 @@ func (c *caCapture) setFarSide(f FarSide) {
 }
 
 func (c *caCapture) startMic(now time.Time) {
-	src, err := c.sys.StartMic()
+	src, err := c.sys.StartMic(c.micUID)
 	if err != nil {
 		c.logOnce(err)
 		return
@@ -252,10 +281,35 @@ func (c *caCapture) startMic(now time.Time) {
 	c.mic, c.inDev = newStream(src, now), c.sys.DefaultDevice(true)
 	c.micAllowed, c.micOpened = c.sys.MicAllowed(), true
 	if c.micTrack == nil {
-		if t, err := c.tracks.Open(Me, "mic"); err == nil {
+		label, name := Me, "mic"
+		if c.room {
+			label, name = Room, "room"
+		}
+		if t, err := c.tracks.Open(label, name); err == nil {
 			c.micTrack = t
 		}
 	}
+}
+
+// chooseMic settles, as a recording that follows no app starts, which
+// microphone it reads: the one chosen when it is there, else the default
+// input, and says which.
+func (c *caCapture) chooseMic(chosen string) error {
+	mics, def, err := c.sys.Mics()
+	if err != nil {
+		return err
+	}
+	id, name, missing := pickMic(mics, chosen, def)
+	if id == "" {
+		return errors.New("this Mac has no microphone")
+	}
+	if id != def {
+		c.micUID = id
+	}
+	c.mu.Lock()
+	c.micName, c.micMissing = name, missing
+	c.mu.Unlock()
+	return nil
 }
 
 // stopMic and stopFar let go of a device, keeping what its source still
@@ -360,9 +414,23 @@ func (c *caCapture) look(now time.Time) {
 		c.startMic(now)
 	case !input && c.mic != nil:
 		c.stopMic()
-	case input && (c.sys.DefaultDevice(true) != c.inDev || (!c.micAllowed && c.sys.MicAllowed())):
+	case input && ((c.micUID == "" && c.sys.DefaultDevice(true) != c.inDev) || (!c.micAllowed && c.sys.MicAllowed())):
 		c.stopMic()
 		c.startMic(now)
+	}
+	if c.room {
+		// No far side: only the microphone is listened for.
+		var micHeard bool
+		if c.mic != nil {
+			_, micHeard = c.mic.look(now)
+		}
+		micQuiet := c.micQuiet.note(now, micHeard, c.mic != nil)
+		micSilent := c.micOpened && !c.micQuiet.heard && (micQuiet || !c.sys.MicAllowed())
+		w := silenceWarning(micSilent, false)
+		c.mu.Lock()
+		c.warning = w
+		c.mu.Unlock()
+		return
 	}
 	// The far side.
 	tapsApp := c.key != "" && !c.farGlobal
@@ -429,6 +497,12 @@ func (c *caCapture) Warning() *Warning {
 }
 
 func (c *caCapture) Ended() <-chan struct{} { return c.ended }
+
+func (c *caCapture) Microphone() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.micName, c.micMissing
+}
 
 // SetPaused lets go of the devices, or takes them up again, within a
 // second; meanwhile nothing reaches the tracks.

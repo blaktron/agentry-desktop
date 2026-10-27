@@ -232,6 +232,10 @@ static void fail_status(char *err, int errlen, const char *what, OSStatus st) {
 	}
 }
 
+// TAP_DEVICE_NAME names the aggregate device a tap is read through, which
+// this process sees among its input devices while it records.
+#define TAP_DEVICE_NAME @"Agentry Meeting notes"
+
 static NSString *device_uid(AudioObjectID dev) {
 	AudioObjectPropertyAddress a = global(kAudioDevicePropertyDeviceUID);
 	CFStringRef uid = NULL;
@@ -276,7 +280,7 @@ ca_capture *ca_tap_start(const uint32_t *objects, int n, int global_tap, char *e
 				return NULL;
 			}
 			NSDictionary *agg = @{
-				@kAudioAggregateDeviceNameKey : @"Agentry Meeting notes",
+				@kAudioAggregateDeviceNameKey : TAP_DEVICE_NAME,
 				@kAudioAggregateDeviceUIDKey : [[NSUUID UUID] UUIDString],
 				@kAudioAggregateDeviceMainSubDeviceKey : out,
 				@kAudioAggregateDeviceIsPrivateKey : @YES,
@@ -352,7 +356,69 @@ static void mic_input(void *user, AudioQueueRef q, AudioQueueBufferRef buf, cons
 	AudioQueueEnqueueBuffer(q, buf, 0, NULL);
 }
 
-ca_capture *ca_mic_start(char *err, int errlen) {
+static void copy_utf8(NSString *s, char *out, size_t max) {
+	if (s == nil || ![s getCString:out maxLength:max encoding:NSUTF8StringEncoding]) {
+		out[0] = 0;
+	}
+}
+
+int ca_mics(ca_mic *out, int max) {
+	@autoreleasepool {
+		AudioObjectPropertyAddress a = global(kAudioHardwarePropertyDevices);
+		UInt32 size = 0;
+		if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &a, 0, NULL, &size) != noErr) {
+			return -1;
+		}
+		int n = (int)(size / sizeof(AudioObjectID));
+		if (n == 0) {
+			return 0;
+		}
+		AudioObjectID *ids = calloc((size_t)n, sizeof(AudioObjectID));
+		if (ids == NULL) {
+			return -1;
+		}
+		if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &a, 0, NULL, &size, ids) != noErr) {
+			free(ids);
+			return -1;
+		}
+		n = (int)(size / sizeof(AudioObjectID));
+		AudioObjectID def = ca_default_device(1);
+		int count = 0;
+		for (int i = 0; i < n; i++) {
+			AudioObjectPropertyAddress sa = {kAudioDevicePropertyStreams, kAudioObjectPropertyScopeInput, kAudioObjectPropertyElementMain};
+			UInt32 ssize = 0;
+			if (AudioObjectGetPropertyDataSize(ids[i], &sa, 0, NULL, &ssize) != noErr || ssize == 0) {
+				continue;
+			}
+			NSString *uid = device_uid(ids[i]);
+			if (uid == nil) {
+				continue;
+			}
+			AudioObjectPropertyAddress na = global(kAudioObjectPropertyName);
+			CFStringRef cfname = NULL;
+			UInt32 nsize = sizeof(cfname);
+			NSString *name = nil;
+			if (AudioObjectGetPropertyData(ids[i], &na, 0, NULL, &nsize, &cfname) == noErr && cfname != NULL) {
+				name = (__bridge_transfer NSString *)cfname;
+			}
+			if ([name isEqualToString:TAP_DEVICE_NAME]) {
+				continue;
+			}
+			if (count < max) {
+				ca_mic *m = &out[count];
+				memset(m, 0, sizeof(*m));
+				copy_utf8(uid, m->uid, sizeof(m->uid));
+				copy_utf8(name, m->name, sizeof(m->name));
+				m->is_default = ids[i] == def;
+			}
+			count++;
+		}
+		free(ids);
+		return count;
+	}
+}
+
+ca_capture *ca_mic_start(const char *uid, char *err, int errlen) {
 	AudioStreamBasicDescription fmt = {0};
 	fmt.mSampleRate = MIC_RATE;
 	fmt.mFormatID = kAudioFormatLinearPCM;
@@ -373,6 +439,22 @@ ca_capture *ca_mic_start(char *err, int errlen) {
 		capture_free(c);
 		fail_status(err, errlen, "open the microphone", st);
 		return NULL;
+	}
+	if (uid != NULL && uid[0] != 0) {
+		// The device chosen, by its UID, before the queue starts.
+		CFStringRef dev = CFStringCreateWithCString(NULL, uid, kCFStringEncodingUTF8);
+		if (dev == NULL) {
+			snprintf(err, (size_t)errlen, "the microphone's name could not be read");
+			ca_stop(c);
+			return NULL;
+		}
+		st = AudioQueueSetProperty(c->queue, kAudioQueueProperty_CurrentDevice, &dev, sizeof(dev));
+		CFRelease(dev);
+		if (st != noErr) {
+			fail_status(err, errlen, "open the microphone chosen", st);
+			ca_stop(c);
+			return NULL;
+		}
 	}
 	for (int i = 0; i < MIC_BUFFERS && st == noErr; i++) {
 		AudioQueueBufferRef b = NULL;

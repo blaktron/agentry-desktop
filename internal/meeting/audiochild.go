@@ -48,6 +48,9 @@ type audioSystem interface {
 	Sessions() ([]audioSession, error)
 	// Default is the endpoint the system uses by default for flow.
 	Default(flow endpointFlow) (string, error)
+	// Endpoints lists the active endpoints of flow, by id and the name the
+	// system shows for each.
+	Endpoints(flow endpointFlow) ([]Microphone, error)
 	// Record opens a stream on an endpoint: a capture endpoint's input, or
 	// what a render endpoint plays.
 	Record(endpoint string, flow endpointFlow) (audioStream, error)
@@ -185,6 +188,14 @@ type childRecording struct {
 	seen       int
 	farSide    FarSide
 	quietSince time.Time
+	// room records the microphone alone. fixedMic is the microphone chosen
+	// and found when the recording started, "" to follow the default; micName
+	// and micMissing say which is recorded and whether the chosen one was
+	// missing.
+	room       bool
+	fixedMic   string
+	micName    string
+	micMissing bool
 	paused     bool
 	ended      bool
 	logged     map[string]bool
@@ -220,7 +231,9 @@ func (r *childRecording) closeFar() {
 // lets go; the far side is what the endpoint the app plays to plays,
 // followed when the app moves, or the default output's when the app is
 // found playing nowhere. With no target, the default microphone and the
-// default output are recorded, followed when the defaults change.
+// default output are recorded, followed when the defaults change, the
+// microphone chosen standing for the default one when it was found. A
+// meeting in the room records that microphone alone, no output at all.
 //
 // While paused nothing is recorded, and the app is still watched, so a call
 // that ends during a pause ends the recording.
@@ -228,7 +241,10 @@ func (r *childRecording) scan(first bool) error {
 	defRender, _ := r.sys.Default(flowRender)
 	var micEP, farEP string
 	if r.target.zero() {
-		micEP, _ = r.sys.Default(flowCapture)
+		micEP = r.fixedMic
+		if micEP == "" {
+			micEP, _ = r.sys.Default(flowCapture)
+		}
 		farEP = defRender
 	} else {
 		sessions, err := r.sys.Sessions()
@@ -253,6 +269,9 @@ func (r *childRecording) scan(first bool) error {
 	}
 	if err := r.followMic(micEP); err != nil && first {
 		return err
+	}
+	if r.room {
+		return nil
 	}
 	if err := r.followFar(farEP, defRender, first); err != nil && first {
 		return err
@@ -336,6 +355,26 @@ func (r *childRecording) followFar(ep, def string, first bool) error {
 	return nil
 }
 
+// chooseMic settles, as a recording that follows no app starts, which
+// microphone it reads: the one chosen when it is there, else the default,
+// and says which.
+func (r *childRecording) chooseMic(chosen string) error {
+	mics, err := r.sys.Endpoints(flowCapture)
+	if err != nil {
+		return fmt.Errorf("the microphones could not be listed: %w", err)
+	}
+	def, _ := r.sys.Default(flowCapture)
+	id, name, missing := pickMic(mics, chosen, def)
+	if id == "" {
+		return errors.New("this computer has no microphone")
+	}
+	if id != def {
+		r.fixedMic = id
+	}
+	r.micName, r.micMissing = name, missing
+	return nil
+}
+
 // checkEnded says the call is over once the app has not used a microphone
 // for callEndWait.
 func (r *childRecording) checkEnded(reading bool) {
@@ -415,6 +454,17 @@ func captureMain(in io.Reader, out io.Writer, open func() (audioSystem, error), 
 		return detectLoop(sys, w, cmds, self)
 	case cmdRecord:
 		return recordLoop(sys, w, cmds, self, first)
+	case cmdMics:
+		mics, err := sys.Endpoints(flowCapture)
+		if err != nil {
+			_ = w.event(wireEvent{Type: evError, Message: "the microphones could not be listed: " + err.Error()})
+			return 1
+		}
+		if mics == nil {
+			mics = []Microphone{}
+		}
+		_ = w.event(wireEvent{Type: evMics, Mics: mics})
+		return 0
 	}
 	_ = w.event(wireEvent{Type: evError, Message: fmt.Sprintf("an unknown command %q", first.Cmd)})
 	return 2
@@ -461,7 +511,12 @@ func recordLoop(sys audioSystem, w *frameWriter, cmds <-chan wireCommand, self s
 	pid, _ := strconv.ParseUint(first.PID, 10, 32)
 	r.target = recordTarget{PID: uint32(pid), Binary: strings.ToLower(first.Binary)}
 	var call *Call
-	if r.target.zero() {
+	r.room = first.Room
+	if r.room {
+		// A room follows no app, whatever else the command names.
+		r.target = recordTarget{}
+	}
+	if r.target.zero() && !r.room {
 		// The call under way, if there is one.
 		if sessions, err := sys.Sessions(); err == nil {
 			if c, ok := findCall(sessionSnapshot(withoutExe(sessions, self)), ""); ok {
@@ -472,13 +527,22 @@ func recordLoop(sys audioSystem, w *frameWriter, cmds <-chan wireCommand, self s
 		}
 	}
 	r.paused = first.Paused
+	if r.room {
+		r.farSide = FarSideNone
+	}
+	if r.target.zero() {
+		if err := r.chooseMic(first.Mic); err != nil {
+			_ = w.event(wireEvent{Type: evError, Message: err.Error()})
+			return 1
+		}
+	}
 	if err := r.scan(true); err != nil {
 		r.closeMic()
 		r.closeFar()
 		_ = w.event(wireEvent{Type: evError, Message: err.Error()})
 		return 1
 	}
-	if err := w.event(wireEvent{Type: evStarted, Call: call, FarSide: r.farSide}); err != nil {
+	if err := w.event(wireEvent{Type: evStarted, Call: call, FarSide: r.farSide, MicName: r.micName, MicMissing: r.micMissing}); err != nil {
 		return 1
 	}
 	defer func() { r.closeMic(); r.closeFar() }()

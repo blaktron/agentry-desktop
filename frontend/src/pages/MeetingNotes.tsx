@@ -406,7 +406,7 @@ export default function MeetingNotes() {
         )}
         {view.recordsRooms && (
           <Field label="Microphone" htmlFor="meeting-mic"
-            hint="Used for meetings in the room, and for Record when no meeting app is found. A call a meeting app makes is recorded from the microphone that app uses.">
+            hint={view.micHint}>
             <Select id="meeting-mic" data-meeting-mic value={view.mic} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetMic(e.target.value))}>
               <option value="">{DEFAULT_MIC}</option>
               {view.mic && !view.microphones.some((m) => m.id === view.mic) && <option value={view.mic}>Not connected now</option>}
