@@ -61,14 +61,31 @@ test("a rule of equals signs that opens no title is text, not a heading", () => 
   assert.deepEqual(n, { preface: ["intro", RULE, RULE, "after"].join("\n"), sections: [] });
 });
 
-test("the committed notices file reads as the six sections the page lists, none empty", () => {
+test("the committed notices file reads as the seven sections the page lists, none empty", () => {
   const n = splitNotices(readFileSync(new URL("../../THIRD_PARTY_NOTICES", import.meta.url), "utf8"));
   assert.deepEqual(
     n.sections.map((s) => s.title),
-    ["1. Interface packages", "2. Go modules", "3. Fonts", "4. Provider logos", "5. Microsoft WebView2 (Windows)", "6. System libraries (Linux and macOS)"],
+    [
+      "1. Interface packages",
+      "2. Go modules",
+      "3. Fonts",
+      "4. Provider logos",
+      "5. Microsoft WebView2 (Windows)",
+      "6. Meeting notes' programs",
+      "7. System libraries (Linux and macOS)",
+    ],
   );
+  assert.ok(n.sections[5].body.includes("whisper.cpp v1.9.5 (MIT)"), "the transcriber's licence is given");
+  assert.ok(n.sections[5].body.includes("sherpa-onnx v2.0.1 (Apache-2.0)"), "the speaker separation's licence is given");
   for (const s of n.sections) assert.ok(s.body.length > 100, `${s.title} is empty`);
   assert.ok(licenceCount(n.sections[0].body) > 5, "the interface packages carry licence blocks");
   assert.ok(n.sections[0].body.includes("pdfjs-dist"));
   assert.ok(n.sections[0].body.includes("@ungap/structured-clone"));
+});
+
+test("a licence that frames its own heading with rules does not open a section", () => {
+  const rule = "=".repeat(78);
+  const n = splitNotices(["Preface", rule, "1. Programs", rule, "", "Some licence", rule, "LLVM Release License", rule, "text"].join("\n"));
+  assert.deepEqual(n.sections.map((s) => s.title), ["1. Programs"]);
+  assert.match(n.sections[0].body, /LLVM Release License/);
 });
