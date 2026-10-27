@@ -1,7 +1,7 @@
 // Settings → Persistent Agents: each agent the app offers, with its Enable
-// switch, Start or Stop, Configure and Reset. Agentry Helper (main) has none of the switch,
-// Open or Configure: it is on while its Home card is, and what it is given
-// is fixed. Configure is a card over the
+// switch, Start or Stop, Configure and Reset. Agentry Helper (main), the lite
+// personal agent, has no Open or Configure: what it is given is fixed, and
+// its switch is held off while the Assistant, which supersedes it, is on. Configure is a card over the
 // page with everything the agent is given: its name and personality, its
 // share folder, its knowledge packs and MCP servers, and its roster's
 // switches. A start, a switch or an addition that turns on what the person
@@ -13,8 +13,9 @@ import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import type { app, run } from "../../wailsjs/go/models";
-import { forgetChat, refreshAgents, startAgent, stopStart, updateAgent, useAgents } from "../agents";
-import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords } from "../persistentAgents";
+import { forgetChat, refreshAgents, setAgentEnabled, startAgent, stopStart, updateAgent, useAgents } from "../agents";
+import { helperSuperseded } from "../homeAgent";
+import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -80,6 +81,10 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         A persistent agent keeps its conversation and its own files between the times you talk to it, and shares one folder
         with you. It runs on this computer with your model, in its own containers, beside your QuickAgents.
       </p>
+      <p className="small" data-personal-agents>
+        The Assistant is your personal assistant. Agentry Helper is a lite version of it that works only with Agentry. The
+        Assistant does everything the Helper does, so turning the Assistant on turns the Helper off.
+      </p>
       <ErrorBox error={error} />
       {note && <p className="small" role="status">{note}</p>}
       {agents.map((a) => {
@@ -87,31 +92,48 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         const running = isLive(a);
         const isMain = a.name === MAIN_AGENT;
         const isCoder = a.name === CODER_AGENT;
+        const superseded = isMain && !enabled && helperSuperseded(agents);
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
               <div>
                 <h3 style={{ margin: 0 }}>{a.displayName}{a.displayName !== a.title && <span className="small muted"> · {a.title}</span>}</h3>
                 <span className="small muted">
-                  <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {isMain && !enabled ? "Starts when you message it on Home" : agentStateWords(a)}
+                  <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {agentStateWords(a)}
                 </span>
               </div>
-              {!isMain && <label className="check-row">
+              <label className="check-row">
                 <input
                   type="checkbox"
                   role="switch"
                   data-persistent-enable={a.name}
                   checked={enabled}
-                  disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere}
+                  disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere || superseded}
                   onChange={(e) => {
                     const on = e.target.checked;
-                    void act(a.name, () => PersistentAPI.SetEnabled(a.name, on), on && isCoder);
+                    void act(a.name, () => setAgentEnabled(a.name, on), on && isCoder);
                   }}
                 />
                 Enabled
-              </label>}
+              </label>
             </div>
-            {isMain && <p className="small">Its card on Home is where you talk to it; Settings → Home shows or hides the card.</p>}
+            {isMain && (
+              <p className="small" data-agent-kind="lite">
+                The lite personal agent: it works only with Agentry, finding, installing, running and scheduling QuickAgents
+                for you. Its card on Home is where you talk to it.
+              </p>
+            )}
+            {superseded && (
+              <div data-helper-superseded>
+                <Notice>{agentCalled(agents.find((x) => x.name === ASSISTANT_AGENT)!, true)} is on, and does everything the Helper does. Turn it off to use the Helper instead.</Notice>
+              </div>
+            )}
+            {a.name === ASSISTANT_AGENT && (
+              <p className="small" data-agent-kind="personal">
+                Your personal assistant, the full version of Agentry Helper: everything the Helper does, plus a memory, tasks at
+                times you ask for, and your mail, calendars and files.{!enabled && " Turning it on turns Agentry Helper off."}
+              </p>
+            )}
             {isCoder && !enabled && <Notice tone="warn">{CODER_WARNING} Turning it on asks you first.</Notice>}
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
             <StartFailure agent={a} />
@@ -119,7 +141,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               <Notice>It is running in {a.holder || "another client"}. You can talk to it and stop it here.</Notice>
             )}
             <div className="row gap">
-              {(a.state === AGENT_STATES.stopped || (isMain && !enabled)) && <Button variant="primary" disabled={busy !== null} onClick={() => void start(a.name)}>Start</Button>}
+              {a.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy !== null} onClick={() => void start(a.name)}>Start</Button>}
               {a.state === AGENT_STATES.starting && <Button data-stop-start={a.name} onClick={() => void cancelStart(a.name)}>Stop</Button>}
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}

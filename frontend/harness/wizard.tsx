@@ -141,10 +141,12 @@ const harnesses = [
 const step = Number(location.hash.replace("#", "").split("-")[0]) || 0;
 const keySaved = suffix === "saved" || keyOnly || (step === 7 && !nothing);
 
-// The persistent agents the Agents step lists: the Helper never started,
-// the Assistant off (on in #4-assistant) and the Coding agent off. A switch
-// answers the agent as Go would, and the Coding agent's tile, in
-// #4-coderno, answers as a No in its dialog does: still off.
+// The persistent agents the Agents step lists: the Helper off, the
+// Assistant off (on in #4-assistant) and the Coding agent off. A switch
+// answers the agent as Go would: the Assistant turned on turns the Helper
+// off, and the Helper is refused while the Assistant is on. The Coding
+// agent's tile, in #4-coderno, answers as a No in its dialog does: still
+// off.
 const agentView = (name: string, title: string, on: boolean, share: string) => ({
   name, title, displayName: title, state: on ? "stopped" : "disabled", share: `/home/me/agentry/${share}`, runOnStart: false,
   lifetime: { userTurns: 0, totalTokens: 0 }, roster: [], servers: [], knowledge: [], defaultShare: true,
@@ -166,6 +168,8 @@ g.go = { app: {
   PersistentAPI: {
     List: async () => Object.values(wizardAgents),
     SetEnabled: async (name: string, on: boolean) => {
+      if (name === "main" && on && wizardAgents.assistant.state !== "disabled") throw new Error("can't turn Agentry Helper on while the Assistant is on");
+      if (name === "assistant" && on) wizardAgents.main = { ...wizardAgents.main, state: "disabled" };
       if (!(name === "coder" && on && suffix === "coderno")) wizardAgents[name] = { ...wizardAgents[name], state: on ? "stopped" : "disabled" };
       return wizardAgents[name];
     },

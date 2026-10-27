@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import type { app } from "../../wailsjs/go/models";
 import { ConfigIcon } from "../configGlyphs";
-import { isOn, tilesFor, type AgentTile } from "../homeAgent";
+import { HELPER_SUPERSEDED_LINE, helperSuperseded, isOn, tilesFor, type AgentTile } from "../homeAgent";
 import { tileAfterKey } from "../providerForm";
 import { AGENT_STATES, MAIN_AGENT } from "../persistentAgents";
 import { Mark } from "../ui";
@@ -16,8 +16,10 @@ function TileGlyph({ glyph }: { glyph: AgentTile["glyph"] }) {
  *  glyph, the agent's name and one line on what it does.
  *
  *  "toggle" (the Welcome's Agents step) makes each tile a switch
- *  (aria-pressed) that turns its agent on or off; Agentry Helper's is always
- *  on and held, and a running agent's is held until it stops. A tile that is on shows "Start when Agentry starts" under it.
+ *  (aria-pressed) that turns its agent on or off; a running agent's is held
+ *  until it stops. A tile that is on shows "Start when Agentry starts" under
+ *  it. In either mode Agentry Helper's tile is held off, saying why, while
+ *  the Assistant is on, and the Assistant's carries a Recommended mark.
  *  "pick" (Settings → Home) makes the tiles one radio group, the agent Home's
  *  card runs: the arrows, Home and End move the choice as a radio group's
  *  do, and Tab reaches the chosen tile. */
@@ -32,6 +34,7 @@ export function AgentTiles(props: {
   const { agents, label, busy } = props;
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
   const tiles = tilesFor(agents);
+  const superseded = helperSuperseded(agents);
   const ids = tiles.map((t) => t.name);
   const labelId = `agent-tiles-${props.mode}`;
 
@@ -52,10 +55,12 @@ export function AgentTiles(props: {
         {tiles.map((t) => {
           const a = agents.find((x) => x.name === t.name)!;
           const on = props.mode === "pick" ? props.value === t.name : isOn(a);
-          // Agentry Helper's tile is held on; so is an agent's that is
-          // running, starting or running elsewhere, as Settings holds its
-          // switch: it is stopped before it is turned off.
-          const held = props.mode === "toggle" && (t.name === MAIN_AGENT || BUSY_STATES.has(a.state));
+          // An agent's tile is held while it is running, starting or
+          // running elsewhere, as Settings holds its switch: it is stopped
+          // before it is turned off. Agentry Helper's is held off while the
+          // Assistant is on, which Go would refuse.
+          const blocked = t.name === MAIN_AGENT && superseded && !on;
+          const held = blocked || (props.mode === "toggle" && BUSY_STATES.has(a.state));
           const tile = (
             <button
               key={t.name}
@@ -79,7 +84,8 @@ export function AgentTiles(props: {
             >
               <TileGlyph glyph={t.glyph} />
               <span className="provider-tile-name">{t.title}</span>
-              <span className="provider-tile-offer" id={`agent-tile-line-${props.mode}-${t.name}`}>{t.line}</span>
+              {t.recommended && <span className="badge kind" data-agent-recommended>Recommended</span>}
+              <span className="provider-tile-offer" id={`agent-tile-line-${props.mode}-${t.name}`}>{blocked ? HELPER_SUPERSEDED_LINE : t.line}</span>
             </button>
           );
           if (props.mode === "pick") return tile;

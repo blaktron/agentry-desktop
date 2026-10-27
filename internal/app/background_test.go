@@ -69,17 +69,23 @@ func TestWithNoBackgroundAgentTheCloseQuits(t *testing.T) {
 }
 
 // With the Assistant enabled, the window's close hides the window, starts
-// the tray, stops Main, and says so once; the person's quit is a quit.
+// the tray, stops Main, and says so once; the person's quit is a quit. Main
+// runs beside the Assistant only when the Assistant is enabled while Main
+// runs, as the CLI's agentry agent enable does.
 func TestTheCloseHidesWhileABackgroundAgentIsEnabledAndQuitQuits(t *testing.T) {
 	r := newBGRig(t)
-	if _, err := r.p.SetEnabled("assistant", true); err != nil {
+	if _, err := r.p.SetEnabled(mainAgent, true); err != nil {
 		t.Fatal(err)
-	}
-	if r.trays == 0 {
-		t.Fatal("enabling the Assistant started no tray")
 	}
 	if _, err := r.p.Start(mainAgent); err != nil {
 		t.Fatal(err)
+	}
+	if err := persistent.SaveConfig(r.home, assistantAgent, persistent.Config{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	r.p.stateChanged(assistantAgent)
+	if r.trays == 0 {
+		t.Fatal("enabling the Assistant started no tray")
 	}
 	for range 2 {
 		if prevent := r.s.BeforeClose(context.Background()); !prevent {
