@@ -341,6 +341,7 @@ Transcript of a meeting in the room, produced automatically on this computer fro
 
 func TestAMicrophoneThatChangesWhileRecordingIsSaid(t *testing.T) {
 	h := newHarness(t)
+	h.rec.reportsOnly = true
 	h.rec.micName = "USB Speakerphone"
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
 	mt, err := h.m.RecordRoom(context.Background())

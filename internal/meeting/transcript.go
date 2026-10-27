@@ -130,6 +130,38 @@ type Gap struct {
 	Reason string
 }
 
+// MicChangeRecord is a MicChange on the recording's timeline: At is from
+// the start of the recording.
+type MicChangeRecord struct {
+	At   time.Duration `json:"at"`
+	Lost string        `json:"lost,omitempty"`
+	Now  string        `json:"now,omitempty"`
+}
+
+// micGapReason is the reason of a gap with no microphone read.
+const micGapReason = "microphone disconnected"
+
+// micGaps are the stretches with no microphone read: from a change that
+// leaves none to the next that reads one, or to end.
+func micGaps(changes []MicChangeRecord, end time.Duration) []Gap {
+	var out []Gap
+	open := false
+	var from time.Duration
+	for _, c := range changes {
+		switch {
+		case c.Now == "" && !open:
+			open, from = true, c.At
+		case c.Now != "" && open:
+			out = append(out, Gap{From: from, To: c.At, Reason: micGapReason})
+			open = false
+		}
+	}
+	if open {
+		out = append(out, Gap{From: from, To: end, Reason: micGapReason})
+	}
+	return out
+}
+
 // TranscriptInfo is what the transcript's frontmatter says about the
 // meeting.
 type TranscriptInfo struct {
@@ -155,6 +187,9 @@ type TranscriptInfo struct {
 	InRoom     bool
 	Microphone string
 	MicMissing bool
+	// MicChanges are the microphone's changes during the recording, said
+	// one sentence each.
+	MicChanges []MicChangeRecord
 }
 
 type frontSpeaker struct {
@@ -271,6 +306,9 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 	if info.MicMissing {
 		b.WriteString("\nThe microphone chosen in the settings was not found, so the default microphone was recorded.\n")
 	}
+	if s := micChangeSentences(info.MicChanges); s != "" {
+		b.WriteString("\n" + s + "\n")
+	}
 	switch info.FarSide {
 	case FarSideWholeDevice:
 		b.WriteString("\nNo meeting app was found to record on its own, so \"Them\" is everything the computer played, other sounds included.\n")
@@ -285,6 +323,24 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		fmt.Fprintf(&b, "[%s] %s: %s\n", clock(l.Start), l.Label, oneLine(l.Text))
 	}
 	return []byte(b.String()), nil
+}
+
+// micChangeSentences says what happened to the microphone during the
+// recording, one sentence per change, "" when nothing did.
+func micChangeSentences(changes []MicChangeRecord) string {
+	var out []string
+	for _, c := range changes {
+		at := "At [" + clock(c.At) + "] "
+		switch {
+		case c.Lost != "" && c.Now != "":
+			out = append(out, at+oneLine(c.Lost)+" was disconnected, and "+oneLine(c.Now)+" was recorded instead.")
+		case c.Lost != "":
+			out = append(out, at+oneLine(c.Lost)+" was disconnected, and no other microphone could be read: nothing was recorded from a microphone until one could be (see gaps).")
+		case c.Now != "":
+			out = append(out, at+oneLine(c.Now)+" was recorded from then on.")
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // zoneName is the time zone's IANA name where the system says it ("Local"

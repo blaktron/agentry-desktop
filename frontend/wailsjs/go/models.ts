@@ -2593,6 +2593,8 @@ export namespace app {
 	    inRoom: boolean;
 	    microphone?: string;
 	    micMissing: boolean;
+	    micLost?: string;
+	    micNone: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingRecordingView(source);
@@ -2613,6 +2615,8 @@ export namespace app {
 	        this.inRoom = source["inRoom"];
 	        this.microphone = source["microphone"];
 	        this.micMissing = source["micMissing"];
+	        this.micLost = source["micLost"];
+	        this.micNone = source["micNone"];
 	    }
 	}
 	export class MeetingNotesView {

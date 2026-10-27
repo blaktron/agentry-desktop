@@ -65,6 +65,10 @@ type Meeting struct {
 	// default was recorded.
 	Microphone string `json:"microphone,omitempty"`
 	MicMissing bool   `json:"micMissing,omitempty"`
+	// MicChanges are the changes of the microphone read after the start,
+	// where the recording read one of its own: one that went away, and
+	// what was read instead.
+	MicChanges []MicChangeRecord `json:"micChanges,omitempty"`
 	// Shared is the transcript's copy in the Assistant's share folder, ""
 	// until it is copied there.
 	Shared string `json:"shared,omitempty"`

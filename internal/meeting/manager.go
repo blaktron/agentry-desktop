@@ -1,12 +1,14 @@
 package meeting
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 )
@@ -82,6 +84,7 @@ const (
 	tagRecording = "meeting-recording"
 	tagOffer     = "meeting-offer"
 	tagQuiet     = "meeting-quiet"
+	tagMic       = "meeting-mic"
 )
 
 // How says how a recording started.
@@ -193,6 +196,11 @@ type RecordingStatus struct {
 	// MicMissing that the one chosen was missing so the default is.
 	Microphone string `json:"microphone,omitempty"`
 	MicMissing bool   `json:"micMissing,omitempty"`
+	// MicLost is the microphone that went away during the recording and
+	// is not read again, "" for none; MicNone says no microphone is read
+	// now because of it.
+	MicLost string `json:"micLost,omitempty"`
+	MicNone bool   `json:"micNone,omitempty"`
 }
 
 // Status is the feature's state as a page shows it.
@@ -242,6 +250,8 @@ type recording struct {
 	quietFrom  time.Time
 	quietAsked bool
 	askedAt    time.Time
+	// micSeen is how many of the capture's microphone changes were said.
+	micSeen int
 }
 
 func (m *Manager) now() time.Time {
@@ -400,6 +410,7 @@ func (r *recording) status() *RecordingStatus {
 		ID: r.m.ID, Started: r.m.Started, App: r.m.App, FarSide: r.m.FarSide, Paused: r.paused, How: r.how, Warning: r.warning,
 		Microphone: r.m.Microphone, MicMissing: r.m.MicMissing,
 	}
+	st.MicLost, st.MicNone = micState(r.m.MicChanges)
 	if r.window != "" {
 		st.Title = r.m.Title
 	}
@@ -695,13 +706,33 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 				r.m.FarSide = FarSideWholeDevice
 				_ = m.store().Save(r.m)
 			}
-			// A microphone that changes while recording (an audio child
-			// started again on another one) is said, never taken silently.
+			// A microphone that goes away, or another taken up in its
+			// place, is said, and kept for the transcript.
+			var micNews []MicChangeRecord
+			if mf, ok := capture.(MicFollower); ok {
+				changes := mf.MicChanges()
+				for _, c := range changes[min(r.micSeen, len(changes)):] {
+					rec := MicChangeRecord{At: c.At.Sub(r.m.Started), Lost: c.Lost, Now: c.Now}
+					r.m.MicChanges = append(r.m.MicChanges, rec)
+					micNews = append(micNews, rec)
+					if c.Now != "" {
+						r.m.Microphone = c.Now
+					}
+				}
+				r.micSeen = len(changes)
+				if len(micNews) > 0 {
+					_ = m.store().Save(r.m)
+				}
+			}
+			// A microphone that changes while recording is said, never
+			// taken silently: by its change where the capture keeps them,
+			// otherwise when the microphone it reports changes.
 			var micChanged bool
+			_, follows := capture.(MicFollower)
 			if mr, ok := capture.(MicReporter); ok {
 				name, missing := mr.Microphone()
 				if name != r.m.Microphone || missing != r.m.MicMissing {
-					micChanged = r.m.Microphone != "" || missing
+					micChanged = !follows && (r.m.Microphone != "" || missing)
 					r.m.Microphone, r.m.MicMissing = name, missing
 					_ = m.store().Save(r.m)
 				}
@@ -741,6 +772,17 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 				_ = m.announce(r)
 				m.changed()
 			}
+			for i, c := range micNews {
+				before := r.m.MicChanges[:len(r.m.MicChanges)-len(micNews)+i]
+				n := micChangeNotice(c, before)
+				if c.Lost == "" && c.Now != "" && r.m.MicMissing {
+					n.Body += " " + micMissingSentence
+				}
+				_ = m.notify(n)
+			}
+			if len(micNews) > 0 {
+				m.changed()
+			}
 			if micChanged {
 				name, missing := capture.(MicReporter).Microphone()
 				body := "Agentry now records " + micWords(name) + "."
@@ -753,6 +795,44 @@ func (m *Manager) follow(ctx context.Context, r *recording, capture Capture) {
 			}
 		}
 	}
+}
+
+// micChangeNotice says one change of the microphone read: one that went
+// away, and what is read instead or that nothing is; or, after that, the
+// microphone read from now on. before are the changes that came before c.
+func micChangeNotice(c MicChangeRecord, before []MicChangeRecord) Notice {
+	n := Notice{Tag: tagMic}
+	switch {
+	case c.Lost != "" && c.Now != "":
+		n.Title = "Microphone disconnected"
+		n.Body = c.Lost + " was disconnected, so Agentry now records " + c.Now + " instead."
+	case c.Lost != "":
+		n.Title = "Microphone disconnected"
+		n.Body = c.Lost + " was disconnected and no other microphone could be read, so nothing is recorded from a microphone until one can be. The transcript marks the gap."
+	case c.Now != "":
+		n.Title = "Recording another microphone"
+		n.Body = "Agentry now records " + c.Now + "."
+		if lost, _ := micState(before); lost == c.Now {
+			n.Title = "Microphone connected again"
+			n.Body = c.Now + " is connected again, and Agentry records it."
+		}
+	}
+	return n
+}
+
+// micState is what the changes leave: the microphone that went away and
+// is not read again ("" for none), and whether none is read now.
+func micState(changes []MicChangeRecord) (lost string, none bool) {
+	for _, c := range changes {
+		if c.Lost != "" {
+			lost = c.Lost
+		}
+		if c.Now == lost {
+			lost = ""
+		}
+		none = c.Now == ""
+	}
+	return lost, none
 }
 
 // quietLocked follows a meeting in the room's silence: ask is set when it
@@ -915,6 +995,8 @@ func (m *Manager) finish(r *recording, transcribe bool) error {
 		r.m.Gaps = append(r.m.Gaps, Gap{From: r.pausedAt, To: now.Sub(r.m.Started), Reason: "paused"})
 	}
 	r.m.Ended = now
+	r.m.Gaps = append(r.m.Gaps, micGaps(r.m.MicChanges, now.Sub(r.m.Started))...)
+	slices.SortStableFunc(r.m.Gaps, func(a, b Gap) int { return cmp.Compare(a.From, b.From) })
 	for i, t := range r.tracks {
 		t.End()
 		r.m.Tracks[i].Silent = t.Silent()
@@ -1175,6 +1257,7 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		Language: lang, Profile: profile.ID, Model: model, Gaps: mt.Gaps,
 		FromCalendar: mt.Window != "", Participants: mt.Invitees,
 		InRoom: inRoom, Microphone: mt.Microphone, MicMissing: mt.MicMissing,
+		MicChanges: mt.MicChanges,
 	}
 	for _, l := range []Label{Me, Them, Room} {
 		if on, ok := silent[l]; ok && on {

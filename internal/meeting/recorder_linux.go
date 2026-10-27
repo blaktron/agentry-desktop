@@ -28,7 +28,10 @@ func NewRecorder() Recorder { return PulseRecorder{} }
 // microphone stops being recorded at once. With no call it records the
 // chosen microphone (the default when none is chosen or it is missing) and
 // the monitor of the default output, the whole device, and says so. A
-// meeting in the room records the chosen microphone alone.
+// meeting in the room records the chosen microphone alone. Where the
+// recording reads a microphone of its own like this, one that goes away
+// gives way to the default at once and is taken up again when it is back
+// (micFollow), and each change is said.
 type PulseRecorder struct {
 	// Server is the server to connect to; "" for the session's own.
 	Server string
@@ -154,6 +157,13 @@ type pulseCapture struct {
 	// description, and micMissing that the one chosen was missing.
 	micName    string
 	micMissing bool
+	// own is the record stream of the microphone a recording with no app
+	// reads, nil while none is read, and follow which one it reads.
+	own    *paRecord
+	follow micFollow
+	// killed are our record streams the server killed: their device went
+	// away. The callback writes it, so it is not under mu.
+	killed sync.Map
 
 	changed chan struct{}
 	done    chan struct{}
@@ -183,7 +193,10 @@ func (p *pulseCapture) callback(msg any) {
 		if t, ok := p.streams.Load(m.StreamIndex); ok {
 			t.(Track).Write(int16s(m.Data))
 		}
-	case *proto.SubscribeEvent, *proto.RecordStreamKilled:
+	case *proto.RecordStreamKilled:
+		p.killed.Store(m.StreamIndex, true)
+		p.poke()
+	case *proto.SubscribeEvent:
 		p.poke()
 	case *proto.ConnectionClosed:
 		p.poke()
@@ -210,10 +223,12 @@ func (p *pulseCapture) watch(ctx context.Context) {
 		case <-p.changed:
 		case <-tick.C:
 		}
-		// A recording of the whole devices has no app to follow. One that
-		// follows an app goes on following it after part of its far side
-		// widened to its sink's monitor, so it still ends with the call.
+		// A recording of the whole devices, or of a room, has no app to
+		// follow, only its microphone. One that follows an app goes on
+		// following it after part of its far side widened to its sink's
+		// monitor, so it still ends with the call.
 		if p.call.PID == "" {
+			p.followMic(time.Now())
 			continue
 		}
 		snap, err := p.list()
@@ -255,7 +270,7 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 			}
 			p.micTrack = t
 		}
-		rec, err := p.openLocked(p.micTrack, o.Device, "", proto.Undefined, "Agentry meeting notes (microphone)")
+		rec, err := p.openLocked(p.micTrack, o.Device, "", proto.Undefined, "Agentry meeting notes (microphone)", false)
 		if err != nil {
 			return err
 		}
@@ -284,7 +299,7 @@ func (p *pulseCapture) reconcile(s paSnapshot) error {
 				return err
 			}
 		}
-		rec, err := p.openLocked(t, mon, "", in.Index, "Agentry meeting notes ("+in.App+")")
+		rec, err := p.openLocked(t, mon, "", in.Index, "Agentry meeting notes ("+in.App+")", false)
 		if err != nil {
 			// An app corks and drops streams as a call settles, so a
 			// stream that could not be recorded widens the recording only
@@ -379,7 +394,7 @@ func (p *pulseCapture) recordMonitorLocked(sink, mon uint32) error {
 		}
 		p.monitorTracks[sink] = t
 	}
-	rec, err := p.openLocked(t, mon, "", proto.Undefined, "Agentry meeting notes (output)")
+	rec, err := p.openLocked(t, mon, "", proto.Undefined, "Agentry meeting notes (output)", false)
 	if err != nil {
 		return err
 	}
@@ -401,12 +416,74 @@ func (p *pulseCapture) recordRoom(chosen string) error {
 		return err
 	}
 	p.micTrack = t
-	rec, err := p.openLocked(t, proto.Undefined, src, proto.Undefined, "Agentry meeting notes (microphone)")
+	return p.openOwnLocked(src)
+}
+
+// micStreamName is how our microphone stream is listed.
+const micStreamName = "Agentry meeting notes (microphone)"
+
+// openOwnLocked opens the microphone a recording with no app reads, by
+// source name. The stream is never moved by the server: a microphone that
+// goes away kills it, and followMic decides what is read next.
+func (p *pulseCapture) openOwnLocked(src string) error {
+	rec, err := p.openLocked(p.micTrack, proto.Undefined, src, proto.Undefined, micStreamName, true)
 	if err != nil {
 		return err
 	}
-	p.whole = append(p.whole, rec)
+	p.own = rec
 	return nil
+}
+
+// followMic keeps a recording that reads a microphone of its own on one:
+// a stream the server killed, or a microphone no longer listed, is a loss;
+// then the one micFollow names is read, and each change is kept for the
+// recording to say.
+func (p *pulseCapture) followMic(now time.Time) {
+	var info proto.GetServerInfoReply
+	if p.c.Request(&proto.GetServerInfo{}, &info) != nil {
+		return
+	}
+	mics, err := listMics(p.c)
+	if err != nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped || p.micTrack == nil {
+		return
+	}
+	dead := false
+	if p.own != nil {
+		_, dead = p.killed.Load(p.own.stream)
+	}
+	gone, id, name := p.follow.look(mics, info.DefaultSourceName, now)
+	if p.own != nil && (dead || gone) {
+		p.dropLocked(p.own)
+		p.own = nil
+	}
+	if id == "" || (id == p.follow.id && p.own != nil) {
+		return
+	}
+	// The next is open before the one read is let go, so a microphone not
+	// readable yet (one just plugged in) leaves the one read, and is tried
+	// again at the next look.
+	old := p.own
+	if err := p.openOwnLocked(id); err != nil {
+		p.own = old
+		return
+	}
+	if old != nil {
+		p.dropLocked(old)
+	}
+	p.follow.reading(id, name, now)
+	p.micName = name
+}
+
+// MicChanges is each change of the microphone read, after the start.
+func (p *pulseCapture) MicChanges() []MicChange {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.follow.list()
 }
 
 // chooseMic is the source a recording with no app reads: the chosen one
@@ -426,6 +503,11 @@ func (p *pulseCapture) chooseMic(chosen string) (string, error) {
 	}
 	p.mu.Lock()
 	p.micName, p.micMissing = name, missing
+	// The microphone it starts on is kept, chosen or the default: a new
+	// default never moves it, and it is taken up again if it goes away and
+	// comes back.
+	p.follow.pinned = id
+	p.follow.started(id, name)
 	p.mu.Unlock()
 	return id, nil
 }
@@ -489,16 +571,14 @@ func (p *pulseCapture) recordWholeDevice(chosen string) error {
 		return err
 	}
 	p.micTrack = mic
-	rec, err := p.openLocked(mic, proto.Undefined, src, proto.Undefined, "Agentry meeting notes (microphone)")
-	if err != nil {
+	if err := p.openOwnLocked(src); err != nil {
 		return err
 	}
-	p.whole = append(p.whole, rec)
 	far, err := p.tracks.Open(Them, "far-device")
 	if err != nil {
 		return err
 	}
-	rec, err = p.openLocked(far, proto.Undefined, info.DefaultSinkName+".monitor", proto.Undefined, "Agentry meeting notes (output)")
+	rec, err := p.openLocked(far, proto.Undefined, info.DefaultSinkName+".monitor", proto.Undefined, "Agentry meeting notes (output)", false)
 	if err != nil {
 		return err
 	}
@@ -508,8 +588,9 @@ func (p *pulseCapture) recordWholeDevice(chosen string) error {
 
 // openLocked asks for a record stream: 16 kHz mono in 100 ms pieces, from
 // a source by index or name, tied to one playback stream when direct is
-// set. It starts corked while the recording is paused.
-func (p *pulseCapture) openLocked(t Track, source uint32, sourceName string, direct uint32, name string) (*paRecord, error) {
+// set; pin keeps it on its source, killed rather than moved when the
+// source goes. It starts corked while the recording is paused.
+func (p *pulseCapture) openLocked(t Track, source uint32, sourceName string, direct uint32, name string, pin bool) (*paRecord, error) {
 	req := proto.CreateRecordStream{
 		SampleSpec:         proto.SampleSpec{Format: proto.FormatInt16LE, Channels: 1, Rate: SampleRate},
 		ChannelMap:         proto.ChannelMap{proto.ChannelMono},
@@ -520,9 +601,11 @@ func (p *pulseCapture) openLocked(t Track, source uint32, sourceName string, dir
 		AdjustLatency:      true,
 		Corked:             p.paused,
 		DirectOnInputIndex: direct,
-		NoMove:             direct != proto.Undefined,
-		Properties:         proto.PropList{"media.name": proto.PropListString(name)},
-		ChannelVolumes:     proto.ChannelVolumes{0x10000},
+		// A stream tied to a playback stream, or our own microphone, is
+		// never moved onto another device: the recording decides.
+		NoMove:         direct != proto.Undefined || pin,
+		Properties:     proto.PropList{"media.name": proto.PropListString(name)},
+		ChannelVolumes: proto.ChannelVolumes{0x10000},
 	}
 	var reply proto.CreateRecordStreamReply
 	if err := p.c.Request(&req, &reply); err != nil {
@@ -536,11 +619,15 @@ func (p *pulseCapture) openLocked(t Track, source uint32, sourceName string, dir
 // dropLocked deletes our record stream; its track stays open.
 func (p *pulseCapture) dropLocked(rec *paRecord) {
 	p.streams.Delete(rec.stream)
+	p.killed.Delete(rec.stream)
 	_ = p.c.Request(&proto.DeleteRecordStream{StreamIndex: rec.stream}, nil)
 }
 
 func (p *pulseCapture) allLocked() []*paRecord {
 	out := append([]*paRecord(nil), p.whole...)
+	if p.own != nil {
+		out = append(out, p.own)
+	}
 	if p.mic != nil {
 		out = append(out, p.mic)
 	}
@@ -598,7 +685,7 @@ func (p *pulseCapture) stopAll() {
 	for _, t := range p.waiting {
 		t.End()
 	}
-	p.mic, p.whole, p.farByInput, p.monitors = nil, nil, map[uint32]*paRecord{}, map[uint32]*paRecord{}
+	p.mic, p.own, p.whole, p.farByInput, p.monitors = nil, nil, nil, map[uint32]*paRecord{}, map[uint32]*paRecord{}
 	p.mu.Unlock()
 	close(p.done)
 	_ = p.conn.Close()
