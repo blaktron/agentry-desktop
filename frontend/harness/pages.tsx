@@ -818,8 +818,6 @@ const harnessMain = {
 if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state = "disabled";
 
 g.go = { app: {
-  // Meeting notes: not recorded on this computer, so Home draws no card.
-  MeetingAPI: { Status: async () => ({ available: false }) },
   ScheduleAPI: {
     // The agentry command's card in Settings: not offered off macOS.
     CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }),
