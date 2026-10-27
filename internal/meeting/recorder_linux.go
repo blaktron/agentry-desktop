@@ -438,6 +438,14 @@ func (r PulseRecorder) Microphones() ([]Microphone, error) {
 	}
 	defer func() { _ = conn.Close() }()
 	c.SetTimeout(5 * time.Second)
+	// The server answers nothing else before the client has a name.
+	props := proto.PropList{
+		"application.name":       proto.PropListString("Agentry Desktop"),
+		"application.process.id": proto.PropListString(strconv.Itoa(os.Getpid())),
+	}
+	if err := c.Request(&proto.SetClientName{Props: props}, &proto.SetClientNameReply{}); err != nil {
+		return nil, fmt.Errorf("the audio system refused the connection: %w", err)
+	}
 	return listMics(c)
 }
 
