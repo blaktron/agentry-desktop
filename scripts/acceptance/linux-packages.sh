@@ -68,6 +68,9 @@ cp THIRD_PARTY_NOTICES "$stage/THIRD_PARTY_NOTICES"
 # The transcriber the packages carry when the build has one (build/whisper):
 # /usr/lib/agentry-desktop/whisper must be it.
 [ ! -f build/whisper/whisper-cli-linux-amd64/whisper-cli ] || cp -a build/whisper/whisper-cli-linux-amd64 "$stage/whisper"
+# The speaker separation the packages carry when the build has it
+# (build/diarize): /usr/lib/agentry-desktop/diarize must be it.
+[ ! -f build/diarize/diarize-linux-amd64/sherpa-onnx-offline-speaker-diarization ] || cp -a build/diarize/diarize-linux-amd64 "$stage/diarize"
 
 # The part every container runs after installing the previous package.
 # $1 is the family (deb or rpm); $2 is "strict" where the owners check runs.
@@ -123,8 +126,8 @@ desktop-file-validate /usr/share/applications/agentry-desktop.desktop || fail "t
 cmp /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES /pkg/THIRD_PARTY_NOTICES || fail "the package's third-party notices are missing or differ from THIRD_PARTY_NOTICES"
 if printf '%s\n' "$files" | grep -E '^/(home|root)(/|$)'; then fail "the package owns something under a home directory"; fi
 owned='^/usr$|^/usr/(bin|share)(/|$)'
-[ ! -d /pkg/whisper ] || owned+='|^/usr/lib$|^/usr/lib/agentry-desktop(/|$)'
-if printf '%s\n' "$files" | grep -v -E "$owned"; then fail "the package owns something outside /usr/bin, /usr/share and its transcriber's folder"; fi
+[ ! -d /pkg/whisper ] && [ ! -d /pkg/diarize ] || owned+='|^/usr/lib$|^/usr/lib/agentry-desktop(/|$)'
+if printf '%s\n' "$files" | grep -v -E "$owned"; then fail "the package owns something outside /usr/bin, /usr/share and its sidecars' folder"; fi
 [ -z "$scripts" ] || fail "the package carries maintainer scripts or triggers: $scripts"
 echo "ok ($fam): owns $(printf '%s\n' "$files" | grep -c -v -E '/$') paths under /usr, no scripts, valid desktop entry"
 
@@ -155,8 +158,21 @@ if [ -d /pkg/whisper ]; then
   "$side/whisper-cli" --help >/tmp/whisper.out 2>&1 || { tail -5 /tmp/whisper.out >&2; fail "whisper-cli does not run"; }
   echo "ok ($fam): $side is the carried transcriber, and whisper-cli runs"
 else
-  [ ! -e /usr/lib/agentry-desktop ] || fail "the package carries a transcriber but the build carried none"
+  [ ! -e "$side" ] || fail "the package carries a transcriber but the build carried none"
 fi
+
+# 2d. The speaker separation, when the build carries it: the folder holds
+#     exactly the build's program, which runs; without it, there is none.
+dside=/usr/lib/agentry-desktop/diarize
+if [ -d /pkg/diarize ]; then
+  [ "$(ls -A "$dside")" = sherpa-onnx-offline-speaker-diarization ] || fail "$dside holds more than the program: $(ls -A "$dside" | tr '\n' ' ')"
+  cmp "$dside/sherpa-onnx-offline-speaker-diarization" /pkg/diarize/sherpa-onnx-offline-speaker-diarization || fail "$dside differs from the speaker separation the build carried"
+  "$dside/sherpa-onnx-offline-speaker-diarization" --help >/tmp/diarize.out 2>&1 || { tail -5 /tmp/diarize.out >&2; fail "the speaker separation does not run"; }
+  echo "ok ($fam): $dside is the carried speaker separation, and it runs"
+else
+  [ ! -e "$dside" ] || fail "the package carries a speaker separation but the build carried none"
+fi
+[ -d /pkg/whisper ] || [ -d /pkg/diarize ] || [ ! -e /usr/lib/agentry-desktop ] || fail "the package carries /usr/lib/agentry-desktop but the build carried no sidecar"
 
 # 3. The same binary as the bare artifact.
 cmp "$bin" /pkg/agentry-desktop.bin || fail "the installed binary differs from the bare artifact"

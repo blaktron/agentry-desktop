@@ -166,8 +166,16 @@ package-darwin: build-darwin wrap-darwin
 # its own identifier, so it is never re-signed, and the bundle's seal covers
 # it. wrap-darwin reads it back with --whisper. Without it (a PR build) the
 # app offers no Meeting notes.
+#
+# Meeting notes' speaker separation: when build/diarize holds the darwin
+# sidecar (diarize-darwin/sherpa-onnx-offline-speaker-diarization, one
+# universal binary, signed and notarized as a release unpacks it),
+# build-darwin carries it as Contents/Resources/diarize the same way, and
+# wrap-darwin reads it back with --diarize.
 DARWIN_APP := build/bin/agentry-desktop.app
 DARWIN_WHISPER := build/whisper/whisper-cli-darwin
+DARWIN_DIARIZE := build/diarize/diarize-darwin
+DIARIZE_PROGRAM := sherpa-onnx-offline-speaker-diarization
 
 build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
@@ -182,6 +190,10 @@ ifneq ($(wildcard $(DARWIN_WHISPER)/whisper-cli),)
 	install -d $(DARWIN_APP)/Contents/Resources/whisper
 	install -m 0755 $(DARWIN_WHISPER)/whisper-cli $(DARWIN_APP)/Contents/Resources/whisper/whisper-cli
 endif
+ifneq ($(wildcard $(DARWIN_DIARIZE)/$(DIARIZE_PROGRAM)),)
+	install -d $(DARWIN_APP)/Contents/Resources/diarize
+	install -m 0755 $(DARWIN_DIARIZE)/$(DIARIZE_PROGRAM) $(DARWIN_APP)/Contents/Resources/diarize/$(DIARIZE_PROGRAM)
+endif
 	codesign --force --sign - $(DARWIN_APP)
 	codesign --verify --deep --strict $(DARWIN_APP)
 
@@ -189,7 +201,7 @@ wrap-darwin:
 	rm -f build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 	scripts/package-darwin-dmg.sh $(DARWIN_APP) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
-	scripts/check-darwin-dmg.sh $(if $(wildcard build/cli/agentry-darwin),--cli build/cli/agentry-darwin,) $(if $(wildcard $(DARWIN_WHISPER)/whisper-cli),--whisper $(DARWIN_WHISPER),) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg $(DARWIN_APP)
+	scripts/check-darwin-dmg.sh $(if $(wildcard build/cli/agentry-darwin),--cli build/cli/agentry-darwin,) $(if $(wildcard $(DARWIN_WHISPER)/whisper-cli),--whisper $(DARWIN_WHISPER),) $(if $(wildcard $(DARWIN_DIARIZE)/$(DIARIZE_PROGRAM)),--diarize $(DARWIN_DIARIZE),) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg $(DARWIN_APP)
 
 # Drags the dmg's bundle onto a temporary Applications folder over a copy
 # that is already there and proves the person's configuration and sign-in
@@ -244,7 +256,10 @@ smoke-darwin-selfupdate:
 # unpacks them), the installer carries the Windows one into
 # $INSTDIR\bin\whisper, the Linux packages carry the Linux one in
 # /usr/lib/agentry-desktop/whisper, and the checks read them back. Without
-# it (a PR build) the app offers no Meeting notes.
+# it (a PR build) the app offers no Meeting notes. The speaker-separation
+# sidecar in build/diarize (diarize-windows-amd64 and diarize-linux-amd64)
+# goes the same way, into $INSTDIR\bin\diarize and
+# /usr/lib/agentry-desktop/diarize, read back with --diarize.
 package-windows: build-windows sign-windows finish-windows
 
 build-windows:
@@ -260,7 +275,7 @@ finish-windows:
 	cp THIRD_PARTY_NOTICES build/bin/THIRD_PARTY_NOTICES.txt
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe THIRD_PARTY_NOTICES.txt
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
-	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) $(if $(wildcard build/whisper/whisper-cli-windows-amd64/whisper-cli.exe),--whisper build/whisper/whisper-cli-windows-amd64,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
+	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) $(if $(wildcard build/whisper/whisper-cli-windows-amd64/whisper-cli.exe),--whisper build/whisper/whisper-cli-windows-amd64,) $(if $(wildcard build/diarize/diarize-windows-amd64/$(DIARIZE_PROGRAM).exe),--diarize build/diarize/diarize-windows-amd64,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing

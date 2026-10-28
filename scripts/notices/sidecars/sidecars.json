@@ -1,0 +1,192 @@
+[
+  {
+    "sidecar": "whisper",
+    "name": "whisper.cpp",
+    "version": "v1.9.5",
+    "spdx": "MIT",
+    "file": "whisper.cpp-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "miniaudio",
+    "version": "v0.11.24",
+    "spdx": "Unlicense OR MIT-0",
+    "file": "miniaudio-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "stb_vorbis",
+    "version": "v1.22",
+    "spdx": "MIT OR Unlicense",
+    "file": "stb_vorbis-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "llamafile sgemm",
+    "version": "in whisper.cpp v1.9.5's ggml",
+    "spdx": "MIT",
+    "file": "llamafile-sgemm-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "YaRN",
+    "version": "in whisper.cpp v1.9.5's ggml",
+    "spdx": "MIT",
+    "file": "yarn-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "Arm optimized-routines (arm64)",
+    "version": "in whisper.cpp v1.9.5's ggml",
+    "spdx": "MIT OR Apache-2.0 WITH LLVM-exception",
+    "file": "arm-optimized-routines-LICENSE.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "Vulkan-Headers",
+    "version": "v1.4.366",
+    "spdx": "Apache-2.0 OR MIT",
+    "file": "Vulkan-Headers-LICENSE.md.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "Vulkan-Headers",
+    "version": "v1.4.366",
+    "spdx": "Apache-2.0",
+    "file": "Vulkan-Headers-LICENSES-Apache-2.0.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "Vulkan-Headers",
+    "version": "v1.4.366",
+    "spdx": "MIT",
+    "file": "Vulkan-Headers-LICENSES-MIT.txt"
+  },
+  {
+    "sidecar": "whisper",
+    "name": "Vulkan-Loader",
+    "version": "v1.4.366",
+    "spdx": "Apache-2.0",
+    "file": "Vulkan-Loader-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "sherpa-onnx",
+    "version": "v2.0.1",
+    "spdx": "Apache-2.0",
+    "file": "sherpa-onnx-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "ONNX Runtime",
+    "version": "v1.28.2",
+    "spdx": "MIT",
+    "file": "onnxruntime-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "ONNX Runtime's third-party notices",
+    "version": "v1.28.2",
+    "spdx": "each library's own",
+    "file": "onnxruntime-ThirdPartyNotices.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "kaldi-native-fbank",
+    "version": "v1.22.4",
+    "spdx": "Apache-2.0",
+    "file": "kaldi-native-fbank-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "kissfft",
+    "version": "febd4ca",
+    "spdx": "BSD-3-Clause",
+    "file": "kissfft-COPYING.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "kissfft",
+    "version": "febd4ca",
+    "spdx": "BSD-3-Clause",
+    "file": "kissfft-LICENSES-BSD-3-Clause.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "kaldi-decoder",
+    "version": "v0.3.0",
+    "spdx": "Apache-2.0",
+    "file": "kaldi-decoder-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "kaldifst",
+    "version": "v1.8.0",
+    "spdx": "Apache-2.0",
+    "file": "kaldifst-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "OpenFst",
+    "version": "v1.8.5-2026-07-09 (csukuangfj/openfst)",
+    "spdx": "Apache-2.0",
+    "file": "openfst-COPYING.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "hclust-cpp",
+    "version": "2026-02-25",
+    "spdx": "BSD-2-Clause",
+    "file": "hclust-cpp-LICENSE.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "utf8proc",
+    "version": "v2.12.0",
+    "spdx": "MIT AND Unicode-DFS-2015",
+    "file": "utf8proc-LICENSE.md.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "nlohmann/json",
+    "version": "v3.12.0",
+    "spdx": "MIT",
+    "file": "nlohmann-json-LICENSE.MIT.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "Eigen",
+    "version": "5.0.1",
+    "spdx": "MPL-2.0",
+    "file": "eigen-COPYING.MPL2.txt",
+    "note": "unmodified, under the Mozilla Public License 2.0; its source is at https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz, and the copy ONNX Runtime builds with at https://github.com/eigen-mirror/eigen/archive/1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip."
+  },
+  {
+    "sidecar": "diarize",
+    "name": "Eigen",
+    "version": "5.0.1",
+    "spdx": "which files carry which licence",
+    "file": "eigen-COPYING.README.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "Eigen",
+    "version": "5.0.1",
+    "spdx": "BSD-3-Clause",
+    "file": "eigen-COPYING.BSD.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "Eigen",
+    "version": "5.0.1",
+    "spdx": "MINPACK",
+    "file": "eigen-COPYING.MINPACK.txt"
+  },
+  {
+    "sidecar": "diarize",
+    "name": "Eigen",
+    "version": "5.0.1",
+    "spdx": "Apache-2.0",
+    "file": "eigen-COPYING.APACHE.txt"
+  }
+]

@@ -1,1 +1,2 @@
 build/windows/installer/LICENSE.txt -text
+internal/meeting/testdata/rooms/*.wav binary

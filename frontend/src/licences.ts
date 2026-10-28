@@ -18,6 +18,9 @@ export type Notices = {
 };
 
 const RULE = /^={20,}$/;
+// A section's title is numbered, as the contents list numbers it: a licence
+// text quoted in a section may frame its own headings with rules too.
+const TITLE = /^[0-9]+\. \S/;
 
 const trimBlank = (lines: string[]) => {
   let a = 0;
@@ -34,7 +37,7 @@ export function splitNotices(text: string): Notices {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const heads: { at: number; title: string }[] = [];
   for (let i = 0; i + 2 < lines.length; i++) {
-    if (RULE.test(lines[i]) && !RULE.test(lines[i + 1]) && lines[i + 1].trim() !== "" && RULE.test(lines[i + 2])) {
+    if (RULE.test(lines[i]) && TITLE.test(lines[i + 1].trim()) && RULE.test(lines[i + 2])) {
       heads.push({ at: i, title: lines[i + 1].trim() });
       i += 2;
     }
