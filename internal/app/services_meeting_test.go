@@ -547,14 +547,14 @@ func TestRecordInTheRoomAsksThenRecordsTheChosenMicrophone(t *testing.T) {
 		t.Fatalf("view: records rooms %v, mic %q, microphones %+v", v.RecordsRooms, v.Mic, v.Microphones)
 	}
 	ma.answer = false
-	if _, err := ma.api.RecordRoom(); !errors.Is(err, errNotConfirmed) {
+	if _, err := ma.api.RecordRoom(0); !errors.Is(err, errNotConfirmed) {
 		t.Fatalf("RecordRoom answered No: %v", err)
 	}
 	if n := ma.rec.count(); n != 0 {
 		t.Fatalf("a No recorded %d times", n)
 	}
 	ma.answer = true
-	v, err = ma.api.RecordRoom()
+	v, err = ma.api.RecordRoom(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +645,7 @@ func TestTheTrayOffersARoomAndShowsOne(t *testing.T) {
 	if m := last(); !m.CanRecordRoom || m.Recording {
 		t.Fatalf("the tray shows %+v with Meeting notes on and idle", m)
 	}
-	if _, err := ma.api.RecordRoom(); err != nil {
+	if _, err := ma.api.RecordRoom(0); err != nil {
 		t.Fatal(err)
 	}
 	if m := last(); !m.Recording || m.CanRecordRoom || m.What != "a meeting in the room" {

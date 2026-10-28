@@ -216,4 +216,14 @@ type Transcription struct {
 	// by number.
 	Backend string
 	Devices []string
+	// Words are the segments' words, each timed as the engine heard it, in
+	// order; empty where the engine does not report words.
+	Words []Word
+}
+
+// Word is one word of a transcription, with its time from the start of
+// the audio.
+type Word struct {
+	Text       string
+	Start, End time.Duration
 }

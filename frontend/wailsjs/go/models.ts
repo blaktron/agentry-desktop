@@ -2553,6 +2553,9 @@ export namespace app {
 	    fromCalendar: boolean;
 	    delivery?: string;
 	    deliveryError?: string;
+	    speakers?: number;
+	    diarization?: string;
+	    people?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MeetingView(source);
@@ -2577,6 +2580,9 @@ export namespace app {
 	        this.fromCalendar = source["fromCalendar"];
 	        this.delivery = source["delivery"];
 	        this.deliveryError = source["deliveryError"];
+	        this.speakers = source["speakers"];
+	        this.diarization = source["diarization"];
+	        this.people = source["people"];
 	    }
 	}
 	export class MeetingRecordingView {
@@ -2643,6 +2649,10 @@ export namespace app {
 	    outputDir: string;
 	    outputDirChosen: boolean;
 	    keepAudio: boolean;
+	    tellSpeakersApart: boolean;
+	    separatesSpeakers: boolean;
+	    minPeople: number;
+	    maxPeople: number;
 	    meetings: MeetingView[];
 	    detects: boolean;
 	    offer?: MeetingOfferView;
@@ -2686,6 +2696,10 @@ export namespace app {
 	        this.outputDir = source["outputDir"];
 	        this.outputDirChosen = source["outputDirChosen"];
 	        this.keepAudio = source["keepAudio"];
+	        this.tellSpeakersApart = source["tellSpeakersApart"];
+	        this.separatesSpeakers = source["separatesSpeakers"];
+	        this.minPeople = source["minPeople"];
+	        this.maxPeople = source["maxPeople"];
 	        this.meetings = this.convertValues(source["meetings"], MeetingView);
 	        this.detects = source["detects"];
 	        this.offer = this.convertValues(source["offer"], MeetingOfferView);

@@ -233,6 +233,10 @@ func testCatalogue(t *testing.T, dir string) Catalogue {
 	return Catalogue{
 		VAD:         asset("vad.bin", "vad"),
 		Calibration: asset("clip.wav", clip),
+		Diarization: DiarizationModels{
+			Segmentation: asset("segmentation.onnx", "segmentation model"),
+			Embedding:    asset("embedding.onnx", "embedding model"),
+		},
 		Models: map[string]Asset{
 			"small": asset("small.bin", "small model"),
 			"base":  asset("base.bin", "base model"),

@@ -252,7 +252,7 @@ func TestEveryWayIntoARecordingIsShown(t *testing.T) {
 			d.events <- CallEvent{Call: zoom}
 		},
 		InRoom: func(h *harness, _ *fakeDetector) {
-			if _, err := h.m.RecordRoom(context.Background()); err != nil {
+			if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 				t.Fatal(err)
 			}
 		},

@@ -73,10 +73,27 @@ export function recordingWhat(app: string, wholeDevice: boolean, inRoom = false)
 }
 
 /** What a meeting in the list says it recorded: the app, a meeting in the
- *  room, or the whole device. */
-export function meetingSource(m: { app: string; inRoom: boolean; wholeDevice: boolean }): string {
-  if (m.inRoom) return "In the room";
+ *  room (with how many speakers were told apart), or the whole device. */
+export function meetingSource(m: { app: string; inRoom: boolean; wholeDevice: boolean; speakers?: number; diarization?: string }): string {
+  if (m.inRoom) {
+    if (m.diarization === "done" && m.speakers) return `In the room, ${m.speakers} ${m.speakers === 1 ? "speaker" : "speakers"}`;
+    return "In the room";
+  }
   return m.app || (m.wholeDevice ? "Whole device" : "");
+}
+
+/**
+ * The "People in the room" box: empty is 0, leaving the count to be
+ * estimated; otherwise a whole number from min to max, or the reason it is
+ * not one.
+ */
+export function parsePeople(text: string, min: number, max: number): { people: number; error?: string } {
+  const t = text.trim();
+  if (t === "") return { people: 0 };
+  if (!/^[0-9]+$/.test(t)) return { people: 0, error: `Enter a whole number from ${min} to ${max}, or leave it empty.` };
+  const n = Number(t);
+  if (n < min || n > max) return { people: 0, error: `Enter a number from ${min} to ${max}, or leave it empty.` };
+  return { people: n };
 }
 
 /** The microphone choice's label for the default. */

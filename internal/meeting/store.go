@@ -69,6 +69,15 @@ type Meeting struct {
 	// where the recording read one of its own: one that went away, and
 	// what was read instead.
 	MicChanges []MicChangeRecord `json:"micChanges,omitempty"`
+	// People is how many people were in the room, as the person said when
+	// recording a meeting in the room; 0 when they left it to be estimated.
+	People int `json:"people,omitempty"`
+	// Diarization is how telling the room's speakers apart went (one of
+	// the Diarization constants), Speakers how many voices it told apart,
+	// and DiarizationError why it failed or could not run.
+	Diarization      string `json:"diarization,omitempty"`
+	Speakers         int    `json:"speakers,omitempty"`
+	DiarizationError string `json:"diarizationError,omitempty"`
 	// Shared is the transcript's copy in the Assistant's share folder, ""
 	// until it is copied there.
 	Shared string `json:"shared,omitempty"`
