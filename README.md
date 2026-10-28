@@ -34,10 +34,9 @@ running use the same Go libraries as the server and the CLI
   and `7z` for `make package-windows`; ImageMagick for `make app-icons`
 
 The Go modules `github.com/blaktron/agentry` and
-`github.com/blaktron/agentry-cli` must be fetchable. If they are not
-anonymously, export `GOPRIVATE='github.com/blaktron/*'` and give git a
-credential for github.com/blaktron, or build inside a `go.work` workspace
-that resolves them against sibling checkouts.
+`github.com/blaktron/agentry-cli` resolve through the Go module proxy like any
+other dependency. To build against local changes to either, use a `go.work`
+workspace that resolves them against sibling checkouts.
 
 ## Build, test, lint
 
