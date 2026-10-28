@@ -262,7 +262,7 @@ func TestLivePulseRoom(t *testing.T) {
 	defer cancel()
 	m.Start(ctx)
 	defer m.Shutdown()
-	mt, err := m.RecordRoom(ctx)
+	mt, err := m.RecordRoom(ctx, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

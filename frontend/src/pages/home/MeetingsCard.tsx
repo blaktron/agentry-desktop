@@ -75,7 +75,7 @@ export function MeetingsCard({ onOpen }: { onOpen: () => void }) {
             <>
               <Button variant="primary" data-home-meeting-record disabled={busy} onClick={() => act(MeetingAPI.Record)}>Record…</Button>
               {view.recordsRooms && (
-                <Button data-home-meeting-record-room disabled={busy} onClick={() => act(MeetingAPI.RecordRoom)}>Record in the room…</Button>
+                <Button data-home-meeting-record-room disabled={busy} onClick={() => act(() => MeetingAPI.RecordRoom(0))}>Record in the room…</Button>
               )}
             </>
           )}

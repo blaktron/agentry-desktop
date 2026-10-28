@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -39,6 +40,9 @@ type Settings struct {
 	// Mic is the microphone chosen, by its Microphone ID; "" for the
 	// system's default.
 	Mic string
+	// SpeakersOff turns off telling the speakers of a meeting in the room
+	// apart, which is on by default: its lines then stay Room.
+	SpeakersOff bool
 }
 
 // Hardware is what transcriptions run on, as the person chose it.
@@ -112,6 +116,12 @@ type Manager struct {
 	Recorder  Recorder
 	Engine    Engine
 	Models    *Models
+	// Diarizer tells the speakers of a meeting in the room apart; nil where
+	// this copy carries none, and then the room's lines stay Room.
+	Diarizer Diarizer
+	// DiarizeTimeout bounds one diarization, beyond the audio's own length;
+	// 0 is DefaultDiarizeTimeout.
+	DiarizeTimeout time.Duration
 	// Detector reports calls; nil where calls are not detected, and then
 	// nothing is offered or started but by hand.
 	Detector Detector
@@ -541,8 +551,69 @@ var ErrNoRooms = errors.New("recording a meeting in the room is not available on
 // Record in the room: the chosen microphone alone, no far side, no app
 // followed. It refuses while the feature is off, while another recording
 // runs, and where the recorder cannot record a room.
-func (m *Manager) RecordRoom(ctx context.Context) (*Meeting, error) {
-	return m.startRecording(ctx, Call{Room: true, Mic: m.Settings().Mic}, InRoom, nil)
+func (m *Manager) RecordRoom(ctx context.Context, people int) (*Meeting, error) {
+	if err := CheckPeople(people); err != nil {
+		return nil, err
+	}
+	mt, err := m.startRecording(ctx, Call{Room: true, Mic: m.Settings().Mic}, InRoom, nil)
+	if err != nil {
+		return nil, err
+	}
+	if people > 0 {
+		// On the recording's own record, which its end saves.
+		m.mu.Lock()
+		if r := m.rec; r != nil && r.m.ID == mt.ID {
+			r.m.People = people
+			_ = m.store().Save(r.m)
+		}
+		m.mu.Unlock()
+	}
+	m.prepareSpeakers()
+	return mt, nil
+}
+
+// prepareSpeakers fetches the speaker separation's models in the
+// background, with its progress shown as the transcriber's is, the first
+// time a meeting in the room is recorded with it on. The transcription
+// fetches them again if this has not finished.
+func (m *Manager) prepareSpeakers() {
+	s := m.Settings()
+	if s.SpeakersOff || m.Diarizer == nil {
+		return
+	}
+	d := m.Catalogue.Diarization
+	if m.Models.Present(d.Segmentation) && m.Models.Present(d.Embedding) {
+		return
+	}
+	m.mu.Lock()
+	if m.prep.Busy {
+		m.mu.Unlock()
+		return
+	}
+	m.prep = PrepareStatus{Busy: true, Step: "Getting ready to tell speakers apart"}
+	ctx := m.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.wg.Add(1)
+	m.mu.Unlock()
+	m.changed()
+	go func() {
+		defer m.wg.Done()
+		var err error
+		for _, a := range []Asset{d.Segmentation, d.Embedding} {
+			if _, err = m.fetch(ctx, a, "Downloading "+a.Name); err != nil {
+				break
+			}
+		}
+		m.mu.Lock()
+		m.prep = PrepareStatus{}
+		if err != nil {
+			m.prep.Error = "the speaker separation's models could not be downloaded: " + err.Error()
+		}
+		m.mu.Unlock()
+		m.changed()
+	}()
 }
 
 // RecordsRooms says whether this computer's recorder records a meeting in
@@ -1227,12 +1298,20 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		}
 	}
 	var me, them, room []Segment
+	var roomWords []Word
+	var roomTrack string
 	lang := profile.Language
+	// Telling a room's speakers apart is one more step after the tracks,
+	// and its progress shows with theirs.
+	steps := len(todo)
+	if inRoom {
+		steps++
+	}
 	for i, t := range todo {
 		res, err := m.Engine.Transcribe(ctx, TranscribeRequest{
 			Audio: st.TrackPath(mt, t), Model: modelPath, VADModel: vadPath, Language: profile.Language,
 			GPU: gpu, Device: device,
-			Progress: func(p int) { m.setJob(mt.ID, (i*100+p)/len(todo)) },
+			Progress: func(p int) { m.setJob(mt.ID, (i*100+p)/steps) },
 		})
 		if err != nil {
 			return "", err
@@ -1248,6 +1327,9 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 			me = append(me, res.Segments...)
 		case Room:
 			room = append(room, res.Segments...)
+			if roomTrack == "" {
+				roomTrack, roomWords = st.TrackPath(mt, t), wordsOf(res)
+			}
 		default:
 			them = append(them, res.Segments...)
 		}
@@ -1267,6 +1349,14 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 	lines := Merge(me, them)
 	if inRoom {
 		lines = MergeRoom(room)
+		if speaker, ok := m.separateSpeakers(ctx, mt, s, roomTrack, roomWords, len(todo)*100/steps); ok {
+			lines = speaker
+		}
+		if ctx.Err() != nil {
+			// The app is quitting: the meeting waits for the next launch.
+			return "", ctx.Err()
+		}
+		info.Diarization, info.Speakers, info.People, info.DiarizationError = mt.Diarization, mt.Speakers, mt.People, mt.DiarizationError
 	}
 	doc, err := Render(info, lines)
 	if err != nil {
@@ -1286,6 +1376,68 @@ func (m *Manager) transcribeTracks(ctx context.Context, mt *Meeting) (string, er
 		slug = "meeting"
 	}
 	return WriteTranscript(s.OutputDir, TranscriptName(mt.Started, slug), doc)
+}
+
+// separateSpeakers tells the voices of a meeting in the room apart and
+// puts each line to its voice. It never costs the transcript: when it is
+// off, cannot run, fails or runs too long (the models' download included),
+// the meeting says why in a few plain words, the details go to the log,
+// and the lines stay Room (ok false). from is where its progress starts.
+func (m *Manager) separateSpeakers(ctx context.Context, mt *Meeting, s Settings, track string, words []Word, from int) (lines []Segment, ok bool) {
+	mt.Speakers, mt.DiarizationError = 0, ""
+	give := func(status, why string, err error) ([]Segment, bool) {
+		mt.Diarization, mt.DiarizationError = status, why
+		if err != nil {
+			log.Printf("meeting notes: telling the speakers of %s apart: %v", mt.ID, err)
+		}
+		return nil, false
+	}
+	switch {
+	case s.SpeakersOff:
+		return give(DiarizationOff, "", nil)
+	case m.Diarizer == nil:
+		return give(DiarizationUnavailable, "this copy of Agentry does not carry the speaker separation", nil)
+	case track == "" || len(words) == 0:
+		return give(DiarizationUnavailable, "nothing was said that could be told apart", nil)
+	}
+	limit := m.DiarizeTimeout
+	if limit <= 0 {
+		limit = DefaultDiarizeTimeout
+	}
+	if !mt.Ended.IsZero() {
+		limit += mt.Ended.Sub(mt.Started)
+	}
+	dctx, cancel := context.WithTimeout(ctx, limit)
+	defer cancel()
+	tooLong := func() bool { return dctx.Err() == context.DeadlineExceeded }
+	d := m.Catalogue.Diarization
+	seg, err := m.Models.Ensure(dctx, d.Segmentation, nil)
+	var emb string
+	if err == nil {
+		emb, err = m.Models.Ensure(dctx, d.Embedding, nil)
+	}
+	if err != nil {
+		if tooLong() {
+			return give(DiarizationFailed, "it ran longer than "+lengthWords(limit)+" and was stopped", err)
+		}
+		return give(DiarizationUnavailable, "its models could not be downloaded or checked", err)
+	}
+	spans, err := m.Diarizer.Diarize(dctx, DiarizeRequest{
+		Audio: track, Segmentation: seg, Embedding: emb, Speakers: mt.People,
+		Progress: func(p int) { m.setJob(mt.ID, from+p*(100-from)/100) },
+	})
+	switch {
+	case tooLong():
+		return give(DiarizationFailed, "it ran longer than "+lengthWords(limit)+" and was stopped", err)
+	case err != nil:
+		return give(DiarizationFailed, "the speaker separation stopped with an error", err)
+	}
+	lines, voices, ok := SpeakerLines(words, spans)
+	if !ok {
+		return give(DiarizationFailed, "no word could be put to a voice", nil)
+	}
+	mt.Diarization, mt.Speakers = DiarizationDone, voices
+	return lines, true
 }
 
 // calibration is calibration.json: each CPU model's measured real-time

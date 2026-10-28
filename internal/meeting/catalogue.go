@@ -43,10 +43,13 @@ const (
 
 // Catalogue is the parsed catalogue.
 type Catalogue struct {
-	VAD         Asset            `json:"vad"`
-	Calibration Asset            `json:"calibration"`
-	Models      map[string]Asset `json:"models"`
-	Profiles    []Profile        `json:"profiles"`
+	VAD         Asset `json:"vad"`
+	Calibration Asset `json:"calibration"`
+	// Diarization are the two models that telling speakers in the room
+	// apart runs with.
+	Diarization DiarizationModels `json:"diarization"`
+	Models      map[string]Asset  `json:"models"`
+	Profiles    []Profile         `json:"profiles"`
 }
 
 // DefaultProfile is the language profile used until the person picks one.
@@ -62,8 +65,15 @@ func LoadCatalogue() (Catalogue, error) {
 	return c, c.check()
 }
 
+// DiarizationModels are the speech segmentation and the voice embedding
+// models the speaker separation runs with.
+type DiarizationModels struct {
+	Segmentation Asset `json:"segmentation"`
+	Embedding    Asset `json:"embedding"`
+}
+
 func (c Catalogue) check() error {
-	assets := []Asset{c.VAD, c.Calibration}
+	assets := []Asset{c.VAD, c.Calibration, c.Diarization.Segmentation, c.Diarization.Embedding}
 	for _, a := range c.Models {
 		assets = append(assets, a)
 	}

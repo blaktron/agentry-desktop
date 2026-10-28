@@ -178,7 +178,8 @@ func (s *Services) followAgents(ctx context.Context) {
 			// before a recording starts is seen with it.
 			OnMeetingRecordRoom: func() {
 				windowShow(ctx)
-				if _, err := s.meeting.RecordRoom(); err != nil && !errors.Is(err, errNotConfirmed) {
+				// The tray has no form: the count is left to be estimated.
+				if _, err := s.meeting.RecordRoom(0); err != nil && !errors.Is(err, errNotConfirmed) {
 					log.Printf("meeting notes: recording a meeting in the room from the tray: %v", err)
 				}
 			},

@@ -43,7 +43,7 @@ func TestARoomIsRecordedThroughTheChosenMicrophoneAlone(t *testing.T) {
 	h.set(func(s *Settings) { s.Mic = "usb-speakerphone" })
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
 	h.rec.micName = "USB Speakerphone"
-	mt, err := h.m.RecordRoom(context.Background())
+	mt, err := h.m.RecordRoom(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestARoomNeedsARecorderThatRecordsRooms(t *testing.T) {
 	if h.m.RecordsRooms() {
 		t.Fatal("a recorder without rooms is said to record them")
 	}
-	if _, err := h.m.RecordRoom(context.Background()); !errors.Is(err, ErrNoRooms) {
+	if _, err := h.m.RecordRoom(context.Background(), 0); !errors.Is(err, ErrNoRooms) {
 		t.Fatalf("RecordRoom = %v, want ErrNoRooms", err)
 	}
 	if mics, err := h.m.Microphones(); err != nil || mics != nil {
@@ -125,7 +125,7 @@ func TestARoomNeedsARecorderThatRecordsRooms(t *testing.T) {
 func TestARoomIsNotRecordedWhileTheFeatureIsOff(t *testing.T) {
 	h := newHarness(t)
 	h.set(func(s *Settings) { s.On = false })
-	if _, err := h.m.RecordRoom(context.Background()); !errors.Is(err, ErrOff) {
+	if _, err := h.m.RecordRoom(context.Background(), 0); !errors.Is(err, ErrOff) {
 		t.Fatalf("RecordRoom with the feature off: %v, want ErrOff", err)
 	}
 	if n := h.rec.count(); n != 0 {
@@ -139,7 +139,7 @@ func TestAMissingChosenMicrophoneIsSaid(t *testing.T) {
 	h.rec.micName, h.rec.micMissing = "Built-in Audio", true
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
 	h.eng.byFile["room.wav"] = []Segment{{Start: time.Second, End: 2 * time.Second, Text: "Hello."}}
-	mt, err := h.m.RecordRoom(context.Background())
+	mt, err := h.m.RecordRoom(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestAMissingChosenMicrophoneIsSaid(t *testing.T) {
 func TestAQuietRoomIsAskedOnceAndGoesOnRecording(t *testing.T) {
 	h := newHarnessWith(t, func(m *Manager) { m.QuietAfter = 1500 * time.Millisecond })
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+	if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "the question", func() bool { return countTitled(h.noticesNow(), "Still recording?") == 1 })
@@ -202,7 +202,7 @@ func TestAQuietRoomIsAskedOnceAndGoesOnRecording(t *testing.T) {
 func TestAPausedRoomIsNotAskedAbout(t *testing.T) {
 	h := newHarnessWith(t, func(m *Manager) { m.QuietAfter = time.Second })
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+	if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.m.SetPaused(true); err != nil {
@@ -250,7 +250,7 @@ func TestPickMicTakesTheChosenOneOrSaysTheDefault(t *testing.T) {
 func TestARoomIsNeverAskedAboutOnceItStopped(t *testing.T) {
 	h := newHarness(t)
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+	if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	h.m.mu.Lock()
@@ -269,7 +269,7 @@ func TestARoomIsNeverAskedAboutOnceItStopped(t *testing.T) {
 func TestTheQuestionSaysFifteenMinutesAndHowItEnds(t *testing.T) {
 	h := newHarness(t)
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+	if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	h.m.mu.Lock()
@@ -344,7 +344,7 @@ func TestAMicrophoneThatChangesWhileRecordingIsSaid(t *testing.T) {
 	h.rec.reportsOnly = true
 	h.rec.micName = "USB Speakerphone"
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	mt, err := h.m.RecordRoom(context.Background())
+	mt, err := h.m.RecordRoom(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -190,6 +190,14 @@ type TranscriptInfo struct {
 	// MicChanges are the microphone's changes during the recording, said
 	// one sentence each.
 	MicChanges []MicChangeRecord
+	// Diarization is how telling a room's speakers apart went (a
+	// Diarization constant, "" for a call), Speakers how many voices it
+	// told apart, People the count the person gave (0 when it was
+	// estimated), and DiarizationError why it failed or could not run.
+	Diarization      string
+	Speakers         int
+	People           int
+	DiarizationError string
 }
 
 type frontSpeaker struct {
@@ -225,10 +233,17 @@ type frontmatter struct {
 	Echo            string         `yaml:"echo"`
 	OutputDevice    string         `yaml:"output_device"`
 	Setting         string         `yaml:"setting,omitempty"`
+	Diarization     string         `yaml:"diarization,omitempty"`
+	SpeakerCount    string         `yaml:"speaker_count,omitempty"`
+	Diarizer        string         `yaml:"diarizer,omitempty"`
 	Microphone      string         `yaml:"microphone,omitempty"`
 	Silent          []string       `yaml:"silent,omitempty"`
 	Gaps            []frontGap     `yaml:"gaps,omitempty"`
 }
+
+// DiarizerName names the speaker separation and its models in a transcript
+// whose speakers it told apart.
+const DiarizerName = "sherpa-onnx v2.0.1, segmentation pyannote 3.0, voice embedding NeMo TitaNet small"
 
 // Transcriber names the engine in the transcript.
 const Transcriber = "whisper.cpp v1.9.5, voice detection silero-v6.2.0"
@@ -269,6 +284,17 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		fm.Setting = "in-room"
 		fm.Speakers = []frontSpeaker{{Label: string(Room), Source: "microphone", Note: "everyone in the room; not split by person"}}
 		fm.App, fm.Echo, fm.OutputDevice = "none", "none", "none"
+		fm.Diarization = info.Diarization
+		if info.Diarization == DiarizationDone {
+			fm.Speakers = nil
+			for n := 1; n <= info.Speakers; n++ {
+				fm.Speakers = append(fm.Speakers, frontSpeaker{Label: string(SpeakerLabel(n)), Source: "microphone", Note: speakerNote})
+			}
+			fm.SpeakerCount, fm.Diarizer = "estimated", DiarizerName
+			if info.People > 0 {
+				fm.SpeakerCount = "given"
+			}
+		}
 	}
 	fm.Microphone = info.Microphone
 	if info.MicMissing {
@@ -298,9 +324,15 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 	b.Write(head)
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", oneLine(info.Title))
-	if info.InRoom {
+	switch {
+	case info.InRoom && info.Diarization == DiarizationDone:
+		b.WriteString("Transcript of a meeting in the room, produced automatically on this computer from one microphone. " + speakersSentence(info) + " Words may be wrong. Times are from the start of the recording.\n")
+	case info.InRoom:
 		b.WriteString("Transcript of a meeting in the room, produced automatically on this computer from one microphone. \"Room\" is everyone in the room, not split by person. Words may be wrong. Times are from the start of the recording.\n")
-	} else {
+		if s := roomOnlySentence(info); s != "" {
+			b.WriteString("\n" + s + "\n")
+		}
+	default:
 		b.WriteString("Transcript produced automatically on this computer. Speaker labels come from the audio source, not from voice recognition: \"Them\" may be several people. Words may be wrong. Times are from the start of the recording.\n")
 	}
 	if info.MicMissing {
@@ -323,6 +355,41 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		fmt.Fprintf(&b, "[%s] %s: %s\n", clock(l.Start), l.Label, oneLine(l.Text))
 	}
 	return []byte(b.String()), nil
+}
+
+// speakerNote is what every Speaker n stands for, in the frontmatter.
+const speakerNote = "one voice as the speaker clustering heard it, numbered by who spoke first; not an identity, and may be two people or part of one"
+
+// speakersSentence says what the Speaker labels are, and how their number
+// was had.
+func speakersSentence(info TranscriptInfo) string {
+	s := fmt.Sprintf("Speakers are told apart by clustering their voices: \"Speaker 1\", \"Speaker 2\" and so on are %s, numbered by who spoke first, the same number for the same voice within this transcript. They are not identities: two people may share a number, or one person appear under two.", voicesWords(info.Speakers))
+	if info.People > 0 {
+		return s + fmt.Sprintf(" The person recording said %d people were in the room, and the voices were split into at most that many; someone who said little may not appear.", info.People)
+	}
+	return s + " How many people were in the room was estimated, so one person may appear under several numbers."
+}
+
+func voicesWords(n int) string {
+	if n == 1 {
+		return "the one voice heard"
+	}
+	return fmt.Sprintf("the %d voices heard", n)
+}
+
+// roomOnlySentence says why a meeting in the room's lines are all Room,
+// "" for a transcript that predates telling speakers apart.
+func roomOnlySentence(info TranscriptInfo) string {
+	why := oneLine(info.DiarizationError)
+	switch info.Diarization {
+	case DiarizationOff:
+		return "Telling speakers apart is turned off in the settings, so every line is Room."
+	case DiarizationUnavailable:
+		return "The speakers could not be told apart (" + why + "), so every line is Room."
+	case DiarizationFailed:
+		return "Telling the speakers apart failed (" + why + "), so every line is Room."
+	}
+	return ""
 }
 
 // micChangeSentences says what happened to the microphone during the
