@@ -33,18 +33,12 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify`.
           cache: false
-      # The blaktron modules are private. The rewrite that carries the token
-      # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs.
-      - name: Authenticate for the private blaktron modules (job-scoped)
-        env:
-          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
-          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
-          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      # Asked of the repositories directly rather than the module proxy, whose
+      # version list can lag a tag pushed minutes ago. Checksums are still
+      # verified against the checksum database.
       - name: Are the blaktron pins current?
+        env:
+          GONOPROXY: github.com/blaktron/*
         run: |
           set -euo pipefail
           behind=$(go list -m -u -f '{{if .Update}}{{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' \
@@ -55,9 +49,6 @@ jobs:
             exit 1
           fi
           echo "pins are current"
-      - name: Remove the job-scoped git credential
-        if: always()
-        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   # The CI supply chain: every action SHA-pinned to the
   # tag its comment names, that tag not moved, and every action and CI tool

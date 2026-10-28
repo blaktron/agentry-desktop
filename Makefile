@@ -1,8 +1,6 @@
 # Agentry Desktop. Depends on the modules github.com/blaktron/agentry and
-# github.com/blaktron/agentry-cli. Where they are not fetchable anonymously:
-#   export GOPRIVATE=github.com/blaktron/*
-# plus git credentials for github.com/blaktron (a PAT via credential helper
-# or an url.<...>.insteadOf rewrite).
+# github.com/blaktron/agentry-cli, which resolve through the Go module proxy
+# like any other dependency.
 # The PATH the caller set up wins (a CI job's setup-go, a pinned SDK);
 # Homebrew's directory is only a fallback for tools a plain shell on a Mac
 # does not find. The wails CLI that go install puts in ~/go/bin comes first.

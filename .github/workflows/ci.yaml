@@ -70,17 +70,6 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify`.
           cache: false
-      # The blaktron modules are private. The rewrite that carries the token
-      # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs.
-      - name: Authenticate for the private blaktron modules (job-scoped)
-        env:
-          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
-          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
-          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.4
@@ -137,9 +126,6 @@ jobs:
           drift=$(git status --porcelain -- frontend/wailsjs)
           if [ -n "$drift" ]; then echo "$drift"; echo "::error::the checked-in bindings differ from what the Go types generate: run make bindings and commit"; exit 1; fi
           echo "bindings are current"
-      - name: Remove the job-scoped git credential
-        if: always()
-        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   # The Windows target and its per-user installer, cross-built on the Linux
   # runner:
@@ -166,14 +152,6 @@ jobs:
           go-version-file: go.mod
           # Shared persistent host module cache; see check.
           cache: false
-      - name: Authenticate for the private blaktron modules (job-scoped)
-        env:
-          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
-          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
-          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.4
@@ -224,9 +202,6 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
         run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-windows-amd64-setup.exe build/bin/agentry-desktop-*-windows-amd64.zip
-      - name: Remove the job-scoped git credential
-        if: always()
-        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   govulncheck:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -242,21 +217,7 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify`.
           cache: false
-      # The blaktron modules are private. The rewrite that carries the token
-      # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs.
-      - name: Authenticate for the private blaktron modules (job-scoped)
-        env:
-          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
-          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
-          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
-      - name: Remove the job-scoped git credential
-        if: always()
-        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   # Secret scanning: gitleaks over the commits this
   # event brings — a pull request's own range, or a push's before..after —
@@ -343,22 +304,16 @@ jobs:
             echo "GOMODCACHE=$HOME/runner-cache/go-mod"
             echo "GOCACHE=$HOME/runner-cache/go-build"
             echo "npm_config_cache=$HOME/runner-cache/npm"
-            echo "GOPRIVATE=github.com/blaktron/*"
             echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig"
           } >> "$GITHUB_ENV"
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-      # The private blaktron modules need a credential to fetch. On this
-      # persistent host it must not land in ~/.gitconfig, so the rewrite goes
-      # into a job-scoped file (GIT_CONFIG_GLOBAL above) removed at the end.
-      # The empty helper clears the system gitconfig's osxkeychain helper:
-      # after a fetch git asks each helper to store the credential, and with
-      # no GUI login the keychain's prompt never comes, so the fetch hangs.
-      - name: Authenticate for the private blaktron modules (job-scoped)
-        env:
-          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: |
-          git config --file "$GIT_CONFIG_GLOBAL" credential.helper ""
-          git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      # The empty helper, in a job-scoped file (GIT_CONFIG_GLOBAL above) rather
+      # than ~/.gitconfig on this persistent host, clears the system
+      # gitconfig's osxkeychain helper: if a fetch is ever asked for a
+      # credential, git would wait on a keychain prompt that never comes with
+      # no GUI login, and the job would hang instead of failing.
+      - name: Keep git off the keychain (job-scoped)
+        run: git config --file "$GIT_CONFIG_GLOBAL" credential.helper ""
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       # -skipbindings: the checked-in bindings are what the check job
@@ -479,6 +434,6 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
         run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-darwin-universal.zip build/bin/agentry-desktop-*-darwin-universal.dmg
-      - name: Remove the job-scoped git credential
+      - name: Remove the job-scoped git config
         if: always()
         run: rm -f "$GIT_CONFIG_GLOBAL"
