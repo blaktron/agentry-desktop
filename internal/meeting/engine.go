@@ -266,6 +266,7 @@ func parseWhisperJSON(raw []byte) (Transcription, error) {
 		from := time.Duration(seg.Offsets.From) * time.Millisecond
 		to := max(min(time.Duration(seg.Offsets.To)*time.Millisecond, from+maxWord), from)
 		line = append(line, word{seg.Text, from, to})
+		t.Words = append(t.Words, Word{Text: seg.Text, Start: from, End: to})
 		if endsSentence(seg.Text) || len(line) >= lineWords {
 			flush()
 		}

@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, recordingWhat,
+  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, parsePeople,
+  recordingWhat,
 } from "../src/meetingNotes.ts";
 
 test("durations read in seconds, minutes, then hours", () => {
@@ -102,4 +103,20 @@ test("the graphics card's offer names the download, and Settings says how it mea
 test("a microphone that went away says what is recorded instead, or that nothing is", () => {
   assert.equal(micLostText("USB Speakerphone", false, "Built-in Audio"), "USB Speakerphone was disconnected, so Built-in Audio is recorded instead.");
   assert.match(micLostText("USB Speakerphone", true), /nothing is recorded from a microphone until one can be\. The transcript marks the gap\./);
+});
+
+test("the People in the room box takes nothing or a whole number in range", () => {
+  assert.deepEqual(parsePeople("", 2, 20), { people: 0 });
+  assert.deepEqual(parsePeople(" 5 ", 2, 20), { people: 5 });
+  assert.match(parsePeople("1", 2, 20).error ?? "", /from 2 to 20/);
+  assert.match(parsePeople("21", 2, 20).error ?? "", /from 2 to 20/);
+  assert.match(parsePeople("3.5", 2, 20).error ?? "", /whole number/);
+  assert.match(parsePeople("three", 2, 20).error ?? "", /whole number/);
+});
+
+test("a meeting in the room says how many speakers were told apart", () => {
+  const room = { app: "", inRoom: true, wholeDevice: false };
+  assert.equal(meetingSource({ ...room, diarization: "done", speakers: 3 }), "In the room, 3 speakers");
+  assert.equal(meetingSource({ ...room, diarization: "done", speakers: 1 }), "In the room, 1 speaker");
+  assert.equal(meetingSource({ ...room, diarization: "failed" }), "In the room");
 });

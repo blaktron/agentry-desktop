@@ -58,8 +58,8 @@ export function RecordOffer(arg1) {
   return window['go']['app']['MeetingAPI']['RecordOffer'](arg1);
 }
 
-export function RecordRoom() {
-  return window['go']['app']['MeetingAPI']['RecordRoom']();
+export function RecordRoom(arg1) {
+  return window['go']['app']['MeetingAPI']['RecordRoom'](arg1);
 }
 
 export function ResetOutputDir() {
@@ -104,6 +104,10 @@ export function SetSendToAssistant(arg1) {
 
 export function SetStartsAtSignIn(arg1) {
   return window['go']['app']['MeetingAPI']['SetStartsAtSignIn'](arg1);
+}
+
+export function SetTellSpeakersApart(arg1) {
+  return window['go']['app']['MeetingAPI']['SetTellSpeakersApart'](arg1);
 }
 
 export function ShowTranscript(arg1) {

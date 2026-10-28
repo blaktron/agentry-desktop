@@ -16,7 +16,8 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
 import {
   AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,
-  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, possessive, recordingWhat, windowStateWords, windowWhen,
+  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, parsePeople, possessive, recordingWhat, windowStateWords,
+  windowWhen,
 } from "../meetingNotes";
 
 type View = app.MeetingNotesView;
@@ -27,6 +28,9 @@ export default function MeetingNotes() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState(false);
+  // The Record in the room form: open, and its People in the room box.
+  const [roomForm, setRoomForm] = useState(false);
+  const [people, setPeople] = useState("");
   // justOn: turned on in this visit, when starting at sign-in is offered.
   const [justOn, setJustOn] = useState(false);
   // A notification's click opens this page at its top, where an offer or
@@ -274,9 +278,44 @@ export default function MeetingNotes() {
                   For a meeting held here in the room, press Record in the room: Agentry records your microphone alone, and nothing your
                   computer plays, until you press Stop or it reaches its longest length.
                 </p>
-                <div className="row">
-                  <Button data-meeting-record-room disabled={busy} onClick={() => act(MeetingAPI.RecordRoom)}>Record in the room…</Button>
-                </div>
+                {!roomForm && (
+                  <div className="row">
+                    <Button
+                      data-meeting-record-room
+                      disabled={busy}
+                      onClick={() => (view.separatesSpeakers && view.tellSpeakersApart ? setRoomForm(true) : act(() => MeetingAPI.RecordRoom(0)))}
+                    >
+                      Record in the room…
+                    </Button>
+                  </div>
+                )}
+                {roomForm && (() => {
+                  const parsed = parsePeople(people, view.minPeople, view.maxPeople);
+                  return (
+                    <div className="meeting-room-form" data-meeting-room-form>
+                      <Field
+                        label="People in the room (optional)"
+                        htmlFor="meeting-people"
+                        hint={parsed.error ?? "Agentry tells the speakers apart after the meeting. Say how many people are here, and it splits the voices into that many; leave it empty, and it estimates, so one person may appear under two numbers."}
+                      >
+                        <input id="meeting-people" data-meeting-people inputMode="numeric" value={people} disabled={busy}
+                          onChange={(e) => setPeople(e.target.value)} aria-invalid={parsed.error ? true : undefined} />
+                      </Field>
+                      <div className="row">
+                        <Button variant="primary" data-meeting-room-start disabled={busy || !!parsed.error}
+                          onClick={() => act(async () => {
+                            const v = await MeetingAPI.RecordRoom(parsed.people);
+                            setRoomForm(false);
+                            setPeople("");
+                            return v;
+                          })}>
+                          Start…
+                        </Button>
+                        <Button variant="ghost" data-meeting-room-cancel disabled={busy} onClick={() => { setRoomForm(false); setPeople(""); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </>
@@ -490,6 +529,19 @@ export default function MeetingNotes() {
               never started for this.
             </p>
           </div>
+        )}
+        {view.separatesSpeakers && (
+          <>
+            <label className="check-row">
+              <input type="checkbox" role="switch" data-meeting-speakers checked={view.tellSpeakersApart} disabled={busy}
+                onChange={(e) => act(() => MeetingAPI.SetTellSpeakersApart(e.target.checked))} />
+              Tell speakers apart in meetings in the room
+            </label>
+            <p className="small muted">
+              On, a meeting in the room's transcript says Speaker 1, Speaker 2 and so on, told apart by voice on this computer after the
+              transcription. The first time, Agentry downloads about 46 MB of models. Off, every line says Room.
+            </p>
+          </>
         )}
         <label className="check-row">
           <input type="checkbox" role="switch" data-meeting-keep checked={view.keepAudio} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetKeepAudio(e.target.checked))} />

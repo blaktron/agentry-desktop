@@ -30,7 +30,7 @@ export function Record():Promise<app.MeetingNotesView>;
 
 export function RecordOffer(arg1:string):Promise<app.MeetingNotesView>;
 
-export function RecordRoom():Promise<app.MeetingNotesView>;
+export function RecordRoom(arg1:number):Promise<app.MeetingNotesView>;
 
 export function ResetOutputDir():Promise<app.MeetingNotesView>;
 
@@ -53,6 +53,8 @@ export function SetProfile(arg1:string):Promise<app.MeetingNotesView>;
 export function SetSendToAssistant(arg1:boolean):Promise<app.MeetingNotesView>;
 
 export function SetStartsAtSignIn(arg1:boolean):Promise<app.MeetingNotesView>;
+
+export function SetTellSpeakersApart(arg1:boolean):Promise<app.MeetingNotesView>;
 
 export function ShowTranscript(arg1:string):Promise<void>;
 

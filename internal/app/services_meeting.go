@@ -143,9 +143,16 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 		} else if err := meeting.CheckSidecar(sidecar); err != nil {
 			m.unavailable = err.Error() + "."
 		}
+		// The speaker separation, where this copy carries it; without it a
+		// meeting in the room's lines stay Room, and its transcript says so.
+		var diarizer meeting.Diarizer
+		if d := meeting.DiarizerPath(); meeting.CheckSidecar(d) == nil {
+			diarizer = meeting.DiarizeSidecar{Path: d}
+		}
 		m.mgr = &meeting.Manager{
 			Root: root, Catalogue: cat, Recorder: rec(),
 			Engine:      meeting.Sidecar{Path: sidecar},
+			Diarizer:    diarizer,
 			Models:      &meeting.Models{Dir: filepath.Join(root, "models"), Client: m.client},
 			Settings:    meetingSettings,
 			Tier:        meeting.HardwareTier(),
@@ -212,6 +219,7 @@ func meetingSettings() meeting.Settings {
 	return meeting.Settings{
 		On: mn.On, Profile: mn.Profile, Model: mn.Model, Hardware: meeting.Hardware(mn.Hardware), OutputDir: out, KeepAudio: mn.KeepAudio,
 		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour, Mic: mn.Mic,
+		SpeakersOff: mn.SpeakersOff,
 	}
 }
 
@@ -455,6 +463,12 @@ type MeetingView struct {
 	// why it failed.
 	Delivery      string `json:"delivery,omitempty"`
 	DeliveryError string `json:"deliveryError,omitempty"`
+	// Speakers is how many voices a meeting in the room's transcript tells
+	// apart, Diarization how that went (done, off, unavailable or failed,
+	// "" before), and People the count given when it was recorded.
+	Speakers    int    `json:"speakers,omitempty"`
+	Diarization string `json:"diarization,omitempty"`
+	People      int    `json:"people,omitempty"`
 }
 
 // MeetingWindowView is a window the Assistant armed.
@@ -534,9 +548,16 @@ type MeetingNotesView struct {
 	GPU        *MeetingGPUView `json:"gpu,omitempty"`
 	OutputDir  string          `json:"outputDir"`
 	// OutputDirChosen: the person chose the folder.
-	OutputDirChosen bool          `json:"outputDirChosen"`
-	KeepAudio       bool          `json:"keepAudio"`
-	Meetings        []MeetingView `json:"meetings"`
+	OutputDirChosen bool `json:"outputDirChosen"`
+	KeepAudio       bool `json:"keepAudio"`
+	// TellSpeakersApart is the setting, on by default; SeparatesSpeakers
+	// that this copy carries the speaker separation. MinPeople and
+	// MaxPeople bound the count Record in the room takes.
+	TellSpeakersApart bool          `json:"tellSpeakersApart"`
+	SeparatesSpeakers bool          `json:"separatesSpeakers"`
+	MinPeople         int           `json:"minPeople"`
+	MaxPeople         int           `json:"maxPeople"`
+	Meetings          []MeetingView `json:"meetings"`
 	// Detects: calls are noticed and offered here.
 	Detects bool              `json:"detects"`
 	Offer   *MeetingOfferView `json:"offer,omitempty"`
@@ -573,6 +594,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	mn := st.MeetingNotes
 	v := &MeetingNotesView{
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
+		TellSpeakersApart: !mn.SpeakersOff, MinPeople: meeting.MinPeople, MaxPeople: meeting.MaxPeople,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
 		Windows: []MeetingWindowView{}, Mic: mn.Mic, Microphones: []MeetingChoice{}, MicHint: micHint(runtime.GOOS),
@@ -589,6 +611,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	if mgr == nil {
 		return v, nil
 	}
+	v.SeparatesSpeakers = mgr.Diarizer != nil
 	s := meetingSettings()
 	v.OutputDir = s.OutputDir
 	v.RecordsRooms = v.Available && mgr.RecordsRooms()
@@ -651,6 +674,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 			ID: mt.ID, Title: mt.Title, App: mt.App, WholeDevice: mt.FarSide == meeting.FarSideWholeDevice, InRoom: mt.InRoom(),
 			Started: mt.Started.Format(time.RFC3339), State: mt.State, Error: mt.Error, Progress: -1,
 			HasAudio: mgr.HasAudio(mt),
+			Speakers: mt.Speakers, Diarization: mt.Diarization, People: mt.People,
 		}
 		if !mt.Ended.IsZero() {
 			mv.DurationSeconds = int64(mt.Ended.Sub(mt.Started).Seconds())
@@ -771,8 +795,10 @@ func (m *MeetingAPI) Record() (*MeetingNotesView, error) {
 
 // RecordRoom starts recording a meeting in the room through the microphone
 // alone, after the native dialog has asked: the page asking is not the
-// person pressing Record in the room.
-func (m *MeetingAPI) RecordRoom() (*MeetingNotesView, error) {
+// person pressing Record in the room. people is how many people are in the
+// room, MinPeople to MaxPeople, or 0 to leave it to be estimated when the
+// speakers are told apart.
+func (m *MeetingAPI) RecordRoom(people int) (*MeetingNotesView, error) {
 	mgr, err := m.available()
 	if err != nil {
 		return nil, err
@@ -783,10 +809,13 @@ func (m *MeetingAPI) RecordRoom() (*MeetingNotesView, error) {
 	if !mgr.RecordsRooms() {
 		return nil, meeting.ErrNoRooms
 	}
+	if err := meeting.CheckPeople(people); err != nil {
+		return nil, err
+	}
 	if err := m.app.askConsent("Record a meeting in the room?", "Agentry records your microphone, and nothing your computer plays, until you press Stop or the recording reaches its longest length. "+meeting.ConsentSentence+" Tell everyone in the room."); err != nil {
 		return nil, err
 	}
-	if _, err := mgr.RecordRoom(m.app.ctxOrBackground()); err != nil {
+	if _, err := mgr.RecordRoom(m.app.ctxOrBackground(), people); err != nil {
 		return nil, err
 	}
 	return m.Status()
@@ -1162,6 +1191,15 @@ func (m *MeetingAPI) CheckGPU() (*MeetingNotesView, error) {
 		return nil, err
 	}
 	m.prepareIfOn(mgr)
+	return m.Status()
+}
+
+// SetTellSpeakersApart turns telling the speakers of a meeting in the room
+// apart on or off; it is on by default.
+func (m *MeetingAPI) SetTellSpeakersApart(on bool) (*MeetingNotesView, error) {
+	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.SpeakersOff = !on; return nil }); err != nil {
+		return nil, err
+	}
 	return m.Status()
 }
 

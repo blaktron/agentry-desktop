@@ -216,6 +216,9 @@ type MeetingNotes struct {
 	// meeting app's own, by the audio system's name for it; "" for the
 	// system's default.
 	Mic string `yaml:"mic,omitempty"`
+	// SpeakersOff turns off telling the speakers of a meeting in the room
+	// apart, which is on by default.
+	SpeakersOff bool `yaml:"speakersOff,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer

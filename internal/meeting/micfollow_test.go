@@ -79,7 +79,7 @@ func TestAMicrophoneThatGoesAwayIsSaidAndTheTranscriptMarksTheGap(t *testing.T) 
 	h.rec.micName = "USB Speakerphone"
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
 	h.eng.byFile["room.wav"] = []Segment{{Start: time.Second, End: 2 * time.Second, Text: "Hello."}}
-	mt, err := h.m.RecordRoom(context.Background())
+	mt, err := h.m.RecordRoom(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestAMicrophoneThatGoesAwayGivesWayToTheDefaultAndSaysSo(t *testing.T) {
 	h.rec.micName = "USB Speakerphone"
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
 	h.eng.byFile["room.wav"] = []Segment{{Start: time.Second, End: 2 * time.Second, Text: "Hello."}}
-	mt, err := h.m.RecordRoom(context.Background())
+	mt, err := h.m.RecordRoom(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestANewMicrophoneSaysTheChosenOneIsStillMissing(t *testing.T) {
 	h.set(func(s *Settings) { s.Mic = "gone" })
 	h.rec.micName, h.rec.micMissing = "Built-in Audio", true
 	h.rec.tracks = []fakeTrackSpec{{Room, "room", speech(SampleRate)}}
-	if _, err := h.m.RecordRoom(context.Background()); err != nil {
+	if _, err := h.m.RecordRoom(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	h.rec.capture.change(MicChange{Now: "Headset"})
