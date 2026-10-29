@@ -43,6 +43,7 @@ import {
   shareCheckWords,
   chosenReset,
   isLive,
+  showsStop,
   upkeepWords,
   compactingWords,
 } from "../src/persistentAgents.ts";
@@ -385,4 +386,73 @@ test("Compact now says what a compaction does, naming a memory only for an agent
   const without = compactingWords(false);
   assert.match(without, /writes a handoff/);
   assert.doesNotMatch(without, /memory/);
+});
+
+test("a turn that fails ends the turn: the chat stops thinking and takes the person's next message", () => {
+  let c = applyAgentEvent(newAgentChat(), taskEv, now);
+  assert.equal(c.busy, true);
+  c = applyAgentEvent(c, { kind: "error", time: t, text: "codex session: turn failed: the model's endpoint went away" }, now);
+  assert.equal(c.busy, false, "a failed turn left the chat thinking");
+  c = applyAgentEvent(c, { kind: "user_turn", time: t, text: "Are you there?" }, now);
+  assert.equal(c.busy, true);
+  assert.deepEqual(termBlocks(c).at(-1), { kind: "person", text: "Are you there?" });
+});
+
+test("the plan's usage limit is said in the person's words, with the provider's after them", () => {
+  let c = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Hi" }, now);
+  c = applyAgentEvent(c, { kind: "error", time: t, text: "plan limit reached: The ChatGPT user has reached their usage limit." }, now);
+  assert.equal(c.busy, false);
+  assert.deepEqual(termBlocks(c).at(-1), {
+    kind: "warn",
+    text: "Your model plan's usage limit is reached, so this turn could not be answered. Send your message again once the limit resets. The provider said: The ChatGPT user has reached their usage limit.",
+  });
+  c = applyAgentEvent(c, { kind: "error", time: t, text: "boom" }, now);
+  assert.deepEqual(termBlocks(c).at(-1), { kind: "warn", text: "harness error: boom" });
+});
+
+test("an error mid-turn lets the person write, and the turn's own activity after it says it goes on, its text said once", () => {
+  let c = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Hi" }, now);
+  c = applyAgentEvent(c, { kind: "assistant_text", time: t, text: "Let me look" }, now);
+  c = applyAgentEvent(c, { kind: "error", time: t, text: "boom" }, now);
+  assert.equal(c.busy, false);
+  assert.equal(c.streaming, "Let me look", "what had streamed stays in view");
+  c = applyAgentEvent(c, { kind: "tool_call", time: t, text: "fs_read" }, now);
+  assert.equal(c.busy, true, "the turn went on");
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "Let me look. Found it." }, now);
+  assert.equal(c.busy, false);
+  assert.deepEqual(termBlocks(c), [
+    { kind: "person", text: "Hi" },
+    { kind: "warn", text: "harness error: boom" },
+    { kind: "tools", names: ["fs_read"] },
+    { kind: "agent", text: "Let me look. Found it." },
+  ]);
+});
+
+test("Send gives way to Stop while a running agent is on a turn, and not while it starts or is stopped", () => {
+  assert.equal(showsStop({ state: "running" }, true), true);
+  assert.equal(showsStop({ state: "elsewhere" }, true), true, "an agent another client runs is stopped through its socket");
+  assert.equal(showsStop({ state: "running" }, false), false);
+  assert.equal(showsStop({ state: "running" }, true, true), false, "a card's first message is still starting the agent");
+  assert.equal(showsStop({ state: "starting" }, true), false);
+  assert.equal(showsStop({ state: "stopped" }, true), false);
+});
+
+test("a stopped turn keeps what it had said and says it was stopped", () => {
+  let c = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Write me an essay" }, now);
+  c = applyAgentEvent(c, { kind: "assistant_text", time: t, text: "Once upon" }, now);
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "Once upon a time", stopReason: "interrupted" }, now);
+  assert.equal(c.busy, false);
+  assert.deepEqual(termBlocks(c), [
+    { kind: "person", text: "Write me an essay" },
+    { kind: "agent", text: "Once upon a time" },
+    { kind: "note", text: "Stopped." },
+  ]);
+  // Stopped before it said anything: the note alone.
+  let early = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Hi" }, now);
+  early = applyAgentEvent(early, { kind: "assistant_turn", time: t, text: "", stopReason: "interrupted" }, now);
+  assert.deepEqual(termBlocks(early), [{ kind: "person", text: "Hi" }, { kind: "note", text: "Stopped." }]);
+  // A stopped task's run keeps it inside its fold, from the transcript too.
+  const events = [taskEv, { kind: "assistant_turn", time: t, text: "Half", stopReason: "interrupted" }];
+  const blocks = termBlocks(chatFromTranscript(events, now));
+  assert.deepEqual((blocks[0] as { runs: { blocks: unknown[] }[] }).runs[0].blocks, [{ kind: "agent", text: "Half" }, { kind: "note", text: "Stopped." }]);
 });

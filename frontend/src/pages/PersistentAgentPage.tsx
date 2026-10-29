@@ -2,15 +2,16 @@
 // Left, full height, the chat in a terminal's manner: the person's lines
 // after a ">", the agent's as markdown in mono, a turn's tool calls folded
 // to one dim line, the runner's notes dim, what the agent did on its own
-// folded (AgentTermBlocks), a prompt line with Send and Add file. Top right, the usage
+// folded (AgentTermBlocks), a prompt line with Send and Add file, Send
+// giving way to Stop while the agent is on a turn. Top right, the usage
 // panel; bottom right, the roster, a switch per entry the person may
 // change. The chat is the agent's store's, so it goes on while the person is
 // on another page; its last lines come back from the transcript.
 import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
-import { sendToAgent, startAgent, stopStart, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, termBlocks } from "../persistentAgents";
+import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
+import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
@@ -27,6 +28,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [now, setNow] = useState(Date.now());
   const scroller = useRef<HTMLDivElement>(null);
   const blocks = termBlocks(rec.chat);
@@ -80,6 +82,13 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
     if (!text || answering || !running) return;
     setDraft("");
     await sendToAgent(name, text);
+  };
+  // Stop ends the turn the agent is on, the person's or one it runs on its
+  // own; the agent keeps running and takes the next message.
+  const stop = async () => {
+    setStopping(true);
+    setError(await stopTurn(name));
+    setStopping(false);
   };
   const addFiles = async () => {
     setError(null);
@@ -145,7 +154,13 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
               }
             }}
           />
-          <Button type="submit" variant="primary" disabled={!running || answering || !draft.trim()}>Send</Button>
+          {showsStop(agent, answering) ? (
+            <Button type="button" busy={stopping} busyLabel="Stopping…" onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
+              Stop
+            </Button>
+          ) : (
+            <Button type="submit" variant="primary" disabled={!running || !draft.trim()}>Send</Button>
+          )}
           <Button type="button" onClick={addFiles} title="Copy files into the agent's share folder">Add file</Button>
         </form>
       </section>

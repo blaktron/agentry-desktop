@@ -34,7 +34,24 @@ export interface ProviderChoice {
   model: string;
   apiKeyEnv: string;
   ways: Way[];
+  /** How to get a key, shown above the key field when the provider is
+   *  picked; none where the provider's own page is obvious. */
+  keyGuide?: KeyGuide;
 }
+
+/** A short, numbered guide to getting a provider's key: an offer line
+ *  above the steps, the page the first step opens, and the steps. */
+export interface KeyGuide {
+  title: string;
+  offer: string;
+  link: { label: string; url: string };
+  steps: string[];
+}
+
+/** Vultr's referral link: a new account made through it gets Vultr's
+ *  new-account credit, and Agentry a referral credit, which the offer
+ *  line says. */
+export const VULTR_SIGN_UP_URL = "https://www.vultr.com/?ref=9925159-9J";
 
 /** The CLI's own wording for the Claude choice (setup.ClaudeSignInLabel):
  *  no logo, no "Sign in with Claude". */
@@ -77,6 +94,18 @@ export const PROVIDERS: ProviderChoice[] = [
   { id: "huggingface", label: "Hugging Face", short: "Hugging Face", model: "", apiKeyEnv: "HF_TOKEN", ways: [
     connect("huggingface", "Hugging Face"), key("An access token from your Hugging Face settings.", "Access token"),
   ] },
+  { id: "vultr", label: "Vultr Serverless Inference", short: "Vultr", model: "", apiKeyEnv: "VULTR_INFERENCE_API_KEY", ways: [
+    key("A key from your Vultr Serverless Inference subscription, billed to your Vultr account."),
+  ], keyGuide: {
+    title: "Get a Vultr key",
+    offer: "New Vultr accounts get US$300 of free credit through our link (Vultr's terms apply; the credit is time-limited). Agentry receives a referral credit.",
+    link: { label: "Sign up for Vultr with our link", url: VULTR_SIGN_UP_URL },
+    steps: [
+      "Sign up for Vultr with our link, below.",
+      "In Vultr's portal, open Products, then Serverless, then Inference, and add a Serverless Inference subscription.",
+      "Open the subscription, copy the API key from its Overview page, and paste it here.",
+    ],
+  } },
   { id: "google", label: "Google (Gemini)", short: "Google Gemini", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY", ways: [
     key("A key from Google AI Studio."),
   ] },
@@ -103,6 +132,17 @@ export function tileOffer(p: ProviderChoice): string {
     }
   }).join(" or ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** A listed model as the model field shows it: its name and id, then its
+ *  price a million tokens where the provider lists one
+ *  ("Qwen 3.8 Flash Next — qwen3.8-flash-next · US$0.10 in, US$0.20 out
+ *  per million tokens"). */
+export function modelOptionLabel(m: { id: string; displayName?: string; inputUsd?: string; outputUsd?: string }): string {
+  let label = m.displayName ? `${m.displayName} — ${m.id}` : m.id;
+  if (m.inputUsd && m.outputUsd) label += ` · US$${m.inputUsd} in, US$${m.outputUsd} out per million tokens`;
+  else if (m.outputUsd) label += ` · US$${m.outputUsd} out per million tokens`;
+  return label;
 }
 
 /** The ways provider offers, a sign-in first; a provider not in the list
