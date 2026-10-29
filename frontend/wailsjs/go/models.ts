@@ -5466,6 +5466,7 @@ export namespace app {
 	    text?: string;
 	    synthetic?: boolean;
 	    task?: string;
+	    upkeep?: boolean;
 	    stopReason?: string;
 	    path?: string;
 	    digest?: string;
@@ -5487,6 +5488,7 @@ export namespace app {
 	        this.text = source["text"];
 	        this.synthetic = source["synthetic"];
 	        this.task = source["task"];
+	        this.upkeep = source["upkeep"];
 	        this.stopReason = source["stopReason"];
 	        this.path = source["path"];
 	        this.digest = source["digest"];

@@ -1574,6 +1574,15 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-term-task { margin: 0 0 10px; color: var(--color-muted); font-size: 12px; }
 .agent-term-task > summary { cursor: pointer; }
 .agent-term-task-body { margin: 4px 0 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* What a run on the agent's own did, opened: its instruction, then its
+   lines at the chat's own size, so a handoff or a report reads as one. */
+.agent-term-task-body > div, .agent-term-task-body > details { margin: 0 0 6px; }
+.agent-term-task-body .agent-term-agent { font-size: 13px; }
+.agent-term-run-instruction { font-style: italic; }
+.agent-term-tools { margin: 0 0 10px; color: var(--color-muted); font-size: 12px; }
+.agent-term-tools > summary { cursor: pointer; overflow-wrap: anywhere; }
+.agent-term-tools > ol { margin: 4px 0 0 14px; padding-left: 18px; }
+.main-card-scroll > details { margin: 0 0 8px; }
 .agent-term-pending { margin: 0; padding: 6px 14px; color: var(--color-warm); font-size: 12px; border-top: 1px solid var(--color-border); }
 .agent-term-prompt { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
 .agent-term-prompt > span { color: var(--color-accent); font-weight: 700; padding-bottom: 8px; }
