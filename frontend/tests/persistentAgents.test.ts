@@ -43,6 +43,7 @@ import {
   shareCheckWords,
   chosenReset,
   isLive,
+  showsStop,
   upkeepWords,
   compactingWords,
 } from "../src/persistentAgents.ts";
@@ -409,12 +410,31 @@ test("the plan's usage limit is said in the person's words, with the provider's 
   assert.deepEqual(termBlocks(c).at(-1), { kind: "warn", text: "harness error: boom" });
 });
 
-test("an error keeps what had streamed before it", () => {
+test("an error mid-turn lets the person write, and the turn's own activity after it says it goes on, its text said once", () => {
   let c = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Hi" }, now);
   c = applyAgentEvent(c, { kind: "assistant_text", time: t, text: "Let me look" }, now);
   c = applyAgentEvent(c, { kind: "error", time: t, text: "boom" }, now);
-  assert.equal(c.streaming, "");
-  assert.deepEqual(termBlocks(c).slice(-2), [{ kind: "agent", text: "Let me look" }, { kind: "warn", text: "harness error: boom" }]);
+  assert.equal(c.busy, false);
+  assert.equal(c.streaming, "Let me look", "what had streamed stays in view");
+  c = applyAgentEvent(c, { kind: "tool_call", time: t, text: "fs_read" }, now);
+  assert.equal(c.busy, true, "the turn went on");
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "Let me look. Found it." }, now);
+  assert.equal(c.busy, false);
+  assert.deepEqual(termBlocks(c), [
+    { kind: "person", text: "Hi" },
+    { kind: "warn", text: "harness error: boom" },
+    { kind: "tools", names: ["fs_read"] },
+    { kind: "agent", text: "Let me look. Found it." },
+  ]);
+});
+
+test("Send gives way to Stop while a running agent is on a turn, and not while it starts or is stopped", () => {
+  assert.equal(showsStop({ state: "running" }, true), true);
+  assert.equal(showsStop({ state: "elsewhere" }, true), true, "an agent another client runs is stopped through its socket");
+  assert.equal(showsStop({ state: "running" }, false), false);
+  assert.equal(showsStop({ state: "running" }, true, true), false, "a card's first message is still starting the agent");
+  assert.equal(showsStop({ state: "starting" }, true), false);
+  assert.equal(showsStop({ state: "stopped" }, true), false);
 });
 
 test("a stopped turn keeps what it had said and says it was stopped", () => {

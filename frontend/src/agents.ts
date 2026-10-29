@@ -104,11 +104,14 @@ export async function loadChat(name: string): Promise<void> {
 /** sendToAgent sends the person's message as the agent's next turn. */
 export async function sendToAgent(name: string, text: string): Promise<void> {
   put(name, { ...record(name), sending: true, error: "" });
+  const before = record(name).chat.lines.length;
   try {
     await PersistentAPI.Send(name, text);
     put(name, { ...record(name), sending: false });
   } catch (e) {
-    put(name, { ...record(name), sending: false, error: String(e) });
+    // A turn that failed has said why in the chat already.
+    const said = record(name).chat.lines.slice(before).some((l) => l.kind === "warn");
+    put(name, { ...record(name), sending: false, error: said ? "" : String(e) });
   }
 }
 

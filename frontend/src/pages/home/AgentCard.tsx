@@ -3,7 +3,7 @@ import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, startFailureLines, termBlocks } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
 import { Button } from "../../ui";
 import { AgentTermBlocks } from "../AgentTerm";
 
@@ -146,9 +146,9 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
             placeholder={noModel ? "Set up a model first" : `Message ${called}`}
             onChange={(e) => setDraft(e.target.value)}
           />
-          {answering && running && !starting ? (
-            <Button type="button" data-stop-turn disabled={stopping} onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
-              {stopping ? "Stopping…" : "Stop"}
+          {agent && showsStop(agent, answering, starting) ? (
+            <Button type="button" busy={stopping} busyLabel="Stopping…" onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
+              Stop
             </Button>
           ) : (
             <Button type="submit" variant="primary" disabled={noModel || elsewhere || answering || !draft.trim()}>Send</Button>

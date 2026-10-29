@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, termBlocks } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
@@ -154,9 +154,9 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
               }
             }}
           />
-          {answering && running ? (
-            <Button type="button" data-stop-turn disabled={stopping} onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
-              {stopping ? "Stopping…" : "Stop"}
+          {showsStop(agent, answering) ? (
+            <Button type="button" busy={stopping} busyLabel="Stopping…" onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
+              Stop
             </Button>
           ) : (
             <Button type="submit" variant="primary" disabled={!running || !draft.trim()}>Send</Button>

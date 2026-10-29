@@ -16,13 +16,36 @@ export function newAgentChat(): AgentChat {
   return { ...newChat("", ""), lastTurnTokens: 0 };
 }
 
+// PLAN_LIMIT is how the runner begins the error of a persistent agent's
+// turn that the person's model plan refused for its usage limit.
+const PLAN_LIMIT = "plan limit reached: ";
+
+/** agentErrorLine is an agent's chat line for an error: the plan's limit in
+ *  the person's words, with the provider's after them; anything else as
+ *  the harness said it. */
+export function agentErrorLine(text: string): string {
+  if (text.startsWith(PLAN_LIMIT)) {
+    const said = text.slice(PLAN_LIMIT.length).trim();
+    return `Your model plan's usage limit is reached, so this turn could not be answered. Send your message again once the limit resets.${said ? ` The provider said: ${said}` : ""}`;
+  }
+  return `harness error: ${text}`;
+}
+
 /** applyAgentEvent is what one of an agent's events does to its chat. A
  *  segment's end is not the conversation's: a change ends one segment and
  *  starts the next, and the conversation goes on, so it only stops the
- *  "thinking" state. A turn's usage is kept as the last turn's tokens. */
+ *  "thinking" state. An error ends the turn, as the agent's supervisor takes
+ *  it, so the chat takes a message again; the turn's own activity after one
+ *  says it goes on. A turn's usage is kept as the last turn's tokens. */
 export function applyAgentEvent(c: AgentChat, ev: SessionEvent, now: number): AgentChat {
   if (ev.kind === "session_end") return { ...c, busy: false, streaming: "" };
-  const next = applyEvent(c, ev, now);
+  if (ev.kind === "error") {
+    const next = applyEvent(c, ev, now);
+    const lines = next.lines === c.lines ? next.lines : [...c.lines, { kind: "warn" as const, text: agentErrorLine(ev.text ?? "") }];
+    return { ...next, busy: false, lines, lastTurnTokens: c.lastTurnTokens };
+  }
+  const resumed = !c.busy && (ev.kind === "assistant_text" || ev.kind === "tool_call") && c.lines.some((l) => l.kind === "user");
+  const next = applyEvent(resumed ? { ...c, busy: true } : c, ev, now);
   let lastTurnTokens = c.lastTurnTokens;
   if (ev.kind === "user_turn") lastTurnTokens = 0;
   if (ev.kind === "usage") {
@@ -366,6 +389,12 @@ export function shareCheckWords(coder: boolean, malwareCheck: boolean): string {
   return malwareCheck
     ? ", and a file you add is checked for malware before it reads it"
     : ", and reads a file you add unchecked: the malware check is off on this computer";
+}
+
+/** Whether the chat's Send gives way to Stop: the agent runs, here or in
+ *  another client, and is on a turn it has, not still starting. */
+export function showsStop(agent: Pick<app.PersistentAgentView, "state">, answering: boolean, starting = false): boolean {
+  return answering && !starting && isLive(agent);
 }
 
 /** Whether a roster change is waiting for the agent's next turn. */
