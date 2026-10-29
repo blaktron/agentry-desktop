@@ -189,7 +189,11 @@ type SessionEventView struct {
 	Synthetic bool   `json:"synthetic,omitempty"`
 	// Task is, on a persistent agent's user turn that its heartbeat sent,
 	// the id of the task: the turn is the agent's own, not the person's.
-	Task       string `json:"task,omitempty"`
+	Task string `json:"task,omitempty"`
+	// Upkeep is, on a persistent agent's user turn, the runner's mark of
+	// an upkeep turn (a compaction or a memory tidy): the turn is the
+	// runner's, not the person's.
+	Upkeep     bool   `json:"upkeep,omitempty"`
 	StopReason string `json:"stopReason,omitempty"`
 	Path       string `json:"path,omitempty"`
 	Digest     string `json:"digest,omitempty"`
@@ -206,7 +210,7 @@ type SessionEventView struct {
 // eventView flattens a session event for the chat view.
 func eventView(ev session.Event) SessionEventView {
 	return SessionEventView{
-		Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic, Task: ev.Task,
+		Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic, Task: ev.Task, Upkeep: ev.Upkeep,
 		StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
 		InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, TotalTokens: ev.TotalTokens, CostUSD: ev.CostUSD,
 	}

@@ -26,7 +26,12 @@ import {
   persistentAgentsStatus,
   coderRunning,
   enableOutcome,
-  termLines,
+  termBlocks,
+  runningInBackground,
+  runSummary,
+  backgroundSummary,
+  toolsSummary,
+  firstLine,
   taskSummary,
   taskTurn,
   startFailureLines,
@@ -45,22 +50,26 @@ import {
 const t = "2026-10-20T19:00:00Z";
 const now = Date.parse("2026-10-20T19:10:00Z");
 
-test("the transcript reloads as the chat: the person's turns, the agent's, tool calls and notices", () => {
+test("the transcript reloads as the chat: the person's turns, the agent's, a turn's tool calls folded, and notices", () => {
   const c = chatFromTranscript([
     { kind: "user_turn", time: t, text: "Hi" },
+    { kind: "tool_call", time: t, text: "fs_read" },
+    { kind: "tool_call", time: t, text: "grep" },
     { kind: "tool_call", time: t, text: "fs_read" },
     { kind: "assistant_turn", time: t, text: "Hello, I'm Sandra." },
     { kind: "notice", time: t, text: "Applying your change: the agent restarts with it, and the conversation continues" },
     { kind: "user_turn", time: t, text: "left unanswered" },
   ], now);
   assert.equal(c.busy, false, "a turn the transcript left unanswered is not thinking");
-  assert.deepEqual(termLines(c), [
+  assert.deepEqual(termBlocks(c), [
     { kind: "person", text: "Hi" },
-    { kind: "tool", text: "fs_read" },
+    { kind: "tools", names: ["fs_read", "grep", "fs_read"] },
     { kind: "agent", text: "Hello, I'm Sandra." },
     { kind: "note", text: "Applying your change: the agent restarts with it, and the conversation continues" },
     { kind: "person", text: "left unanswered" },
   ]);
+  assert.equal(toolsSummary(["fs_read", "grep", "fs_read"]), "3 tool calls: fs_read, grep");
+  assert.equal(toolsSummary(["fs_read"]), "1 tool call: fs_read");
 });
 
 test("a segment's end is not the conversation's: the chat goes on, and the last turn's tokens are kept", () => {
@@ -77,21 +86,100 @@ test("a segment's end is not the conversation's: the chat goes on, and the last 
   assert.equal(c.busy, true);
 });
 
-test("a task's turn is one folded line naming the task, never the person's, live and from the transcript", () => {
-  const task = { kind: "user_turn", time: t, text: "Task: Stand up\n\nRemind the person to stand up and stretch.", task: "t1" };
-  const answer = { kind: "assistant_turn", time: t, text: "Time to stand up and stretch." };
-  const live = applyAgentEvent(applyAgentEvent(newAgentChat(), task, now), answer, now);
-  const expected = [
-    { kind: "task", name: "Stand up", instruction: "Remind the person to stand up and stretch." },
-    { kind: "agent", text: "Time to stand up and stretch." },
+const taskEv = { kind: "user_turn", time: t, text: "Task: Stand up\n\nRemind the person to stand up and stretch.", task: "t1" };
+const compactEv = { kind: "user_turn", time: t, text: "Upkeep: compact this conversation (memory-compact).", upkeep: true };
+
+test("a task's run is one folded line naming the task and its answer's first line, everything it did inside, live and from the transcript", () => {
+  const events = [
+    taskEv,
+    { kind: "tool_call", time: t, text: "calendar_events" },
+    { kind: "error", time: t, text: "Reconnecting... 1/5" },
+    { kind: "assistant_turn", time: t, text: "**Time to stand up** and stretch.\n\nYour next meeting is at 10." },
   ];
-  assert.deepEqual(termLines(live), expected);
+  let live = newAgentChat();
+  for (const ev of events) live = applyAgentEvent(live, ev, now);
+  const expected = [{
+    kind: "background", runs: [{
+      kind: "task", name: "Stand up", instruction: "Remind the person to stand up and stretch.", memory: false, running: false,
+      answer: "**Time to stand up** and stretch.\n\nYour next meeting is at 10.",
+      blocks: [
+        { kind: "tools", names: ["calendar_events"] },
+        { kind: "warn", text: "harness error: Reconnecting... 1/5" },
+        { kind: "agent", text: "**Time to stand up** and stretch.\n\nYour next meeting is at 10." },
+      ],
+    }],
+  }];
+  assert.deepEqual(termBlocks(live), expected);
   assert.equal(live.turns, 0, "the task's turn counted as the person's");
-  assert.deepEqual(termLines(chatFromTranscript([task, answer], now)), expected);
+  assert.deepEqual(termBlocks(chatFromTranscript(events, now)), expected);
+  const run = (termBlocks(live)[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0];
+  assert.equal(runSummary(run), "Task “Stand up” ran on its own: Time to stand up and stretch.");
   // The same text typed by the person, with no mark, is the person's.
-  const typed = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: task.text }, now);
-  assert.deepEqual(termLines(typed), [{ kind: "person", text: task.text }]);
+  const typed = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: taskEv.text }, now);
+  assert.deepEqual(termBlocks(typed), [{ kind: "person", text: taskEv.text }]);
   assert.equal(typed.turns, 1);
+});
+
+test("an upkeep turn is the runner's, never the person's: one folded line saying what it did, its memory writes and handoff inside", () => {
+  let c = newAgentChat();
+  for (const ev of [
+    compactEv,
+    { kind: "tool_call", time: t, text: "fs_read" },
+    { kind: "tool_call", time: t, text: "fs_write" },
+    { kind: "assistant_turn", time: t, text: "owed: the reply to Sam\nctx: the trip is in May" },
+  ]) c = applyAgentEvent(c, ev, now);
+  assert.equal(c.turns, 0, "the upkeep turn counted as the person's");
+  const blocks = termBlocks(c);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].kind, "background");
+  const run = (blocks[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0];
+  assert.equal(run.kind, "compaction");
+  assert.equal(run.instruction, compactEv.text);
+  assert.deepEqual(run.blocks, [{ kind: "tools", names: ["fs_read", "fs_write"] }, { kind: "agent", text: "owed: the reply to Sam\nctx: the trip is in May" }]);
+  assert.equal(runSummary(run), "Compacted the conversation: saved it to memory and went on in a fresh one");
+  // The Coding agent's compaction writes a handoff alone; a tidy is its own.
+  const handoffOnly = termBlocks(chatFromTranscript([{ kind: "user_turn", time: t, text: "Upkeep: compact this conversation.", upkeep: true }, { kind: "assistant_turn", time: t, text: "owed: none" }], now));
+  assert.equal(runSummary((handoffOnly[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Compacted the conversation: went on in a fresh one with a handoff");
+  const tidy = termBlocks(chatFromTranscript([{ kind: "user_turn", time: t, text: "Upkeep: consolidate your memory (memory-consolidate).", upkeep: true }, { kind: "assistant_turn", time: t, text: "done" }], now));
+  assert.equal(runSummary((tidy[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Tidied its memory");
+});
+
+test("runs in a row fold into one line that counts them, and the person's next turn starts the conversation again", () => {
+  const events = [
+    { kind: "user_turn", time: t, text: "What's on today?" },
+    { kind: "assistant_turn", time: t, text: "Two meetings." },
+    taskEv, { kind: "tool_call", time: t, text: "gmail_search" }, { kind: "assistant_turn", time: t, text: "No new mail." },
+    taskEv, { kind: "tool_call", time: t, text: "gmail_search" }, { kind: "assistant_turn", time: t, text: "No new mail." },
+    compactEv, { kind: "tool_call", time: t, text: "fs_write" }, { kind: "assistant_turn", time: t, text: "owed: none" },
+    taskEv, { kind: "tool_call", time: t, text: "gmail_search" }, { kind: "assistant_turn", time: t, text: "A reply from Sam came in." },
+    { kind: "user_turn", time: t, text: "Thanks" },
+    { kind: "assistant_turn", time: t, text: "You're welcome." },
+  ];
+  const blocks = termBlocks(chatFromTranscript(events, now));
+  assert.deepEqual(blocks.map((b) => b.kind), ["person", "agent", "background", "person", "agent"]);
+  const runs = (blocks[2] as { runs: Parameters<typeof runSummary>[0][] }).runs;
+  assert.equal(runs.length, 4);
+  assert.equal(backgroundSummary(runs), "On its own, task “Stand up” ran 3 times, the conversation was compacted once. Latest: A reply from Sam came in.");
+  assert.equal(backgroundSummary(runs.slice(0, 3)), "On its own, task “Stand up” ran twice, the conversation was compacted once. Latest: Compacted the conversation: saved it to memory and went on in a fresh one");
+  assert.equal(backgroundSummary(runs.slice(0, 1)), runSummary(runs[0]));
+});
+
+test("while a run on the agent's own is answered, the chat says what it does instead of streaming its reply", () => {
+  let c = applyAgentEvent(newAgentChat(), compactEv, now);
+  c = applyAgentEvent(c, { kind: "assistant_text", time: t, text: "owed:" }, now);
+  const run = runningInBackground(termBlocks(c));
+  assert.ok(run, "the compaction is not running");
+  assert.equal(runSummary(run), "Compacting: saving this conversation to memory first…");
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "owed: none" }, now);
+  assert.equal(runningInBackground(termBlocks(c)), null);
+  // The person's own turn streams as before.
+  const person = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "Hi" }, now);
+  assert.equal(runningInBackground(termBlocks(person)), null);
+  // A task that is running, and one that left no answer.
+  const task = applyAgentEvent(newAgentChat(), taskEv, now);
+  assert.equal(runSummary(runningInBackground(termBlocks(task))!), "Task “Stand up” is running…");
+  const failed = termBlocks(chatFromTranscript([taskEv, { kind: "error", time: t, text: "stream disconnected" }], now));
+  assert.equal(runSummary((failed[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Task “Stand up” ran on its own and did not finish");
 });
 
 test("a task turn's name and instruction, after a notice the runner put first", () => {
@@ -101,9 +189,16 @@ test("a task turn's name and instruction, after a notice the runner put first", 
   assert.equal(taskSummary(""), "A task ran on its own");
 });
 
+test("an answer's first line drops the markdown that starts it and is cut to a line", () => {
+  assert.equal(firstLine("\n## **Inbox**\nrest"), "Inbox");
+  assert.equal(firstLine("- `3` new"), "3 new");
+  assert.equal(firstLine("x".repeat(200), 10), "xxxxxxxxx…");
+  assert.equal(firstLine(""), "");
+});
+
 test("a synthetic turn the runner sent is not drawn as the person's", () => {
   const c = applyAgentEvent(newAgentChat(), { kind: "user_turn", time: t, text: "[frame]", synthetic: true }, now);
-  assert.deepEqual(termLines(c), []);
+  assert.deepEqual(termBlocks(c), []);
 });
 
 const agent = (over: Partial<app.PersistentAgentView>): app.PersistentAgentView => ({
