@@ -933,6 +933,19 @@ g.go = { app: {
       { kind: "user_turn", time: "2026-10-20T19:00:00Z", text: "Could you word a note asking my neighbour to keep the hallway clear?" },
       { kind: "tool_call", time: "2026-10-20T19:00:01Z", text: "fs_read" },
       { kind: "assistant_turn", time: "2026-10-20T19:00:03Z", text: "Here is one: *Hi, could we keep the hallway clear? Thanks!*" },
+      // What it did on its own since: two runs of a task and a compaction,
+      // which the chat folds into one line.
+      { kind: "user_turn", time: "2026-10-20T20:00:00Z", text: "Task: Inbox check\n\nLook for important mail since the last check.", task: "t1" },
+      { kind: "tool_call", time: "2026-10-20T20:00:01Z", text: "gmail_search" },
+      { kind: "assistant_turn", time: "2026-10-20T20:00:05Z", text: "No important mail since 19:00." },
+      { kind: "user_turn", time: "2026-10-20T21:00:00Z", text: "Upkeep: compact this conversation (memory-compact).", upkeep: true },
+      { kind: "tool_call", time: "2026-10-20T21:00:02Z", text: "fs_read" },
+      { kind: "tool_call", time: "2026-10-20T21:00:04Z", text: "fs_write" },
+      { kind: "assistant_turn", time: "2026-10-20T21:00:20Z", text: "owed: none\nctx: the hallway note was sent to the neighbour" },
+      { kind: "user_turn", time: "2026-10-20T22:00:00Z", text: "Task: Inbox check\n\nLook for important mail since the last check.", task: "t1" },
+      { kind: "tool_call", time: "2026-10-20T22:00:01Z", text: "gmail_search" },
+      { kind: "tool_call", time: "2026-10-20T22:00:02Z", text: "gmail_get_thread" },
+      { kind: "assistant_turn", time: "2026-10-20T22:00:06Z", text: "**A reply from the neighbour** came in: they will keep the hallway clear." },
     ]),
     // As Go answers: the Assistant turned on turns the Helper off, and the
     // Helper is refused while the Assistant is on.

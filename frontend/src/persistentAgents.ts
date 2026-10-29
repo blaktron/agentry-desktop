@@ -41,34 +41,167 @@ export function chatFromTranscript(events: SessionEvent[], now: number): AgentCh
   return { ...c, busy: false, streaming: "", lastTurnTokens: 0 };
 }
 
-/** A terminal-style line of the chat: the person's after a ">", the
- *  agent's as markdown, a tool call and the runner's notes dim, and a turn
- *  the agent's heartbeat sent for one of its tasks as one folded line
- *  naming the task, its instruction inside. */
-export type TermLine =
+/** A block of the chat, drawn in a terminal's manner. The person's turns
+ *  and the agent's answers to them are drawn whole: the person's after a
+ *  ">", the agent's as markdown, the runner's notes and warnings dim. A
+ *  turn's tool calls fold into one line naming them. What the agent does
+ *  on its own (a task its heartbeat sent, a compaction, a memory tidy)
+ *  folds into one line per run, and runs in a row into one line that
+ *  counts them; each opens on everything it did. */
+export type TermBlock =
   | { kind: "person"; text: string }
-  | { kind: "task"; name: string; instruction: string }
   | { kind: "agent"; text: string }
-  | { kind: "tool"; text: string }
+  | { kind: "tools"; names: string[] }
   | { kind: "note"; text: string }
-  | { kind: "warn"; text: string };
+  | { kind: "warn"; text: string }
+  | { kind: "background"; runs: BackgroundRun[] };
 
-export function termLines(c: Chat): TermLine[] {
-  return c.lines.flatMap((l): TermLine[] => {
-    switch (l.kind) {
-      case "user":
-        if (l.task) return [{ kind: "task", ...taskTurn(l.text) }];
-        return l.synthetic ? [] : [{ kind: "person", text: l.text }];
-      case "assistant":
-        return [{ kind: "agent", text: l.text }];
-      case "note":
-        return l.text.startsWith("tool: ") ? [{ kind: "tool", text: l.text.slice(6) }] : [{ kind: "note", text: l.text }];
-      case "warn":
-        return [{ kind: "warn", text: l.text }];
-      case "end":
-        return [];
+/** What a run on the agent's own was: a task's, a compaction or a tidy. */
+export type BackgroundKind = "task" | "compaction" | "tidy";
+
+/** One run on the agent's own: the turn the runner sent and what the
+ *  agent did with it, its last answer apart. Running while it is the turn
+ *  the agent is on. */
+export type BackgroundRun = {
+  kind: BackgroundKind;
+  /** A task's name ("" when its turn names none). */
+  name: string;
+  /** The task's instruction, or the upkeep turn's text. */
+  instruction: string;
+  /** For a compaction, whether the agent saves to a memory first. */
+  memory: boolean;
+  /** Its tool calls, notes, warnings and answers, in order. */
+  blocks: TermBlock[];
+  /** Its last answer: the task's report, or the compaction's handoff. */
+  answer: string;
+  running: boolean;
+};
+
+// pushFolding adds a line to blocks, folding a tool call into the tool
+// line just before it.
+function pushFolding(blocks: TermBlock[], b: TermBlock) {
+  const last = blocks[blocks.length - 1];
+  if (b.kind === "tools" && last?.kind === "tools") {
+    blocks[blocks.length - 1] = { kind: "tools", names: [...last.names, ...b.names] };
+    return;
+  }
+  blocks.push(b);
+}
+
+// upkeepRun is a run for an upkeep turn, read from the text the runner
+// sends: "Upkeep: consolidate your memory (memory-consolidate)." for a
+// tidy, "Upkeep: compact this conversation (memory-compact)." for a
+// compaction that saves to the memory, and without the skill's name for
+// one that writes a handoff only.
+function upkeepRun(text: string): BackgroundRun {
+  const tidy = text.includes("memory-consolidate");
+  return { kind: tidy ? "tidy" : "compaction", name: "", instruction: text.trim(), memory: tidy || text.includes("memory-compact"), blocks: [], answer: "", running: false };
+}
+
+/** termBlocks is the chat as its page draws it. A run on the agent's own
+ *  holds everything up to the next turn sent to the agent; while the chat
+ *  is busy, the last run with no answer yet is running. */
+export function termBlocks(c: Pick<Chat, "lines" | "busy">): TermBlock[] {
+  const blocks: TermBlock[] = [];
+  let run: BackgroundRun | null = null;
+  for (const l of c.lines) {
+    if (l.kind === "user") {
+      run = null;
+      if (l.synthetic && !l.task && !l.upkeep) continue;
+      if (!l.task && !l.upkeep) {
+        blocks.push({ kind: "person", text: l.text });
+        continue;
+      }
+      run = l.upkeep ? upkeepRun(l.text) : { kind: "task", ...taskTurn(l.text), memory: false, blocks: [], answer: "", running: false };
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "background") last.runs.push(run);
+      else blocks.push({ kind: "background", runs: [run] });
+      continue;
     }
-  });
+    let b: TermBlock;
+    switch (l.kind) {
+      case "assistant":
+        b = { kind: "agent", text: l.text };
+        if (run) run.answer = l.text;
+        break;
+      case "note":
+        b = l.text.startsWith("tool: ") ? { kind: "tools", names: [l.text.slice(6)] } : { kind: "note", text: l.text };
+        break;
+      case "warn":
+        b = { kind: "warn", text: l.text };
+        break;
+      default:
+        continue;
+    }
+    pushFolding(run ? run.blocks : blocks, b);
+  }
+  if (run && c.busy && !run.answer) run.running = true;
+  return blocks;
+}
+
+/** runningInBackground is the run the agent is on, when the turn it is
+ *  answering is its own: its reply is not streamed into the chat, whose
+ *  folded line says what it is doing. */
+export function runningInBackground(blocks: TermBlock[]): BackgroundRun | null {
+  const last = blocks[blocks.length - 1];
+  if (last?.kind !== "background") return null;
+  const run = last.runs[last.runs.length - 1];
+  return run.running ? run : null;
+}
+
+/** toolsSummary is a turn's folded tool line: how many calls, and the
+ *  tools by name, each once, in the order first used. */
+export function toolsSummary(names: string[]): string {
+  const n = names.length;
+  return `${n} tool call${n === 1 ? "" : "s"}: ${[...new Set(names)].join(", ")}`;
+}
+
+/** firstLine is an answer's first line of text, without the markdown
+ *  that starts it, cut to a line's length. */
+export function firstLine(text: string, max = 120): string {
+  const line = text.split("\n").map((l) => l.replace(/^[\s#>*\-+]+/, "").replace(/\*\*|__|`/g, "").trim()).find((l) => l !== "") ?? "";
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+}
+
+/** runSummary is one run's folded line: what ran and, for a task, the
+ *  first line of its answer; what it is doing while it runs; and that it
+ *  did not finish when it left no answer. */
+export function runSummary(r: BackgroundRun): string {
+  switch (r.kind) {
+    case "task": {
+      const what = r.name ? `Task “${r.name}”` : "A task";
+      if (r.running) return `${what} is running…`;
+      if (!r.answer) return `${taskSummary(r.name)} and did not finish`;
+      const gist = firstLine(r.answer);
+      return gist ? `${taskSummary(r.name)}: ${gist}` : taskSummary(r.name);
+    }
+    case "compaction":
+      if (r.running) return r.memory ? "Compacting: saving this conversation to memory first…" : "Compacting: writing a handoff…";
+      if (!r.answer) return "A compaction did not finish: the conversation went on as it was";
+      return r.memory ? "Compacted the conversation: saved it to memory and went on in a fresh one" : "Compacted the conversation: went on in a fresh one with a handoff";
+    case "tidy":
+      if (r.running) return "Tidying its memory…";
+      return r.answer ? "Tidied its memory" : "A memory tidy did not finish";
+  }
+}
+
+const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+/** backgroundSummary is the line runs in a row fold into: each task by
+ *  name with how often it ran, the compactions and tidies counted, and
+ *  the newest run: a task's answer's first line, else its own line. One
+ *  run is its own line. */
+export function backgroundSummary(runs: BackgroundRun[]): string {
+  if (runs.length === 1) return runSummary(runs[0]);
+  const counts = new Map<string, number>();
+  for (const r of runs) {
+    const key = r.kind === "task" ? (r.name ? `task “${r.name}” ran` : "a task ran") : r.kind === "compaction" ? "the conversation was compacted" : "the memory was tidied";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const parts = [...counts].map(([what, n]) => `${what} ${times(n)}`);
+  const last = runs[runs.length - 1];
+  const gist = last.kind === "task" && !last.running && last.answer ? firstLine(last.answer) : "";
+  return `On its own, ${parts.join(", ")}. Latest: ${gist || runSummary(last)}`;
 }
 
 /** taskTurn reads a task's turn as the heartbeat writes it, a

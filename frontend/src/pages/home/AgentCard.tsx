@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
-import { AgentMarkdown } from "../../AgentMarkdown";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, startFailureLines, taskSummary, termLines } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, startFailureLines, termBlocks } from "../../persistentAgents";
 import { Button } from "../../ui";
+import { AgentTermBlocks } from "../AgentTerm";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
 // small. It runs the agent the person gave it, here in its switcher, in
@@ -35,7 +35,8 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const lines = termLines(rec.chat);
+  const blocks = termBlocks(rec.chat);
+  const inBackground = runningInBackground(blocks);
   const called = agent?.displayName || "Agentry Helper";
 
   // Whether a model is set up: read, never written.
@@ -48,7 +49,7 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length, rec.chat.streaming, starting]);
+  }, [rec.chat.lines.length, rec.chat.streaming, starting]);
 
   // A new agent on the card starts with nothing said about the last one.
   useEffect(() => { setError(null); }, [name]);
@@ -106,33 +107,13 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
       className="home-card main-card" status={agent ? mainStatusLine(agent) : "Reading the agent…"}>
       <div className="build-way-part main-card-chat" data-home-agent={name}>
         <div className="main-card-scroll" ref={scroller} role="log" aria-live="polite" aria-label={`Chat with ${called}`}>
-          {lines.length === 0 && !starting && !rec.chat.streaming && (
+          {blocks.length === 0 && !starting && !rec.chat.streaming && (
             <p className="agent-term-note">{noModel || !agent ? "" : agentCardHint(agent)}</p>
           )}
-          {lines.map((l, i) => {
-            switch (l.kind) {
-              case "person":
-                return <div key={i} className="agent-term-person"><span aria-hidden="true">&gt; </span>{l.text}</div>;
-              case "task":
-                return (
-                  <details key={i} className="agent-term-task" data-task-turn>
-                    <summary>{taskSummary(l.name)}</summary>
-                    {l.instruction && <div className="agent-term-task-body">{l.instruction}</div>}
-                  </details>
-                );
-              case "agent":
-                return <div key={i} className="agent-term-agent"><AgentMarkdown text={l.text} /></div>;
-              case "tool":
-                return <div key={i} className="agent-term-tool">· {l.text}</div>;
-              case "warn":
-                return <div key={i} className="agent-term-warn">{l.text}</div>;
-              default:
-                return <div key={i} className="agent-term-note">{l.text}</div>;
-            }
-          })}
+          <AgentTermBlocks blocks={blocks} />
           {starting && <div className="agent-term-note">{agent?.stage ? `${agent.stage}…` : `Starting ${called}…`}</div>}
-          {rec.chat.streaming && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
-          {!starting && answering && !rec.chat.streaming && <div className="agent-term-note">thinking…</div>}
+          {rec.chat.streaming && !inBackground && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
+          {!starting && answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
         {noModel && (
           <p className="small" data-main-no-model>

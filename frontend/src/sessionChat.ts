@@ -21,6 +21,10 @@ export interface SessionEvent {
   /** On a persistent agent's turn that its heartbeat sent, the task's id:
    *  the turn is the agent's own, not the person's. */
   task?: string;
+  /** On a persistent agent's turn, the runner's mark of an upkeep turn (a
+   *  compaction or a memory tidy): the turn is the runner's, not the
+   *  person's. */
+  upkeep?: boolean;
   stopReason?: string;
   path?: string;
   digest?: string;
@@ -35,7 +39,7 @@ export interface SessionEvent {
 }
 
 export type Line =
-  | { kind: "user"; text: string; synthetic: boolean; task?: string }
+  | { kind: "user"; text: string; synthetic: boolean; task?: string; upkeep?: boolean }
   | { kind: "assistant"; text: string }
   | { kind: "note"; text: string }
   | { kind: "warn"; text: string }
@@ -106,8 +110,12 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     case "user_turn":
       return {
         ...next, streaming: "", busy: true,
-        turns: ev.synthetic || ev.task ? c.turns : c.turns + 1,
-        lines: [...c.lines, ev.task ? { kind: "user", text, synthetic: !!ev.synthetic, task: ev.task } : { kind: "user", text, synthetic: !!ev.synthetic }],
+        turns: ev.synthetic || ev.task || ev.upkeep ? c.turns : c.turns + 1,
+        lines: [...c.lines, {
+          kind: "user", text, synthetic: !!ev.synthetic,
+          ...(ev.task ? { task: ev.task } : {}),
+          ...(ev.upkeep ? { upkeep: true } : {}),
+        }],
       };
     case "assistant_text":
       return { ...next, streaming: c.streaming + text };

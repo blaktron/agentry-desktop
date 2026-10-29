@@ -1,19 +1,20 @@
 // A persistent agent's own page: three panes over the whole content area.
 // Left, full height, the chat in a terminal's manner: the person's lines
-// after a ">", the agent's as markdown in mono, tool calls and the runner's
-// notes dim, a prompt line with Send and Add file. Top right, the usage
+// after a ">", the agent's as markdown in mono, a turn's tool calls folded
+// to one dim line, the runner's notes dim, what the agent did on its own
+// folded (AgentTermBlocks), a prompt line with Send and Add file. Top right, the usage
 // panel; bottom right, the roster, a switch per entry the person may
 // change. The chat is the agent's store's, so it goes on while the person is
 // on another page; its last lines come back from the transcript.
 import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
-import { AgentMarkdown } from "../AgentMarkdown";
 import { sendToAgent, startAgent, stopStart, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, pendingChange, taskSummary, termLines } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { Button, ErrorBox } from "../ui";
 import { StartFailure } from "./StartFailure";
+import { AgentTermBlocks } from "./AgentTerm";
 import { AgentConfigModal } from "./SettingsPersistentAgents";
 import { ConfigCards } from "./ConfigCards";
 
@@ -28,7 +29,8 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   const [configuring, setConfiguring] = useState(false);
   const [now, setNow] = useState(Date.now());
   const scroller = useRef<HTMLDivElement>(null);
-  const lines = termLines(rec.chat);
+  const blocks = termBlocks(rec.chat);
+  const inBackground = runningInBackground(blocks);
 
   // The figures follow the agent: read again while it runs.
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length, rec.chat.streaming]);
+  }, [rec.chat.lines.length, rec.chat.streaming]);
 
   const act = async (f: () => Promise<app.PersistentAgentView>) => {
     setBusy(true);
@@ -111,32 +113,12 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
         </header>
         <StartFailure agent={agent} />
         <div className="agent-term-scroll" ref={scroller} role="log" aria-live="polite">
-          {lines.length === 0 && !rec.chat.streaming && (
+          {blocks.length === 0 && !rec.chat.streaming && (
             <p className="agent-term-note">{running ? "Say hello to start the conversation." : "Start the agent to talk to it. The conversation picks up where it left off."}</p>
           )}
-          {lines.map((l, i) => {
-            switch (l.kind) {
-              case "person":
-                return <div key={i} className="agent-term-person"><span aria-hidden="true">&gt; </span>{l.text}</div>;
-              case "task":
-                return (
-                  <details key={i} className="agent-term-task" data-task-turn>
-                    <summary>{taskSummary(l.name)}</summary>
-                    {l.instruction && <div className="agent-term-task-body">{l.instruction}</div>}
-                  </details>
-                );
-              case "agent":
-                return <div key={i} className="agent-term-agent"><AgentMarkdown text={l.text} /></div>;
-              case "tool":
-                return <div key={i} className="agent-term-tool">· {l.text}</div>;
-              case "warn":
-                return <div key={i} className="agent-term-warn">{l.text}</div>;
-              default:
-                return <div key={i} className="agent-term-note">{l.text}</div>;
-            }
-          })}
-          {rec.chat.streaming && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
-          {answering && !rec.chat.streaming && <div className="agent-term-note">thinking…</div>}
+          <AgentTermBlocks blocks={blocks} />
+          {rec.chat.streaming && !inBackground && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
+          {answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
         {pendingChange(agent) && running && <p className="agent-term-pending">Applying your change at the next turn.</p>}
         {(rec.error || error) && <ErrorBox error={rec.error || error} />}
