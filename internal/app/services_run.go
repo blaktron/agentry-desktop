@@ -1018,9 +1018,10 @@ type RunResultView struct {
 	WallMS       int64   `json:"wallMs"`
 	Turns        int     `json:"turns"`
 	// Credits is what a run paid with Agentry credits was charged
-	// (paidWithCredits), the registry's figure.
-	Credits          int64  `json:"credits"`
-	PaidWithCredits  bool   `json:"paidWithCredits"`
+	// (paidWithCredits), the registry's figure; both are absent for a run
+	// paid with a key or a sign-in, whose result names no credits.
+	Credits          int64  `json:"credits,omitempty"`
+	PaidWithCredits  bool   `json:"paidWithCredits,omitempty"`
 	AttestationState string `json:"attestationState"`
 	// Policy is the operator policy file the run enforced, the envelope's
 	// block as it is: omitted when the envelope carries none.

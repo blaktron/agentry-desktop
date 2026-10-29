@@ -5071,8 +5071,8 @@ export namespace app {
 	    costUsd: number;
 	    wallMs: number;
 	    turns: number;
-	    credits: number;
-	    paidWithCredits: boolean;
+	    credits?: number;
+	    paidWithCredits?: boolean;
 	    attestationState: string;
 	    policy?: receipt.Policy;
 	    knowledge?: string;
