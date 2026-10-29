@@ -88,6 +88,27 @@ export function newChat(opening: string, task: string): Chat {
   return { lines, streaming: "", turns: 0, tools: 0, cost: 0, tokens: 0, busy: false, ended: null, lastActivity: null, endedAt: null, lastSeq: 0 };
 }
 
+/** STOP_INTERRUPTED is the stop reason of a turn the person stopped. */
+export const STOP_INTERRUPTED = "interrupted";
+
+/** STOPPED_NOTE follows what a stopped turn had said. */
+export const STOPPED_NOTE = "Stopped.";
+
+// PLAN_LIMIT is how the runner begins the error of a turn the person's model
+// plan refused for its usage limit.
+const PLAN_LIMIT = "plan limit reached: ";
+
+/** errorLine is the chat's line for an error event: the plan's limit in
+ *  the person's words, with the provider's after them; anything else as
+ *  the harness said it. */
+export function errorLine(text: string): string {
+  if (text.startsWith(PLAN_LIMIT)) {
+    const said = text.slice(PLAN_LIMIT.length).trim();
+    return `Your model plan's usage limit is reached, so this turn could not be answered. Send your message again once the limit resets.${said ? ` The provider said: ${said}` : ""}`;
+  }
+  return `harness error: ${text}`;
+}
+
 // The events that reset a session's idle close, as the CLI counts them
 // (agentry-cli pkg/runner/engine/session.go).
 const ACTIVITY = new Set(["user_turn", "assistant_text", "tool_call", "assistant_turn"]);
@@ -119,8 +140,15 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
       };
     case "assistant_text":
       return { ...next, streaming: c.streaming + text };
-    case "assistant_turn":
-      return { ...next, streaming: "", busy: false, lines: [...c.lines, { kind: "assistant", text: text.trim() }] };
+    case "assistant_turn": {
+      if (ev.stopReason !== STOP_INTERRUPTED) {
+        return { ...next, streaming: "", busy: false, lines: [...c.lines, { kind: "assistant", text: text.trim() }] };
+      }
+      // A stopped turn keeps what it had said, and says it was stopped.
+      const said = text.trim() || c.streaming.trim();
+      const lines: Line[] = [...c.lines, ...(said ? [{ kind: "assistant" as const, text: said }] : []), { kind: "note", text: STOPPED_NOTE }];
+      return { ...next, streaming: "", busy: false, lines };
+    }
     case "tool_call":
       return { ...next, tools: c.tools + 1, lines: [...c.lines, { kind: "note", text: `tool: ${text}` }] };
     case "permission_denied":
@@ -132,8 +160,13 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
       const tokens = c.tokens + (split > 0 ? split : (ev.totalTokens ?? 0));
       return { ...next, tokens, cost: Math.max(c.cost, ev.costUsd ?? 0) };
     }
-    case "error":
-      return { ...next, lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
+    case "error": {
+      // An error ends the turn, as the runner takes it: what had streamed
+      // stays, and the chat takes a message again.
+      const said = c.streaming.trim();
+      const lines: Line[] = [...c.lines, ...(said ? [{ kind: "assistant" as const, text: said }] : []), { kind: "warn", text: errorLine(text) }];
+      return { ...next, streaming: "", busy: false, lines };
+    }
     case "session_end": {
       const reason = ev.reason || "ended";
       return { ...next, busy: false, streaming: "", ended: reason, endedAt: when, lines: [...c.lines, { kind: "end", reason }] };

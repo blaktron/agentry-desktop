@@ -70,6 +70,10 @@ export function GoogleSignIn(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['GoogleSignIn'](arg1, arg2);
 }
 
+export function Interrupt(arg1) {
+  return window['go']['app']['PersistentAPI']['Interrupt'](arg1);
+}
+
 export function List() {
   return window['go']['app']['PersistentAPI']['List']();
 }

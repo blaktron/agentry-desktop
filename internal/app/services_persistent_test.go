@@ -31,6 +31,11 @@ type fakeAgent struct {
 	compacted   persistent.Compacted
 	compactErr  error
 	compactions int
+	// sendErr is what each Send returns; interrupts counts the interrupts,
+	// which answer interruptErr.
+	sendErr      error
+	interruptErr error
+	interrupts   int
 }
 
 func newFakeAgent() *fakeAgent {
@@ -41,7 +46,7 @@ func (f *fakeAgent) Send(_ context.Context, text string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sent = append(f.sent, text)
-	return nil
+	return f.sendErr
 }
 func (f *fakeAgent) Subscribe() (<-chan session.Event, func()) { return f.events, func() {} }
 func (f *fakeAgent) Status() persistent.Status {
@@ -53,6 +58,12 @@ func (f *fakeAgent) Compact(context.Context) (persistent.Compacted, error) {
 	defer f.mu.Unlock()
 	f.compactions++
 	return f.compacted, f.compactErr
+}
+func (f *fakeAgent) Interrupt(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.interrupts++
+	return f.interruptErr
 }
 func (f *fakeAgent) Done() <-chan struct{} { return f.done }
 func (f *fakeAgent) Stop(context.Context) (*receipt.Envelope, error) {

@@ -182,6 +182,17 @@ export async function stopStart(name: string): Promise<string | null> {
   }
 }
 
+/** stopTurn stops the turn the agent is on; the agent keeps running. It
+ *  answers the error to show, or null. */
+export async function stopTurn(name: string): Promise<string | null> {
+  try {
+    await PersistentAPI.Interrupt(name);
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}
+
 /** startAgent starts an agent and puts its view into the list. It answers
  *  the error to show, or null: a start that failed is shown by the agent's
  *  own view (its failure), so its error is not shown twice. */

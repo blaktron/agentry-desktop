@@ -38,6 +38,8 @@ export function Get(arg1:string):Promise<app.PersistentAgentView>;
 
 export function GoogleSignIn(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
+export function Interrupt(arg1:string):Promise<void>;
+
 export function List():Promise<Array<app.PersistentAgentView>>;
 
 export function MicrosoftAgentryApp(arg1:string):Promise<boolean>;
