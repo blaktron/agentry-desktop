@@ -101,6 +101,9 @@ export async function loadChat(name: string): Promise<void> {
   put(name, { ...record(name), chat, loaded: true });
 }
 
+// How long a failed send waits for its turn's error to reach the chat.
+const TURN_ERROR_WAIT_MS = 500;
+
 /** sendToAgent sends the person's message as the agent's next turn. */
 export async function sendToAgent(name: string, text: string): Promise<void> {
   put(name, { ...record(name), sending: true, error: "" });
@@ -109,7 +112,9 @@ export async function sendToAgent(name: string, text: string): Promise<void> {
     await PersistentAPI.Send(name, text);
     put(name, { ...record(name), sending: false });
   } catch (e) {
-    // A turn that failed has said why in the chat already.
+    // A turn that failed says why in the chat; its events can land just
+    // after the call answers, so they are given a moment first.
+    await new Promise((r) => setTimeout(r, TURN_ERROR_WAIT_MS));
     const said = record(name).chat.lines.slice(before).some((l) => l.kind === "warn");
     put(name, { ...record(name), sending: false, error: said ? "" : String(e) });
   }
