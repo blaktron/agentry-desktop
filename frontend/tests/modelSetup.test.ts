@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, CREDITS_LOCK, PROVIDERS, VULTR_SIGN_UP_URL, creditsLines, modelOptionLabel, providerChoice, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
+  CLAUDE_SIGN_IN_LABEL, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, VULTR_SIGN_UP_URL, creditsLines, modelOptionLabel, providerChoice, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -190,6 +190,7 @@ test("the Agentry credits choice says the balance and the model, and asks for no
   assert.equal(p.model, "");
   assert.deepEqual(p.ways.map((w) => w.id), ["credits"]);
   assert.equal(CREDITS_LOCK, "Please sign in");
+  assert.equal(CREDITS_DOCS_URL, "https://docs.secureagentry.net/agentry/pay-with-credits/");
   assert.deepEqual(creditsLines({ signedIn: true, balance: 1250, balanceKnown: true, model: "qwen3.8-flash-next", unavailable: "" }), [
     "Your account has 1,250 credits.",
     "Agentry runs them on qwen3.8-flash-next now.",

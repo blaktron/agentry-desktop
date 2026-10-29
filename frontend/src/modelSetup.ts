@@ -118,6 +118,9 @@ export const PROVIDERS: ProviderChoice[] = [
   ] },
 ];
 
+/** The docs page on paying for the runs on this computer with credits. */
+export const CREDITS_DOCS_URL = "https://docs.secureagentry.net/agentry/pay-with-credits/";
+
 /** The words across the Agentry credits tile while no SecureAgentry
  *  account is signed in, as on the wizard's Cloud card. */
 export const CREDITS_LOCK = "Please sign in";

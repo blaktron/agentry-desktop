@@ -6,7 +6,7 @@ import { app, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
-  COPILOT_PLANS, CREDITS_LOCK, PROVIDERS, creditsLines, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  COPILOT_PLANS, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, creditsLines, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn, type KeyGuide, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
@@ -464,7 +464,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
               {creditsLines(credits ?? { signedIn: false, balance: 0, balanceKnown: false, model: "", unavailable: "" }).map((line) => (
                 <p key={line} className="small">{line}</p>
               ))}
-              <span className="muted small field-hint">{currentWay?.hint}</span>
+              <span className="muted small field-hint">
+                {currentWay?.hint}{" "}
+                <Button variant="link" onClick={() => void OpenExternal(CREDITS_DOCS_URL)}>How paying with credits works</Button>
+              </span>
             </div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <Button disabled={!!busy || !credits?.signedIn} title={credits?.signedIn ? "" : "sign in first"} onClick={() => applyCredits(false)}>
