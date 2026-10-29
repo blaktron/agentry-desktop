@@ -732,10 +732,10 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
       </p>
       <p className="small muted">
         A Google Workspace calendar whose secret address your administrator turned off: copy its Public address in iCal format
-        and choose Sign in in a browser window. A browser opens at the address in a profile of its own; you sign in to the
-        account that can see the calendar, and the cookies that browser sends to the calendar&apos;s site, which are your
-        sign-in to that site, are kept in your keychain and sent to that site alone. Google may end the sign-in after a
-        while; the feed&apos;s card then offers Sign in again.
+        and choose Sign in in a browser window. A browser opens at the address in a profile of its own, which Agentry does not
+        control while you sign in to the account that can see the calendar. Once it closes, the cookies that browser sends to
+        the calendar&apos;s site, which are your sign-in to that site, are kept in your keychain and sent to that site alone.
+        Google may end the sign-in after a while; the feed&apos;s card then offers Sign in again.
       </p>
       <div className="persistent-server-form">
         <Field label="Name" hint="Your name for it, such as Work or Family.">
@@ -776,8 +776,9 @@ function SignInWaiting({ agent }: { agent: app.PersistentAgentView }) {
   return (
     <div className="row gap" role="status">
       <span className="small">
-        Sign in in the browser window that opened, to the account that can see the calendar. It closes by itself once the
-        calendar can be read.
+        Sign in in the browser window that opened, to the account that can see the calendar. Agentry does not control that
+        window. It closes by itself once the calendar downloads; if it does not, close it (on a Mac, quit the browser) once
+        you are signed in.
       </span>
       <Button variant="ghost" className="small" onClick={() => void PersistentAPI.CancelCalendarSignIn(agent.name).catch(() => undefined)}>
         Cancel
