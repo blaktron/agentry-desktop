@@ -83,6 +83,8 @@ github.com/blaktron/agentry v0.6.999 h1:JR69IuuQhG/CPNE3v4MgtaKHNf3DlKAUe+i6EQIr
 github.com/blaktron/agentry v0.6.999/go.mod h1:VInvJrNshxPLwQhYGj1AEFWF5fJ/8CCJXokJbObCoHo=
 github.com/blaktron/agentry-cli v0.6.1004 h1:3e0eqYuQNuNvmq1BWZUaZ+OEZ3vHfNQQPGDhSXRvbZY=
 github.com/blaktron/agentry-cli v0.6.1004/go.mod h1:XUxKBZ2XUQCAl7p+HSgzgLLjHfYjk+V6SVeVFIoE1xs=
+github.com/blaktron/agentry-cli v0.6.1006-dev.1 h1:126kJxaZAkDqKpaprZyopHj/9V2WcEkxJyXytnYtBo8=
+github.com/blaktron/agentry-cli v0.6.1006-dev.1/go.mod h1:XUxKBZ2XUQCAl7p+HSgzgLLjHfYjk+V6SVeVFIoE1xs=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
 github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
