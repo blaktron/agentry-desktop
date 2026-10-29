@@ -9,7 +9,7 @@
 // code, which the app copies for the person to paste on GitHub's page.
 
 /** One way to pay for a provider's models. */
-export type WayId = "chatgpt" | "claude" | "copilot" | "connect" | "key";
+export type WayId = "chatgpt" | "claude" | "copilot" | "connect" | "key" | "credits";
 
 export interface Way {
   id: WayId;
@@ -112,7 +112,27 @@ export const PROVIDERS: ProviderChoice[] = [
   { id: "custom", label: "Custom endpoint (OpenAI-compatible)", short: "Custom endpoint", model: "", apiKeyEnv: "CUSTOM_API_KEY", ways: [
     key("The key your endpoint expects."),
   ] },
+  { id: "agentry", label: "Agentry credits", short: "Agentry credits", model: "", apiKeyEnv: "", ways: [
+    { id: "credits", label: "Your Agentry credits", kind: "",
+      hint: "The runs on this computer are paid with the credits of the SecureAgentry account you are signed in to, at the rates of runs In Agentry. Agentry chooses the model." },
+  ] },
 ];
+
+/** The words across the Agentry credits tile while no SecureAgentry
+ *  account is signed in, as on the wizard's Cloud card. */
+export const CREDITS_LOCK = "Please sign in";
+
+/** What the Agentry credits choice says once picked: the account's balance
+ *  and the model Agentry uses now, each only as far as the registry said
+ *  it, or why it serves none now. */
+export function creditsLines(o: { signedIn: boolean; balance: number; balanceKnown: boolean; model: string; unavailable: string }): string[] {
+  if (!o.signedIn) return ["Sign in to your SecureAgentry account first: the runs are paid with its credits."];
+  const lines = [o.balanceKnown ? `Your account has ${o.balance.toLocaleString("en-US")} ${o.balance === 1 ? "credit" : "credits"}.` : "Your balance could not be read just now."];
+  if (o.model) lines.push(`Agentry runs them on ${o.model} now.`);
+  else if (o.unavailable) lines.push(`Agentry cannot run them just now: ${o.unavailable}`);
+  lines.push("A run stops when the credits are used up; a persistent agent stays up and says so in its chat.");
+  return lines;
+}
 
 export const providerChoice = (id: string): ProviderChoice | undefined => PROVIDERS.find((p) => p.id === id);
 
@@ -128,6 +148,7 @@ export function tileOffer(p: ProviderChoice): string {
       case "chatgpt": return "ChatGPT plan";
       case "copilot": return "Copilot plan";
       case "connect": return "your account";
+      case "credits": return "your Agentry credits";
       default: return w.label === "API key" ? w.label : w.label.toLowerCase();
     }
   }).join(" or ");

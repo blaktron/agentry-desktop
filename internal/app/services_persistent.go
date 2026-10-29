@@ -1001,7 +1001,7 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 	}
 	return persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
-		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(),
+		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
 		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
 	}, nil
 }

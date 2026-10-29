@@ -86,6 +86,10 @@ export function CopilotModels(arg1) {
   return window['go']['app']['RunAPI']['CopilotModels'](arg1);
 }
 
+export function CreditsOffer() {
+  return window['go']['app']['RunAPI']['CreditsOffer']();
+}
+
 export function DeleteHostedSecret(arg1, arg2) {
   return window['go']['app']['RunAPI']['DeleteHostedSecret'](arg1, arg2);
 }

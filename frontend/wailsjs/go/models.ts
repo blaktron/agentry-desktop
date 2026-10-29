@@ -482,6 +482,28 @@ export namespace app {
 	        this.provider = source["provider"];
 	    }
 	}
+	export class CreditsOfferView {
+	    signedIn: boolean;
+	    registry: string;
+	    balance: number;
+	    balanceKnown: boolean;
+	    model: string;
+	    unavailable: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreditsOfferView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.signedIn = source["signedIn"];
+	        this.registry = source["registry"];
+	        this.balance = source["balance"];
+	        this.balanceKnown = source["balanceKnown"];
+	        this.model = source["model"];
+	        this.unavailable = source["unavailable"];
+	    }
+	}
 	export class DeliverableTextView {
 	    kind: string;
 	    text: string;
@@ -5049,6 +5071,8 @@ export namespace app {
 	    costUsd: number;
 	    wallMs: number;
 	    turns: number;
+	    credits: number;
+	    paidWithCredits: boolean;
 	    attestationState: string;
 	    policy?: receipt.Policy;
 	    knowledge?: string;
@@ -5079,6 +5103,8 @@ export namespace app {
 	        this.costUsd = source["costUsd"];
 	        this.wallMs = source["wallMs"];
 	        this.turns = source["turns"];
+	        this.credits = source["credits"];
+	        this.paidWithCredits = source["paidWithCredits"];
 	        this.attestationState = source["attestationState"];
 	        this.policy = this.convertValues(source["policy"], receipt.Policy);
 	        this.knowledge = source["knowledge"];
