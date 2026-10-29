@@ -588,7 +588,7 @@ var errCreditsSignIn = errors.New("paying with Agentry credits needs you signed 
 // model. A form never passes a key, model or base URL with it.
 func applyCreditsSetup(ctx context.Context, home, policyPath string, opts SetupOpts, logw io.Writer) error {
 	if opts.Model != "" || opts.APIKeyEnv != "" || opts.StoreKey != "" || opts.ForgetKey || opts.BaseURL != "" || opts.APIKeySource != "" {
-		return errors.New("Agentry credits take no model, key or endpoint: the registry chooses the model")
+		return errors.New("paying with Agentry credits takes no model, key or endpoint: the registry chooses the model")
 	}
 	reg := settings.SecureAgentryRegistry()
 	if reg == "" || settings.TokenFor(reg) == "" {
