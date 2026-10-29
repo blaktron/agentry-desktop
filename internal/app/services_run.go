@@ -565,10 +565,13 @@ type CatalogView struct {
 	Warning string `json:"warning,omitempty"`
 }
 
-// ModelView is one listed model.
+// ModelView is one listed model, with its price in US dollars a million
+// tokens where the provider lists one ("0.10").
 type ModelView struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName,omitempty"`
+	InputUSD    string `json:"inputUsd,omitempty"`
+	OutputUSD   string `json:"outputUsd,omitempty"`
 }
 
 // ListModels asks the provider's models listing with the typed key (or, when
@@ -584,7 +587,7 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 	}
 	v := &CatalogView{Provider: cat.Provider, Models: make([]ModelView, 0, len(cat.Models)), Kind: cat.Kind, Notice: cat.Notice, Warning: cat.Warning}
 	for _, m := range cat.Models {
-		v.Models = append(v.Models, ModelView{ID: m.ID, DisplayName: m.DisplayName})
+		v.Models = append(v.Models, ModelView{ID: m.ID, DisplayName: m.DisplayName, InputUSD: m.InputUSD, OutputUSD: m.OutputUSD})
 	}
 	return v, nil
 }

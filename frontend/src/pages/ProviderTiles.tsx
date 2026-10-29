@@ -4,7 +4,7 @@ import { tileAfterKey } from "../providerForm";
 import { ProviderLogo } from "../providerLogos";
 
 /** Model setup's provider choice: one tile per
- *  provider, two rows of four, each with its logo, its name and what it can
+ *  provider, three rows of three, each with its logo, its name and what it can
  *  be paid with, so every option shows before one is picked. onPick resets
  *  the form below for the new provider.
  *

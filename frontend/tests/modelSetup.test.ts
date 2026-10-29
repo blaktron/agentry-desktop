@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
+  CLAUDE_SIGN_IN_LABEL, PROVIDERS, VULTR_SIGN_UP_URL, modelOptionLabel, providerChoice, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -129,11 +129,11 @@ test("a Copilot list that fails says why in the page's words", () => {
   assert.equal(copilotListFailure("docker is not running"), "Could not list your plan's models (docker is not running). Type the model id instead.");
 });
 
-// The provider tiles: eight, so two rows of four, each
+// The provider tiles: nine, so three rows of three, each
 // named without the label's parenthesis and saying what it can be paid with,
 // in the ways' own words.
-test("eight provider tiles, each saying what it can be paid with", () => {
-  assert.equal(PROVIDERS.length, 8, "two rows of four");
+test("nine provider tiles, each saying what it can be paid with", () => {
+  assert.equal(PROVIDERS.length, 9, "three rows of three");
   const offers = Object.fromEntries(PROVIDERS.map((p) => [p.id, `${p.short}: ${tileOffer(p)}`]));
   assert.deepEqual(offers, {
     anthropic: "Anthropic: Claude plan or API key",
@@ -142,8 +142,38 @@ test("eight provider tiles, each saying what it can be paid with", () => {
     openrouter: "OpenRouter: Your account or API key",
     poe: "Poe: Your account or API key",
     huggingface: "Hugging Face: Your account or access token",
+    vultr: "Vultr: API key",
     google: "Google Gemini: API key",
     custom: "Custom endpoint: API key",
   });
   for (const p of PROVIDERS) assert.doesNotMatch(p.short, /[()]/, p.id);
+});
+
+// Vultr's key guide: the offer says the credit is Vultr's, time-limited and
+// on Vultr's terms, and that Agentry is paid a referral credit; the link is
+// the referral sign-up, and the steps end at pasting the key here.
+test("Vultr's key guide names the offer, its terms and the referral", () => {
+  const g = providerChoice("vultr")?.keyGuide;
+  assert.ok(g, "Vultr has a key guide");
+  assert.equal(g.link.url, VULTR_SIGN_UP_URL);
+  assert.match(g.link.url, /^https:\/\/www\.vultr\.com\/\?ref=/);
+  assert.match(g.offer, /US\$300 of free credit/);
+  assert.match(g.offer, /Vultr's terms apply/);
+  assert.match(g.offer, /time-limited/);
+  assert.match(g.offer, /Agentry receives a referral credit/);
+  assert.equal(g.steps.length, 3);
+  assert.match(g.steps[1], /Serverless.*Inference/);
+  assert.match(g.steps[2], /API key.*paste it here/);
+  for (const words of [g.offer, ...g.steps]) assert.doesNotMatch(words, /OAuth|paste (a|the) code/i, words);
+  assert.equal(PROVIDERS.filter((p) => p.keyGuide).map((p) => p.id).join(","), "vultr", "only Vultr carries a guide");
+});
+
+test("a listed model shows its price a million tokens where the provider gives one", () => {
+  assert.equal(modelOptionLabel({ id: "gpt-5.2" }), "gpt-5.2");
+  assert.equal(modelOptionLabel({ id: "m", displayName: "Model" }), "Model — m");
+  assert.equal(
+    modelOptionLabel({ id: "qwen3.8-flash-next", displayName: "Qwen 3.8 Flash Next", inputUsd: "0.10", outputUsd: "0.20" }),
+    "Qwen 3.8 Flash Next — qwen3.8-flash-next · US$0.10 in, US$0.20 out per million tokens",
+  );
+  assert.equal(modelOptionLabel({ id: "m", outputUsd: "1.00" }), "m · US$1.00 out per million tokens");
 });
