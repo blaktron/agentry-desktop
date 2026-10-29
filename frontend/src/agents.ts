@@ -104,11 +104,14 @@ export async function loadChat(name: string): Promise<void> {
 /** sendToAgent sends the person's message as the agent's next turn. */
 export async function sendToAgent(name: string, text: string): Promise<void> {
   put(name, { ...record(name), sending: true, error: "" });
+  const before = record(name).chat.lines.length;
   try {
     await PersistentAPI.Send(name, text);
     put(name, { ...record(name), sending: false });
   } catch (e) {
-    put(name, { ...record(name), sending: false, error: String(e) });
+    // A turn that failed has said why in the chat already.
+    const said = record(name).chat.lines.slice(before).some((l) => l.kind === "warn");
+    put(name, { ...record(name), sending: false, error: said ? "" : String(e) });
   }
 }
 
@@ -176,6 +179,17 @@ export function forgetChat(name: string) {
 export async function stopStart(name: string): Promise<string | null> {
   try {
     updateAgent(await PersistentAPI.Stop(name));
+    return null;
+  } catch (e) {
+    return String(e);
+  }
+}
+
+/** stopTurn stops the turn the agent is on; the agent keeps running. It
+ *  answers the error to show, or null. */
+export async function stopTurn(name: string): Promise<string | null> {
+  try {
+    await PersistentAPI.Interrupt(name);
     return null;
   } catch (e) {
     return String(e);

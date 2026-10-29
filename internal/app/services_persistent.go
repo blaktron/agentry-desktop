@@ -159,13 +159,14 @@ type PersistentAPI struct {
 	// whether another client runs it. viewers are the app's chats with
 	// those agents. held, attach, requestStop and queryStatus stand in for
 	// the CLI's lock probe, its Attach, its RequestStop and its QueryStatus
-	// in a test.
-	elsewhere   map[string]bool
-	viewers     map[string]*viewer
-	held        func(home, name string) (bool, *persistent.Holder)
-	attach      func(ctx context.Context, home, name string, history []session.Event) (session.Session, error)
-	requestStop func(ctx context.Context, home, name string) (persistent.Stopped, error)
-	queryStatus func(ctx context.Context, home, name string) (persistent.Status, error)
+	// in a test, and requestInterrupt for its RequestInterrupt.
+	elsewhere        map[string]bool
+	viewers          map[string]*viewer
+	held             func(home, name string) (bool, *persistent.Holder)
+	attach           func(ctx context.Context, home, name string, history []session.Event) (session.Session, error)
+	requestStop      func(ctx context.Context, home, name string) (persistent.Stopped, error)
+	queryStatus      func(ctx context.Context, home, name string) (persistent.Status, error)
+	requestInterrupt func(ctx context.Context, home, name string) (bool, error)
 }
 
 // stateChanged tells the page and the tray that an agent's state changed.
@@ -258,6 +259,7 @@ type agentSupervisor interface {
 	Done() <-chan struct{}
 	Stop(ctx context.Context) (*receipt.Envelope, error)
 	Compact(ctx context.Context) (persistent.Compacted, error)
+	Interrupt(ctx context.Context) error
 }
 
 // PersistentAgentView is how an agent stands, for Settings and its page.
@@ -1193,7 +1195,50 @@ func (p *PersistentAPI) Send(name, text string) error {
 		}
 		return fmt.Errorf("the %s is not running: start it first", a.Title)
 	}
-	return sv.Send(context.Background(), text)
+	// A turn the person stopped was answered as far as it went.
+	if err := sv.Send(context.Background(), text); !errors.Is(err, session.ErrInterrupted) {
+		return err
+	}
+	return nil
+}
+
+// interruptWait bounds how long a turn may take to stop once its harness is
+// told to.
+const interruptWait = 30 * time.Second
+
+// Interrupt stops the turn the agent is on, the person's or one it runs on
+// its own, and returns once the turn has ended; the agent keeps running.
+// With no turn in flight it does nothing. An agent another client runs is
+// asked through its supervisor's socket.
+func (p *PersistentAPI) Interrupt(name string) error {
+	a, err := p.agent(name)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), interruptWait)
+	defer cancel()
+	sv, ok := p.running(a.Name)
+	if !ok {
+		home, err := p.home()
+		if err != nil {
+			return err
+		}
+		if held, _ := p.heldElsewhere(home, a.Name); !held {
+			return fmt.Errorf("the %s is not running", a.Title)
+		}
+		ask := persistent.RequestInterrupt
+		if p.requestInterrupt != nil {
+			ask = p.requestInterrupt
+		}
+		if _, err := ask(ctx, home, a.Name); err != nil {
+			return fmt.Errorf("the %s did not stop its turn: %w", a.Title, err)
+		}
+		return nil
+	}
+	if err := sv.Interrupt(ctx); err != nil && !errors.Is(err, session.ErrNoTurn) {
+		return fmt.Errorf("the %s did not stop its turn: %w", a.Title, err)
+	}
+	return nil
 }
 
 // Configure applies a change, running or not: a running agent takes it at
