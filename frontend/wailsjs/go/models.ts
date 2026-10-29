@@ -271,6 +271,8 @@ export namespace app {
 	export class ModelView {
 	    id: string;
 	    displayName?: string;
+	    inputUsd?: string;
+	    outputUsd?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ModelView(source);
@@ -280,6 +282,8 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.displayName = source["displayName"];
+	        this.inputUsd = source["inputUsd"];
+	        this.outputUsd = source["outputUsd"];
 	    }
 	}
 	export class CatalogView {

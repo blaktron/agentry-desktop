@@ -6,8 +6,8 @@ import { app, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
-  COPILOT_PLANS, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
-  type KeptSignIn, type WayId,
+  COPILOT_PLANS, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  type KeptSignIn, type KeyGuide, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
 import { ProviderTiles } from "./ProviderTiles";
@@ -513,6 +513,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
             </label>
           )}
           {needsBaseURL && endpointWarning && <Notice tone="warn">{endpointWarning}</Notice>}
+          {providerChoice(provider)?.keyGuide && <KeyGuideBox guide={providerChoice(provider)!.keyGuide!} />}
 
           {keyMode === "keyring" && (
             <label className="field">
@@ -544,7 +545,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
             {catalog && catalog.models.length > 0 ? (
               <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
                 {catalog.models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.displayName ? `${m.displayName} — ${m.id}` : m.id}</option>
+                  <option key={m.id} value={m.id}>{modelOptionLabel(m)}</option>
                 ))}
                 {!catalog.models.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
               </Select>
@@ -607,6 +608,22 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         )}
         {advanced && <KeptSignIns kept={kept} onChanged={() => void refreshKept()} />}
       </Card>
+    </div>
+  );
+}
+
+/** How to get a provider's key, above its key field: the offer, the
+ *  numbered steps, and the sign-up page, opened in the person's browser
+ *  rather than in this window. */
+function KeyGuideBox({ guide }: { guide: KeyGuide }) {
+  return (
+    <div className="key-guide">
+      <p className="key-guide-title">{guide.title}</p>
+      <p className="muted small">{guide.offer}</p>
+      <ol className="small">
+        {guide.steps.map((step) => <li key={step}>{step}</li>)}
+      </ol>
+      <Button variant="link" onClick={() => void OpenExternal(guide.link.url)}>{guide.link.label}</Button>
     </div>
   );
 }
