@@ -368,7 +368,7 @@ const validateResult = {
 const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
-const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
+const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.10.30.6@sha256:3e56f7a740b69abfa812be77a0c055bf4693a2092bb68b0bf2aade2585123567";
 let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, malwareCheck: location.hash === "#malware-check-on", rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7, deliverables: location.hash !== "#home-deliverables-off", deliverablesDir: "/home/chris/Documents/Agentry", deliverablesDefault: true, deliverablesError: "" };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
@@ -1255,7 +1255,7 @@ g.go = { app: {
     // finishes, so the shot shows the pull under way with the switch off.
     SetUnsafeMode: async (on: boolean) => {
       if (on) {
-        for (const line of [`downloading the Unsafe Mode image ${UNSAFE_IMAGE}`, "2026.09.30.2: Pulling from blaktron/agentry-unsafe-kali",
+        for (const line of [`downloading the Unsafe Mode image ${UNSAFE_IMAGE}`, "2026.10.30.6: Pulling from blaktron/agentry-unsafe-kali",
           "7c3b88808835: Pull complete", "4f4fb700ef54: Download complete", "a3ed95caeb02: Downloading"]) emitPage("runner:unsafe-progress", line);
         if (unsafePulling) await new Promise(() => {});
       }
@@ -1509,8 +1509,8 @@ const settingsView = {
 const REG = "https://secureagentry.net";
 let imagesRemoved = false;
 const agentryImages = [
-  { ref: "ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3", size: "86.3MB" },
-  { ref: "ghcr.io/blaktron/agentry-docker-agent:1.128.0", size: "112MB" },
+  { ref: "ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3", size: "86.3MB" },
+  { ref: "ghcr.io/blaktron/agentry-docker-agent:1.154.0", size: "112MB" },
   { ref: "agentry-runner:0.6.25", size: "21.5MB" },
 ];
 let profileName = "Chris";

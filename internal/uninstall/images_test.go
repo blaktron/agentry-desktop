@@ -33,7 +33,7 @@ func TestImagesMainExitCodes(t *testing.T) {
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	imgs := []dockerimages.Image{
 		{Repository: "agentry-runner", Tag: "0.6.25", ID: "sha256:1"},
-		{Repository: "ghcr.io/blaktron/agentry-mcp-gateway", Tag: "v0.43.3", ID: "sha256:2"},
+		{Repository: "ghcr.io/blaktron/agentry-mcp-gateway", Tag: "v0.44.3", ID: "sha256:2"},
 		{Repository: "postgres", Tag: "16", ID: "sha256:3"},
 	}
 	var out bytes.Buffer
