@@ -29,7 +29,7 @@ and say in the pull request what you verified and on which platform.
 ## Development setup
 
 The prerequisites are in the [README](README.md#prerequisites): Go at the
-version `go.mod` names, Node 22 and npm, the `wails3` CLI at the version
+version `go.mod` names, Node 26 and npm, the `wails3` CLI at the version
 `go.mod` pins, and, to build or run the app on Linux, the GTK 4 and
 WebKitGTK 6.0 headers. `make check` and `make bindings` need no C toolchain:
 they build with the `server` tag.

@@ -23,7 +23,7 @@ running use the same Go libraries as the server and the CLI
 ## Prerequisites
 
 - Go, at the version `go.mod` names (`go 1.27.3`)
-- Node 22 (what CI uses) and npm
+- Node 26 (what CI uses) and npm
 - The Wails v3 CLI, `wails3`, at the version `go.mod` pins (it needs no C
   toolchain):
   `CGO_ENABLED=0 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0`
