@@ -3,13 +3,13 @@
 // or Resume, and Stop) or, while none is, Record a meeting in the room, an
 // item for each persistent agent that is running
 // (it opens the agent's page) and Quit, and a left click that shows the
-// window. While a meeting is recorded the icon carries a red dot. It is
-// fyne.io/systray started beside the window's own loop as each platform
-// needs (start_*.go).
+// window. While a meeting is recorded the icon carries a red dot. It is the
+// window library's system tray, which each platform draws its own way.
 //
-// The library calls back on the platform's UI thread, and a call into the
-// window's runtime from there re-enters that loop (on macOS it crashed the
-// app), so every callback here runs on a goroutine of its own.
+// The icon's click calls back on the platform's UI thread, and a call into
+// the window from there re-enters that loop (on macOS it crashed the app), so
+// that callback runs its work on a goroutine of its own; a menu item's
+// callback already does.
 package tray
 
 import (
@@ -20,7 +20,7 @@ import (
 	"image/png"
 	"sync"
 
-	"fyne.io/systray"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // Menu is what the tray offers.
@@ -59,16 +59,27 @@ type Meeting struct {
 // meetingItems are the menu's items for a meeting being recorded, and the
 // one that records a meeting in the room.
 type meetingItems struct {
-	status, pause, stop, room *systray.MenuItem
+	status, pause, stop, room *application.MenuItem
+}
+
+// look is how the icon is drawn: its image, and whether the menu bar tints it
+// (a template image, which macOS draws in the colour of the bar).
+type look struct {
+	image    []byte
+	template bool
 }
 
 var (
 	mu      sync.Mutex
 	started bool
 	menu    Menu
-	slots   = map[string]*systray.MenuItem{}
-	// pending is what SetRunning was told before the menu was built.
-	pending map[string]string
+	// icon is the status item, and drawn the look it shows.
+	icon  *application.SystemTray
+	drawn look
+	slots = map[string]*application.MenuItem{}
+	// running is what SetRunning was last told; it is drawn when the menu is
+	// built, and again when the icon is made anew.
+	running map[string]string
 	// meeting is what SetMeeting was last told, and meetingMenu its items
 	// once the menu is built.
 	meeting     Meeting
@@ -78,13 +89,14 @@ var (
 // Start shows the icon. A second call does nothing.
 func Start(m Menu) {
 	mu.Lock()
+	defer mu.Unlock()
 	if started {
-		mu.Unlock()
 		return
 	}
 	started, menu = true, m
-	mu.Unlock()
-	start(build, func() {})
+	if !build() {
+		started = false
+	}
 }
 
 // Started reports whether the icon is up.
@@ -97,33 +109,32 @@ func Started() bool {
 // Stop takes the icon away, as the app quits.
 func Stop() {
 	mu.Lock()
-	was := started
-	mu.Unlock()
-	if was {
-		stop()
+	defer mu.Unlock()
+	if icon != nil {
+		icon.Destroy()
+		icon = nil
 	}
 }
 
 // SetRunning shows an item for each agent running, labelled as given (name to
 // label), and hides the others.
-func SetRunning(running map[string]string) {
+func SetRunning(r map[string]string) {
 	mu.Lock()
 	defer mu.Unlock()
-	if len(slots) == 0 {
-		pending = running
-		return
+	running = r
+	if len(slots) > 0 {
+		applyRunning()
 	}
-	apply(running)
 }
 
-// apply shows and labels the slots; mu is held.
-func apply(running map[string]string) {
+// applyRunning shows and labels the slots; mu is held.
+func applyRunning() {
 	for name, item := range slots {
 		if label, ok := running[name]; ok {
-			item.SetTitle(label)
-			item.Show()
+			item.SetLabel(label)
+			item.SetHidden(false)
 		} else {
-			item.Hide()
+			item.SetHidden(true)
 		}
 	}
 }
@@ -155,27 +166,49 @@ func MeetingLabels(m Meeting) (status, pause string) {
 // applyMeeting draws meeting; mu is held.
 func applyMeeting() {
 	it := meetingMenu
-	if meeting.CanRecordRoom && !meeting.Recording {
-		it.room.Show()
-	} else {
-		it.room.Hide()
-	}
+	it.room.SetHidden(!meeting.CanRecordRoom || meeting.Recording)
 	if !meeting.Recording {
-		it.status.Hide()
-		it.pause.Hide()
-		it.stop.Hide()
-		setIcon()
-		systray.SetTooltip(menu.Tooltip)
+		it.status.SetHidden(true)
+		it.pause.SetHidden(true)
+		it.stop.SetHidden(true)
+		setLook(normalLook)
+		icon.SetTooltip(menu.Tooltip)
 		return
 	}
 	status, pause := MeetingLabels(meeting)
-	it.status.SetTitle(status)
-	it.pause.SetTitle(pause)
-	it.status.Show()
-	it.pause.Show()
-	it.stop.Show()
-	setRecordingIcon()
-	systray.SetTooltip(menu.Tooltip + ": " + status)
+	it.status.SetLabel(status)
+	it.pause.SetLabel(pause)
+	it.status.SetHidden(false)
+	it.pause.SetHidden(false)
+	it.stop.SetHidden(false)
+	setLook(recordingLook)
+	icon.SetTooltip(menu.Tooltip + ": " + status)
+}
+
+// setLook puts the icon's image on the status item. A template image the
+// status item has once shown cannot be turned back into a coloured one, so
+// going from one to the other makes the status item anew.
+func setLook(l look) {
+	if l.template == drawn.template && bytes.Equal(l.image, drawn.image) {
+		return
+	}
+	if drawn.template && !l.template {
+		icon.Destroy()
+		icon = nil
+		build()
+		return
+	}
+	paint(l)
+}
+
+// paint sets l on the status item; mu is held.
+func paint(l look) {
+	if l.template {
+		icon.SetTemplateIcon(l.image)
+	} else {
+		icon.SetIcon(l.image)
+	}
+	drawn = l
 }
 
 // withDot is a PNG icon with a red dot in its lower right corner, the
@@ -215,93 +248,85 @@ func async(f func()) func() {
 	}
 }
 
-// build is the library's onReady: the icon, the left click and the menu.
-func build() {
-	setIcon()
-	mu.Lock()
+// build makes the status item with its menu and the state the package holds;
+// mu is held. It reports whether the application was there to hold it.
+func build() bool {
+	wails := application.Get()
+	if wails == nil {
+		return false
+	}
 	m := menu
-	mu.Unlock()
-	systray.SetTooltip(m.Tooltip)
-	systray.SetOnTapped(async(m.OnOpen))
+	icon = wails.SystemTray.New()
+	mn := wails.Menu.New()
 	// The agents' items follow Open Agentry directly, and one separator
 	// stands before Quit, so a menu with no agent running has no empty
 	// section.
-	open := systray.AddMenuItem("Open Agentry", "Show the Agentry window")
+	mn.Add("Open Agentry").SetTooltip("Show the Agentry window").OnClick(func(*application.Context) {
+		if m.OnOpen != nil {
+			m.OnOpen()
+		}
+	})
 	mi := &meetingItems{
-		status: systray.AddMenuItem("Recording", "A meeting is being recorded"),
-		pause:  systray.AddMenuItem("Pause recording", "Pause or resume the meeting's recording"),
-		stop:   systray.AddMenuItem("Stop and transcribe", "Stop recording the meeting and transcribe it"),
-		room:   systray.AddMenuItem("Record a meeting in the room", "Record a meeting in this room through the microphone"),
+		status: mn.Add("Recording").SetTooltip("A meeting is being recorded"),
+		pause:  mn.Add("Pause recording").SetTooltip("Pause or resume the meeting's recording"),
+		stop:   mn.Add("Stop and transcribe").SetTooltip("Stop recording the meeting and transcribe it"),
+		room:   mn.Add("Record a meeting in the room").SetTooltip("Record a meeting in this room through the microphone"),
 	}
-	mi.status.Disable()
-	mi.status.Hide()
-	mi.pause.Hide()
-	mi.stop.Hide()
-	mi.room.Hide()
-	go func() {
-		for range mi.room.ClickedCh {
-			if m.OnMeetingRecordRoom != nil {
-				m.OnMeetingRecordRoom()
-			}
+	mi.status.SetEnabled(false)
+	for _, it := range []*application.MenuItem{mi.status, mi.pause, mi.stop, mi.room} {
+		it.SetHidden(true)
+	}
+	mi.room.OnClick(func(*application.Context) {
+		if m.OnMeetingRecordRoom != nil {
+			m.OnMeetingRecordRoom()
 		}
-	}()
-	go func() {
-		for range mi.pause.ClickedCh {
-			mu.Lock()
-			paused := meeting.Paused
-			mu.Unlock()
-			if f := m.OnMeetingPause; !paused && f != nil {
-				f()
-			} else if f := m.OnMeetingResume; paused && f != nil {
-				f()
-			}
+	})
+	mi.pause.OnClick(func(*application.Context) {
+		mu.Lock()
+		paused := meeting.Paused
+		mu.Unlock()
+		if f := m.OnMeetingPause; !paused && f != nil {
+			f()
+		} else if f := m.OnMeetingResume; paused && f != nil {
+			f()
 		}
-	}()
-	go func() {
-		for range mi.stop.ClickedCh {
-			if m.OnMeetingStop != nil {
-				m.OnMeetingStop()
-			}
+	})
+	mi.stop.OnClick(func(*application.Context) {
+		if m.OnMeetingStop != nil {
+			m.OnMeetingStop()
 		}
-	}()
-	items := map[string]*systray.MenuItem{}
+	})
+	items := map[string]*application.MenuItem{}
 	for _, name := range m.Agents {
-		it := systray.AddMenuItem(name, "Open this agent's page")
-		it.Hide()
-		items[name] = it
 		name := name
-		go func() {
-			for range it.ClickedCh {
-				if m.OnAgent != nil {
-					m.OnAgent(name)
-				}
+		it := mn.Add(name).SetTooltip("Open this agent's page")
+		it.SetHidden(true)
+		it.OnClick(func(*application.Context) {
+			if m.OnAgent != nil {
+				m.OnAgent(name)
 			}
-		}()
+		})
+		items[name] = it
 	}
-	systray.AddSeparator()
-	quit := systray.AddMenuItem("Quit", "Stop every agent and quit Agentry")
-	go func() {
-		for range open.ClickedCh {
-			if m.OnOpen != nil {
-				m.OnOpen()
-			}
+	mn.AddSeparator()
+	mn.Add("Quit").SetTooltip("Stop every agent and quit Agentry").OnClick(func(*application.Context) {
+		if m.OnQuit != nil {
+			m.OnQuit()
 		}
-	}()
-	go func() {
-		for range quit.ClickedCh {
-			if m.OnQuit != nil {
-				m.OnQuit()
-			}
-		}
-	}()
-	mu.Lock()
-	slots = items
-	if pending != nil {
-		apply(pending)
-		pending = nil
+	})
+	slots, meetingMenu = items, mi
+	drawn = look{}
+	icon.SetMenu(mn)
+	icon.OnClick(async(m.OnOpen))
+	// A status item made while a meeting is recorded starts with the
+	// recording icon, so applyMeeting below has nothing to swap.
+	if meeting.Recording {
+		paint(recordingLook)
+	} else {
+		paint(normalLook)
 	}
-	meetingMenu = mi
+	icon.SetTooltip(m.Tooltip)
+	applyRunning()
 	applyMeeting()
-	mu.Unlock()
-	afterBuild()
+	return true
 }

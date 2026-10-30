@@ -100,8 +100,11 @@ jobs:
           # falls back to its own ~/.cache/golangci-lint in the container.
           skip-cache: true
           # The native window library needs a C toolchain and WebKitGTK; the
-          # server tag leaves it out (the Makefile's CHECK_TAGS).
+          # server tag with cgo off leaves it out (the Makefile's CHECK_TAGS
+          # and CHECK_ENV).
           args: --build-tags server
+        env:
+          CGO_ENABLED: "0"
       - name: make check
         run: make check
       # The honest posture, as a check: the app says what ran and what was
@@ -222,7 +225,11 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify`.
           cache: false
+      # With the server tag and cgo off, as the checks build: the native
+      # window library needs WebKitGTK, which this runner has none of.
       - run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" -tags server ./...
+        env:
+          CGO_ENABLED: "0"
 
   # Secret scanning: gitleaks over the commits this
   # event brings — a pull request's own range, or a push's before..after —

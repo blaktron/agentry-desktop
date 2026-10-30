@@ -4,7 +4,6 @@ go 1.27.3
 
 require (
 	aead.dev/minisign v0.3.0
-	fyne.io/systray v1.12.2
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.999

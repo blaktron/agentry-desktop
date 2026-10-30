@@ -21,11 +21,12 @@ EXTRA_LDFLAGS ?=
 LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VERSION) $(EXTRA_LDFLAGS)
 # The Linux build needs the GTK 4 and WebKitGTK 6.0 headers, which the
 # container of package-linux carries. Everything else here compiles without
-# them: the checks (lint, test, check) build with the `server` tag, which
-# leaves the native window library out and needs no C toolchain, and the
-# bindings generator reads the code with the same tag. The platform builds
+# them: the checks (lint, test, check) build with the `server` tag and cgo
+# off, which leaves the native window library out and needs no C toolchain,
+# and the bindings generator reads the code the same way. The platform builds
 # below use the real library, with the `production` tag.
 CHECK_TAGS := server
+CHECK_ENV := CGO_ENABLED=0
 # The tags and the linker flags of a shipped binary. -w -s strips the symbol
 # table; EXTRA_LDFLAGS may add to it.
 APP_TAGS := production
@@ -70,7 +71,7 @@ build: dist
 # bundle.
 bindings:
 	@stub=0; if [ ! -f frontend/dist/index.html ]; then mkdir -p frontend/dist && : > frontend/dist/index.html && stub=1 && echo "frontend/dist was missing: an empty index.html stands in for the embed while the bindings generate (go:embed all:frontend/dist must match) and is removed afterwards; make frontend builds the real one"; fi; \
-	CGO_ENABLED=0 wails3 generate bindings -ts -names -clean=true -f '-tags $(CHECK_TAGS)'; st=$$?; if [ "$$stub" = 1 ]; then rm -rf frontend/dist; fi; exit $$st
+	$(CHECK_ENV) wails3 generate bindings -ts -names -clean=true -f '-tags $(CHECK_TAGS)'; st=$$?; if [ "$$stub" = 1 ]; then rm -rf frontend/dist; fi; exit $$st
 	node scripts/bindings/types.mjs frontend/bindings
 
 # No `| grep -q` in the scripts: under pipefail the writer that grep -q cuts
@@ -79,11 +80,11 @@ bindings:
 lint:
 	@hits=$$(grep -rnE '\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]*q|--quiet)' scripts/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true); if [ -n "$$hits" ]; then echo "$$hits"; echo "a piped grep -q under pipefail can fail on the writer's EPIPE: use grep -q ... <<<\"\$$x\" or grep ... >/dev/null"; exit 1; fi
 	@fmt_out=$$(gofmt -l . | grep -v -e '^frontend/' -e '^vendor/' || true); if [ -n "$$fmt_out" ]; then echo "gofmt needed on:"; echo "$$fmt_out"; exit 1; fi
-	$(GO) vet -tags $(CHECK_TAGS) ./...
-	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run --build-tags $(CHECK_TAGS) ./...; else echo "golangci-lint not installed; skipped"; fi
+	$(CHECK_ENV) $(GO) vet -tags $(CHECK_TAGS) ./...
+	@if command -v golangci-lint >/dev/null 2>&1; then $(CHECK_ENV) golangci-lint run --build-tags $(CHECK_TAGS) ./...; else echo "golangci-lint not installed; skipped"; fi
 
 test:
-	$(GO) test -tags $(CHECK_TAGS) ./...
+	$(CHECK_ENV) $(GO) test -tags $(CHECK_TAGS) ./...
 
 # A check over the copy this app ships: no "safe", "secure", "guaranteed" or
 # "trusted" (a claim the product cannot back).
@@ -103,7 +104,7 @@ frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build && npm test
 
 check: frontend lint test copy script-tests fonts-check notices-check
-	$(GO) build -tags $(CHECK_TAGS) ./...
+	$(CHECK_ENV) $(GO) build -tags $(CHECK_TAGS) ./...
 
 # THIRD_PARTY_NOTICES: the licence texts of the npm packages compiled into
 # the bundle, the Go modules compiled into the app, the fonts, the provider
