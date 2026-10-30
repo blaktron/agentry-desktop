@@ -171,18 +171,23 @@ func TestBetweenIsNewestFirstAndCounted(t *testing.T) {
 // What's new reads only what is compiled in: nothing in this package can
 // reach the network.
 func TestThePackageReachesNoNetwork(t *testing.T) {
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(fi os.FileInfo) bool { return !strings.HasSuffix(fi.Name(), "_test.go") }, parser.ImportsOnly)
+	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range pkgs {
-		for name, f := range p.Files {
-			for _, imp := range f.Imports {
-				path := strings.Trim(imp.Path.Value, `"`)
-				if path == "net" || strings.HasPrefix(path, "net/") {
-					t.Errorf("%s imports %s", name, path)
-				}
+	fset := token.NewFileSet()
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imp := range f.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			if path == "net" || strings.HasPrefix(path, "net/") {
+				t.Errorf("%s imports %s", name, path)
 			}
 		}
 	}

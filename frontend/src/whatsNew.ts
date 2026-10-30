@@ -17,6 +17,8 @@ export type WhatsNewStep = {
   /** "2 of 5", or "" when there is one card. */
   counter: string;
   backDisabled: boolean;
+  /** The last card: Next reads Done and closes. */
+  last: boolean;
   nextLabel: "Next" | "Done";
   /** On the last card only, the older versions not shown, counted. */
   earlier: string;
@@ -40,6 +42,7 @@ export function whatsNewStep(data: WhatsNewData, at: number, mode: WhatsNewMode)
     lead: mode === "start" ? `Agentry Desktop is now ${data.current}.` : `You are running Agentry Desktop ${data.current}.`,
     counter: total > 1 ? `${i + 1} of ${total}` : "",
     backDisabled: i === 0,
+    last,
     nextLabel: last ? "Done" : "Next",
     earlier: last ? earlierLine(data.earlier) : "",
   };

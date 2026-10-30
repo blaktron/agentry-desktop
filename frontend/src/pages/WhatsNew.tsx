@@ -3,9 +3,10 @@ import { Button, Modal } from "../ui";
 import { whatsNewKey, whatsNewStep, type WhatsNewData, type WhatsNewMode } from "../whatsNew";
 
 // WhatsNew is the What's new screen: one card per version, newest first,
-// with Back and Next between them and Dismiss on every card. Closing it by
-// any way (Done, Dismiss, Escape, the scrim) calls onClose; the caller
-// records the version as seen. Each highlight is shown as plain text.
+// with Back and Next between them and Dismiss on every card. Done, Dismiss
+// and Escape call onClose, and the caller records the version as seen; a
+// click beside the card does nothing, so a stray one cannot skip the cards.
+// Each highlight is shown as plain text.
 export default function WhatsNew({ data, mode, onClose, onOpenReleases }: {
   data: WhatsNewData;
   mode: WhatsNewMode;
@@ -29,9 +30,8 @@ export default function WhatsNew({ data, mode, onClose, onOpenReleases }: {
   }, [at, total, onClose]);
 
   if (!step) return null;
-  const last = at >= total - 1;
   return (
-    <Modal title={step.title} onClose={onClose}>
+    <Modal title={step.title} onClose={() => {}}>
       <div className="whats-new" aria-live="polite">
         <p className="muted">{step.lead}</p>
         <ul className="whats-new-lines">
@@ -40,9 +40,7 @@ export default function WhatsNew({ data, mode, onClose, onOpenReleases }: {
         {step.earlier && (
           <p className="muted small">
             {step.earlier}{" "}
-            <button type="button" className="link" onClick={() => onOpenReleases(data.releasesUrl)}>
-              Every version's notes
-            </button>
+            <Button variant="link" onClick={() => onOpenReleases(data.releasesUrl)}>Every version's notes</Button>
           </p>
         )}
         <div className="row whats-new-foot">
@@ -50,7 +48,7 @@ export default function WhatsNew({ data, mode, onClose, onOpenReleases }: {
           <span className="grow" />
           {step.counter && <span className="muted small" aria-label={`Card ${step.counter}`}>{step.counter}</span>}
           <Button disabled={step.backDisabled} onClick={() => setAt(at - 1)}>Back</Button>
-          <Button variant="primary" autoFocus onClick={() => (last ? onClose() : setAt(at + 1))}>{step.nextLabel}</Button>
+          <Button variant="primary" autoFocus onClick={() => (step.last ? onClose() : setAt(at + 1))}>{step.nextLabel}</Button>
         </div>
       </div>
     </Modal>

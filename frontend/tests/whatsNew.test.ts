@@ -24,6 +24,7 @@ describe("What's new", () => {
     assert.equal(s.counter, "");
     assert.equal(s.backDisabled, true);
     assert.equal(s.nextLabel, "Done");
+    assert.equal(s.last, true);
     assert.equal(s.earlier, "");
   });
 
@@ -32,7 +33,7 @@ describe("What's new", () => {
     const first = whatsNewStep(d, 0, "start")!;
     assert.deepEqual([first.card.version, first.counter, first.backDisabled, first.nextLabel, first.earlier], ["0.6.20", "1 of 5", true, "Next", ""]);
     const middle = whatsNewStep(d, 2, "start")!;
-    assert.deepEqual([middle.card.version, middle.counter, middle.backDisabled, middle.nextLabel], ["0.6.18", "3 of 5", false, "Next"]);
+    assert.deepEqual([middle.card.version, middle.counter, middle.backDisabled, middle.last, middle.nextLabel], ["0.6.18", "3 of 5", false, false, "Next"]);
     const last = whatsNewStep(d, 4, "start")!;
     assert.deepEqual([last.card.version, last.counter, last.nextLabel, last.earlier], ["0.6.16", "5 of 5", "Done", "And 12 earlier versions."]);
     assert.equal(whatsNewStep(d, 9, "start")!.card.version, "0.6.16");

@@ -852,7 +852,19 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         ? [card("0.6.1005", ["<script>alert(1)</script> **bold** [a link](https://example.org)"])]
         : [one],
   };
-  createRoot(el).render(<><Backdrop /><WhatsNew data={data} mode={view === "whatsnew-settings" ? "settings" : "start"} onClose={() => {}} onOpenReleases={() => {}} /></>);
+  // Closing it, and its link, leave a line saying what the page did.
+  function WhatsNewPreview() {
+    const [said, setSaid] = useState("");
+    if (said === "closed") return <p data-whatsnew-closed>What's new closed: the version is recorded as seen.</p>;
+    return (
+      <>
+        <Backdrop />
+        <WhatsNew data={data} mode={view === "whatsnew-settings" ? "settings" : "start"} onClose={() => setSaid("closed")} onOpenReleases={(url) => setSaid(`opened ${url}`)} />
+        {said && <p data-whatsnew-opened style={{ position: "fixed", bottom: 0, left: 0, zIndex: 60 }}>{said}</p>}
+      </>
+    );
+  }
+  createRoot(el).render(<WhatsNewPreview />);
 } else if (view === "toolspanel" || view === "toolspanel-hostile") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);
 } else {

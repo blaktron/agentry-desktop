@@ -53,8 +53,8 @@ type WhatsNewAPI struct {
 }
 
 // newWhatsNewAPI looks for desktop.yaml now, before anything this start
-// writes it, so that a fresh install can be told from an app moving from a
-// version that kept no last-seen version.
+// writes it, so that a fresh install can be told from an installation whose
+// settings record no last-seen version.
 func newWhatsNewAPI() *WhatsNewAPI {
 	existed := false
 	if path, err := settings.Path(); err == nil {
@@ -64,7 +64,7 @@ func newWhatsNewAPI() *WhatsNewAPI {
 	return &WhatsNewAPI{settingsExisted: existed, version: version.Version, entries: highlights.All}
 }
 
-func (w *WhatsNewAPI) view(current string, entries []highlights.Entry, earlier int) *WhatsNewView {
+func whatsNewView(current string, entries []highlights.Entry, earlier int) *WhatsNewView {
 	v := &WhatsNewView{Current: current, Cards: []WhatsNewCard{}, Earlier: earlier, ReleasesURL: desktopReleasesURL}
 	for _, e := range entries {
 		v.Cards = append(v.Cards, WhatsNewCard{Version: e.Version, Highlights: e.Highlights})
@@ -74,14 +74,14 @@ func (w *WhatsNewAPI) view(current string, entries []highlights.Entry, earlier i
 
 // Pending is what the screen shows on this start: a card for every version
 // newer than the last one seen, up to the running one, at most
-// whatsNewCards of them. A fresh install shows nothing, and an app that
-// kept no last-seen version shows the running version's card alone, since
-// which version it came from is not known. When there is nothing to show,
+// whatsNewCards of them. A fresh install shows nothing, and an installation
+// whose settings record no last-seen version shows the running version's
+// card alone, since which version it came from is not known. When there is nothing to show,
 // the running version is recorded as seen.
 func (w *WhatsNewAPI) Pending() (*WhatsNewView, error) {
 	current, ok := highlights.Version(w.version)
 	if !ok {
-		return w.view("", nil, 0), nil
+		return whatsNewView("", nil, 0), nil
 	}
 	entries, err := w.entries()
 	if err != nil {
@@ -107,7 +107,7 @@ func (w *WhatsNewAPI) Pending() (*WhatsNewView, error) {
 			return nil, err
 		}
 	}
-	return w.view(current, shown, earlier), nil
+	return whatsNewView(current, shown, earlier), nil
 }
 
 // Recent is what Settings' What's new shows: the newest versions up to the
@@ -115,19 +115,19 @@ func (w *WhatsNewAPI) Pending() (*WhatsNewView, error) {
 func (w *WhatsNewAPI) Recent() (*WhatsNewView, error) {
 	current, ok := highlights.Version(w.version)
 	if !ok {
-		return w.view("", nil, 0), nil
+		return whatsNewView("", nil, 0), nil
 	}
 	entries, err := w.entries()
 	if err != nil {
 		return nil, err
 	}
 	shown, earlier := highlights.Between(entries, "", current, whatsNewCards)
-	return w.view(current, shown, earlier), nil
+	return whatsNewView(current, shown, earlier), nil
 }
 
 // Dismiss records the running version as seen, so the screen does not show
-// again until the app moves to a newer one. Done, Dismiss, Escape and the
-// close button all end here.
+// again until the app moves to a newer one. Done, Dismiss and Escape all end
+// here.
 func (w *WhatsNewAPI) Dismiss() error {
 	current, ok := highlights.Version(w.version)
 	if !ok {

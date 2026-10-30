@@ -217,12 +217,12 @@ export default function App() {
       .then((s) => {
         // First-run gate: open the guided setup when the machine is
         // unconfigured — not yet onboarded and nothing signed in.
-        if (!s.onboarded && !s.registries.some((r) => r.hasToken)) {
-          setShowWizard(true);
-          return;
-        }
+        const wizard = !s.onboarded && !s.registries.some((r) => r.hasToken);
+        if (wizard) setShowWizard(true);
+        // Asked behind the wizard too: a fresh install records the version
+        // it started at, so its next start has nothing new to show.
         WhatsNewAPI.Pending()
-          .then((v) => v.cards.length > 0 && setWhatsNew(v))
+          .then((v) => !wizard && v.cards.length > 0 && setWhatsNew(v))
           .catch(() => {});
       })
       .catch(() => setSettings(null));

@@ -5,8 +5,8 @@
 //
 // The lines are compiled into the app (highlights.json), so a newer build
 // already holds every older version's lines. The screen needs no network,
-// works wherever the app was installed from, and shows only text the app's
-// own signature covers.
+// works wherever the app was installed from, and shows only text compiled
+// into this build.
 package highlights
 
 import (
