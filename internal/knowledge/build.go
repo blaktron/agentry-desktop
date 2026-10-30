@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
 	"github.com/blaktron/agentry-desktop/internal/progress"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -339,7 +340,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{
 		PackDir: dir, Name: name, Documents: req.Documents, Sources: srcs, Brief: req.Brief, Web: web,
-		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
+		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Credits: run.CreditsClient(pol),
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &budgets,
 		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.Usage,

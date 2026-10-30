@@ -63,6 +63,10 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	}
 	p.plan.Harness.Session.Budgets = spec.SessionBudgets{IdleTimeoutSeconds: req.ChatIdleTimeoutSeconds}
 	p.plan.Budgets.TimeoutSeconds, p.params.Budgets.TimeoutSeconds = 0, 0
+	if err := p.openCredits(ctx, logw); err != nil {
+		finishProfile(logw, p.prof, p.profDir, p.keep)
+		return nil, err
+	}
 	inner, err := engine.StartSession(ctx, p.docker, p.params)
 	if err != nil {
 		finishProfile(logw, p.prof, p.profDir, p.keep)

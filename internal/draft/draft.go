@@ -337,7 +337,8 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	first := localrun.Run{
 		Builtin: localrun.Drafter(), Home: home, Policy: p.Policy, PolicySHA: p.PolicySHA, PolicyFile: &p.PolicyFile,
-		Build: version.Build(), Task: strings.NewReader(p.Task), OutDir: outDir,
+		Credits: run.CreditsClient(p.Policy),
+		Build:   version.Build(), Task: strings.NewReader(p.Task), OutDir: outDir,
 		Budgets: &b,
 		RunID:   req.RunID, Stderr: logw, Web: p.Web, OnUsage: prog.Usage,
 	}

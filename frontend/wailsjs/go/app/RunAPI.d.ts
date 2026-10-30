@@ -46,6 +46,8 @@ export function Connections():Promise<app.KeptConnectionsView>;
 
 export function CopilotModels(arg1:string):Promise<Array<run.CopilotModel>>;
 
+export function CreditsOffer():Promise<app.CreditsOfferView>;
+
 export function DeleteHostedSecret(arg1:string,arg2:string):Promise<void>;
 
 export function DiscardHostedConnect():Promise<void>;

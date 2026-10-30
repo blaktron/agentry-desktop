@@ -4,7 +4,7 @@ import { tileAfterKey } from "../providerForm";
 import { ProviderLogo } from "../providerLogos";
 
 /** Model setup's provider choice: one tile per
- *  provider, three rows of three, each with its logo, its name and what it can
+ *  provider, in rows of three, each with its logo, its name and what it can
  *  be paid with, so every option shows before one is picked. onPick resets
  *  the form below for the new provider.
  *
@@ -12,13 +12,16 @@ import { ProviderLogo } from "../providerLogos";
  *  the chosen tile, or the first when none is, and the arrows, Home and End
  *  move the choice as a radio group's do. A provider only a hand-written
  *  policy names lights no tile, and the line under the tiles says so. */
-export function ProviderTiles({ value, onPick, disabled }: {
+export function ProviderTiles({ value, onPick, disabled, locked = {} }: {
   value: string;
   onPick: (id: string) => void;
   disabled?: boolean;
+  /** Tiles that cannot be picked yet, each with the words drawn across it
+   *  (the Agentry credits tile's "Please sign in"); the arrows pass them by. */
+  locked?: Record<string, string>;
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const ids = PROVIDERS.map((p) => p.id);
+  const ids = PROVIDERS.map((p) => p.id).filter((id) => !locked[id] || id === value);
   const known = !!providerChoice(value);
   const tabStop = known ? value : ids[0];
 
@@ -36,6 +39,7 @@ export function ProviderTiles({ value, onPick, disabled }: {
       <div className="provider-tiles" role="radiogroup" aria-labelledby="provider-tiles-label" onKeyDown={disabled ? undefined : onKeyDown}>
         {PROVIDERS.map((p) => {
           const on = p.id === value;
+          const lock = locked[p.id];
           return (
             <button
               key={p.id}
@@ -46,11 +50,13 @@ export function ProviderTiles({ value, onPick, disabled }: {
               aria-label={p.label}
               title={p.label}
               tabIndex={p.id === tabStop ? 0 : -1}
-              className={`provider-tile${on ? " on" : ""}`}
+              className={`provider-tile${on ? " on" : ""}${lock ? " is-locked" : ""}`}
               data-provider={p.id}
-              disabled={disabled}
-              onClick={() => { if (!on) onPick(p.id); }}
+              disabled={disabled || (!!lock && !on)}
+              aria-describedby={lock ? `provider-lock-${p.id}` : undefined}
+              onClick={() => { if (!on && !lock) onPick(p.id); }}
             >
+              {lock && <span className="provider-tile-lock" id={`provider-lock-${p.id}`}>{lock}</span>}
               <ProviderLogo provider={p.id} size={32} />
               <span className="provider-tile-name">{p.short}</span>
               <span className="provider-tile-offer">

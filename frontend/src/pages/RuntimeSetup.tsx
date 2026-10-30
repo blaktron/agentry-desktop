@@ -6,7 +6,7 @@ import { app, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
-  COPILOT_PLANS, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  COPILOT_PLANS, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, creditsLines, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn, type KeyGuide, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
@@ -87,6 +87,15 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const [copilotAsked, setCopilotAsked] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
+  // The Agentry credits tile's facts: whether a SecureAgentry account is
+  // signed in, its balance and the model in use; null until asked.
+  const [credits, setCredits] = useState<app.CreditsOfferView | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    RunAPI.CreditsOffer().then((o) => { if (live) setCredits(o); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -207,6 +216,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
 
   function pickProvider(id: string) {
     setProvider(id);
+    if (id === "agentry") RunAPI.CreditsOffer().then(setCredits).catch(() => undefined);
     resetCopilotList();
     pickWay(id, savedWay(id, status?.provider ?? "", status?.apiKeyKind ?? "", kept, status?.providerSetUp));
     // A key is the provider's: one typed for Anthropic must not reach
@@ -298,6 +308,31 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       setError(`Could not list models: ${e instanceof Error ? e.message : e}. You can still type a model id and save.`);
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Save for Agentry credits: nothing is asked or stored, since each run
+  // opens a credits session with the SecureAgentry sign-in; the Go side
+  // refuses it signed out.
+  async function applyCredits(pullImages: boolean) {
+    setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
+    setError(null);
+    setNotice(null);
+    if (pullImages) {
+      setLog([]);
+      onBusy?.(true);
+    }
+    try {
+      const s = await RunAPI.ApplySetup("agentry", "", "", "", pullImages, "", false);
+      setStatus(s);
+      setNotice(pullImages
+        ? "Setup complete — QuickAgents on this computer run on your Agentry credits, and the images are ready."
+        : "Saved: QuickAgents on this computer run on your Agentry credits.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+      if (pullImages) onBusy?.(false);
     }
   }
 
@@ -406,7 +441,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       )}
 
       <Card>
-        <ProviderTiles value={provider} onPick={pickProvider} disabled={!!busy} />
+        <ProviderTiles value={provider} onPick={pickProvider} disabled={!!busy} locked={credits?.signedIn ? {} : { agentry: CREDITS_LOCK }} />
+        {!credits?.signedIn && provider !== "agentry" && (
+          <span className="muted small field-hint">Agentry credits pay for the runs on this computer with your SecureAgentry account: sign in to choose them.</span>
+        )}
 
         {ways.length > 1 && (
           <div className="field way-choice">
@@ -420,7 +458,34 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           </div>
         )}
 
-        {currentWay && way !== "key" && (
+        {way === "credits" && (
+          <>
+            <div className="field credits-offer">
+              {creditsLines(credits ?? { signedIn: false, balance: 0, balanceKnown: false, model: "", unavailable: "" }).map((line) => (
+                <p key={line} className="small">{line}</p>
+              ))}
+              <span className="muted small field-hint">
+                {currentWay?.hint}{" "}
+                <Button variant="link" onClick={() => void OpenExternal(CREDITS_DOCS_URL)}>How paying with credits works</Button>
+              </span>
+            </div>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <Button disabled={!!busy || !credits?.signedIn} title={credits?.signedIn ? "" : "sign in first"} onClick={() => applyCredits(false)}>
+                Save provider settings
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!!busy || !credits?.signedIn || !status?.dockerOk || checkingDocker}
+                title={!status?.dockerOk ? "docker must be available first" : credits?.signedIn ? "" : "sign in first"}
+                onClick={() => applyCredits(true)}
+              >
+                Prepare images now
+              </Button>
+            </div>
+          </>
+        )}
+
+        {currentWay && way !== "key" && way !== "credits" && (
           <>
             <SignInWay
               way={currentWay} kept={kept} disabled={!!busy}
