@@ -17,8 +17,10 @@ import (
 // The images a machine holds, as `docker image ls` lists them: Agentry's
 // pulled and built ones among a person's own.
 var listed = []Image{
-	{Repository: "ghcr.io/blaktron/agentry-mcp-gateway", Tag: "v0.43.3", ID: "sha256:a1"},
-	{Repository: "ghcr.io/blaktron/agentry-docker-agent", Tag: "1.128.0", ID: "sha256:a2"},
+	{Repository: "ghcr.io/blaktron/agentry-mcp-gateway", Tag: "v0.44.3", ID: "sha256:a1"},
+	{Repository: "ghcr.io/blaktron/agentry-mcp-gateway", Tag: "v0.43.3", ID: "sha256:a8"},
+	{Repository: "ghcr.io/blaktron/agentry-docker-agent", Tag: "1.154.0", ID: "sha256:a2"},
+	{Repository: "ghcr.io/blaktron/agentry-docker-agent", Tag: "1.152.0", ID: "sha256:a9"},
 	{Repository: "ghcr.io/blaktron/agentry-golang-alpine", Tag: "<none>", Digest: "sha256:8a59", ID: "sha256:a3"},
 	{Repository: "agentry-runner", Tag: "0.6.25", ID: "sha256:a4"},
 	{Repository: "agentry-runner", Tag: "0.6.24", ID: "sha256:a5"},
@@ -37,10 +39,12 @@ var listed = []Image{
 // postgres, another project under the same GitHub owner, a look-alike
 // name and an untagged dangling image are never touched.
 func TestSelectKeepsOnlyAgentrysImages(t *testing.T) {
-	got := refs(Select(listed, Policy{Refs: []string{"registry.example.test/my-gateway:1", "ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3"}}))
+	got := refs(Select(listed, Policy{Refs: []string{"registry.example.test/my-gateway:1", "ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3"}}))
 	want := []string{
+		"ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3",
 		"ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3",
-		"ghcr.io/blaktron/agentry-docker-agent:1.128.0",
+		"ghcr.io/blaktron/agentry-docker-agent:1.154.0",
+		"ghcr.io/blaktron/agentry-docker-agent:1.152.0",
 		"ghcr.io/blaktron/agentry-golang-alpine@sha256:8a59",
 		"agentry-runner:0.6.25",
 		"agentry-runner:0.6.24",
@@ -98,7 +102,7 @@ func TestRemoveAllRemovesEachAndReportsWhatStayed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rep.Removed) != 5 || len(rep.Failed) != 1 || !strings.Contains(rep.Failed[0], "agentry-runner:0.6.25") {
+	if len(rep.Removed) != 7 || len(rep.Failed) != 1 || !strings.Contains(rep.Failed[0], "agentry-runner:0.6.25") {
 		t.Fatalf("report = %+v", rep)
 	}
 	for _, r := range d.removed {
@@ -244,10 +248,10 @@ func TestSelectTakesTheUnsafeModeImages(t *testing.T) {
 // shows answers "No such image". Images are removed by ID, and reported
 // by the name the list showed.
 func TestRemoveByIDOnTheContainerdStore(t *testing.T) {
-	typst := Image{Repository: "ghcr.io/blaktron/agentry-typst", Tag: "2026.10.09.2", Digest: "sha256:da55", ID: "sha256:da55"}
+	typst := Image{Repository: "ghcr.io/blaktron/agentry-typst", Tag: "2026.10.30.3", Digest: "sha256:da55", ID: "sha256:da55"}
 	d := &fakeDocker{refuse: map[string]string{typst.Ref(): "Error response from daemon: No such image: " + typst.Ref()}}
 	rep := Remove(context.Background(), d, []Image{typst})
-	if len(rep.Failed) != 0 || !reflect.DeepEqual(rep.Removed, []string{"ghcr.io/blaktron/agentry-typst:2026.10.09.2"}) || !reflect.DeepEqual(d.removed, []string{"sha256:da55"}) {
+	if len(rep.Failed) != 0 || !reflect.DeepEqual(rep.Removed, []string{"ghcr.io/blaktron/agentry-typst:2026.10.30.3"}) || !reflect.DeepEqual(d.removed, []string{"sha256:da55"}) {
 		t.Fatalf("removed %v, report %+v", d.removed, rep)
 	}
 }
@@ -271,13 +275,13 @@ func TestRemoveTakesEachIDOnce(t *testing.T) {
 // by one instead, the containerd store's whole repo:tag@digest where the
 // short name is unknown, and the image itself stays for its other name.
 func TestRemoveUntagsOnlyTheListedNamesOfASharedImage(t *testing.T) {
-	ours := Image{Repository: "ghcr.io/blaktron/agentry-alpine", Tag: "3.22", Digest: "sha256:5291", ID: "sha256:5291"}
+	ours := Image{Repository: "ghcr.io/blaktron/agentry-alpine", Tag: "3.24", Digest: "sha256:5291", ID: "sha256:5291"}
 	d := &fakeDocker{refuse: map[string]string{
 		"sha256:5291":                          "Error response from daemon: conflict: unable to delete 5291 (must be forced) - image is referenced in multiple repositories",
-		"ghcr.io/blaktron/agentry-alpine:3.22": "Error response from daemon: No such image: ghcr.io/blaktron/agentry-alpine:3.22",
+		"ghcr.io/blaktron/agentry-alpine:3.24": "Error response from daemon: No such image: ghcr.io/blaktron/agentry-alpine:3.24",
 	}}
 	rep := Remove(context.Background(), d, []Image{ours})
-	if !reflect.DeepEqual(d.removed, []string{"ghcr.io/blaktron/agentry-alpine:3.22@sha256:5291"}) || len(rep.Removed) != 1 || len(rep.Failed) != 0 {
+	if !reflect.DeepEqual(d.removed, []string{"ghcr.io/blaktron/agentry-alpine:3.24@sha256:5291"}) || len(rep.Removed) != 1 || len(rep.Failed) != 0 {
 		t.Fatalf("removed %v, report %+v", d.removed, rep)
 	}
 }

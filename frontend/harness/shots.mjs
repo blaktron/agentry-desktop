@@ -964,7 +964,7 @@ const states = [
   // Run defaults: the four defaults and Docker; a
   // budget saved, In Agentry chosen and a folder picked, as Go answers.
   { name: "settings-docker-images", url: "/pages.html?settings=run-defaults", note: "Run defaults → Container images: Agentry's images by name, the CLI's use of them, and Remove", locator: '[data-preview="settings"]',
-    expectSection: "run-defaults", expectText: ["Container images", "3 container images Agentry put on this computer", "ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3 (86.3MB)", "The agentry CLI uses the same images", "Remove Agentry's container images"] },
+    expectSection: "run-defaults", expectText: ["Container images", "3 container images Agentry put on this computer", "ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3 (86.3MB)", "The agentry CLI uses the same images", "Remove Agentry's container images"] },
   { name: "settings-docker-images-removed", url: "/pages.html?settings=run-defaults", note: "after Remove (the native Yes is the Go host's): the report, and none listed", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("Remove Agentry\'s container images")', expectSection: "run-defaults", expectText: ["Removed 3 images.", "No container images of Agentry's are on this computer."] },
   { name: "settings-docker-images-nodocker", url: "/pages.html?settings=run-defaults#images-nodocker", note: "the engine not answering: nothing listed, and why", locator: '[data-preview="settings"]',

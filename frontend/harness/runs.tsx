@@ -174,7 +174,7 @@ const reports = [
 ];
 const lines = [
   "using verified install demo1/incident-summarizer@1.2.0",
-  "gateway: docker/mcp-gateway:v0.43.3 ready",
+  "gateway: ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3 ready",
   "run 7c1e4a90: demo1/incident-summarizer@1.2.0 against openai qwen3.8-flash-next",
   "tool: read_input incident-channel.txt",
   ...(hostile ? ["tool: write_report <img src=x onerror=alert(1)><script>alert(2)</script> ‮gnp.exe"] : []),
