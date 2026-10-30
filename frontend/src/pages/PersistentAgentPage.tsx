@@ -1,5 +1,7 @@
-// A persistent agent's own page: three panes over the whole content area.
-// Left, full height, the chat in a terminal's manner: the person's lines
+// A persistent agent's own page, over the whole content area, in the view
+// the person chose from its header's View menu (agentView.ts). Terminal, the
+// default, is three panes. Left, full height, the chat in a terminal's
+// manner: the person's lines
 // after a ">", the agent's as markdown in mono, a turn's tool calls folded
 // to one dim line, the runner's notes dim, what the agent did on its own
 // folded (AgentTermBlocks), a prompt line with Send and Add file, Send
@@ -7,17 +9,30 @@
 // panel; bottom right, the roster, a switch per entry the person may
 // change. The chat is the agent's store's, so it goes on while the person is
 // on another page; its last lines come back from the transcript.
+//
+// Compact is the terminal denser, with the usage in the header and the
+// roster down the whole right side. Chat draws the person's and the agent's
+// lines as the app's chat bubbles, beside the same two panes. Focus is the
+// chat alone in a reading column, the usage in the header and the roster in
+// a dialog. Workspace is the chat beside a wide column: the usage, then the
+// roster's full cards with their Add cards and, for an agent that keeps
+// time, its Tasks. Every view sends, stops, adds files and starts alike.
 import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
 import type { app } from "../../wailsjs/go/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
 import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
-import { Button, ErrorBox } from "../ui";
+import { AGENT_VIEWS, agentView, DEFAULT_AGENT_VIEW, usageLine, type AgentViewId } from "../agentView";
+import { Button, ErrorBox, Modal } from "../ui";
 import { StartFailure } from "./StartFailure";
-import { AgentTermBlocks } from "./AgentTerm";
+import { AgentBubble, AgentTermBlocks } from "./AgentTerm";
 import { AgentConfigModal } from "./SettingsPersistentAgents";
 import { ConfigCards } from "./ConfigCards";
+import { TasksView } from "./TasksView";
+
+// The header's usage line in Compact and Focus, which have no usage pane.
+const HEADER_USAGE = ["This segment", "Last turn", "Turns", "Tool calls", "Cost", "Running for"];
 
 export default function PersistentAgentPage({ name, registry }: { name: string; registry: string }) {
   const agents = useAgents();
@@ -30,6 +45,9 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
   const [configuring, setConfiguring] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [viewId, setViewId] = useState<AgentViewId>(DEFAULT_AGENT_VIEW);
+  const [showRoster, setShowRoster] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const blocks = termBlocks(rec.chat);
   const inBackground = runningInBackground(blocks);
@@ -43,11 +61,25 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
     return () => clearInterval(t);
   }, [name, agent?.state]);
 
-  // The newest line in view as the conversation grows.
+  // The view Go keeps for every agent's page.
+  useEffect(() => {
+    PersistentAPI.PageView().then((v) => setViewId(agentView(v).id)).catch(() => {});
+  }, []);
+  const chooseView = async (id: AgentViewId) => {
+    setViewId(id);
+    try {
+      setViewId(agentView(await PersistentAPI.SetPageView(id)).id);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  // The newest line in view as the conversation grows, and when the view
+  // changes the chat's width.
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [rec.chat.lines.length, rec.chat.streaming]);
+  }, [rec.chat.lines.length, rec.chat.streaming, viewId]);
 
   const act = async (f: () => Promise<app.PersistentAgentView>) => {
     setBusy(true);
@@ -101,19 +133,38 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
     }
   };
   const status = agent.status;
+  const view = agentView(viewId);
+  const bubbles = view.term ? undefined : { agent: agent.displayName };
+  const usage = agentUsageRows({
+    segment: status ? { inputTokens: status.inputTokens, outputTokens: status.outputTokens, totalTokens: status.totalTokens, costUsd: status.costUsd, userTurns: status.userTurns, toolCalls: status.toolCalls, since: status.since } : undefined,
+    lastTurnTokens: rec.chat.lastTurnTokens,
+    contextWindow: 0,
+    contextUsed: 0,
+    lifetime: agent.lifetime,
+  }, now);
+  const headerUsage = view.id === "compact" || view.id === "focus" ? usageLine(usage, HEADER_USAGE) : "";
+  const roster = (withAdds: boolean) => <ConfigCards agent={agent} onChanged={updateAgent} onError={setError} withAdds={withAdds} />;
 
   return (
-    <div className="agent-screen">
-      <section className="agent-term" aria-label={`Chat with ${agent.displayName}`}>
+    <div className={`agent-screen view-${view.id}`} data-agent-view={view.id}>
+      <section className={`agent-term${view.term ? "" : " agent-chat"}`} aria-label={`Chat with ${agent.displayName}`}>
         <header className="agent-term-head">
-          <div>
+          <div className="agent-term-title">
             <h1>{agent.displayName}</h1>
             <span className="small muted">
               <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {agentStateWords(agent)}
               {status && ` · segment ${status.segment} · ${status.adapter} with ${status.model}`}
             </span>
+            {headerUsage && <span className="small muted agent-head-usage" data-head-usage>{headerUsage}</span>}
           </div>
           <div className="row gap">
+            <label className="agent-view-pick small muted">
+              View
+              <select aria-label="View" value={view.id} title={view.line} onChange={(e) => void chooseView(e.target.value as AgentViewId)}>
+                {AGENT_VIEWS.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
+              </select>
+            </label>
+            {!view.panes && <Button variant="ghost" onClick={() => setShowRoster(true)}>What it has</Button>}
             {agent.state === AGENT_STATES.stopped && <Button variant="primary" disabled={busy} onClick={() => void start()}>Start</Button>}
             {agent.state === AGENT_STATES.starting && <Button data-stop-start onClick={() => void cancelStart()}>Stop</Button>}
             {running && <Button disabled={busy} onClick={() => act(() => PersistentAPI.Stop(name))}>Stop</Button>}
@@ -125,8 +176,10 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
           {blocks.length === 0 && !rec.chat.streaming && (
             <p className="agent-term-note">{running ? "Say hello to start the conversation." : "Start the agent to talk to it. The conversation picks up where it left off."}</p>
           )}
-          <AgentTermBlocks blocks={blocks} />
-          {rec.chat.streaming && !inBackground && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
+          <AgentTermBlocks blocks={blocks} bubbles={bubbles} />
+          {rec.chat.streaming && !inBackground && (bubbles
+            ? <AgentBubble who={bubbles.agent} streaming>{rec.chat.streaming}</AgentBubble>
+            : <div className="agent-term-agent streaming">{rec.chat.streaming}</div>)}
           {answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
         {pendingChange(agent) && running && <p className="agent-term-pending">Applying your change at the next turn.</p>}
@@ -139,10 +192,10 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
             void send();
           }}
         >
-          <span aria-hidden="true">&gt;</span>
+          {view.term && <span aria-hidden="true">&gt;</span>}
           <textarea
             aria-label="Message"
-            rows={2}
+            rows={view.id === "compact" ? 1 : 2}
             value={draft}
             disabled={!running}
             placeholder={running ? "Message — Enter sends, Shift+Enter is a new line" : "Start the agent to send a message"}
@@ -164,25 +217,33 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
           <Button type="button" onClick={addFiles} title="Copy files into the agent's share folder">Add file</Button>
         </form>
       </section>
-      <aside className="agent-usage" aria-label="Usage">
-        <h2>Usage</h2>
-        <dl>
-          {agentUsageRows({
-            segment: status ? { inputTokens: status.inputTokens, outputTokens: status.outputTokens, totalTokens: status.totalTokens, costUsd: status.costUsd, userTurns: status.userTurns, toolCalls: status.toolCalls, since: status.since } : undefined,
-            lastTurnTokens: rec.chat.lastTurnTokens,
-            contextWindow: 0,
-            contextUsed: 0,
-            lifetime: agent.lifetime,
-          }, now).map((r) => (
-            <div key={r.label} className="agent-usage-row"><dt>{r.label}</dt><dd>{r.value}</dd></div>
-          ))}
-          <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
-        </dl>
-      </aside>
-      <aside className="agent-roster" aria-label="What it has">
-        <h2>What it has</h2>
-        <ConfigCards agent={agent} onChanged={updateAgent} onError={setError} withAdds={false} />
-      </aside>
+      {view.panes && view.id !== "compact" && (
+        <aside className="agent-usage" aria-label="Usage">
+          <h2>Usage</h2>
+          <dl>
+            {usage.map((r) => (
+              <div key={r.label} className="agent-usage-row"><dt>{r.label}</dt><dd>{r.value}</dd></div>
+            ))}
+            <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
+          </dl>
+        </aside>
+      )}
+      {view.panes && (
+        <aside className="agent-roster" aria-label="What it has">
+          <div className="agent-roster-head">
+            <h2>What it has</h2>
+            {view.id === "workspace" && agent.keepsTime && <Button variant="ghost" onClick={() => setShowTasks(true)}>Tasks…</Button>}
+          </div>
+          {roster(view.id === "workspace")}
+        </aside>
+      )}
+      {showRoster && (
+        <Modal title={`What ${agent.displayName} has`} wide onClose={() => setShowRoster(false)}>
+          <div className="agent-roster-modal">{roster(false)}</div>
+          <div className="row gap" style={{ marginTop: 12 }}><Button onClick={() => setShowRoster(false)}>Close</Button></div>
+        </Modal>
+      )}
+      {showTasks && <TasksView agent={agent} onClose={() => setShowTasks(false)} />}
       {configuring && <AgentConfigModal name={name} registry={registry} onClose={() => setConfiguring(false)} />}
     </div>
   );

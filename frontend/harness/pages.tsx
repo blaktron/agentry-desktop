@@ -22,6 +22,9 @@ let harnessHomeAgent = new URLSearchParams(window.location.search).get("homeagen
 // both off. Otherwise the Assistant is on and the Helper, which it
 // supersedes, off.
 const harnessHelper = new URLSearchParams(window.location.search).get("helper");
+// ?agentview=<id> opens the Assistant's page in that view, as its View menu
+// keeps it; a pick is kept here and recorded on the body.
+let harnessAgentView = new URLSearchParams(window.location.search).get("agentview") ?? "terminal";
 if (harnessTheme) document.documentElement.dataset.theme = harnessTheme;
 
 const hits = [
@@ -902,6 +905,8 @@ g.go = { app: {
     StartsAtSignIn: async () => false,
     SetStartsAtSignIn: async (on: boolean) => on,
     TaskNotifications: async () => true,
+    PageView: async () => harnessAgentView,
+    SetPageView: async (v: string) => { harnessAgentView = v; document.body.dataset.agentView = v; return v; },
     SetTaskNotifications: async (on: boolean) => on,
     SetViewing: async () => {},
     SetGoogleClient: async () => harnessAssistant,

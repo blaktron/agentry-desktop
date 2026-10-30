@@ -1705,6 +1705,64 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   .agent-roster { grid-column: 1; grid-row: 3; max-height: 30vh; }
 }
 
+/* The agent page's views (agentView.ts). Terminal is the rules above. */
+.agent-term-title { min-width: 0; }
+.agent-head-usage { display: block; overflow-wrap: anywhere; }
+.agent-view-pick { display: flex; align-items: center; gap: 6px; }
+.agent-view-pick select { font-size: 12px; padding: 2px 6px; }
+.agent-roster-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+
+/* Compact: the terminal denser, the roster down the whole right side. */
+.agent-screen.view-compact { grid-template-columns: 4fr 1fr; grid-template-rows: 1fr; gap: 8px; }
+.view-compact .agent-term { font-size: 12px; line-height: 1.35; }
+.view-compact .agent-term-head { padding: 5px 10px; }
+.view-compact .agent-term-head h1 { font-size: 14px; }
+.view-compact .agent-term-head .small { font-size: 11px; }
+.view-compact .agent-term-scroll { padding: 6px 10px; }
+.view-compact .agent-term-scroll > div, .view-compact .agent-term-scroll > details { margin: 0 0 3px; }
+.view-compact .agent-term-agent :is(p, ul, ol, pre, blockquote, table) { margin: 0 0 3px; }
+.view-compact .agent-term-agent :is(li, h5, h6) { margin: 0; }
+.view-compact .agent-term-tools, .view-compact .agent-term-task, .view-compact .agent-term-note, .view-compact .agent-term-warn { font-size: 11px; margin-bottom: 3px; }
+.view-compact .agent-term-task-body .agent-term-agent { font-size: 12px; }
+.view-compact .agent-term-pending { padding: 3px 10px; font-size: 11px; }
+.view-compact .agent-term-prompt { padding: 5px 10px; gap: 6px; }
+.view-compact .agent-term-prompt > span { padding-bottom: 4px; }
+.view-compact .agent-term-prompt textarea { font-size: 12px; min-height: 28px; }
+.view-compact .agent-roster { grid-row: 1; padding: 6px 8px; font-size: 11px; }
+.view-compact .agent-roster .config-card { padding: 4px 6px; }
+
+/* Chat, Focus and Workspace: the app's chat, in its own type. */
+.agent-term.agent-chat { font-family: var(--font-sans); font-size: 14px; }
+.agent-chat .agent-term-scroll > .chat-msg { margin: 0 0 10px; }
+.agent-chat .agent-chat-msg.assistant:not(.streaming) .chat-bubble { white-space: normal; }
+.agent-chat .agent-chat-msg.streaming .chat-bubble { color: var(--color-lead); }
+.agent-chat .chat-bubble p:first-of-type { margin-top: 0; }
+.agent-chat .chat-bubble p:last-child { margin-bottom: 0; }
+.agent-chat .agent-term-prompt textarea { font-family: var(--font-sans); font-size: 14px; }
+
+/* Focus: the conversation alone, in a reading column. */
+.agent-screen.view-focus { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.view-focus .agent-term { grid-row: 1; font-size: 15px; line-height: 1.6; }
+.view-focus .agent-term-scroll, .view-focus .agent-term-prompt, .view-focus .agent-term-pending { padding-inline: max(14px, calc((100% - 760px) / 2)); }
+.view-focus .chat-bubble { max-width: 90%; }
+.agent-roster-modal .config-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+/* Workspace: the chat beside a wide column of the full cards. */
+.agent-screen.view-workspace { grid-template-columns: 3fr 2fr; }
+.view-workspace .agent-roster { font-size: 13px; }
+.view-workspace .agent-roster .config-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.view-workspace .agent-roster .config-card { padding: 10px; gap: 6px; }
+.view-workspace .agent-roster .config-card-main { gap: 10px; padding-right: 52px; }
+.view-workspace .agent-roster .config-card-name { white-space: normal; }
+.view-workspace .agent-roster .config-card-line { display: -webkit-box; }
+.view-workspace .agent-roster .config-card-menu { top: 6px; right: 6px; }
+
+@media (max-width: 900px) {
+  .agent-screen.view-compact { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .view-compact .agent-roster { grid-column: 1; grid-row: 2; }
+  .agent-screen.view-workspace { grid-template-columns: 1fr; }
+}
+
 /* Meeting notes */
 .meeting-notes .meeting-warning { margin: 8px 0 14px; padding-left: 20px; }
 .meeting-notes .meeting-warning li { margin: 4px 0; }

@@ -48,6 +48,8 @@ export function MicrosoftSignIn(arg1:string,arg2:string):Promise<app.PersistentA
 
 export function OpenPort(arg1:string,arg2:string):Promise<void>;
 
+export function PageView():Promise<string>;
+
 export function RemoveAccount(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
 
 export function RemoveCalendarFeed(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
@@ -81,6 +83,8 @@ export function SetMailProvider(arg1:string,arg2:string,arg3:boolean):Promise<ap
 export function SetMicrosoftClient(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
 export function SetMicrosoftSignoff(arg1:string,arg2:string):Promise<app.PersistentAgentView>;
+
+export function SetPageView(arg1:string):Promise<string>;
 
 export function SetSecret(arg1:string,arg2:string,arg3:string):Promise<app.PersistentAgentView>;
 
