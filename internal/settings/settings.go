@@ -75,6 +75,10 @@ type Settings struct {
 	// while nobody is looking at the window, and the notification is how the
 	// person learns it ran.
 	TaskNotificationsOff bool `yaml:"taskNotificationsOff,omitempty" json:"-"`
+	// AgentView is the view a persistent agent's page is drawn in, chosen
+	// from that page's View menu for every agent: one of AgentViews, "" for
+	// Terminal. Read it through AgentViewNow.
+	AgentView string `yaml:"agentView,omitempty" json:"-"`
 	// CheckForUpdates is Settings → "Check for newer versions". A POINTER
 	// because the default is on and this file is parsed leniently: absent
 	// must mean "on", and a plain bool cannot tell an absent field from a
