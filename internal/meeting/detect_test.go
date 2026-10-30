@@ -448,12 +448,12 @@ func TestAnAutomaticRecordingNobodyCanSeeIsNotKept(t *testing.T) {
 		defer h.rec.capture.mu.Unlock()
 		return h.rec.capture.stopped
 	})
-	if st := h.m.Status().Recording; st != nil {
-		t.Fatalf("an unseen automatic recording runs: %+v", st)
-	}
-	if ms, _ := h.m.Meetings(); len(ms) != 0 {
-		t.Fatalf("an unseen automatic recording was kept: %+v", ms)
-	}
+	// The recording let go is discarded after its capture stops: wait for
+	// that outcome, not for the stop alone.
+	waitFor(t, "the unseen recording to be discarded", func() bool {
+		ms, _ := h.m.Meetings()
+		return h.m.Status().Recording == nil && len(ms) == 0
+	})
 }
 
 // A call of an app on the automatic list takes the place of an offer that
