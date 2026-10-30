@@ -67,8 +67,11 @@ docker run --rm --security-opt label=disable -v "$PWD:/src" -w /src \
   echo BUILD-OK
   ls -la build/linux/
   # Smoke: the GUI must start and stay alive under a virtual display.
-  # timeout killing it (exit 124) means it ran without crashing.
-  timeout 6 xvfb-run -a "./build/linux/${OUT}" >/tmp/run.log 2>&1 && ec=$? || ec=$?
+  # timeout killing it (exit 124) means it ran without crashing. WebKitGTK
+  # sandboxes its web process with bubblewrap, which needs user namespaces
+  # that a build container does not grant, so only this smoke turns the
+  # sandbox off; the app never does.
+  WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 timeout 6 xvfb-run -a "./build/linux/${OUT}" >/tmp/run.log 2>&1 && ec=$? || ec=$?
   echo "xvfb exit: ${ec}"
   tail -3 /tmp/run.log || true
   if [ "${ec}" != 124 ]; then echo "SMOKE-FAIL: exited with ${ec} before the timeout"; exit 1; fi

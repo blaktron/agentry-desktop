@@ -56,6 +56,11 @@ const GO_TARGETS = [
 // own licence file.
 const WEBVIEW2_LOADER = "github.com/wailsapp/wails/v3/internal/webview2/webviewloader";
 
+// npm packages in the bundle that ship no licence file, by name: the file in
+// scripts/notices/npm holding the licence their package.json declares
+// (@wailsio/runtime: the MIT licence of the repository it is published from).
+const KEPT_NPM_LICENCES = { "@wailsio/runtime": "wailsio-runtime.LICENSE" };
+
 // The report fonts' licence files, by family. A file in the directory that
 // is not named here, or a name here without a file, stops the run: a font
 // added or dropped is a decision about its notice.
@@ -159,12 +164,15 @@ function bundledPackages() {
     const meta = JSON.parse(fs.readFileSync(pj, "utf8"));
     const lic = typeof meta.license === "string" ? meta.license : meta.license?.type ?? "";
     const files = filesIn(dir, LICENCE_NAME);
-    if (files.length === 0) fail(`${meta.name}@${meta.version} is compiled into the bundle and has no licence file`);
+    // A package that declares a licence and ships no file for it has its
+    // text kept here, from the project that publishes it.
+    const kept = KEPT_NPM_LICENCES[meta.name];
+    if (files.length === 0 && !kept) fail(`${meta.name}@${meta.version} is compiled into the bundle and has no licence file`);
     pkgs.push({
       name: meta.name,
       version: meta.version,
       spdx: lic,
-      text: files.map((f) => readClean(path.join(dir, f))).join("\n\n"),
+      text: files.length > 0 ? files.map((f) => readClean(path.join(dir, f))).join("\n\n") : readClean(path.join(root, "scripts", "notices", "npm", kept)),
       notices: filesIn(dir, NOTICE_NAME).map((f) => readClean(path.join(dir, f))),
     });
   }

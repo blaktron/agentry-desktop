@@ -222,7 +222,10 @@ if [ "$strict" = strict ]; then
 fi
 
 # 5. Launch smoke under a virtual display: alive at the timeout (124).
-timeout 6 xvfb-run -a "$bin" >/tmp/run.log 2>&1 && ec=$? || ec=$?
+#    WebKitGTK sandboxes its web process with bubblewrap, which needs user
+#    namespaces that a container does not grant, so only this smoke turns the
+#    sandbox off; the app never does.
+WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 timeout 6 xvfb-run -a "$bin" >/tmp/run.log 2>&1 && ec=$? || ec=$?
 if [ "$ec" != 124 ]; then tail -5 /tmp/run.log >&2; fail "the app exited with $ec before the 6 s timeout"; fi
 echo "ok ($fam): the app ran under Xvfb until the timeout"
 

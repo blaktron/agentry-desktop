@@ -15,9 +15,9 @@
 # binary's ELF NEEDED entries name, on each family — nothing the binary does
 # not link, nothing it links left out; the acceptance script checks both
 # directions against the installed system (Fedora splits
-# javascriptcoregtk6.0 out of webkitgtk6.0). The Debian names are the
-# pre-t64 ones on purpose: Ubuntu 24.04's *t64 renames Provide them, and the
-# acceptance script installs there too. The glibc floor is the
+# javascriptcoregtk6.0 out of webkitgtk6.0). The Debian names are those of
+# Debian 13 and Ubuntu 24.04, which both spell glib the t64 way, and the
+# acceptance script installs in both. The glibc floor is the
 # newest symbol version the binary imports (objdump -T | grep GLIBC_: 2.34),
 # not the build container's glibc, so the package refuses a distribution
 # that would fail at first launch and admits every one that would not.
@@ -83,11 +83,12 @@ overrides:
   deb:
     depends:
       - libc6 (>= 2.34)
-      - libglib2.0-0
+      - libglib2.0-0t64
       - libgtk-4-1
       - libsoup-3.0-0
       - libjavascriptcoregtk-6.0-1
       - libwebkitgtk-6.0-4
+      - libx11-6
   rpm:
     depends:
       - glibc >= 2.34
@@ -96,6 +97,7 @@ overrides:
       - libsoup3
       - javascriptcoregtk6.0
       - webkitgtk6.0
+      - libX11
 
 rpm:
   summary: Desktop client for Agentry registries
