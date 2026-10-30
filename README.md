@@ -25,7 +25,7 @@ running use the same Go libraries as the server and the CLI
 - Go, at the version `go.mod` names (`go 1.27.3`)
 - Node 22 (what CI uses) and npm
 - The Wails v2 CLI, at the version `go.mod` pins:
-  `go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`
+  `go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0`
 - Linux: the GTK 3 and WebKit2GTK 4.1 development headers and `pkg-config`
   (Debian and Ubuntu: `libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config`), and
   the `webkit2_41` build tag for a direct `wails build`. `make package-linux`
