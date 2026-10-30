@@ -1,4 +1,4 @@
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { KeyStanding } from "./keyRecommendation";
 
 // The first-run wizard's recap rules that are worth holding in a test: the

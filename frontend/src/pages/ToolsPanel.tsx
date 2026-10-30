@@ -4,8 +4,8 @@
 // NAMES only; an empty field means "resolve from the environment at run
 // time"; values leave this component the moment they are stored.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Spinner, shortDigest } from "../ui";
 import { connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";

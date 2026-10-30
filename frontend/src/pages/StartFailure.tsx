@@ -1,6 +1,6 @@
 // How an agent's last start failed, on its page and its Settings card: the
 // step it stopped in, the error, the reason and the log, drawn as text.
-import type { app } from "../../wailsjs/go/models";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { startFailureLines } from "../persistentAgents";
 import { Notice } from "../ui";
 

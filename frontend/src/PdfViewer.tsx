@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-import * as RunAPI from "../wailsjs/go/app/RunAPI";
+import * as RunAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { Button, ErrorBox } from "./ui";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;

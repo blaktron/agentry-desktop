@@ -30,7 +30,8 @@ func newBGRig(t *testing.T) *bgRig {
 	t.Helper()
 	pr := newPersistentRig(t)
 	r := &bgRig{persistentRig: pr, s: &Services{app: pr.p.app, run: pr.p.run, persistent: pr.p}}
-	saved := []any{windowShow, windowHide, appQuit, trayStart, traySet, notice}
+	saved := []any{windowShow, windowHide, appQuit, trayStart, traySet, notice, shutdownWork}
+	shutdownWork = func(*Services, context.Context) {}
 	windowShow = func(context.Context) { r.mu.Lock(); r.shown++; r.mu.Unlock() }
 	windowHide = func(context.Context) { r.mu.Lock(); r.hidden++; r.mu.Unlock() }
 	appQuit = func(context.Context) { r.mu.Lock(); r.quits++; r.mu.Unlock() }
@@ -54,6 +55,7 @@ func newBGRig(t *testing.T) *bgRig {
 		trayStart = saved[3].(func(tray.Menu))
 		traySet = saved[4].(func(map[string]string))
 		notice = saved[5].(func(context.Context, string, string))
+		shutdownWork = saved[6].(func(*Services, context.Context))
 	})
 	r.s.persistent.onState = func() { r.s.followAgents(context.Background()) }
 	return r
@@ -179,5 +181,43 @@ func TestAHiddenLaunchWithNothingToRunShowsTheWindow(t *testing.T) {
 	r.s.bg.launching.Wait()
 	if r.shown != 1 {
 		t.Fatalf("shown %d times", r.shown)
+	}
+}
+
+// A quit nobody asked about (Cmd-Q, the Dock's Quit, the session ending) is
+// held and put through the services' own quit; once they have asked and shut
+// down, the application's quit goes ahead and its window closes without a
+// second question.
+func TestAQuitIsHeldUntilTheServicesHaveAskedAndShutDown(t *testing.T) {
+	r := newBGRig(t)
+	if r.s.ShouldQuit() {
+		t.Fatal("a quit nobody had asked about went ahead")
+	}
+	// The held quit goes through quit on a goroutine and reaches the app's quit.
+	for range 200 {
+		r.mu.Lock()
+		quits := r.quits
+		r.mu.Unlock()
+		if quits > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	r.mu.Lock()
+	quits := r.quits
+	r.mu.Unlock()
+	if quits != 1 {
+		t.Fatalf("the held quit reached the application's quit %d times", quits)
+	}
+	if !r.s.bg.quitting.Load() {
+		t.Fatal("the held quit did not record the person's intent")
+	}
+	if !r.s.ShouldQuit() {
+		t.Fatal("the quit was held again after the services had shut down")
+	}
+	asked := 0
+	r.s.app.confirm = func(context.Context, string, string) (bool, error) { asked++; return false, nil }
+	if prevent := r.s.BeforeClose(context.Background()); prevent || asked != 0 {
+		t.Fatalf("the window's close after the shutdown asked again (prevent %v, asked %d)", prevent, asked)
 	}
 }

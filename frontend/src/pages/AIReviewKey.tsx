@@ -8,9 +8,9 @@
 // The recommendation speaks of submitting, which needs no key, so the
 // paragraph beneath it says so.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../keyRecommendation";
 

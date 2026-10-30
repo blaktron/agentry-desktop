@@ -5,9 +5,9 @@
 // same folder, after a native dialog, followed in its own dialog and card.
 // Validate itself is the same with or without it.
 import { useState } from "react";
-import * as ValidateAPI from "../../wailsjs/go/app/ValidateAPI";
-import { ChooseDirectory } from "../../wailsjs/go/app/App";
-import { validate } from "../../wailsjs/go/models";
+import * as ValidateAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/validateapi";
+import { ChooseDirectory } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as validate from "../../bindings/github.com/blaktron/agentry-desktop/internal/validate/models";
 import { Button, Card, ErrorBox, Excerpt, Input, ModeBadges, Notice, PageHeader, Sev, Spinner, Toolbar } from "../ui";
 import { startReview } from "../reviews";
 import { ReviewAction } from "./ReviewAction";

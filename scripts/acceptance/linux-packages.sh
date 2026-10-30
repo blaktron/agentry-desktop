@@ -8,7 +8,7 @@
 # the same binary: installed first, so the real package is proven as the
 # upgrade it will be for everyone who has a release already.
 #
-# The .deb in debian:bookworm-slim (the build container's family, so the
+# The .deb in debian:trixie-slim (the build container's family, so the
 # glibc floor is the one the binary was linked against) and the .rpm in
 # fedora:44 go through every step; the .deb
 # also installs in ubuntu:24.04, whose *t64 library renames must satisfy the
@@ -222,7 +222,10 @@ if [ "$strict" = strict ]; then
 fi
 
 # 5. Launch smoke under a virtual display: alive at the timeout (124).
-timeout 6 xvfb-run -a "$bin" >/tmp/run.log 2>&1 && ec=$? || ec=$?
+#    WebKitGTK sandboxes its web process with bubblewrap, which needs user
+#    namespaces that a container does not grant, so only this smoke turns the
+#    sandbox off; the app never does.
+WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 timeout 6 xvfb-run -a "$bin" >/tmp/run.log 2>&1 && ec=$? || ec=$?
 if [ "$ec" != 124 ]; then tail -5 /tmp/run.log >&2; fail "the app exited with $ec before the 6 s timeout"; fi
 echo "ok ($fam): the app ran under Xvfb until the timeout"
 
@@ -264,8 +267,8 @@ deb_family() {
   '
 }
 
-echo "== .deb in debian:bookworm-slim"
-deb_family debian:bookworm-slim strict
+echo "== .deb in debian:trixie-slim"
+deb_family debian:trixie-slim strict
 echo "== .deb in ubuntu:24.04 (the t64 names must Provide the declared ones)"
 deb_family ubuntu:24.04 ""
 

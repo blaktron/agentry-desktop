@@ -5,11 +5,11 @@
 // the App through SettingsAPI.MarkOnboarded when the wizard closes). It opens
 // over the app on first start (App gates it) and is re-runnable from Settings.
 import { useEffect, useState, type ReactNode } from "react";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
-import { app } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import { ClipboardSetText } from "../host";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";

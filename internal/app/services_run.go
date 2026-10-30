@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
@@ -310,7 +308,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	}
 	go func() {
 		for ev := range s.Events() {
-			runtime.EventsEmit(r.app.ctx, eventSessionEvent, eventView(ev))
+			nativeEmit(eventSessionEvent, eventView(ev))
 		}
 	}()
 	return &SessionView{Ref: s.Ref()}, nil

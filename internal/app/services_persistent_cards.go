@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry/pkg/manifest"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/persistent/assistant"
@@ -229,12 +228,12 @@ func (p *PersistentAPI) pickSkill(from string) (string, error) {
 		return p.pickSkillSource(from)
 	}
 	if from == SkillFromZip {
-		return runtime.OpenFileDialog(p.app.ctx, runtime.OpenDialogOptions{
+		return nativeOpenFile(p.app.ctx, pickOptions{
 			Title:   "Choose a skill (.zip)",
-			Filters: []runtime.FileFilter{{DisplayName: "Skill (.zip)", Pattern: "*.zip"}},
+			Filters: []fileFilter{{Name: "Skill (.zip)", Pattern: "*.zip"}},
 		})
 	}
-	return runtime.OpenDirectoryDialog(p.app.ctx, runtime.OpenDialogOptions{Title: "Choose a skill's folder (it holds SKILL.md)"})
+	return nativePickDirectory(p.app.ctx, "Choose a skill's folder (it holds SKILL.md)")
 }
 
 // AddSkill adds a skill of the person's own from a folder or a .zip the

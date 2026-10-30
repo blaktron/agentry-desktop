@@ -1,4 +1,4 @@
-# DO NOT EDIT - Generated automatically by `wails build`
+# DO NOT EDIT the product facts below: scripts/build/installer-tools.mjs writes them from wails.json
 
 !include "x64.nsh"
 !include "WinVer.nsh"

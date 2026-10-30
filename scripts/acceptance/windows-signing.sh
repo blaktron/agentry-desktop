@@ -43,8 +43,8 @@ esac >> "$T/order"
 SH
 chmod +x "$T/sign.sh"
 
-# What wails' -nsis step would have left for makensis: the bootstrapper file
-# (any PE does for the embedding) and the checked-in wails_tools.nsh.
+# What make build-windows leaves for makensis: the bootstrapper file (any PE
+# does for the embedding) and the checked-in wails_tools.nsh.
 mkdir -p "$installer_dir/tmp" "$T/bin" "$root_dir/build/bin"
 cp "$exe" "$installer_dir/tmp/MicrosoftEdgeWebview2Setup.exe"
 cp "$exe" "$T/bin/agentry-desktop.exe"

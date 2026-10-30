@@ -7,7 +7,7 @@
 // address beyond its host.
 import { Button } from "../ui";
 import { cannotChooseWhy, chosenLine, defaultLine, destinationLabel } from "../destinations";
-import type { destinations } from "../../wailsjs/go/models";
+import type * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 
 export function SendTo({ saved, chosen, onChange, makeDefault, onMakeDefault, disabled, onOpenSettings }: {
   saved: destinations.View[];

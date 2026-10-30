@@ -1,5 +1,5 @@
-// Real RuntimeSetup/PrereqCard components against the harness's Wails
-// boundary: the container engine's explicit re-check clears a stale
+// Real RuntimeSetup/PrereqCard components against the harness's mocked
+// bound calls: the container engine's explicit re-check clears a stale
 // failure without replacing unsaved provider edits, and the prerequisites
 // card recovers. Start `npx vite harness --port 5199` first; PLAYWRIGHT_MODULE
 // points to an installed Playwright, as for shots.mjs.

@@ -5,17 +5,14 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"log/slog"
 	"os"
 	"slices"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/logger"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-
-	"github.com/blaktron/agentry-desktop/internal/webview"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/blaktron/agentry-desktop/internal/app"
 	"github.com/blaktron/agentry-desktop/internal/applog"
@@ -26,6 +23,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/loginitem"
 	"github.com/blaktron/agentry-desktop/internal/meeting"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
+	"github.com/blaktron/agentry-desktop/internal/webview"
 )
 
 //go:embed all:frontend/dist
@@ -81,53 +79,104 @@ func main() {
 	hidden := slices.Contains(os.Args[1:], loginitem.HiddenFlag)
 	services.SetHidden(hidden)
 
-	err := wails.Run(&options.App{
+	run(services, hidden)
+}
+
+// windowName is the main window's name: the one the services show, hide and
+// close.
+const windowName = "main"
+
+// run builds the application, its one window and runs the event loop until
+// the app quits.
+func run(services *app.Services, hidden bool) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wails := application.New(application.Options{
+		Name: "Agentry Desktop",
+		// The About box on macOS.
+		Description: "A client for agentry registries.\nEvery install is digest-checked and signature-verified on this machine.",
+		// The runtime's logger, stated rather than defaulted. At debug level
+		// the framework logs every bound call with its arguments and its
+		// result, and SignIn (the access token), SaveProfile (MCP secret
+		// values) and StoreModelKey (the model key) carry secrets as
+		// arguments. applog withholds the arguments and the result of every
+		// call and keeps the method and the error, so a stale binding is
+		// still diagnosable from the log. The level is info, and errors only
+		// in a production build (loglevel.go); the framework's own default
+		// logger, which a production build turns off, is not used.
+		Logger:   slog.New(applog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))),
+		LogLevel: logLevel,
+		// The bound services: every exported method on these is callable
+		// from the frontend, and nothing else is.
+		Services: services.Bind(),
+		Assets: application.AssetOptions{
+			// Every response carries the Content-Security-Policy: the one
+			// HTML sink renders registry-supplied README HTML, and the
+			// bindings are the local machine (internal/webview).
+			Middleware: webview.Middleware,
+			// The bundle, and what it does not hold: /theme.js, the stored
+			// theme before the first paint.
+			Handler: app.Assets(assets),
+		},
+		// One app per user: each persistent agent has one owner, and a
+		// second launch (the app opened again while it runs in the
+		// background) shows the window that is already there.
+		SingleInstance: singleInstance(services),
+		// A quit asks the services first (a run in flight, the agents that
+		// go on in the background); the signals are theirs too.
+		ShouldQuit:                  services.ShouldQuit,
+		DisableDefaultSignalHandler: true,
+		OnShutdown: func() {
+			services.Shutdown(ctx)
+			cancel()
+		},
+		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		Linux: application.LinuxOptions{
+			ProgramName:   "agentry-desktop",
+			ApplicationID: "net.secureagentry.agentry-desktop",
+		},
+	})
+
+	window := wails.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:      windowName,
 		Title:     "Agentry Desktop",
 		Width:     1200,
 		Height:    800,
 		MinWidth:  900,
 		MinHeight: 600,
-		// The runtime's logger, stated rather than defaulted. On a dispatch
-		// error Wails logs the raw IPC message, arguments included, and
-		// SignIn (the access token), SaveProfile (MCP secret values) and
-		// StoreModelKey (the model key) carry secrets as arguments. applog
-		// withholds every call's arguments and result and keeps the method
-		// and the error, so a stale binding is still diagnosable from the
-		// log. The levels are Wails' own defaults, written out: INFO under
-		// `wails dev`, ERROR in a production build.
-		Logger:             applog.New(logger.NewDefaultLogger()),
-		LogLevel:           logger.INFO,
-		LogLevelProduction: logger.ERROR,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-			// Every response carries the Content-Security-Policy: the one
-			// HTML sink renders registry-supplied README HTML, and the
-			// bindings are the local machine (internal/webview).
-			Middleware: webview.Middleware,
-			// What the bundle does not hold: /theme.js, the stored theme
-			// before the first paint.
-			Handler: app.ThemeScript(),
-		},
-		StartHidden: hidden,
-		// One app per user: each persistent agent has one owner, and a
-		// second launch (the app opened again while it runs in the
-		// background) shows the window that is already there.
-		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId:               "net.secureagentry.agentry-desktop",
-			OnSecondInstanceLaunch: func(options.SecondInstanceData) { services.ShowWindow() },
-		},
-		OnStartup:     services.Startup,
-		OnBeforeClose: services.BeforeClose,
-		OnShutdown:    services.Shutdown,
-		Bind:          services.Bind(),
-		Mac: &mac.Options{
-			About: &mac.AboutInfo{
-				Title:   "Agentry Desktop",
-				Message: "A client for agentry registries.\nEvery install is digest-checked and signature-verified on this machine.",
-			},
-		},
+		Hidden:    hidden,
+		URL:       "/",
+		// No browser context menu over the page.
+		DefaultContextMenuDisabled: true,
 	})
-	if err != nil {
+	// The window's close, before it happens: the services may keep the
+	// window and hide it, or ask first.
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if services.BeforeClose(ctx) {
+			e.Cancel()
+			return
+		}
+		// The shutdown runs here, off the thread that draws the window.
+		services.Shutdown(ctx)
+	})
+	wails.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		services.Startup(ctx)
+	})
+
+	if err := wails.Run(); err != nil {
 		println("Error:", err.Error())
+	}
+}
+
+// singleInstance is the one-app-per-user lock: nil, which is no lock, where
+// the session has no message bus to hold it on (main_linux.go).
+func singleInstance(services *app.Services) *application.SingleInstanceOptions {
+	if !sessionBusUsable() {
+		return nil
+	}
+	return &application.SingleInstanceOptions{
+		UniqueID:               "net.secureagentry.agentry-desktop",
+		OnSecondInstanceLaunch: func(application.SecondInstanceData) { services.ShowWindow() },
 	}
 }

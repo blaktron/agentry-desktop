@@ -9,10 +9,10 @@
 // in one call and is never shown back. Disconnect removes the connection
 // and revokes it at the vendor where it offers that.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { run } from "../../wailsjs/go/models";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
+import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Input, Modal, Notice } from "../ui";
 import { AuthorHelp } from "../KeyHelp";
 import { connectionLine, hostOf, pastedProblem, scopeWords, sharedGrantWarning, type ServerConn } from "../connections";

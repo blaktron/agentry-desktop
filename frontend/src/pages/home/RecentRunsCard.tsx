@@ -1,4 +1,4 @@
-import { app } from "../../../wailsjs/go/models";
+import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame } from "../../cards";
 import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
 

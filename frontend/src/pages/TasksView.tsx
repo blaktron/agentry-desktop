@@ -5,8 +5,8 @@
 // is asked of the Assistant in conversation. Every name, instruction and
 // answer is drawn as text.
 import { useEffect, useState } from "react";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import type { app } from "../../wailsjs/go/models";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { agentCalled } from "../persistentAgents";
 import { taskOps, taskRow } from "../tasksView";
 import { Button, ErrorBox, Modal } from "../ui";

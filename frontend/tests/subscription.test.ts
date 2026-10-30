@@ -2,7 +2,7 @@
 // run by node's own test runner: `npm test`, which CI runs beside the build.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { changesPhrase, creditsPhrase, owedSentence, packBonus, packLabel, packPrice, tierLabel, topUpOffer } from "../src/subscription.ts";
 
 const view = (v: Record<string, unknown>) => v as unknown as app.SubscriptionView;

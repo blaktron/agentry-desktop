@@ -9,7 +9,7 @@
 // returns a token; the token typed here goes to Go with the run, for its
 // fetch step alone, and is not kept with the setup's answers.
 import { useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { Button } from "../ui";
 import { joinRepository, splitRepository, tokenFieldLabel, tokenLine, type SourceKey } from "../sources";
 

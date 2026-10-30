@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
-import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
-import { install, app } from "../../wailsjs/go/models";
+import * as HomeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
+import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";

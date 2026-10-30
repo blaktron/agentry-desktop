@@ -7,10 +7,10 @@
 // numbers rather than the app's arithmetic. A run In Agentry has no log
 // to show.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { OpenUpgrade } from "../../wailsjs/go/app/SettingsAPI";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import { OpenUpgrade } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
 import { hostedConnectAsk } from "../connections";

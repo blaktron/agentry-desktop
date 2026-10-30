@@ -2,7 +2,7 @@
 // the card draws, what it says before the first message, the agents the
 // person can put on it, and the tiles the Welcome draws. Pure, so the pages
 // and node's test runner share it.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, MAIN_AGENT } from "./persistentAgents.ts";
 
 type AgentLike = Pick<app.PersistentAgentView, "name" | "state">;

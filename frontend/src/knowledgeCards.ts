@@ -10,7 +10,7 @@
 // (scripts/copy-check.sh holds the line). Sizes are written by the
 // caller's formatter (ui's fmtStorage), so this module imports nothing at
 // run time and node's test runner reads it as it is.
-import type { knowledge } from "../wailsjs/go/models";
+import type * as knowledge from "../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
 
 /** Writes a size in bytes, as ui.tsx's fmtStorage does. */
 export type SizeWords = (bytes: number) => string;

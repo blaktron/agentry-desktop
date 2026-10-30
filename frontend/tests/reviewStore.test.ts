@@ -5,7 +5,7 @@
 // Dismiss reach the review they mean.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { createReviewStore, outcome, outcomeTone, type ReviewProgress } from "../src/review.ts";
 
 type Cb = (v: never) => void;

@@ -10,9 +10,9 @@
 // in Go's native dialog too; the windows the Assistant armed are listed
 // with Cancel.
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
-import type { app } from "../../wailsjs/go/models";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
 import {
   AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,

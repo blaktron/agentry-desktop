@@ -16,30 +16,35 @@ The structure is:
 
 `appicon.svg` (the Agentry mark on its tile) and `appicon-small.svg` (the bare
 mark, for 16 to 32 pixels) are the sources. `make app-icons` renders
-`appicon.png`, which Wails turns into the macOS bundle's `iconfile.icns`,
-`windows/icon.ico` and the Linux packages' `nfpm/icons/`. The outputs are
-committed; re-run it after changing either SVG.
+`appicon.png`, `darwin/icons.icns` (the macOS bundle's icon, made from the png
+by `wails3 generate icons`), `windows/icon.ico` and the Linux packages'
+`nfpm/icons/`. The outputs are committed; re-run it after changing either SVG.
 
 ## Mac
 
-The `darwin` directory holds files specific to Mac builds.
-These may be customised and used as part of the build. To return these files to the default state, simply delete them
-and
-build with `wails build`.
+The `darwin` directory holds the files of the macOS bundle.
 
-The directory contains the following files:
-
-- `Info.plist` - the main plist file used for Mac builds. It is used when building using `wails build`.
-- `Info.dev.plist` - same as the main plist file but used when building using `wails dev`.
+- `Info.plist` - the bundle's property list, a template: `scripts/build/stamp.mjs`
+  fills the product facts in from `wails.json` when `make build-darwin` makes
+  the bundle.
+- `Info.dev.plist` - the same for the development bundle `make dev` runs from
+  (it lets the app reach the Vite dev server over the local network).
+- `icons.icns` - the bundle's icon (see above).
 
 ## Windows
 
-The `windows` directory contains the manifest and rc files used when building with `wails build`.
-These may be customised for your application. To return these files to the default state, simply delete them and
-build with `wails build`.
+The `windows` directory holds the files of the Windows build.
 
 - `icon.ico` - The icon used for the application and its installer, rendered by `make app-icons` (see above).
-- `installer/*` - The files used to create the Windows installer. These are used when building using `wails build`.
-- `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
-  as well as the application itself (right click the exe -> properties -> details)
-- `wails.exe.manifest` - The main application manifest file.
+- `info.json` - Application details, a template stamped from `wails.json`. The data here is the exe's
+  properties (right click the exe -> properties -> details) and is compiled into its resource file by
+  `wails3 generate syso`.
+- `wails.exe.manifest` - The application manifest, also a template, compiled into the same resource file.
+- `installer/*` - The files used to create the Windows installer: `project.nsi`, the script `makensis`
+  compiles, and `wails_tools.nsh`, the include file it uses, whose product facts
+  `scripts/build/installer-tools.mjs` writes from `wails.json`.
+
+## Development
+
+- `config.yml` - what `wails3 dev` (`make dev`) runs: the build, the Vite dev server and the app, which
+  are the tasks in the `Taskfile.yml` at the root of the repository.

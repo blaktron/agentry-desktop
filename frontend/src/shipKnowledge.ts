@@ -5,7 +5,7 @@
 // this module holds the rules the page draws: which packs may be ticked in
 // a QuickAgent's namespace (the same rules as internal/build's
 // ShipOption.Reason), the five-pack limit, and the notes beside a pack.
-// Pure and free of the Wails bindings, so it is tested on its own.
+// Pure and free of the bindings, so it is tested on its own.
 
 /** The most packs one release ships (the registry's rule). */
 export const MAX_SHIPS = 5;

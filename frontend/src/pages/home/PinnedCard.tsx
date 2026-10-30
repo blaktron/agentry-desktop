@@ -1,4 +1,5 @@
-import { install, app } from "../../../wailsjs/go/models";
+import * as install from "../../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
+import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame } from "../../cards";
 import { latestRunFor, pinRecord, type Pin } from "../../pins";
 import { howItEnded, whenRan, whereRan } from "../../recentRuns";

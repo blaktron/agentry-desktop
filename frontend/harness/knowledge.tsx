@@ -241,7 +241,7 @@ g.go = { app: {
   SettingsAPI: { Profile: async () => ({ user: {}, subscription: { knowledge: allocation } }) },
 } };
 // The build's log, streamed as the Go side streams it. The app's EventsOn
-// goes through EventsOnMultiple (the wails runtime shim).
+// reaches these listeners through runtime-mock.ts.
 // The progress counts up as the Go side reports it: the start, then usage
 // and pages.
 const started = Date.now() - 754_000;

@@ -24,11 +24,14 @@
 // keeps the Drafter's notes folded under "How it was drafted", with
 // Describe again under them.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { ChooseDirectory, OpenExternal } from "../../wailsjs/go/app/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { build, app, mcpvuln, validate } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import { ChooseDirectory, OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import { EventsOn } from "../host";
+import * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as mcpvuln from "../../bindings/github.com/blaktron/agentry-desktop/internal/mcpvuln/models";
+import * as validate from "../../bindings/github.com/blaktron/agentry-desktop/internal/validate/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
 import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";

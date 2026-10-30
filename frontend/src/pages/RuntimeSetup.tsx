@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { app, run } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import { EventsOn } from "../host";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {

@@ -21,7 +21,7 @@
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { OpenExternal } from "../wailsjs/go/app/App";
+import { OpenExternal } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import { isInvisible } from "./invisible";
 import { RevealText } from "./reveal";
 

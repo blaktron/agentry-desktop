@@ -7,8 +7,8 @@
 // of each in a native dialog the page cannot answer. The rules the rows draw
 // are shipKnowledge.ts's.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import { build } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
 import { RevealText } from "../reveal";
 import { Notice } from "../ui";
 import {

@@ -9,8 +9,8 @@
 // step drops the pages it cannot take): the preview says so, and reads a
 // missing list as none, since a null list blanks the app.
 import { useEffect, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
-import { knowledge } from "../../wailsjs/go/models";
+import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
+import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
 import { Button, ErrorBox, Modal, Spinner } from "../ui";

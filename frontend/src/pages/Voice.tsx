@@ -30,10 +30,11 @@
 // the run lock.
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
-import * as VoiceAPI from "../../wailsjs/go/app/VoiceAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/app/App";
-import { app, voice } from "../../wailsjs/go/models";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import * as VoiceAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/voiceapi";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as voice from "../../bindings/github.com/blaktron/agentry-desktop/internal/voice/models";
+import { EventsOn } from "../host";
 import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
 import { FoldedLog, StopButton } from "../progress";
 import { WayCard } from "./BuildWays";

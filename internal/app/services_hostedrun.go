@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -34,14 +32,14 @@ import (
 // Agentry has no log to send; runner:run-log is the local engine's alone.
 const eventHostedRun = "runner:hosted-run"
 
-// emitEvent is the Wails emitter, a package variable purely as a test seam
+// emitEvent sends the page an event; a package variable purely as a test seam
 // (the hosted lifecycle tests follow a run with no webview attached).
 // Production code never reassigns it.
 var emitEvent = func(app *App, name string, data ...any) {
 	if app == nil || app.ctx == nil {
 		return
 	}
-	runtime.EventsEmit(app.ctx, name, data...)
+	nativeEmit(name, data...)
 }
 
 // hostedPoll is how often a run In Agentry is re-read while it moves; a

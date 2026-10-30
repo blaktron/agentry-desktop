@@ -4,7 +4,7 @@
 // comes when no review of this start is under way changes nothing, and a start
 // Go refuses, or the person declines in the native dialog, leaves the review
 // being followed as it is.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
 /** How far a review has got, as Go reports it (build:review-progress,

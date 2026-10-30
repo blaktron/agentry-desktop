@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -83,10 +81,10 @@ func (r *RunAPI) ChooseHostKeyFile(host string) (string, error) {
 	if host != "" {
 		title = "Choose the private key for " + host
 	}
-	opts := runtime.OpenDialogOptions{Title: title, ShowHiddenFiles: true}
+	opts := pickOptions{Title: title, ShowHidden: true}
 	if home, err := os.UserHomeDir(); err == nil {
 		if st, err := os.Stat(filepath.Join(home, ".ssh")); err == nil && st.IsDir() {
-			opts.DefaultDirectory = filepath.Join(home, ".ssh")
+			opts.Directory = filepath.Join(home, ".ssh")
 		}
 	}
 	pick := r.app.pickKeyFile
@@ -102,7 +100,7 @@ func (r *RunAPI) ChooseHostKeyFile(host string) (string, error) {
 }
 
 // nativePickFile is the OS file dialog for one file.
-var nativePickFile = runtime.OpenFileDialog
+var nativePickFile = nativeOpenFile
 
 // keyFilePicks records the key files the native picker returned.
 type keyFilePicks struct {

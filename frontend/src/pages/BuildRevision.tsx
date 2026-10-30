@@ -10,7 +10,7 @@
 // Every text the Drafter or the registry wrote is drawn as text, invisible
 // characters revealed.
 import type { ReactNode } from "react";
-import { app } from "../../wailsjs/go/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { RevealText } from "../reveal";
 import { Button, Card, Notice } from "../ui";
 import { DraftNotes } from "./BuildDescribe";

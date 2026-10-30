@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { app, reportdesign } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as reportdesign from "../../bindings/github.com/blaktron/agentry/pkg/reportdesign/models";
 import { Button, Card, ErrorBox, Notice, Select } from "../ui";
 import {
   canonical, edit, fieldLabel, fontsFor, HEADING_LABELS, labelOf, PAGE_NUMBER_LABELS, PAPER_LABELS, QUOTE_LABELS,

@@ -8,11 +8,15 @@ dist
 node_modules
 frontend/dist
 vendor/
-# A go build or wails generate module (make bindings) in the root writes the
-# app binary here; nothing reads it and releases build their own.
+# A plain go build in the root writes the app binary here; nothing reads it
+# and releases build their own.
 /agentry-desktop
-# wails build -nsis drops the WebView2 bootstrapper here before makensis runs
+# make build-windows writes the WebView2 bootstrapper here before makensis runs
 build/windows/installer/tmp/
+# The stamped resource files a platform build generates, and the Windows
+# resource file that gives the exe its icon and properties.
+build/.generated/
+*.syso
 # Local credentials never enter the tree: secrets live in an .env file.
 .env
 .env.*

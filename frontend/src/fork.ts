@@ -9,7 +9,7 @@
 export interface ForkAgent {
   visibility: string;
   quarantine?: string;
-  forkedFrom?: { namespace: string; name: string; version: string; available: boolean };
+  forkedFrom?: { namespace: string; name: string; version: string; available: boolean } | null;
   forkState?: string;
   forkDetail?: string;
   forkCount?: number;

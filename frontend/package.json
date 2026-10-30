@@ -17,6 +17,7 @@
     "@tiptap/pm": "^3.32.2",
     "@tiptap/react": "^3.32.2",
     "@tiptap/starter-kit": "^3.32.2",
+    "@wailsio/runtime": "3.0.0",
     "marked": "^18.1.2",
     "pdfjs-dist": "6.4.299",
     "react": "^19.3.1",

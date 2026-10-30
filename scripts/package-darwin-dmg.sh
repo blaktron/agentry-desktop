@@ -20,7 +20,7 @@
 # is already Developer ID-signed, notarized and stapled, and the release
 # signs, notarizes and staples the image it writes afterwards. Anywhere else
 # (a PR build, a dev prerelease, a by-hand build) the bundle carries only the
-# ad-hoc signature wails applies and the image none, and macOS refuses to open a
+# ad-hoc signature the build applies and the image none, and macOS refuses to open a
 # downloaded copy of either until the person allows it in System Settings →
 # Privacy & Security.
 set -euo pipefail

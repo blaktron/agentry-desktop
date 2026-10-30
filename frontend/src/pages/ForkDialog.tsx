@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import * as PublisherAPI from "../../wailsjs/go/app/PublisherAPI";
+import * as PublisherAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/publisherapi";
 import { Button, ErrorBox, Field, Input, Modal, Select, Spinner } from "../ui";
 import { FORK_TERMS } from "../fork";
 

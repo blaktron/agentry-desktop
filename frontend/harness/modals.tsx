@@ -744,9 +744,8 @@ g.go.app.SettingsAPI.ReportBug = async () =>
   view === "bugreport-limited" ? { filed: false, reason: "limited", message: "You have sent 10 bug reports in the last hour. Try again later." }
     : view === "bugreport-absent" ? { filed: false, reason: "absent" }
       : { filed: true };
-// The app's EventsOn goes through EventsOnMultiple (the wails runtime
-// shim). A run In Agentry sends no log, so nothing
-// is scripted on runner:run-log.
+// The app's EventsOn reaches these listeners through runtime-mock.ts. A run
+// In Agentry sends no log, so nothing is scripted on runner:run-log.
 const subscribe = (name: string, cb: (v: any) => void) => {
   (listeners[name] ??= []).push(cb);
   return () => { listeners[name] = (listeners[name] ?? []).filter((c) => c !== cb); };

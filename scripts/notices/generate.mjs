@@ -42,14 +42,24 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const frontend = path.join(root, "frontend");
 const outFile = path.join(root, "THIRD_PARTY_NOTICES");
 
-// The build tags each package's build uses, per target: scripts/build-linux.sh
-// for Linux, wails build's own for the others. The union is what is listed.
+// The build tags each package's build uses, per target (the Makefile's
+// APP_TAGS; scripts/build-linux.sh for Linux). The union is what is listed.
 const GO_TARGETS = [
-  { goos: "linux", goarch: "amd64", cgo: "1", tags: "desktop production webkit2_41" },
-  { goos: "darwin", goarch: "amd64", cgo: "1", tags: "desktop production" },
-  { goos: "darwin", goarch: "arm64", cgo: "1", tags: "desktop production" },
-  { goos: "windows", goarch: "amd64", cgo: "0", tags: "desktop production" },
+  { goos: "linux", goarch: "amd64", cgo: "1", tags: "production" },
+  { goos: "darwin", goarch: "amd64", cgo: "1", tags: "production" },
+  { goos: "darwin", goarch: "arm64", cgo: "1", tags: "production" },
+  { goos: "windows", goarch: "amd64", cgo: "0", tags: "production" },
 ];
+
+// The window library's WebView2 loader, a port of OpenWebView2Loader that is
+// compiled into the Windows build as part of the library's module, with its
+// own licence file.
+const WEBVIEW2_LOADER = "github.com/wailsapp/wails/v3/internal/webview2/webviewloader";
+
+// npm packages in the bundle that ship no licence file, by name: the file in
+// scripts/notices/npm holding the licence their package.json declares
+// (@wailsio/runtime: the MIT licence of the repository it is published from).
+const KEPT_NPM_LICENCES = { "@wailsio/runtime": "wailsio-runtime.LICENSE" };
 
 // The report fonts' licence files, by family. A file in the directory that
 // is not named here, or a name here without a file, stops the run: a font
@@ -154,12 +164,15 @@ function bundledPackages() {
     const meta = JSON.parse(fs.readFileSync(pj, "utf8"));
     const lic = typeof meta.license === "string" ? meta.license : meta.license?.type ?? "";
     const files = filesIn(dir, LICENCE_NAME);
-    if (files.length === 0) fail(`${meta.name}@${meta.version} is compiled into the bundle and has no licence file`);
+    // A package that declares a licence and ships no file for it has its
+    // text kept here, from the project that publishes it.
+    const kept = KEPT_NPM_LICENCES[meta.name];
+    if (files.length === 0 && !kept) fail(`${meta.name}@${meta.version} is compiled into the bundle and has no licence file`);
     pkgs.push({
       name: meta.name,
       version: meta.version,
       spdx: lic,
-      text: files.map((f) => readClean(path.join(dir, f))).join("\n\n"),
+      text: files.length > 0 ? files.map((f) => readClean(path.join(dir, f))).join("\n\n") : readClean(path.join(root, "scripts", "notices", "npm", kept)),
       notices: filesIn(dir, NOTICE_NAME).map((f) => readClean(path.join(dir, f))),
     });
   }
@@ -200,7 +213,7 @@ function goModules() {
     if (t.goos === "windows") {
       windowsLoaderEmbeds = execFileSync(
         "go",
-        ["list", "-e", "-tags", t.tags, "-f", "{{range .EmbedFiles}}{{.}}\n{{end}}", "github.com/wailsapp/go-webview2/webviewloader"],
+        ["list", "-e", "-tags", t.tags, "-f", "{{range .EmbedFiles}}{{.}}\n{{end}}", WEBVIEW2_LOADER],
         { cwd: root, env: goEnv(t), encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
       )
         .split("\n")
@@ -210,7 +223,7 @@ function goModules() {
   // The Windows build must not embed Microsoft's loader DLL: section 5 says it
   // does not. A build that does needs that section rewritten first.
   if (windowsLoaderEmbeds.length > 0) {
-    fail(`the Windows build now embeds ${windowsLoaderEmbeds.join(", ")} from go-webview2; rewrite the WebView2 section of this script to say so`);
+    fail(`the Windows build now embeds ${windowsLoaderEmbeds.join(", ")} from the WebView2 loader; rewrite the WebView2 section of this script to say so`);
   }
   const out = [];
   for (const m of [...mods.values()].sort((a, b) => byCode(a.path + "@" + a.version, b.path + "@" + b.version))) {
@@ -318,35 +331,14 @@ function logoSection() {
   ];
 }
 
-// The Microsoft SDK's licence, the BSD-3-Clause-style text that accompanies
-// WebView2Loader.dll in the Microsoft.Web.WebView2 package.
-const MS_SDK_LICENCE = `Copyright (C) Microsoft Corporation. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-   * Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-   * Redistributions in binary form must reproduce the above
-copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the
-distribution.
-   * The name of Microsoft Corporation, or the names of its contributors
-may not be used to endorse or promote products derived from this
-software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.`;
+function webview2LoaderLicence() {
+  const dir = execFileSync("go", ["list", "-m", "-f", "{{.Dir}}", "github.com/wailsapp/wails/v3"], {
+    cwd: root,
+    env: { ...process.env, GOWORK: "off", GOFLAGS: "-mod=mod" },
+    encoding: "utf8",
+  }).trim();
+  return readClean(path.join(dir, "internal", "webview2", "webviewloader", "LICENSE"));
+}
 
 function webview2Section() {
   return [
@@ -384,17 +376,16 @@ function webview2Section() {
     "",
     "WebView2 loader",
     "",
-    "The Windows build loads WebView2 through the loader written in Go that comes with",
-    "github.com/wailsapp/go-webview2 (ISC licence, listed in section 2). It does not",
-    "contain Microsoft's WebView2Loader.dll. The go-webview2 module also holds that DLL",
-    "for builds made with the native_webview2loader build tag, which the Windows",
-    "packages do not use. For a build that does carry the DLL, Microsoft's licence for",
-    "it, from the Microsoft.Web.WebView2 package, is:",
+    "The Windows build loads WebView2 through a loader written in Go, a port of",
+    "OpenWebView2Loader that is part of github.com/wailsapp/wails/v3 (its package",
+    "internal/webview2/webviewloader; the module is listed in section 2). It does not",
+    "contain Microsoft's WebView2Loader.dll: it finds the Runtime's own library on the",
+    "computer. The port's licence, which accompanies it in the module, is:",
     "",
     SUB,
-    "Microsoft.Web.WebView2 (WebView2Loader.dll)",
+    "OpenWebView2Loader port (webviewloader)",
     "",
-    MS_SDK_LICENCE,
+    webview2LoaderLicence(),
     "",
   ];
 }

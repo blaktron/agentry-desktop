@@ -22,13 +22,10 @@ Unicode true
 ## internal/uninstall): the app knows the paths, the relocation variables and
 ## the keychain entries it wrote; this script does not.
 ##
-## `wails build -platform windows/amd64 -nsis` resolves wails_tools.nsh from
-## its own template (DO NOT EDIT that file: the checked-in copy is what the
-## build writes), drops the WebView2 bootstrapper into tmp/ and runs
-## makensis on this file with -DARG_WAILS_AMD64_BINARY. The two defines
-## below are what `-installscope user` would pass; they live here so the
-## script is the record and a build without the flag builds the same
-## installer (passing the flag as well would redefine them and fail).
+## `make build-windows` writes wails_tools.nsh from wails.json (the checked-in
+## copy is what it writes), drops the WebView2 bootstrapper into tmp/ and runs
+## makensis on this file with -DARG_WAILS_AMD64_BINARY. The two defines below
+## make the installer a per-user one, whatever the command line says.
 ## scripts/check-windows-installer.sh reads the built installer back.
 ####
 !define REQUEST_EXECUTION_LEVEL "user"

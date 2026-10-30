@@ -1,4 +1,4 @@
-import { install } from "../../../wailsjs/go/models";
+import * as install from "../../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
 import { CardFrame } from "../../cards";
 import { installedLine, recentInstalls } from "../../homeLines";
 

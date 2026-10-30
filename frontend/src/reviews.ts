@@ -7,9 +7,9 @@
 // The store's rules are review.ts's createReviewStore, which node tests
 // hold; this module wires it to Go's events and calls.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../wailsjs/go/app/BuildAPI";
-import * as RunAPI from "../wailsjs/go/app/RunAPI";
-import { EventsOn } from "../wailsjs/runtime/runtime";
+import * as BuildAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as RunAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { EventsOn } from "./host";
 import { type ReviewStoreState, createReviewStore } from "./review";
 
 const store = createReviewStore({

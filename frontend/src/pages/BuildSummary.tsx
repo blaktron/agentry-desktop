@@ -23,7 +23,8 @@
 // go through AgentMarkdown's rules (AuthorHelp frames the help as the
 // author's), and the rest is text through RevealText.
 import type { ReactNode, Ref } from "react";
-import { build, app } from "../../wailsjs/go/models";
+import * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AuthorHelp } from "../KeyHelp";
 import { ReviewAction } from "./ReviewAction";

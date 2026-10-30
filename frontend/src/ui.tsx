@@ -1,7 +1,8 @@
 // Shared presentational pieces. The copy in here follows the product's
 // honest posture: an agent is "scanned, N findings, signed" — never "safe".
 import React from "react";
-import { mcpview, trust } from "../wailsjs/go/models";
+import * as mcpview from "../bindings/github.com/blaktron/agentry-desktop/internal/mcpview/models";
+import * as trust from "../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 import { RevealText } from "./reveal";
 import { browserBadge, browserCap, browserLine } from "./browser";
 

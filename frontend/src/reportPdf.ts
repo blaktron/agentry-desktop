@@ -4,7 +4,7 @@
 // answer: an exported PDF opens in the app's viewer and the system's, and
 // can be saved; any other is Save only, and says why.
 
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 /** The Go view of a PDF, as RunOutputs sends it. */
 export type PdfFacts = Pick<app.OutputPDFView, "exported" | "pages" | "theme">;

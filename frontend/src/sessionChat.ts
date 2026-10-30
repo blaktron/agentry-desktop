@@ -7,7 +7,7 @@
 // notes, and "Session ended: out of credits" where a minute the balance could
 // not cover stopped it. Every text here is data the agent or the person wrote,
 // drawn as text.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 /** One session event (app.SessionEventView on the Go side; it travels
  * only over the event bus, so it is not in the bindings). */
@@ -246,7 +246,7 @@ export type HostedChatState = {
   status: string;
   startedAt?: string;
   finishedAt?: string;
-  session?: app.HostedSessionView;
+  session?: app.HostedSessionView | null;
 };
 
 export type ChatKind = "local" | "hosted";

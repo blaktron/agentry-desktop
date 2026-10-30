@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
-import { app } from "../../../wailsjs/go/models";
+import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame } from "../../cards";
 import { agentOf, cardStatus, clickDoes, iconDate, iconKind, iconName } from "../../deliverables";
 import { FileIcon } from "../../fileIcons";

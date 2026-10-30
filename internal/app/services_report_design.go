@@ -20,7 +20,6 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry/pkg/apiclient"
 	"github.com/blaktron/agentry/pkg/reportdesign"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // The report design: how the PDFs a run exports with export_pdf look, the
@@ -382,9 +381,9 @@ func (s *SettingsAPI) RemoveReportLogo(url string) (*ReportDesignView, error) {
 
 // pickReportLogo is the system's file picker for a logo; a test replaces it.
 var pickReportLogo = func(ctx context.Context) (string, error) {
-	return runtime.OpenFileDialog(ctx, runtime.OpenDialogOptions{
+	return nativeOpenFile(ctx, pickOptions{
 		Title:   "Choose your logo",
-		Filters: []runtime.FileFilter{{DisplayName: "PNG or JPEG images", Pattern: "*.png;*.jpg;*.jpeg"}},
+		Filters: []fileFilter{{Name: "PNG or JPEG images", Pattern: "*.png;*.jpg;*.jpeg"}},
 	})
 }
 

@@ -17,8 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
@@ -166,7 +164,7 @@ func (p *PersistentAPI) pickExportFolder() (string, error) {
 	if p.pickFolder != nil {
 		return p.pickFolder()
 	}
-	return runtime.OpenDirectoryDialog(p.app.ctx, runtime.OpenDialogOptions{Title: "Choose where the memory's copy goes"})
+	return nativePickDirectory(p.app.ctx, "Choose where the memory's copy goes")
 }
 
 // PersistentAccountView is one of the Coding agent's git host accounts, as
