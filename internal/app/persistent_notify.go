@@ -132,3 +132,17 @@ func (p *PersistentAPI) SetTaskNotifications(on bool) (bool, error) {
 	}
 	return on, nil
 }
+
+// PageView is the view a persistent agent's page is drawn in: one of
+// settings.AgentViews.
+func (p *PersistentAPI) PageView() (string, error) { return settings.AgentViewNow() }
+
+// SetPageView keeps the person's choice of view for every persistent
+// agent's page in desktop.yaml, and answers the view now kept.
+func (p *PersistentAPI) SetPageView(view string) (string, error) {
+	if err := settings.SetAgentView(view); err != nil {
+		now, _ := settings.AgentViewNow()
+		return now, err
+	}
+	return settings.AgentViewNow()
+}

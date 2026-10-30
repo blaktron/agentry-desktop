@@ -90,6 +90,10 @@ export function OpenPort(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['OpenPort'](arg1, arg2);
 }
 
+export function PageView() {
+  return window['go']['app']['PersistentAPI']['PageView']();
+}
+
 export function RemoveAccount(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['RemoveAccount'](arg1, arg2);
 }
@@ -156,6 +160,10 @@ export function SetMicrosoftClient(arg1, arg2, arg3) {
 
 export function SetMicrosoftSignoff(arg1, arg2) {
   return window['go']['app']['PersistentAPI']['SetMicrosoftSignoff'](arg1, arg2);
+}
+
+export function SetPageView(arg1) {
+  return window['go']['app']['PersistentAPI']['SetPageView'](arg1);
 }
 
 export function SetSecret(arg1, arg2, arg3) {
