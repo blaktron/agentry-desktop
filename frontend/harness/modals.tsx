@@ -38,6 +38,13 @@
 //   #bugreport-limited     the registry's ten-an-hour refusal, in its words
 //   #bugreport-absent      a registry without the extension
 //
+// What's new, the first start after Agentry Desktop moved to a newer version:
+//   #whatsnew              one version: Done at once, no counter
+//   #whatsnew-many         five versions and twelve more: Back, Next, "1 of 5",
+//                          the count and the notes' link on the last card
+//   #whatsnew-settings     opened from Settings: the version running
+//   #whatsnew-hostile      a line holding markup, shown as the text it is
+//
 // The guided run setup shows one step at a time, so
 // each state opens on the step that shows it (STEP_OF below), and four
 // more show the steps themselves:
@@ -759,6 +766,8 @@ import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import BugReportDialog from "../src/pages/BugReportDialog";
+import WhatsNew from "../src/pages/WhatsNew";
+import type { WhatsNewData } from "../src/whatsNew";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
@@ -823,6 +832,27 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
       if (view !== "bugreport-short") setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Submit")?.click(), 50);
     }, 50);
   }
+} else if (view.startsWith("whatsnew")) {
+  const card = (version: string, highlights: string[]) => ({ version, highlights });
+  const one = card("0.6.1005", [
+    "What's new shows what each version brings, the first time Agentry Desktop starts on it.",
+    "Settings opens it again, beside Check now.",
+  ]);
+  const data: WhatsNewData = {
+    current: "0.6.1005",
+    releasesUrl: "https://github.com/blaktron/agentry-desktop/releases",
+    earlier: view === "whatsnew-many" ? 12 : 0,
+    cards: view === "whatsnew-many"
+      ? [one,
+        card("0.6.1004", ["A persistent agent's page has a View menu with five views: Terminal, Compact, Chat, Focus and Workspace.", "The Compact view fits more of the conversation on screen."]),
+        card("0.6.1003", ["Signed-in people can pay for runs with Agentry credits from the model setup."]),
+        card("0.6.1002", ["Meeting notes tell speakers apart when everyone shares one microphone."]),
+        card("0.6.1001", ["The Run log keeps its place when you scroll back while an agent works."])]
+      : view === "whatsnew-hostile"
+        ? [card("0.6.1005", ["<script>alert(1)</script> **bold** [a link](https://example.org)"])]
+        : [one],
+  };
+  createRoot(el).render(<><Backdrop /><WhatsNew data={data} mode={view === "whatsnew-settings" ? "settings" : "start"} onClose={() => {}} onOpenReleases={() => {}} /></>);
 } else if (view === "toolspanel" || view === "toolspanel-hostile") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);
 } else {
