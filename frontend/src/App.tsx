@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../wailsjs/go/app/SettingsAPI";
 import * as HomeAPI from "../wailsjs/go/app/HomeAPI";
 import { applyTheme } from "./theme";
-import { AppVersion } from "../wailsjs/go/app/App";
+import { AppVersion, OpenExternal } from "../wailsjs/go/app/App";
+import * as WhatsNewAPI from "../wailsjs/go/app/WhatsNewAPI";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/app/SelfUpdateAPI";
 import { UpdatesStatus } from "../wailsjs/go/app/InstallAPI";
 import { UnsafeLive } from "../wailsjs/go/app/RunAPI";
@@ -35,6 +36,8 @@ import Build from "./pages/Build";
 import BugReportDialog from "./pages/BugReportDialog";
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
+import WhatsNew from "./pages/WhatsNew";
+import type { WhatsNewData } from "./whatsNew";
 import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
@@ -121,6 +124,10 @@ export default function App() {
   // number on Library. Reading it never starts a check.
   const [installedUpdates, setBriefUpdates] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
+  // What's new, on the first start after Agentry Desktop moved to a newer
+  // version: asked for once the first-run gate has decided, and never shown
+  // over the wizard.
+  const [whatsNew, setWhatsNew] = useState<WhatsNewData | null>(null);
   // The "nothing set up" reminder: raised
   // when the wizard closed with "I'll do it later", shown on Home until
   // dismissed (opening Settings from it leaves it standing for the return
@@ -210,7 +217,13 @@ export default function App() {
       .then((s) => {
         // First-run gate: open the guided setup when the machine is
         // unconfigured — not yet onboarded and nothing signed in.
-        if (!s.onboarded && !s.registries.some((r) => r.hasToken)) setShowWizard(true);
+        const wizard = !s.onboarded && !s.registries.some((r) => r.hasToken);
+        if (wizard) setShowWizard(true);
+        // Asked behind the wizard too: a fresh install records the version
+        // it started at, so its next start has nothing new to show.
+        WhatsNewAPI.Pending()
+          .then((v) => !wizard && v.cards.length > 0 && setWhatsNew(v))
+          .catch(() => {});
       })
       .catch(() => setSettings(null));
     AppVersion().then(setVersion).catch(() => {});
@@ -544,6 +557,17 @@ export default function App() {
               setPreviewRequest({ registry: knowledgeFlow.registry, name });
               setRoute({ page: "knowledge" });
             }}
+          />
+        )}
+        {whatsNew && !showWizard && (
+          <WhatsNew
+            data={whatsNew}
+            mode="start"
+            onClose={() => {
+              setWhatsNew(null);
+              WhatsNewAPI.Dismiss().catch(() => {});
+            }}
+            onOpenReleases={(url) => OpenExternal(url).catch(() => {})}
           />
         )}
         {showWizard && settings && (

@@ -1204,6 +1204,12 @@ g.go = { app: {
     SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },
     ChooseCodingAgentProjectDir: async () => codingView(),
   },
+  // Settings' What's new, beside Check now.
+  WhatsNewAPI: {
+    Pending: async () => ({ current: "0.1.0", cards: [], earlier: 0, releasesUrl: "https://github.com/blaktron/agentry-desktop/releases" }),
+    Recent: async () => ({ current: "0.1.0", cards: [{ version: "0.1.0", highlights: ["What's new shows what each version brings."] }], earlier: 0, releasesUrl: "https://github.com/blaktron/agentry-desktop/releases" }),
+    Dismiss: async () => {},
+  },
   // The "a newer Agentry Desktop" card. The hash picks
   // which state Settings previews: #selfupdate-none (nothing newer),
   // #selfupdate-nochannel (a build of the open core), #selfupdate-failed (the

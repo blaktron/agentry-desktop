@@ -79,6 +79,11 @@ type Settings struct {
 	// from that page's View menu for every agent: one of AgentViews, "" for
 	// Terminal. Read it through AgentViewNow.
 	AgentView string `yaml:"agentView,omitempty" json:"-"`
+	// WhatsNewSeen is the version (X.Y.Z) whose What's new the person last
+	// closed, or the version a fresh install started at. The app writes it
+	// itself through SetWhatsNewSeen; a newer version's installer never
+	// does.
+	WhatsNewSeen string `yaml:"whatsNewSeen,omitempty" json:"-"`
 	// CheckForUpdates is Settings → "Check for newer versions". A POINTER
 	// because the default is on and this file is parsed leniently: absent
 	// must mean "on", and a plain bool cannot tell an absent field from a
@@ -367,6 +372,19 @@ func Save(s Settings) error {
 	if err == nil {
 		s.MeetingNotes.Automatic = cur.MeetingNotes.Automatic
 	}
+	return write(s)
+}
+
+// SetWhatsNewSeen writes the version whose What's new the person last saw,
+// and nothing else.
+func SetWhatsNewSeen(version string) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.WhatsNewSeen = version
 	return write(s)
 }
 
