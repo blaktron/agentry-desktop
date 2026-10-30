@@ -1708,6 +1708,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 /* The agent page's views (agentView.ts). Terminal is the rules above. */
 .agent-term-title { min-width: 0; }
 .agent-head-usage { display: block; overflow-wrap: anywhere; }
+.agent-term-head { flex-wrap: wrap; }
+.agent-term-head > .row { flex: none; margin-left: auto; }
 .agent-view-pick { display: flex; align-items: center; gap: 6px; }
 .agent-view-pick select { font-size: 12px; padding: 2px 6px; }
 .agent-roster-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -1720,6 +1722,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .view-compact .agent-term-head .small { font-size: 11px; }
 .view-compact .agent-term-scroll { padding: 6px 10px; }
 .view-compact .agent-term-scroll > div, .view-compact .agent-term-scroll > details { margin: 0 0 3px; }
+/* The agent's markdown at the compact line height, its blocks without the
+   blank lines a pre-wrapped newline between them would add. */
+.view-compact .agent-term-agent .readme { line-height: 1.35; white-space: normal; }
 .view-compact .agent-term-agent :is(p, ul, ol, pre, blockquote, table) { margin: 0 0 3px; }
 .view-compact .agent-term-agent :is(li, h5, h6) { margin: 0; }
 .view-compact .agent-term-tools, .view-compact .agent-term-task, .view-compact .agent-term-note, .view-compact .agent-term-warn { font-size: 11px; margin-bottom: 3px; }
