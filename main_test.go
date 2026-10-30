@@ -17,7 +17,7 @@ func TestTheEmbeddedNoticesNameWhatTheAppShips(t *testing.T) {
 		"SIL OPEN FONT LICENSE",        // the fonts
 		"@lobehub/icons-static-svg",    // the provider logos
 		"MicrosoftEdgeWebview2Setup",   // the Windows installer's bootstrapper
-		"Microsoft.Web.WebView2",       // the loader's licence
+		"OpenWebView2Loader",           // the Windows loader's licence
 		"github.com/wailsapp/wails/v3", // a Go module
 		"Apache License",               // the Apache text, once for its modules
 	} {

@@ -122,6 +122,11 @@ func (s *Services) Startup(ctx context.Context) {
 // While the Assistant or the Coding agent is enabled, the window's close
 // hides the window instead, unless the person asked to quit (background.go).
 func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
+	// Asked already, and shut down: the application closing its own window
+	// as it ends is not a close to ask about again.
+	if s.bg.approved.Load() {
+		return false
+	}
 	if s.closeToBackground(ctx) {
 		return true
 	}
@@ -146,10 +151,14 @@ func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
 // start continues each conversation; both before the managed engine stops.
 func (s *Services) Shutdown(ctx context.Context) {
 	s.stopOnce.Do(func() {
-		s.shutdown(ctx)
+		shutdownWork(s, ctx)
 		s.bg.approved.Store(true)
 	})
 }
+
+// shutdownWork is what Shutdown runs, a test's seam: a test of the quit's
+// order has no meeting notes, update or run engines to stop.
+var shutdownWork = (*Services).shutdown
 
 func (s *Services) shutdown(ctx context.Context) {
 	var wg sync.WaitGroup

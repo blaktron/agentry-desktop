@@ -8,7 +8,7 @@
 # the same binary: installed first, so the real package is proven as the
 # upgrade it will be for everyone who has a release already.
 #
-# The .deb in debian:bookworm-slim (the build container's family, so the
+# The .deb in debian:trixie-slim (the build container's family, so the
 # glibc floor is the one the binary was linked against) and the .rpm in
 # fedora:44 go through every step; the .deb
 # also installs in ubuntu:24.04, whose *t64 library renames must satisfy the
@@ -264,8 +264,8 @@ deb_family() {
   '
 }
 
-echo "== .deb in debian:bookworm-slim"
-deb_family debian:bookworm-slim strict
+echo "== .deb in debian:trixie-slim"
+deb_family debian:trixie-slim strict
 echo "== .deb in ubuntu:24.04 (the t64 names must Provide the declared ones)"
 deb_family ubuntu:24.04 ""
 

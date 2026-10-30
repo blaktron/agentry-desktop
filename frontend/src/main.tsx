@@ -6,6 +6,8 @@ import './themes.css'
 import App from './App'
 import {Recover} from './Recover'
 import {installDropGuard} from './dropGuard'
+// Loaded first for what it sets up on the runtime's errors (host.ts).
+import './host'
 
 // A file or link dropped where no page takes it must not open in place of
 // the app.

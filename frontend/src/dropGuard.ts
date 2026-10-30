@@ -18,8 +18,8 @@
 //   where it would otherwise navigate or open.
 //
 // Text dragged into a field or the editor still lands there, the browser's
-// own behaviour. Wails' DisableWebViewDrop was not used: it refuses those
-// drops too. The listeners are on the window in the capture phase, so they
+// own behaviour. The window library's option to refuse every drop was not
+// used: it refuses those too. The listeners are on the window in the capture phase, so they
 // run before any page's handler, and they never stop the event, so a field
 // still sees it.
 

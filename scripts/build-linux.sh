@@ -4,7 +4,7 @@
 #   make package-linux            (sets DESKTOP_VERSION from git describe)
 #   scripts/build-linux.sh        (DESKTOP_VERSION defaults to 0.0.0-dev)
 #
-# The GTK 3 and WebKit2GTK 4.1 headers the Linux front end links against live
+# The GTK 4 and WebKitGTK 6.0 headers the Linux front end links against live
 # in the container, not on the host, so the host needs Docker and nothing
 # else: the CI runners carry no GTK, and neither does a developer's machine. The
 # private modules are vendored here every time (the credential lives on the
@@ -53,15 +53,15 @@ GO_VERSION=$(awk '$1 == "go" {print $2; exit}' go.mod)
 docker run --rm --security-opt label=disable -v "$PWD:/src" -w /src \
   -e DESKTOP_VERSION="$VERSION" -e EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-}" -e OUT="$OUT" \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-  "golang:${GO_VERSION}-bookworm" bash -ec '
+  "golang:${GO_VERSION}-trixie" bash -ec '
   trap "chown -R ${HOST_UID}:${HOST_GID} build/linux 2>/dev/null || true" EXIT
   apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config xvfb dbus >/dev/null 2>&1
+    libgtk-4-dev libwebkitgtk-6.0-dev pkg-config xvfb dbus >/dev/null 2>&1
   mkdir -p build/linux
   # -buildvcs=false: the bind-mounted .git belongs to another uid, which git
   # inside the container refuses to read; the version is stamped by ldflags.
-  go build -mod=vendor -trimpath -buildvcs=false -tags "desktop production webkit2_41" \
+  go build -mod=vendor -trimpath -buildvcs=false -tags production \
     -ldflags "-X github.com/blaktron/agentry-desktop/internal/version.Version=${DESKTOP_VERSION} ${EXTRA_LDFLAGS}" \
     -o "build/linux/${OUT}" .
   echo BUILD-OK

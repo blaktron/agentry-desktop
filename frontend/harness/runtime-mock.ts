@@ -3,7 +3,11 @@
 // browser against the mocks each entry sets up: window.go.<package>.<Type>.<Method>
 // answers a bound call, and window.runtime carries the events and the
 // clipboard. Not shipped.
+// The package ships its declarations apart from dist/, so the two helpers the
+// generated models use are imported from dist and typed as what they are.
+// @ts-expect-error TS7016: no declaration file beside dist/cancellable.js
 import { CancellablePromise } from "../node_modules/@wailsio/runtime/dist/cancellable.js";
+// @ts-expect-error TS7016: no declaration file beside dist/create.js
 import * as Create from "../node_modules/@wailsio/runtime/dist/create.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,6 +18,7 @@ export { CancellablePromise, Create };
 // A bound call by name: "<module path>/internal/app.RunAPI.SetupStatus" is
 // window.go.app.RunAPI.SetupStatus.
 export const Call = {
+  RuntimeError: class RuntimeError extends Error {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ByName(name: string, ...args: any[]): Promise<any> {
     const [path, type, method] = [name.slice(0, name.lastIndexOf(".", name.lastIndexOf(".") - 1)), ...name.split(".").slice(-2)];

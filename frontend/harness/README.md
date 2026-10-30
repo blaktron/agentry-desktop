@@ -2,7 +2,7 @@
 
 A dev-only preview of the app's pages, dialogs and shared UI, rendered in a
 plain browser against the real `src/style.css` and the vendored IBM Plex
-fonts. The Wails Go backend is replaced by mocks, so any state of the UI can
+fonts. The Go backend is replaced by mocks, so any state of the UI can
 be opened, driven and screenshotted without WebKitGTK or the Go host.
 
 The harness is not part of the app. It sits outside `tsconfig.json`'s
@@ -25,9 +25,10 @@ Open http://localhost:5199/. Both themes follow the OS setting
 
 ## Entries
 
-Each entry is an HTML page with a React module that mocks the Wails bindings
-(`window.go.*`) and the runtime events, and selects a state from
-`location.hash`. The header comment of each `.tsx` file lists every hash it
+Each entry is an HTML page with a React module that mocks the bound calls
+(`window.go.<package>.<Type>.<Method>`, which `runtime-mock.ts` answers the
+generated bindings' calls from) and the runtime events, and selects a state
+from `location.hash`. The header comment of each `.tsx` file lists every hash it
 understands and what that state shows.
 
 | Entry | Module | Shows |

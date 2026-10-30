@@ -3,14 +3,15 @@
 # like any other dependency.
 # The PATH the caller set up wins (a CI job's setup-go, a pinned SDK);
 # Homebrew's directory is only a fallback for tools a plain shell on a Mac
-# does not find. The wails CLI that go install puts in ~/go/bin comes first.
+# does not find. The wails3 CLI that go install puts in ~/go/bin comes first.
 export PATH := $(HOME)/go/bin:$(PATH):/opt/homebrew/bin
 GO ?= go
 # The version is git describe without the tag's leading v: a tagged commit
 # gives 0.6.0, or 0.6.1-dev.2 for a dev prerelease, whose X.Y.Z is what
 # wails.json's productVersion must equal (version-check refuses a tag that
 # does not), so the bundle metadata, the binary and the artifact names
-# agree; between tags it is 0.6.0-3-g<sha>[-dirty], and a checkout with no
+# agree (wails.json is this repository's own file: the product facts every
+# package is stamped with, by scripts/build/stamp.mjs); between tags it is 0.6.0-3-g<sha>[-dirty], and a checkout with no
 # tag at all is the bare sha. A release passes its tag's own version as
 # VERSION=, since describe picks one of several tags on one commit.
 VERSION := $(shell (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed 's/^v//')
@@ -18,50 +19,59 @@ VERSION := $(shell (git describe --tags --always --dirty 2>/dev/null || echo 0.0
 # registry, -w -s) without taking the version stamp away from this file.
 EXTRA_LDFLAGS ?=
 LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VERSION) $(EXTRA_LDFLAGS)
-# Extra flags for `wails build`, such as `-m` (skip `go mod tidy`): a tree
-# shipped with vendor/ and no GitHub credential builds in vendor mode on its
-# own, but tidy walks the whole module graph past vendor/ and asks GitHub for
-# the private modules. -skipbindings is
-# not a caller's choice: every wails target below carries it (see `dev`), so
-# a by-hand `make package-darwin` cannot regenerate the bindings either.
-# Callers that still pass it are harmless.
-WAILS_FLAGS ?=
+# The Linux build needs the GTK 4 and WebKitGTK 6.0 headers, which the
+# container of package-linux carries. Everything else here compiles without
+# them: the checks (lint, test, check) build with the `server` tag, which
+# leaves the native window library out and needs no C toolchain, and the
+# bindings generator reads the code with the same tag. The platform builds
+# below use the real library, with the `production` tag.
+CHECK_TAGS := server
+# The tags and the linker flags of a shipped binary. -w -s strips the symbol
+# table; EXTRA_LDFLAGS may add to it.
+APP_TAGS := production
+APP_BUILD := $(GO) build -tags $(APP_TAGS) -trimpath -buildvcs=false
+# The macOS floor the native library is built for.
+DARWIN_MIN := 12.0
 # SIGN_CMD: a command that Authenticode-signs the one PE file it is given, in
 # place, which a release passes. Empty means an unsigned Windows package,
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
+.PHONY: dev build dist check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows installer-tools package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
 
-# Live-reload development shell (wails dev). -skipbindings on every build:
-# the checked-in bindings are the ones `make bindings` produced (see there),
-# and a build that regenerated them would undo that. Run `make bindings`
-# after changing a bound Go method or type.
+# Live-reload development shell (wails3 dev, which runs the Taskfile's build,
+# frontend and run tasks). The checked-in bindings are the ones
+# `make bindings` produced; run it after changing a bound Go method or type.
 dev:
-	wails dev -skipbindings -ldflags '$(LDFLAGS)'
+	wails3 dev -config ./build/config.yml -port 9245
 
-# Production build for the host platform (macOS: build/bin/*.app).
-build:
-	wails build $(WAILS_FLAGS) -skipbindings -ldflags '$(LDFLAGS)'
+# The frontend bundle main.go embeds. An existing bundle is reused (the
+# packaging targets and the Linux container build both reuse it); `make clean`
+# removes it, and `make frontend` (part of `make check`) always rebuilds it.
+dist:
+	@if [ -s frontend/dist/index.html ]; then echo "reusing frontend/dist (make clean removes it)"; else cd frontend && npm ci --no-audit --no-fund && npx vite build; fi
+
+# Production build for the host platform (macOS: build/bin/*.app). On Linux
+# it needs the GTK 4 and WebKitGTK 6.0 headers; `make package-linux` builds
+# in a container that has them.
+build: dist
+	$(APP_BUILD) -ldflags '-w -s $(LDFLAGS)' -o build/bin/agentry-desktop .
 
 # Regenerate the TypeScript bindings after changing bound Go methods/types.
-# The generator spells a Go map as TypeScript's generic Record<K, V>; inside
-# the `installed` namespace of models.ts that name is the CLI's install
-# record class, so the type-check reads the generic as the class and fails
-# ("Type 'Record' is not generic"). An index signature is the
-# same type without the shadowed name, so every map in models.ts is
-# respelled that way (the per-package .d.ts files keep Record<>: nothing
-# shadows it there). A shape the sed cannot respell — a nested generic —
-# fails here by name rather than later in tsc. CI regenerates and fails on
-# drift, so this is the only way models.ts changes. Generating compiles
-# the app, whose go:embed needs frontend/dist to hold a file: on a fresh
-# tree (a release's preflight, a new clone) an empty index.html stands in
-# and is removed again, so nothing downstream can mistake it for a bundle.
+# The generator reads the Go code (with the server tag, so it needs no C
+# toolchain) and writes frontend/bindings: one module per bound service and
+# one models.ts per Go package, calls by method name. It types every
+# method that returns a pointer as nullable; scripts/bindings/types.mjs
+# narrows the ones that always answer (see there). CI regenerates and fails on
+# drift, so this is the only way frontend/bindings changes. The CLI runs the
+# Go toolchain over the app, whose go:embed needs frontend/dist to hold a file:
+# on a fresh tree (a release's preflight, a new clone) an empty index.html
+# stands in and is removed again, so nothing downstream can mistake it for a
+# bundle.
 bindings:
 	@stub=0; if [ ! -f frontend/dist/index.html ]; then mkdir -p frontend/dist && : > frontend/dist/index.html && stub=1 && echo "frontend/dist was missing: an empty index.html stands in for the embed while the bindings generate (go:embed all:frontend/dist must match) and is removed afterwards; make frontend builds the real one"; fi; \
-	wails generate module; st=$$?; if [ "$$stub" = 1 ]; then rm -rf frontend/dist; fi; exit $$st
-	sed -i.bak -E 's/Record<string, ([^<>]+)>/{[key: string]: \1}/g' frontend/wailsjs/go/models.ts && rm -f frontend/wailsjs/go/models.ts.bak
-	@if grep -n 'Record<' frontend/wailsjs/go/models.ts; then echo "models.ts still carries a Record<> the bindings sed cannot respell (a nested generic?): widen the sed in this target"; exit 1; fi
+	CGO_ENABLED=0 wails3 generate bindings -ts -names -clean=true -f '-tags $(CHECK_TAGS)'; st=$$?; if [ "$$stub" = 1 ]; then rm -rf frontend/dist; fi; exit $$st
+	node scripts/bindings/types.mjs frontend/bindings
 
 # No `| grep -q` in the scripts: under pipefail the writer that grep -q cuts
 # off reports EPIPE as the pipeline's failure, an intermittent CI failure.
@@ -69,11 +79,11 @@ bindings:
 lint:
 	@hits=$$(grep -rnE '\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]*q|--quiet)' scripts/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true); if [ -n "$$hits" ]; then echo "$$hits"; echo "a piped grep -q under pipefail can fail on the writer's EPIPE: use grep -q ... <<<\"\$$x\" or grep ... >/dev/null"; exit 1; fi
 	@fmt_out=$$(gofmt -l . | grep -v -e '^frontend/' -e '^vendor/' || true); if [ -n "$$fmt_out" ]; then echo "gofmt needed on:"; echo "$$fmt_out"; exit 1; fi
-	$(GO) vet ./...
-	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; else echo "golangci-lint not installed; skipped"; fi
+	$(GO) vet -tags $(CHECK_TAGS) ./...
+	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run --build-tags $(CHECK_TAGS) ./...; else echo "golangci-lint not installed; skipped"; fi
 
 test:
-	$(GO) test ./...
+	$(GO) test -tags $(CHECK_TAGS) ./...
 
 # A check over the copy this app ships: no "safe", "secure", "guaranteed" or
 # "trusted" (a claim the product cannot back).
@@ -87,13 +97,13 @@ script-tests:
 
 # Frontend type-check plus the dist bundle main.go embeds. `go build ./...`,
 # `go vet ./...` and `go test ./...` all fail on a fresh tree without
-# frontend/dist, so `check` runs this target first; wails builds its own
-# bundle at packaging time.
+# frontend/dist, so `check` runs this target first; the packaging targets
+# reuse the bundle it leaves (dist).
 frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build && npm test
 
 check: frontend lint test copy script-tests fonts-check notices-check
-	$(GO) build ./...
+	$(GO) build -tags $(CHECK_TAGS) ./...
 
 # THIRD_PARTY_NOTICES: the licence texts of the npm packages compiled into
 # the bundle, the Go modules compiled into the app, the fonts, the provider
@@ -150,7 +160,7 @@ package-darwin: build-darwin wrap-darwin
 # The agentry CLI: when build/cli holds agentry-darwin (a universal binary,
 # which a release puts there), build-darwin carries it as
 # Contents/Resources/bin/agentry, re-signs it and then the bundle ad hoc
-# (wails seals the bundle, and a file added after that seal fails
+# (the bundle is sealed ad hoc, and a file added after that seal fails
 # verification), and wrap-darwin reads it back with --cli. The CLI keeps its
 # own signing identifier, net.secureagentry.cli, so a release that signs the
 # bundle signs it under the same identity as the CLI's own release, and the
@@ -175,9 +185,20 @@ DARWIN_WHISPER := build/whisper/whisper-cli-darwin
 DARWIN_DIARIZE := build/diarize/diarize-darwin
 DIARIZE_PROGRAM := sherpa-onnx-offline-speaker-diarization
 
-build-darwin:
-	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
-	install -d $(DARWIN_APP)/Contents/Resources
+# The binary is built once per architecture with the cgo the window library
+# needs and joined with lipo; the bundle is its Info.plist (stamped from
+# wails.json by scripts/build/stamp.mjs), the icon and the binary.
+build-darwin: dist
+	rm -rf build/.generated/darwin $(DARWIN_APP) && mkdir -p build/.generated/darwin
+	for arch in amd64 arm64; do \
+	  CGO_ENABLED=1 GOOS=darwin GOARCH=$$arch MACOSX_DEPLOYMENT_TARGET=$(DARWIN_MIN) CGO_CFLAGS=-mmacosx-version-min=$(DARWIN_MIN) CGO_LDFLAGS=-mmacosx-version-min=$(DARWIN_MIN) \
+	    $(APP_BUILD) -ldflags '-w -s $(LDFLAGS)' -o build/.generated/darwin/agentry-desktop-$$arch . || exit 1; \
+	done
+	install -d $(DARWIN_APP)/Contents/MacOS $(DARWIN_APP)/Contents/Resources
+	lipo -create -output $(DARWIN_APP)/Contents/MacOS/agentry-desktop build/.generated/darwin/agentry-desktop-amd64 build/.generated/darwin/agentry-desktop-arm64
+	node scripts/build/stamp.mjs build/darwin/Info.plist $(DARWIN_APP)/Contents/Info.plist
+	install -m 0644 build/darwin/icons.icns $(DARWIN_APP)/Contents/Resources/iconfile.icns
+	rm -rf build/.generated/darwin
 	install -m 0644 THIRD_PARTY_NOTICES $(DARWIN_APP)/Contents/Resources/THIRD_PARTY_NOTICES.txt
 ifneq ($(wildcard build/cli/agentry-darwin),)
 	install -d $(DARWIN_APP)/Contents/Resources/bin
@@ -215,23 +236,23 @@ smoke-darwin-dmg:
 smoke-darwin-selfupdate:
 	scripts/acceptance/darwin-selfupdate.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 
-# Windows: cross-compiled from any host (Wails v2 loads WebView2
+# Windows: cross-compiled from any host (the window library loads WebView2
 # through a pure-Go loader, so windows/amd64 builds with cgo off on Linux
-# and macOS alike; the wails CLI supplies the icon, the manifest and the GUI
-# subsystem a bare go build would not), then the per-user installer from
-# build/windows/installer/project.nsi. -nsis needs makensis on the host
-# (`apt-get install nsis` on Debian/Ubuntu, `dnf install mingw32-nsis` on
-# Fedora); without it wails only warns, so the mv below is what fails, and
-# an installer-less package is not a package. The installer's file name is
-# the download manifest's grammar (-setup.exe is the "setup" format); wails
-# names it for the architecture and the version comes from here, not from
-# wails.json, for the same reason the exe's does. scripts/check-windows-installer.sh reads the result back
+# and macOS alike; the wails3 CLI turns the icon, the manifest and the
+# version facts into the resource file that gives the exe its icon and its
+# properties, and the link flag -H windowsgui makes it a GUI program), then
+# the per-user installer from build/windows/installer/project.nsi. makensis
+# must be on the host (`apt-get install nsis` on Debian/Ubuntu, `dnf install
+# mingw32-nsis` on Fedora). The installer's file name is the download
+# manifest's grammar (-setup.exe is the "setup" format); project.nsi names it
+# for the architecture and the version comes from here, not from wails.json,
+# for the same reason the exe's does. scripts/check-windows-installer.sh reads the result back
 # (needs 7z: p7zip-full / p7zip-plugins).
 #
 # Authenticode is three targets so a release can hand the signing token to
-# the one that signs and to nothing else: build-windows (wails: the exe, and
-# an unsigned installer as a side effect of -nsis, which also writes the
-# WebView2 bootstrapper and wails_tools.nsh), sign-windows (SIGN_CMD on the
+# the one that signs and to nothing else: build-windows (the exe, and an
+# unsigned installer, with the WebView2 bootstrapper and wails_tools.nsh
+# written beside project.nsi), sign-windows (SIGN_CMD on the
 # exe BEFORE the installer embeds it, so the check's byte comparison still
 # holds, then makensis again with -DSIGN_CMD, under which project.nsi's
 # !finalize hooks sign the uninstaller and the installer and overwrite the
@@ -260,8 +281,22 @@ smoke-darwin-selfupdate:
 # /usr/lib/agentry-desktop/diarize, read back with --diarize.
 package-windows: build-windows sign-windows finish-windows
 
-build-windows:
-	wails build $(WAILS_FLAGS) -skipbindings -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
+build-windows: dist installer-tools
+	rm -rf build/.generated/windows && mkdir -p build/.generated/windows build/bin
+	node scripts/build/stamp.mjs build/windows/info.json build/.generated/windows/info.json
+	node scripts/build/stamp.mjs build/windows/wails.exe.manifest build/.generated/windows/wails.exe.manifest
+	wails3 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/.generated/windows/wails.exe.manifest -info build/.generated/windows/info.json -out wails_windows_amd64.syso
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(APP_BUILD) -ldflags '-w -s -H windowsgui $(LDFLAGS)' -o build/bin/agentry-desktop.exe . ; st=$$?; rm -f wails_windows_amd64.syso; exit $$st
+	rm -rf build/.generated/windows
+	cd build/windows/installer && makensis -V2 -DARG_WAILS_AMD64_BINARY='$(abspath build/bin/agentry-desktop.exe)' project.nsi
+
+# The installer's include file (wails_tools.nsh) holds the product facts of
+# wails.json, and the WebView2 bootstrapper the installer carries is written
+# beside it. The checked-in include file is what this writes for the
+# checked-in wails.json.
+installer-tools:
+	node scripts/build/installer-tools.mjs build/windows/installer/wails_tools.nsh
+	wails3 generate webview2bootstrapper -dir build/windows/installer/tmp
 
 sign-windows:
 ifneq ($(strip $(SIGN_CMD)),)
@@ -275,8 +310,8 @@ finish-windows:
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
 	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) $(if $(wildcard build/whisper/whisper-cli-windows-amd64/whisper-cli.exe),--whisper build/whisper/whisper-cli-windows-amd64,) $(if $(wildcard build/diarize/diarize-windows-amd64/$(DIARIZE_PROGRAM).exe),--diarize build/diarize/diarize-windows-amd64,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
-# Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
-# 4.1 headers, from the vendored tree, so the host needs Docker and nothing
+# Linux: built inside a Debian container that carries the GTK 4 and WebKitGTK
+# 6.0 headers, from the vendored tree, so the host needs Docker and nothing
 # else (scripts/build-linux.sh), then wrapped in a .deb and an .rpm from one
 # description (build/nfpm/nfpm.yaml via scripts/package-linux.sh; nfpm runs
 # through `go run` at a pinned version). The bare binary stays as its own
@@ -297,10 +332,10 @@ smoke-linux-packages:
 # Every platform's app icon, rendered from two committed sources:
 # build/appicon.svg, the mark on its tile, and build/appicon-small.svg, the
 # bare mark for 16 to 32 pixels. The outputs are committed, since nothing renders them at build time: build/appicon.png
-# (1024, which Wails turns into the macOS bundle's iconfile.icns),
-# build/windows/icon.ico (16 to 256; Wails uses it as it is) and the Linux
-# packages' hicolor sizes under build/nfpm/icons. ImageMagick with its
-# librsvg delegate renders them, with -strip so a re-run is byte-identical.
+# (1024), build/darwin/icons.icns (the macOS bundle's icon, which wails3
+# makes from the png), build/windows/icon.ico (16 to 256; used as it is) and
+# the Linux packages' hicolor sizes under build/nfpm/icons. ImageMagick with
+# its librsvg delegate renders them, with -strip so a re-run is byte-identical.
 # Run and commit after changing either SVG.
 ICON_TMP := build/.icons
 app-icons:
@@ -309,6 +344,7 @@ app-icons:
 	for s in 16 24 32; do magick -background none -density 1200 build/appicon-small.svg -resize $${s}x$${s} -depth 8 -strip $(ICON_TMP)/$${s}.png; done
 	for s in 48 64 128 256 512; do magick build/appicon.png -resize $${s}x$${s} -depth 8 -strip $(ICON_TMP)/$${s}.png; done
 	magick $(ICON_TMP)/16.png $(ICON_TMP)/24.png $(ICON_TMP)/32.png $(ICON_TMP)/48.png $(ICON_TMP)/64.png $(ICON_TMP)/128.png $(ICON_TMP)/256.png build/windows/icon.ico
+	wails3 generate icons -input build/appicon.png -macfilename build/darwin/icons.icns -windowsfilename $(ICON_TMP)/unused.ico
 	for s in 16 32 48 64 128 256 512; do cp $(ICON_TMP)/$${s}.png build/nfpm/icons/agentry-desktop-$${s}.png; done
 	rm -rf $(ICON_TMP)
 
@@ -330,7 +366,7 @@ version-check:
 	echo "tag $$tag names productVersion $$pv"
 
 clean:
-	rm -rf build/bin build/linux build/.icons frontend/dist
+	rm -rf build/bin build/linux build/.icons build/.generated frontend/dist
 
 # The version the Makefile stamps.
 version:

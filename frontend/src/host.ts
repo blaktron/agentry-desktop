@@ -1,7 +1,15 @@
 // The page's side of the window toolkit's runtime: the events Go sends (run
 // lines, state changes, the tray's requests), the clipboard and the system
 // browser. The bound calls are the generated bindings'.
-import { Browser, Clipboard, Events } from "@wailsio/runtime";
+import { Browser, Call, Clipboard, Events } from "@wailsio/runtime";
+
+// A bound method that returns an error rejects its call with a RuntimeError
+// whose message is the Go error's text. The pages show a failure as
+// String(e) or `${e}`, which is that text alone; the class's own spelling
+// ("RuntimeError: ...") would put its name in front of every message.
+Call.RuntimeError.prototype.toString = function toString(this: Error): string {
+  return this.message;
+};
 
 /**
  * Calls cb with the data of each event named name, and returns the cancel.

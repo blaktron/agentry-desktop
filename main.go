@@ -122,10 +122,7 @@ func run(services *app.Services, hidden bool) {
 		// One app per user: each persistent agent has one owner, and a
 		// second launch (the app opened again while it runs in the
 		// background) shows the window that is already there.
-		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID:               "net.secureagentry.agentry-desktop",
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) { services.ShowWindow() },
-		},
+		SingleInstance: singleInstance(services),
 		// A quit asks the services first (a run in flight, the agents that
 		// go on in the background); the signals are theirs too.
 		ShouldQuit:                  services.ShouldQuit,
@@ -169,5 +166,17 @@ func run(services *app.Services, hidden bool) {
 
 	if err := wails.Run(); err != nil {
 		println("Error:", err.Error())
+	}
+}
+
+// singleInstance is the one-app-per-user lock: nil, which is no lock, where
+// the session has no message bus to hold it on (main_linux.go).
+func singleInstance(services *app.Services) *application.SingleInstanceOptions {
+	if !sessionBusUsable() {
+		return nil
+	}
+	return &application.SingleInstanceOptions{
+		UniqueID:               "net.secureagentry.agentry-desktop",
+		OnSecondInstanceLaunch: func(application.SecondInstanceData) { services.ShowWindow() },
 	}
 }

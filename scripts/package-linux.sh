@@ -122,7 +122,7 @@ if [ -f "$sidecar/whisper-cli" ]; then
     fi
   done
   awk -v e="$entries" '{print} /^contents:$/{printf "%s", e}' "$desc" >"$desc.new"
-  awk '{print} /^      - libwebkit2gtk-4.1-0$/{print "      - libstdc++6 (>= 12)\n      - libgcc-s1"} /^      - webkit2gtk4.1$/{print "      - libstdc++ >= 12\n      - libgcc"}' "$desc.new" >"$desc"
+  awk '{print} /^      - libwebkitgtk-6.0-4$/{print "      - libstdc++6 (>= 12)\n      - libgcc-s1"} /^      - webkitgtk6.0$/{print "      - libstdc++ >= 12\n      - libgcc"}' "$desc.new" >"$desc"
   rm -f "$desc.new"
   grep -q "^    dst: $lib/whisper/whisper-cli$" "$desc" && grep -q '^      - libstdc++6 (>= 12)$' "$desc" && grep -q '^      - libstdc++ >= 12$' "$desc" ||
     { echo "package-linux: could not add the transcriber to the description" >&2; exit 1; }

@@ -1,4 +1,4 @@
-// Page previews. Mocks the Wails bindings
+// Page previews. Mocks the bound calls
 // (window.go / window.runtime) with fixture data so the REAL page
 // components render in a plain browser for screenshots — the bindings
 // resolve through window.go at call time, so setting it before render is
