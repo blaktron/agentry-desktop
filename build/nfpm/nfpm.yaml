@@ -17,10 +17,12 @@
 # directions against the installed system (Fedora splits
 # javascriptcoregtk6.0 out of webkitgtk6.0). The Debian names are those of
 # Debian 13 and Ubuntu 24.04, which both spell glib the t64 way, and the
-# acceptance script installs in both. The glibc floor is the
-# newest symbol version the binary imports (objdump -T | grep GLIBC_: 2.34),
-# not the build container's glibc, so the package refuses a distribution
-# that would fail at first launch and admits every one that would not.
+# acceptance script installs in both. The glibc floor is the oldest supported
+# distribution's, Ubuntu 24.04's 2.39, not the build container's glibc (Debian
+# 13's 2.41), so the package refuses a distribution that would fail at first
+# launch and admits every one the app supports. The transcriber is built to
+# import nothing newer: its build refuses a symbol
+# version past it.
 #
 # The icons are build/appicon.svg (and build/appicon-small.svg below 48)
 # rendered at the hicolor sizes with ImageMagick (`make app-icons`);
@@ -82,7 +84,7 @@ contents:
 overrides:
   deb:
     depends:
-      - libc6 (>= 2.34)
+      - libc6 (>= 2.39)
       - libglib2.0-0t64
       - libgtk-4-1
       - libsoup-3.0-0
@@ -91,7 +93,7 @@ overrides:
       - libx11-6
   rpm:
     depends:
-      - glibc >= 2.34
+      - glibc >= 2.39
       - glib2
       - gtk4
       - libsoup3
