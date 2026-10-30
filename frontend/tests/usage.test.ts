@@ -74,6 +74,12 @@ test("a finished run In Agentry reads its turns and its time; one on this comput
   noCredits(local);
 });
 
+test("a run on this computer paid with Agentry credits names the credits the registry charged, and no dollars", () => {
+  const s = localUseLine({ turns: 1, inputTokens: 14522, outputTokens: 333, wallMs: 5145, costUsd: 0, credits: 1, paidWithCredits: true });
+  assert.equal(s, "1 turn · 14,855 tokens · 5.1s · 1 credit from your Agentry credits");
+  assert.doesNotMatch(s, /\$/);
+});
+
 test("the Knowledge Creator on this computer reads its tokens and the provider's cost", () => {
   const s = creatorUseLine({ inputTokens: 184210, outputTokens: 41088, costUsd: 0.1893 });
   assert.equal(s, "184,210 input and 41,088 output tokens, US$0.1893 as the provider reported it");

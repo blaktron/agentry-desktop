@@ -32,6 +32,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
+	"github.com/blaktron/agentry-cli/pkg/runner/inference"
 	"github.com/blaktron/agentry-cli/pkg/runner/intake"
 	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/mcpinstall"
@@ -490,19 +491,23 @@ type Request struct {
 // the envelope always exists once the engine starts, and earlier failures
 // are returned as errors instead.
 type Result struct {
-	Status           string
-	ExitCode         int
-	Error            string
-	RunID            string
-	Ref              string
-	Digest           string
-	ResultJSON       string
-	OutDir           string
-	ReceiptsDir      string
-	RunPlanSHA       string
-	InputTokens      int64
-	OutputTokens     int64
-	CostUSD          float64
+	Status       string
+	ExitCode     int
+	Error        string
+	RunID        string
+	Ref          string
+	Digest       string
+	ResultJSON   string
+	OutDir       string
+	ReceiptsDir  string
+	RunPlanSHA   string
+	InputTokens  int64
+	OutputTokens int64
+	CostUSD      float64
+	// Credits is what a run paid with Agentry credits was charged, the
+	// registry's figure from the receipt; PaidWithCredits says it was one.
+	Credits          int64
+	PaidWithCredits  bool
 	WallMS           int64
 	Turns            int
 	AttestationState string
@@ -546,6 +551,27 @@ type prepared struct {
 	profDir string
 	keep    bool
 	params  engine.Params
+}
+
+// creditsOf is the credits a run's credits session charged, as the
+// registry answered at its end; 0 for a run on a key or a sign-in.
+func creditsOf(env *receipt.Envelope) int64 {
+	if env.Inference == nil {
+		return 0
+	}
+	return env.Inference.Credits
+}
+
+// openCredits opens the credits session a plan that pays with Agentry
+// credits needs (engine.InferenceFor), for the run's parameters; it opens
+// none for any other plan.
+func (p *prepared) openCredits(ctx context.Context, logw io.Writer) error {
+	g, err := engine.InferenceFor(ctx, CreditsClient(p.params.Policy), p.plan, false, inference.PurposeRun, logw)
+	if err != nil {
+		return err
+	}
+	p.params.Inference = g
+	return nil
 }
 
 // prepare does the install → plan → images → profile → intake steps for
@@ -909,6 +935,13 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	// built-in's run (internal/draft and the others, through localrun) never
 	// take it.
 	p.params.EndBlocked = true
+	// A model paid with Agentry credits: the run's credits session, opened
+	// only now that the run starts, so a prepared run that never starts opens
+	// none. The engine renews it and ends it.
+	if err := p.openCredits(ctx, logw); err != nil {
+		finishProfile(logw, p.prof, p.profDir, p.keep)
+		return nil, err
+	}
 	env, runErr := engine.Run(ctx, p.docker, p.params)
 	// The run completed its lifecycle (success or failure): apply the
 	// profile's keep/remove choice exactly like the CLI.
@@ -939,6 +972,8 @@ func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 		InputTokens:      env.Usage.InputTokens,
 		OutputTokens:     env.Usage.OutputTokens,
 		CostUSD:          env.Usage.CostUSD,
+		Credits:          creditsOf(env),
+		PaidWithCredits:  env.Inference != nil,
 		WallMS:           env.Usage.WallMS,
 		Turns:            env.Usage.Turns,
 		AttestationState: env.Attestation.State,

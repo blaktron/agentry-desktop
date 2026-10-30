@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, PROVIDERS, VULTR_SIGN_UP_URL, modelOptionLabel, providerChoice, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
+  CLAUDE_SIGN_IN_LABEL, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, VULTR_SIGN_UP_URL, creditsLines, modelOptionLabel, providerChoice, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -132,8 +132,8 @@ test("a Copilot list that fails says why in the page's words", () => {
 // The provider tiles: nine, so three rows of three, each
 // named without the label's parenthesis and saying what it can be paid with,
 // in the ways' own words.
-test("nine provider tiles, each saying what it can be paid with", () => {
-  assert.equal(PROVIDERS.length, 9, "three rows of three");
+test("ten provider tiles, each saying what it can be paid with", () => {
+  assert.equal(PROVIDERS.length, 10, "Agentry credits the tenth");
   const offers = Object.fromEntries(PROVIDERS.map((p) => [p.id, `${p.short}: ${tileOffer(p)}`]));
   assert.deepEqual(offers, {
     anthropic: "Anthropic: Claude plan or API key",
@@ -145,6 +145,7 @@ test("nine provider tiles, each saying what it can be paid with", () => {
     vultr: "Vultr: API key",
     google: "Google Gemini: API key",
     custom: "Custom endpoint: API key",
+    agentry: "Agentry credits: Your Agentry credits",
   });
   for (const p of PROVIDERS) assert.doesNotMatch(p.short, /[()]/, p.id);
 });
@@ -176,4 +177,27 @@ test("a listed model shows its price a million tokens where the provider gives o
     "Qwen 3.8 Flash Next — qwen3.8-flash-next · US$0.10 in, US$0.20 out per million tokens",
   );
   assert.equal(modelOptionLabel({ id: "m", outputUsd: "1.00" }), "m · US$1.00 out per million tokens");
+});
+
+// The Agentry credits tile: drawn locked, "Please sign in" across it, until a
+// SecureAgentry account is signed in; picked, it asks for no key and no
+// model and says the balance and the model in use, as far as the registry
+// said them.
+test("the Agentry credits choice says the balance and the model, and asks for nothing", () => {
+  const p = providerChoice("agentry");
+  assert.ok(p);
+  assert.equal(p.apiKeyEnv, "");
+  assert.equal(p.model, "");
+  assert.deepEqual(p.ways.map((w) => w.id), ["credits"]);
+  assert.equal(CREDITS_LOCK, "Please sign in");
+  assert.equal(CREDITS_DOCS_URL, "https://docs.secureagentry.net/agentry/pay-with-credits/");
+  assert.deepEqual(creditsLines({ signedIn: true, balance: 1250, balanceKnown: true, model: "qwen3.8-flash-next", unavailable: "" }), [
+    "Your account has 1,250 credits.",
+    "Agentry runs them on qwen3.8-flash-next now.",
+    "A run stops when the credits are used up; a persistent agent stays up and says so in its chat.",
+  ]);
+  assert.equal(creditsLines({ signedIn: true, balance: 1, balanceKnown: true, model: "", unavailable: "" })[0], "Your account has 1 credit.");
+  assert.match(creditsLines({ signedIn: true, balance: 0, balanceKnown: false, model: "", unavailable: "the Agentry credits are used up" }).join(" "),
+    /could not be read just now\. Agentry cannot run them just now: the Agentry credits are used up/);
+  assert.match(creditsLines({ signedIn: false, balance: 0, balanceKnown: false, model: "", unavailable: "" })[0], /^Sign in to your SecureAgentry account first/);
 });

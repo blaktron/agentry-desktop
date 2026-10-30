@@ -447,7 +447,8 @@ export function runStatus(s: app.SetupStatusView): string {
 // "saved" only when the keychain holds it and the policy reads it there.
 export function providerStatus(s: app.SetupStatusView | null, k: app.JevKeyView | null): string {
   const parts: string[] = [];
-  if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}${paidBy(s.apiKeyKind ?? "") ? `, paid by ${paidBy(s.apiKeyKind ?? "")}` : ""}` : "No provider chosen yet");
+  if (s) parts.push(s.policyExists && s.provider === "agentry" ? "Paid with your Agentry credits"
+    : s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}${paidBy(s.apiKeyKind ?? "") ? `, paid by ${paidBy(s.apiKeyKind ?? "")}` : ""}` : "No provider chosen yet");
   if (k) {
     const standing = keyStanding(k);
     parts.push(standing === "env" ? `AI Review key from $${k.envName}` : standing === "saved" ? "AI Review key saved" : "No AI Review key");

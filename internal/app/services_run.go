@@ -1002,22 +1002,27 @@ func (r *RunAPI) SaveProfile(reg, ref string, secrets map[string]string, keep bo
 // RunResultView is the §R8 envelope, flattened. It is returned for failed
 // runs too (status "error" + exit class) so the receipts stay reachable.
 type RunResultView struct {
-	Status           string  `json:"status"`
-	ExitCode         int     `json:"exitCode"`
-	Error            string  `json:"error,omitempty"`
-	RunID            string  `json:"runId"`
-	Ref              string  `json:"ref"`
-	Digest           string  `json:"digest"`
-	ResultJSON       string  `json:"resultJson"`
-	OutDir           string  `json:"outDir"`
-	ReceiptsDir      string  `json:"receiptsDir"`
-	RunPlanSHA       string  `json:"runPlanSha"`
-	InputTokens      int64   `json:"inputTokens"`
-	OutputTokens     int64   `json:"outputTokens"`
-	CostUSD          float64 `json:"costUsd"`
-	WallMS           int64   `json:"wallMs"`
-	Turns            int     `json:"turns"`
-	AttestationState string  `json:"attestationState"`
+	Status       string  `json:"status"`
+	ExitCode     int     `json:"exitCode"`
+	Error        string  `json:"error,omitempty"`
+	RunID        string  `json:"runId"`
+	Ref          string  `json:"ref"`
+	Digest       string  `json:"digest"`
+	ResultJSON   string  `json:"resultJson"`
+	OutDir       string  `json:"outDir"`
+	ReceiptsDir  string  `json:"receiptsDir"`
+	RunPlanSHA   string  `json:"runPlanSha"`
+	InputTokens  int64   `json:"inputTokens"`
+	OutputTokens int64   `json:"outputTokens"`
+	CostUSD      float64 `json:"costUsd"`
+	WallMS       int64   `json:"wallMs"`
+	Turns        int     `json:"turns"`
+	// Credits is what a run paid with Agentry credits was charged
+	// (paidWithCredits), the registry's figure; both are absent for a run
+	// paid with a key or a sign-in, whose result names no credits.
+	Credits          int64  `json:"credits,omitempty"`
+	PaidWithCredits  bool   `json:"paidWithCredits,omitempty"`
+	AttestationState string `json:"attestationState"`
 	// Policy is the operator policy file the run enforced, the envelope's
 	// block as it is: omitted when the envelope carries none.
 	Policy *receipt.Policy `json:"policy,omitempty"`
@@ -1209,6 +1214,8 @@ func runResultView(res *run.Result) *RunResultView {
 		InputTokens:      res.InputTokens,
 		OutputTokens:     res.OutputTokens,
 		CostUSD:          res.CostUSD,
+		Credits:          res.Credits,
+		PaidWithCredits:  res.PaidWithCredits,
 		WallMS:           res.WallMS,
 		Turns:            res.Turns,
 		AttestationState: res.AttestationState,

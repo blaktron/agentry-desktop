@@ -41,6 +41,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -567,7 +568,7 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	budgets := settings.BuiltinBudgets(localrun.VoiceWriter(), pol.Budgets).Run
 	res, err := b(ctx, dockerx.New(), build.Options{
 		Job: req.Job, Samples: req.Samples, URLs: urls, Review: review, Web: web, Brief: strings.TrimSpace(req.Brief), Current: current,
-		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(),
+		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
 		OutDir: outDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: req.OnUsage,
 	})
 	if res != nil {

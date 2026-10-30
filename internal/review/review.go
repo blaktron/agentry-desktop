@@ -235,7 +235,8 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	prog.Set(atStage(StageExamining))
 	env, runErr := runner(ctx, localrun.Run{
 		Builtin: localrun.Examiner(), Home: home, Policy: p.Policy, PolicySHA: p.PolicySHA, PolicyFile: &p.PolicyFile,
-		Build: version.Build(), Task: strings.NewReader(examiner.Task(prep)), Inputs: prep.Inputs, OutDir: outDir,
+		Credits: run.CreditsClient(p.Policy),
+		Build:   version.Build(), Task: strings.NewReader(examiner.Task(prep)), Inputs: prep.Inputs, OutDir: outDir,
 		Budgets: &b, RunID: req.RunID, Stderr: logw, Review: p.Key, OnUsage: prog.Usage,
 	})
 	prog.Set(atStage(StageReporting))

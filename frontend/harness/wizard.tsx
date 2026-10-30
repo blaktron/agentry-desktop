@@ -60,6 +60,9 @@ const preparing = suffix === "preparing";
 const prepared = suffix === "prepared";
 const prepareRefused = location.hash.endsWith("-prepare-refused");
 const keyOnly = suffix === "keyonly";
+// The Agentry credits tile: signed in with a balance and a model
+// (#3-credits), or signed out, the tile locked (#3-nocredits).
+const creditsSignedIn = suffix === "credits";
 const harnessesMissing = suffix === "missing" || nothing || keyOnly;
 const dockerState = ["installable", "socketOff", "groupMissing", "pendingRestart", "manual", "managedOffer", "windowsOffer"].includes(suffix) ? suffix : "";
 const engineFound = { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] };
@@ -185,6 +188,9 @@ g.go = { app: {
   // The agentry command's card on the done step: not offered off macOS.
   ScheduleAPI: { CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }) },
   RunAPI: {
+    CreditsOffer: async () => (creditsSignedIn
+      ? { signedIn: true, registry: "https://secureagentry.net", balance: 1250, balanceKnown: true, model: "qwen3.8-flash-next", unavailable: "" }
+      : { signedIn: false, registry: "https://secureagentry.net", balance: 0, balanceKnown: false, model: "", unavailable: "" }),
     JevKeyStatus: async () => (keySaved ? savedKey : noKey),
     StoreJevKey: async () => {
       if (refused) throw new Error("store the key in the OS keychain: The name org.freedesktop.secrets was not provided by any .service files");

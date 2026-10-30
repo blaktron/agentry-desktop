@@ -1220,6 +1220,7 @@ g.go = { app: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    CreditsOffer: async () => ({ signedIn: true, registry: "https://secureagentry.net", balance: 1250, balanceKnown: true, model: "qwen3.8-flash-next", unavailable: "" }),
     // Home's Recent runs: #home-runs-empty has none,
     // #home-runs-off has Remember recent runs off; signed out (?active=anon)
     // the history alone; otherwise this computer's runs and built-in jobs

@@ -96,9 +96,10 @@ export function hostedUseLine(v: { turns: number; wallMs: number }): string {
 }
 
 /** A finished run on this computer's use: its turns, its tokens, its time
- *  and the provider's dollar cost when it reported one. */
-export function localUseLine(r: { turns: number; inputTokens: number; outputTokens: number; wallMs: number; costUsd: number }): string {
-  const cost = r.costUsd > 0 ? ` · $${r.costUsd.toFixed(4)}` : "";
+ *  and the provider's dollar cost when it reported one; a run paid with
+ *  Agentry credits names the credits the registry charged instead. */
+export function localUseLine(r: { turns: number; inputTokens: number; outputTokens: number; wallMs: number; costUsd: number; credits?: number; paidWithCredits?: boolean }): string {
+  const cost = r.paidWithCredits ? ` · ${creditCount(r.credits ?? 0)} from your Agentry credits` : r.costUsd > 0 ? ` · $${r.costUsd.toFixed(4)}` : "";
   return `${r.turns} ${r.turns === 1 ? "turn" : "turns"} · ${fmtNumber(r.inputTokens + r.outputTokens)} tokens · ${(r.wallMs / 1000).toFixed(1)}s${cost}`;
 }
 

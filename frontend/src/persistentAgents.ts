@@ -485,7 +485,7 @@ const START_REASONS: Record<string, string> = {
   "signin-missing": "Your model's sign-in is missing or cannot be used",
   "exec-not-provided": "This computer's policy does not provide a command the agent needs",
   "host-refused": "The dev server was not reached",
-  "out-of-credits": "Your model's provider says the account has no credits left",
+  "out-of-credits": "The account that pays for the model has no credits left: add credits there (your SecureAgentry account, for Agentry credits)",
   "plan-limit": "Your plan's usage limit was reached",
   "org-policy": "A policy of your organization at the model's vendor refused it",
   "inputs-not-decoded": "The share folder's check could not run",

@@ -22,6 +22,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/modelsignin"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The keychain and the models listing, as seams: the tests have no
@@ -255,6 +257,9 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	}
 	if policy.IsModelSignIn(opts.APIKeyKind) || opts.Connect {
 		return applySignInSetup(ctx, home, policyPath, provider, opts, logw)
+	}
+	if provider == policy.ProviderAgentry {
+		return applyCreditsSetup(ctx, home, policyPath, opts, logw)
 	}
 	// The kind is read from the value while this process holds it — a key
 	// stored now, or below the one the keychain holds; a forgotten key takes
@@ -571,3 +576,39 @@ func checkBaseURL(provider, baseURL string) error {
 // CLI's wording (setup.PlainHTTPWarning), so both clients say the same
 // thing.
 func EndpointWarning(baseURL string) string { return setup.PlainHTTPWarning(baseURL) }
+
+// errCreditsSignIn is the Agentry credits choice made with no sign-in to
+// the SecureAgentry registry this build is for.
+var errCreditsSignIn = errors.New("paying with Agentry credits needs you signed in to your SecureAgentry account: sign in first, then choose it again")
+
+// applyCreditsSetup records model provider agentry: the model is paid with
+// the credits of the account this computer is signed in to at the
+// SecureAgentry registry, and nothing is asked or stored, since each run
+// opens a credits session with that sign-in and the registry chooses the
+// model. A form never passes a key, model or base URL with it.
+func applyCreditsSetup(ctx context.Context, home, policyPath string, opts SetupOpts, logw io.Writer) error {
+	if opts.Model != "" || opts.APIKeyEnv != "" || opts.StoreKey != "" || opts.ForgetKey || opts.BaseURL != "" || opts.APIKeySource != "" {
+		return errors.New("paying with Agentry credits takes no model, key or endpoint: the registry chooses the model")
+	}
+	reg := settings.SecureAgentryRegistry()
+	if reg == "" || settings.TokenFor(reg) == "" {
+		return errCreditsSignIn
+	}
+	pol, _, err := policy.EnsureDefault(policyPath)
+	if err != nil {
+		return fmt.Errorf("operator policy: %w", err)
+	}
+	if err := setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
+		Provider: policy.ProviderAgentry, AgentryRegistry: reg, Yes: true,
+	}); err != nil {
+		return err
+	}
+	if err := policy.Save(policyPath, pol); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(logw, "policy written: %s\n", policyPath)
+	if !opts.PullImages {
+		return nil
+	}
+	return prepareImages(ctx, home, pol, logw)
+}
