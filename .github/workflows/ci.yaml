@@ -59,7 +59,7 @@ jobs:
       # brings a clean interpreter, so PyYAML is installed rather than assumed.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version: "3.15"
       - run: python3 -m pip install --quiet --disable-pip-version-check pyyaml==6.0.3
       - name: no fork-reachable job on a self-hosted runner
         run: make workflows-check
@@ -72,7 +72,7 @@ jobs:
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.23.4
+          node-version: 26.13.0
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.
@@ -154,7 +154,7 @@ jobs:
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.23.4
+          node-version: 26.13.0
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.
@@ -289,7 +289,7 @@ jobs:
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.23.4
+          node-version: 26.13.0
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
           # on the host instead.

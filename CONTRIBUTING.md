@@ -29,7 +29,7 @@ and say in the pull request what you verified and on which platform.
 ## Development setup
 
 The prerequisites are in the [README](README.md#prerequisites): Go at the
-version `go.mod` names, Node 22 and npm, the Wails CLI at the version
+version `go.mod` names, Node 26 and npm, the Wails CLI at the version
 `go.mod` pins, and on Linux the GTK 3 and WebKit2GTK 4.1 headers.
 
 | Command | What |
