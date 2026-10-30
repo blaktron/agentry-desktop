@@ -1795,3 +1795,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .meeting-notes .meeting-assistant-title { margin: 12px 0 4px; font-weight: 600; font-size: 0.85em; }
 .home-meetings-title { margin: 10px 0 4px; font-weight: 600; }
 .config-card-note { margin: 6px 0 0; }
+
+/* What's new: one version's highlights per card. */
+.whats-new-lines { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 6px; }
+.whats-new-foot { gap: 8px; align-items: center; margin-top: 8px; }

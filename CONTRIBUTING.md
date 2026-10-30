@@ -113,3 +113,12 @@ Releases are cut by the maintainers. Each one is a `vX.Y.Z` tag that names
 `wails.json`'s version, with a GitHub Release carrying the signed
 installers and packages for each platform. How to install and check them:
 <https://docs.secureagentry.net/agentry/downloads/>.
+
+Every version carries release highlights: one to four plain sentences,
+120 characters at most, saying what someone using the app can now do. They
+live in `internal/highlights/highlights.json`, newest version first, and the
+app shows them in What's new after it moves to a newer version. The pull
+request that moves `productVersion` adds that version's entry, and a later
+change to the same version revises it. `make check` refuses a version without
+one, a fifth line, Markdown, an issue or pull request number, an address and
+a `feat:`-style prefix.

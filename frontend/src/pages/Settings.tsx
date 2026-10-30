@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/app/SelfUpdateAPI";
+import * as WhatsNewAPI from "../../wailsjs/go/app/WhatsNewAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
 import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
 import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
@@ -23,6 +25,8 @@ import { ProfileSettings } from "./SettingsProfile";
 import { ReportDesignSettings } from "./SettingsReportDesign";
 import { DockerImagesCard } from "./DockerImages";
 import { AgentryCommandCard } from "./AgentryCommand";
+import WhatsNew from "./WhatsNew";
+import type { WhatsNewData } from "../whatsNew";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
@@ -1154,6 +1158,26 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   );
 }
 
+// WhatsNewButton opens What's new again: the newest versions' highlights up
+// to the one running. Closing it records nothing.
+function WhatsNewButton() {
+  const [data, setData] = useState<WhatsNewData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const open = () => {
+    setErr(null);
+    WhatsNewAPI.Recent()
+      .then((v) => (v.cards.length > 0 ? setData(v) : setErr("This build carries no highlights to show.")))
+      .catch((e) => setErr(String(e)));
+  };
+  return (
+    <>
+      <Button onClick={open}>What's new</Button>
+      {err && <span className="muted small">{err}</span>}
+      {data && <WhatsNew data={data} mode="settings" onClose={() => setData(null)} onOpenReleases={(url) => OpenExternal(url).catch(() => {})} />}
+    </>
+  );
+}
+
 // SelfUpdateCard shows whether a newer Agentry Desktop exists and lets the
 // person stop the app looking.
 //
@@ -1195,6 +1219,7 @@ function SelfUpdateCard() {
           This build has no update channel, so it does not check for a newer Agentry Desktop.
           Builds from the open core are like this; the ones on the download page are not.
         </div>
+        <Toolbar><WhatsNewButton /></Toolbar>
       </Card>
     );
   }
@@ -1277,6 +1302,7 @@ function SelfUpdateCard() {
         <Button disabled={busy || !view.enabled} onClick={() => run(SelfUpdateAPI.SelfUpdateCheckNow)}>
           {busy ? "Checking…" : "Check now"}
         </Button>
+        <WhatsNewButton />
       </Toolbar>
     </Card>
   );

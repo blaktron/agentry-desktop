@@ -1,0 +1,19 @@
+{
+  "versions": [
+    {
+      "version": "0.6.1005",
+      "highlights": [
+        "After Agentry Desktop moves to a newer version, What's new shows what each version since your last one brings.",
+        "Update settings has a What's new button, so you can read the newest versions' highlights again."
+      ]
+    },
+    {
+      "version": "0.6.1004",
+      "highlights": [
+        "A persistent agent's page has a View menu with five views: Terminal, Compact, Chat, Focus and Workspace.",
+        "Agentry Desktop remembers the view you choose and uses it for every agent.",
+        "The Compact view fits more of the conversation on screen."
+      ]
+    }
+  ]
+}

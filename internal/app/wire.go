@@ -27,6 +27,7 @@ type Services struct {
 	home         *HomeAPI
 	publisher    *PublisherAPI
 	selfUpdate   *SelfUpdateAPI
+	whatsNew     *WhatsNewAPI
 	schedule     *ScheduleAPI
 	destinations *DestinationsAPI
 	notices      *NoticesAPI
@@ -66,6 +67,7 @@ func New(notices string) *Services {
 		home:         &HomeAPI{},
 		publisher:    &PublisherAPI{app: app},
 		selfUpdate:   newSelfUpdateAPI(app, meetings.suspendForUpdate),
+		whatsNew:     newWhatsNewAPI(),
 		schedule:     schedule,
 		destinations: &DestinationsAPI{app: app},
 		notices:      &NoticesAPI{text: notices},
@@ -167,6 +169,7 @@ func (s *Services) Bind() []interface{} {
 		s.home,
 		s.publisher,
 		s.selfUpdate,
+		s.whatsNew,
 		s.schedule,
 		s.destinations,
 		s.notices,
