@@ -2,7 +2,7 @@
 // operations.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { cronWords, taskOps, taskRow, when } from "../src/tasksView.ts";
 
 test("a cron's common shapes read in words, and anything else reads none", () => {

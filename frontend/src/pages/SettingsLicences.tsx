@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import * as NoticesAPI from "../../wailsjs/go/app/NoticesAPI";
+import * as NoticesAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/noticesapi";
 import { Card, ErrorBox } from "../ui";
 import { licenceCount, splitNotices, type NoticeSection } from "../licences";
 

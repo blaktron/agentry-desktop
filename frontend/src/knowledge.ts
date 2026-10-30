@@ -2,7 +2,7 @@
 // size, and the name rule the Go side enforces again (the CLI's
 // knowledge.ValidName). The copy names what holds a pack's key and what
 // read it, and never calls a pack "safe", "secure" or "private".
-import { knowledge } from "../wailsjs/go/models";
+import * as knowledge from "../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
 import type { JobProgress } from "./jobProgress";
 import { fmtBytes } from "./ui";
 

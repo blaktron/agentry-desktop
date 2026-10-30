@@ -3,7 +3,7 @@
 // and what each task's row says. Pure, so the view and its tests share it.
 // Every name, instruction and answer is the agent's or the person's, drawn
 // as text.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 

@@ -4,8 +4,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 	"github.com/blaktron/agentry-desktop/internal/notify"
@@ -98,7 +96,7 @@ func (p *PersistentAPI) isViewing(name string) bool {
 		return false
 	}
 	if minimised == nil {
-		minimised = func() bool { return p.app != nil && p.app.ctx != nil && runtime.WindowIsMinimised(p.app.ctx) }
+		minimised = func() bool { return p.app != nil && p.app.ctx != nil && nativeWindowMinimised() }
 	}
 	return !minimised()
 }

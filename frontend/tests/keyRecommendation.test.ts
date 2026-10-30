@@ -3,7 +3,7 @@
 // (scripts/copy-check.sh reads this module with the rest).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../src/keyRecommendation.ts";
 
 test("the recommendation is the agreed sentence, word for word", () => {

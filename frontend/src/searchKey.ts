@@ -1,4 +1,4 @@
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 // The person's own web search key: where it stands,
 // and what saving a key for another provider does, decided once for the

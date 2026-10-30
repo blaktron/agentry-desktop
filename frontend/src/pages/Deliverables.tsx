@@ -10,8 +10,8 @@
 //     and text or CSV as plain text, all from bytes Go just checked.
 //   - Show in folder shows the file in the file manager and opens nothing.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import type { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { PdfViewer } from "../PdfViewer";
 import { actions, copiedLine, heading, typeLabel, type DeliverableFacts } from "../deliverables";

@@ -1,4 +1,4 @@
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 // The subscription's words, shared by Settings → Profile and its test: pure
 // functions of the billing account view, so node's own test runner can check

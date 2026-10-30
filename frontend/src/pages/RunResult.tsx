@@ -13,8 +13,8 @@
 // opens in the app's viewer (PdfViewer) or, as a fresh copy, in the
 // system's; any other PDF is Save only.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
 import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";

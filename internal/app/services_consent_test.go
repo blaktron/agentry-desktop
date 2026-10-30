@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -177,7 +175,7 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
 	keyPath := filepath.Join(t.TempDir(), "id_ed25519")
 	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}
-	app.pickKeyFile = func(context.Context, runtime.OpenDialogOptions) (string, error) { return keyPath, nil }
+	app.pickKeyFile = func(context.Context, pickOptions) (string, error) { return keyPath, nil }
 	r := &RunAPI{app: app}
 	if got, err := r.ChooseHostKeyFile("admin@server"); err != nil || got != keyPath {
 		t.Fatalf("pick: %q %v", got, err)
@@ -193,7 +191,7 @@ func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
 	if err := app.keyFiles.require("the key file", input); err == nil {
 		t.Fatal("an input pick was taken as a key")
 	}
-	app.pickKeyFile = func(context.Context, runtime.OpenDialogOptions) (string, error) { return "", nil }
+	app.pickKeyFile = func(context.Context, pickOptions) (string, error) { return "", nil }
 	other := filepath.Join(t.TempDir(), "id_rsa")
 	if got, err := r.ChooseHostKeyFile(""); got != "" || err != nil || app.keyFiles.require("k", other) == nil {
 		t.Fatalf("a cancelled pick: %q %v", got, err)

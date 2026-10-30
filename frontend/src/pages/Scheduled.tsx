@@ -13,12 +13,14 @@
 // in a sentence, and the ones on this computer work as they did. A past
 // occurrence says what happened, and never reads as done when nothing ran.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
-import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { install, app, schedules } from "../../wailsjs/go/models";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import * as ScheduleAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/scheduleapi";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as HomeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as schedules from "../../bindings/github.com/blaktron/agentry-desktop/internal/schedules/models";
+import { EventsOn } from "../host";
 import { Button, EmptyState, ErrorBox, Modal, Notice, OptionsMenu, PageHeader } from "../ui";
 import { scheduledOnHome } from "../homeCards";
 import { CalendarKey, MonthGrid } from "./MonthGrid";

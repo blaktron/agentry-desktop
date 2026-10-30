@@ -412,7 +412,7 @@ function selectedDraft() {
     notes: "Notes retained from the selected run.", decodeNotes: [], matches: [], sources: [], openQuestions: [], problems: [], unmentioned: [],
     check: { rubric: "flagged", draft: "pass", findings: [{ id: "C3_undeclared_capability", question: "Undeclared capability", score: 2, path: "AGENT.md" }], flagged: [], checks: 1 },
     aiReview: { scan: "registry", read: 5, passed: 5, withheld: 0, notScanned: 0, withheldSources: [] },
-  } as unknown as import("../wailsjs/go/models").app.DraftView;
+  } as unknown as import("../bindings/github.com/blaktron/agentry-desktop/internal/app/models").DraftView;
 }
 function RunPagePreview() {
   const [opened, setOpened] = useState(false);

@@ -6,8 +6,8 @@
 // Test key makes one search and says the provider's answer in plain words.
 // The same one-card shape as AIReviewKey.tsx.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice, Select } from "../ui";
 import { initialProvider, replaceNote, searchKeySentence } from "../searchKey";
 

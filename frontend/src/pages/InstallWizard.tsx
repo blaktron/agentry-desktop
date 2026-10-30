@@ -4,9 +4,9 @@
 // egress/exec capabilities) are explicit checkboxes; the primary button
 // stays disabled until every applicable one is ticked.
 import { useEffect, useMemo, useState } from "react";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
-import { ChooseDirectory } from "../../wailsjs/go/app/App";
-import { install } from "../../wailsjs/go/models";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import { ChooseDirectory } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
 import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
 import { secretsRow } from "../requiredKeys";
 import { browserCap, browserLine } from "../browser";

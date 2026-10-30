@@ -5,7 +5,8 @@
 // (internal/run/connections.go); these are the words the page says about
 // it.
 
-import type { app, run } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import type * as run from "../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 
 /** One declared server that signs in by OAuth, as Go reports it
  *  (run.ServerConnection): never a token. Its fields are the generated

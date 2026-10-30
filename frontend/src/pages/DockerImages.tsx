@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app, dockerimages } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as dockerimages from "../../bindings/github.com/blaktron/agentry-desktop/internal/dockerimages/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 
 // Run defaults → Container images: the images Agentry

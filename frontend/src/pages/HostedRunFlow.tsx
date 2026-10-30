@@ -12,7 +12,7 @@
 // The desktop follows a run In Agentry and never drives it: every
 // sentence here is the registry's, or says what the registry said.
 import { useEffect, useRef, useState } from "react";
-import type { app } from "../../wailsjs/go/models";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { hostedActive, hostedHeadline, hostedProgress, hostedTone, lostTouch } from "../hostedRun";
 import { CornerCard, ProgressView, RunningView } from "../progress";
 import {

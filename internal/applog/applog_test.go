@@ -1,7 +1,8 @@
 package applog
 
 import (
-	"fmt"
+	"bytes"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,126 +10,95 @@ import (
 	"testing"
 )
 
-// recorder is the inner logger: every line the Wails runtime would print.
-type recorder struct{ lines []string }
-
-func (r *recorder) Print(m string)   { r.lines = append(r.lines, "PRINT "+m) }
-func (r *recorder) Trace(m string)   { r.lines = append(r.lines, "TRACE "+m) }
-func (r *recorder) Debug(m string)   { r.lines = append(r.lines, "DEBUG "+m) }
-func (r *recorder) Info(m string)    { r.lines = append(r.lines, "INFO "+m) }
-func (r *recorder) Warning(m string) { r.lines = append(r.lines, "WARNING "+m) }
-func (r *recorder) Error(m string)   { r.lines = append(r.lines, "ERROR "+m) }
-func (r *recorder) Fatal(m string)   { r.lines = append(r.lines, "FATAL "+m) }
-
 const canary = "agt_pat_CANARY-0123456789abcdef"
 
-// The dispatcher's own format (wails v2 internal/frontend/dispatcher,
-// dispatcher.go); TestTheDispatcherStillSpeaksTheseFormats pins it.
-func dispatchError(message, err string) string {
-	return fmt.Sprintf("process message error: %s -> %s", message, err)
+// logger writes through the redacting handler to a buffer, at debug level,
+// the level at which the framework logs a call's arguments.
+func logger(buf *bytes.Buffer) *slog.Logger {
+	return slog.New(New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 }
 
-// The secret-carrying calls, each forced into the dispatcher's error path:
-// a stale binding's argument mismatch, and a panic inside the method.
-func TestADispatchErrorOnASecretCarryingCallLogsNoArgument(t *testing.T) {
-	cases := []struct{ name, message, err string }{
-		{"sign-in, stale binding",
-			`C{"name":"main.SettingsAPI.SignIn","args":["https://dev.secureagentry.net","` + canary + `",7],"callbackID":"main.SettingsAPI.SignIn-1"}`,
-			"error parsing arguments: expected 2 arguments, got 3"},
-		{"SaveProfile, panic",
-			`C{"name":"main.RunAPI.SaveProfile","args":["reg","acme/agent",{"GITHUB_TOKEN":"` + canary + `"},true],"callbackID":"x-2"}`,
-			"runtime error: invalid memory address or nil pointer dereference"},
-		{"StoreModelKey, a secret with the separator in it",
-			`C{"name":"main.RunAPI.StoreModelKey","args":["anthropic","sk -> ` + canary + `"],"callbackID":"x-3"}`,
-			"boom"},
-		{"StoreJevKey, stale binding (the person's AI Review key)",
-			`C{"name":"main.RunAPI.StoreJevKey","args":["` + canary + `","extra"],"callbackID":"x-5"}`,
-			"error parsing arguments: expected 1 arguments, got 2"},
-		{"SetHostedSecret, stale binding (a run In Agentry's secret)",
-			`C{"name":"main.RunAPI.SetHostedSecret","args":["https://dev.secureagentry.net","GITHUB_TOKEN","` + canary + `",false,"extra"],"callbackID":"x-6"}`,
-			"error parsing arguments: expected 4 arguments, got 5"},
-		{"call by id (obfuscated build)",
-			`c{"id":17,"args":["https://r","` + canary + `"],"callbackID":"x-4"}`,
-			"error parsing arguments: bad"},
-		{"an event carrying data",
-			`EE{"name":"anything","data":["` + canary + `"]}`,
-			"bad event"},
-		{"no separator at all",
-			`C{"name":"main.RunAPI.StoreModelKey","args":["anthropic","` + canary + `"]`,
-			""},
+// The secret-carrying calls, as the framework logs them when a call ends.
+func TestACompletedCallOnASecretCarryingMethodLogsNoArgumentAndNoResult(t *testing.T) {
+	cases := []struct{ name, method, args, result string }{
+		{"sign-in", "SettingsAPI.SignIn", `["https://dev.secureagentry.net","` + canary + `"]`, `{"token":"` + canary + `"}`},
+		{"SaveProfile", "RunAPI.SaveProfile", `["reg","acme/agent",{"GITHUB_TOKEN":"` + canary + `"},true]`, `null`},
+		{"StoreModelKey, a secret with a quote in it", "RunAPI.StoreModelKey", `["anthropic","sk-\"` + canary + `"]`, `null`},
+		{"StoreJevKey", "RunAPI.StoreJevKey", `["` + canary + `"]`, `null`},
+		{"SetHostedSecret", "RunAPI.SetHostedSecret", `["https://dev.secureagentry.net","GITHUB_TOKEN","` + canary + `",false]`, `null`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rec := &recorder{}
-			log := New(rec)
-			line := dispatchError(c.message, c.err)
-			if c.err == "" {
-				line = "process message error: " + c.message
-			}
-			log.Error(line)
-			if len(rec.lines) != 1 {
-				t.Fatalf("want one line, got %q", rec.lines)
-			}
-			got := rec.lines[0]
+			var buf bytes.Buffer
+			logger(&buf).Debug("Binding call complete:", "id", "abc", "method", c.method, "args", c.args, "result", c.result)
+			got := buf.String()
 			if strings.Contains(got, "CANARY") {
-				t.Fatalf("the argument reached the log: %q", got)
+				t.Fatalf("a secret reached the log: %q", got)
 			}
-			if !strings.HasPrefix(got, "ERROR process message error: ") {
-				t.Fatalf("the line lost its shape: %q", got)
+			if !strings.Contains(got, c.method) {
+				t.Fatalf("the method is not in the line: %q", got)
 			}
 		})
 	}
 }
 
-// What is kept is what diagnoses a stale binding: the method and the error.
-func TestTheMethodAndTheErrorSurvive(t *testing.T) {
-	rec := &recorder{}
-	New(rec).Error(dispatchError(
-		`C{"name":"main.SettingsAPI.SignIn","args":["u","`+canary+`"],"callbackID":"c"}`,
-		"error parsing arguments: expected 2 arguments, got 3"))
-	want := "ERROR process message error: call main.SettingsAPI.SignIn (arguments withheld) -> error parsing arguments: expected 2 arguments, got 3"
-	if rec.lines[0] != want {
-		t.Fatalf("got  %q\nwant %q", rec.lines[0], want)
+// A runtime call's arguments are withheld too (a clipboard text, a dialog's
+// message).
+func TestARuntimeCallLogsNoArguments(t *testing.T) {
+	var buf bytes.Buffer
+	logger(&buf).Debug("Runtime call:", "method", "Clipboard.SetText", "args", `{"text":"`+canary+`"}`)
+	if got := buf.String(); strings.Contains(got, "CANARY") || !strings.Contains(got, "Clipboard.SetText") {
+		t.Fatalf("got %q", got)
 	}
 }
 
-// The trace-level line carries a call's result; a result can carry a secret
-// too, and the frontend can lower the level at run time.
-func TestACallResultIsNeverLogged(t *testing.T) {
-	rec := &recorder{}
-	New(rec).Trace(`json call result data: {"result":{"token":"` + canary + `"},"error":null,"callbackid":"c"}` + "\n")
-	if strings.Contains(rec.lines[0], "CANARY") {
-		t.Fatalf("a call result reached the log: %q", rec.lines[0])
+// The redaction holds in a group and in the attributes a logger carries.
+func TestTheRedactionReachesGroupsAndCarriedAttributes(t *testing.T) {
+	var buf bytes.Buffer
+	l := logger(&buf)
+	l.Debug("x", slog.Group("call", slog.String("args", canary), slog.String("method", "m")))
+	l.With("result", canary).Debug("y")
+	if got := buf.String(); strings.Contains(got, "CANARY") {
+		t.Fatalf("a secret reached the log: %q", got)
+	}
+}
+
+// What is kept is what diagnoses a stale binding: the method and the error.
+func TestTheMethodAndTheErrorSurvive(t *testing.T) {
+	var buf bytes.Buffer
+	logger(&buf).Error("Binding call failed:", "method", "SettingsAPI.SignIn", "error", "expected 2 arguments, got 3")
+	got := buf.String()
+	for _, want := range []string{"SettingsAPI.SignIn", "expected 2 arguments, got 3"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("%q is missing from %q", want, got)
+		}
 	}
 }
 
 // Every other line passes through untouched, at its own level.
 func TestOtherLinesPassThrough(t *testing.T) {
-	rec := &recorder{}
-	l := New(rec)
-	l.Info("Blocked request from unauthorized origin: x")
-	l.Warning("w")
-	l.Debug("d")
-	l.Print("p")
-	l.Fatal("f")
-	want := []string{"INFO Blocked request from unauthorized origin: x", "WARNING w", "DEBUG d", "PRINT p", "FATAL f"}
-	if strings.Join(rec.lines, "|") != strings.Join(want, "|") {
-		t.Fatalf("got %q", rec.lines)
+	var buf bytes.Buffer
+	l := logger(&buf)
+	l.Info("Starting up service:", "name", "App")
+	l.Warn("w")
+	if got := buf.String(); !strings.Contains(got, "name=App") || !strings.Contains(got, "level=WARN") {
+		t.Fatalf("got %q", got)
 	}
 }
 
-// The redaction keys on two format strings inside Wails. An upgrade that
-// rewords either would silently turn this logger into a pass-through, so
-// the module's own source is read and the formats pinned.
-func TestTheDispatcherStillSpeaksTheseFormats(t *testing.T) {
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/wailsapp/wails/v2").Output()
+// The redaction keys on the attribute names the framework logs a call's
+// arguments and result under. An upgrade that renamed either could not be
+// seen from here, so the module's own source is read and the two log
+// statements pinned.
+func TestTheMessageProcessorStillLogsUnderTheseKeys(t *testing.T) {
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/wailsapp/wails/v3").Output()
 	if err != nil {
 		t.Fatalf("locate the wails module: %v", err)
 	}
-	dir := filepath.Join(strings.TrimSpace(string(out)), "internal", "frontend", "dispatcher")
+	dir := filepath.Join(strings.TrimSpace(string(out)), "pkg", "application")
 	for file, format := range map[string]string{
-		"dispatcher.go": `d.log.Error("` + dispatchPrefix + `%s -> %s", message, err)`,
-		"calls.go":      `d.log.Trace("` + resultPrefix + `%+v\n", string(messageData))`,
+		"messageprocessor_call.go": `m.Debug("Binding call complete:", "id", *callID, "method", boundMethod, "args", string(jsonArgs), "result", string(jsonResult))`,
+		"messageprocessor.go":      `m.Debug("Runtime call:", "method", objectName+"."+methodName, "args", req.Args.String())`,
 	} {
 		src, err := os.ReadFile(filepath.Join(dir, file))
 		if err != nil {

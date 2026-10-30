@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../../wailsjs/go/app/RunAPI";
+import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, helperSuperseded, homeAgentDrawn } from "../../homeAgent";

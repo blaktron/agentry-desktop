@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import { Button, ErrorBox, Modal, Notice, Textarea } from "../ui";
 import { bugReportOutcome, bugTextProblem } from "../bugReport";
 

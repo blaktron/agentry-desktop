@@ -11,7 +11,7 @@ export interface PublisherRow {
   visibility: string;
   retiredAt?: string;
   quarantineState: string;
-  forkedFrom?: { namespace: string; name: string; version: string };
+  forkedFrom?: { namespace: string; name: string; version: string } | null;
   forkState?: string;
   lastSubmittedAt?: string;
 }

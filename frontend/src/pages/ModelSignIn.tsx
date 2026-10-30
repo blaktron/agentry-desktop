@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { ClipboardSetText, EventsOn } from "../../wailsjs/runtime/runtime";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import { ClipboardSetText, EventsOn } from "../host";
 import { Button, ErrorBox, Notice, Spinner } from "../ui";
 import { keptFor, keptLine, removeLabel, type KeptSignIn, type Way } from "../modelSetup";
 

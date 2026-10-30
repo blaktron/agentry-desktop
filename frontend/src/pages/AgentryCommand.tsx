@@ -5,8 +5,8 @@
 // nothing where the app does not carry the command: Windows and Linux carry
 // it in their installers, and a build from a PR carries none.
 import { useEffect, useState } from "react";
-import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
-import { app } from "../../wailsjs/go/models";
+import * as ScheduleAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/scheduleapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 import { commandLines } from "../agentryCommand";
 

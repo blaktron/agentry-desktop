@@ -43,7 +43,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
     line: "Record, the recording under way, the meetings your Assistant set up to record, and the last meetings, with Ask to summarise." },
 };
 
-import type { settings } from "../wailsjs/go/models";
+import type * as settings from "../bindings/github.com/blaktron/agentry-desktop/internal/settings/models";
 
 // The one size today, the Build, Voice and Knowledge cards'.
 export type HomeCardSize = "large";

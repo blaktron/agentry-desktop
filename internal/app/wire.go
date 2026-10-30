@@ -1,12 +1,14 @@
 // Package app is the desktop's bound service layer: the App and the APIs the
 // window binds, each turning the internal packages' work into the view models
 // and events the frontend reads. The entry point builds them once with New and
-// hands Wails the lifecycle hooks and the list to bind.
+// hands the application the lifecycle hooks and the list to bind.
 package app
 
 import (
 	"context"
 	"sync"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/tray"
@@ -34,6 +36,7 @@ type Services struct {
 	persistent   *PersistentAPI
 	meeting      *MeetingAPI
 	bg           background
+	stopOnce     sync.Once
 }
 
 // New builds the App and its APIs. notices is the third-party notices text
@@ -76,7 +79,8 @@ func New(notices string) *Services {
 	}
 }
 
-// Startup is the window's OnStartup.
+// Startup is the application's start: the window exists and the event loop
+// runs.
 func (s *Services) Startup(ctx context.Context) {
 	s.app.startup(ctx)
 	// The engine the app manages itself, where one is installed, is
@@ -109,10 +113,11 @@ func (s *Services) Startup(ctx context.Context) {
 	s.meeting.start(ctx)
 }
 
-// BeforeClose is the window's OnBeforeClose. A run in flight is ended first:
-// closing the window with one live asks in a native dialog, and Shutdown
-// cancels the run, waits (bounded) for the engine's teardown and sweeps the
-// run's label, so no agent or gateway container outlives the app.
+// BeforeClose runs as the window closes, and reports whether to keep the
+// window. A run in flight is ended first: closing the window with one live
+// asks in a native dialog, and Shutdown cancels the run, waits (bounded) for
+// the engine's teardown and sweeps the run's label, so no agent or gateway
+// container outlives the app.
 //
 // While the Assistant or the Coding agent is enabled, the window's close
 // hides the window instead, unless the person asked to quit (background.go).
@@ -128,16 +133,25 @@ func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
 	return prevent
 }
 
-// Shutdown is the window's OnShutdown. It also applies "Install automatically
-// when I quit", which is off by default and does nothing unless a verified
-// release is waiting and the person turned it on. OnShutdown rather than
-// OnBeforeClose: by here the window is going anyway, so replacing the
-// application cannot interrupt anything the person is still doing.
+// Shutdown is the app's shutdown, run once and before the event loop ends
+// (the window's close, a quit): the loop must stay free while it works, since
+// the work reports to the page. It also applies "Install automatically when I
+// quit", which is off by default and does nothing unless a verified release is
+// waiting and the person turned it on. It follows BeforeClose: by here the
+// window is going anyway, so replacing the application cannot interrupt
+// anything the person is still doing. Approving the quit is its last step.
 //
 // The persistent agents running here stop beside the run's teardown, each
 // segment ending without a final result and its volumes kept, so the next
 // start continues each conversation; both before the managed engine stops.
 func (s *Services) Shutdown(ctx context.Context) {
+	s.stopOnce.Do(func() {
+		s.shutdown(ctx)
+		s.bg.approved.Store(true)
+	})
+}
+
+func (s *Services) shutdown(ctx context.Context) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -155,25 +169,25 @@ func (s *Services) Shutdown(ctx context.Context) {
 
 // Bind is what the window binds: every exported method on these is callable
 // from the frontend, and nothing else is.
-func (s *Services) Bind() []interface{} {
-	return []interface{}{
-		s.app,
-		s.settings,
-		s.browse,
-		s.install,
-		s.validate,
-		s.run,
-		s.build,
-		s.knowledge,
-		s.voice,
-		s.home,
-		s.publisher,
-		s.selfUpdate,
-		s.whatsNew,
-		s.schedule,
-		s.destinations,
-		s.notices,
-		s.persistent,
-		s.meeting,
+func (s *Services) Bind() []application.Service {
+	return []application.Service{
+		application.NewService(s.app),
+		application.NewService(s.settings),
+		application.NewService(s.browse),
+		application.NewService(s.install),
+		application.NewService(s.validate),
+		application.NewService(s.run),
+		application.NewService(s.build),
+		application.NewService(s.knowledge),
+		application.NewService(s.voice),
+		application.NewService(s.home),
+		application.NewService(s.publisher),
+		application.NewService(s.selfUpdate),
+		application.NewService(s.whatsNew),
+		application.NewService(s.schedule),
+		application.NewService(s.destinations),
+		application.NewService(s.notices),
+		application.NewService(s.persistent),
+		application.NewService(s.meeting),
 	}
 }

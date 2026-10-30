@@ -14,14 +14,19 @@
 // ChatFlow) and closes: it shows only the setup, a refusal, and the
 // missing-secret ask.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
-import * as VoiceAPI from "../../wailsjs/go/app/VoiceAPI";
-import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
-import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
-import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/app/App";
-import { destinations, knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
+import * as VoiceAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/voiceapi";
+import * as ScheduleAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/scheduleapi";
+import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
+import { ChooseDirectory, ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
+import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
+import * as schedules from "../../bindings/github.com/blaktron/agentry-desktop/internal/schedules/models";
+import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";

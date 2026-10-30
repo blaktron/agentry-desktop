@@ -1,4 +1,4 @@
-import { app } from "../../../wailsjs/go/models";
+import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame } from "../../cards";
 import { asSentence, byDay, mergeFires, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
 import { MonthGrid } from "../MonthGrid";

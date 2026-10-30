@@ -12,7 +12,7 @@ import {
   Mark, Wordmark, Sev, ModeBadges, SignedBadge, CapabilityBadges, QuarantineBadge,
 } from "../src/ui";
 import { SidebarNav } from "../src/nav";
-import type { trust } from "../wailsjs/go/models";
+import type * as trust from "../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (

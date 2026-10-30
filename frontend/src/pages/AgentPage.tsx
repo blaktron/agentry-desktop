@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
-import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { install, installed, app, trust } from "../../wailsjs/go/models";
+import * as BrowseAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/browseapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
+import * as installed from "../../bindings/github.com/blaktron/agentry-cli/pkg/installed/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 import {
   Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
   Notice, PageHeader, QuarantineBadge, ServerEnv, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
@@ -15,7 +18,7 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
-import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { BrowserOpenURL } from "../host";
 import { heldForm, offersEdit } from "../edit";
 import ReviseDialog from "./ReviseDialog";
 import ForkDialog from "./ForkDialog";
@@ -274,7 +277,7 @@ export default function AgentPage({
     installButton = <Button variant="primary" disabled title={runnerUpdateErr ? `${runnerInstall.version} is installed on this machine; the registry could not be asked: ${runnerUpdateErr}` : `${runnerInstall.version} is installed on this machine; nothing newer is known`}>Update</Button>;
   }
   const counts = report?.findingCounts ?? {};
-  const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
+  const totalFindings = Object.values(counts).reduce<number>((n, v) => n + (v ?? 0), 0);
   const codingAgent = codingAgentName(codingAgents);
   const copyNotice = forkCopyNotice(a);
   const instructionsLine = instructionsNote(instructions, instructionsErr);
@@ -707,7 +710,7 @@ export function ReportCard({
   if (!report) return <Spinner label="Loading report…" />;
 
   const counts = report.findingCounts ?? {};
-  const total = Object.values(counts).reduce((n, v) => n + v, 0);
+  const total = Object.values(counts).reduce<number>((n, v) => n + (v ?? 0), 0);
   const order = ["critical", "high", "medium", "low", "info"];
 
   // Unscanned: the registry admitted the version without a

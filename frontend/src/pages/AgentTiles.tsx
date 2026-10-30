@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import type { app } from "../../wailsjs/go/models";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { ConfigIcon } from "../configGlyphs";
 import { HELPER_SUPERSEDED_LINE, helperSuperseded, isOn, tilesFor, type AgentTile } from "../homeAgent";
 import { tileAfterKey } from "../providerForm";

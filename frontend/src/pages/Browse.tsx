@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
-import { app } from "../../wailsjs/go/models";
+import * as BrowseAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/browseapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Input, ModeBadges, PageHeader,
   QuarantineBadge, Select, Spinner, Toolbar,

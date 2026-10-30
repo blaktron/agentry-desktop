@@ -5,10 +5,10 @@
 // "Can set up meeting recordings", which Go confirms like any roster switch
 // and which needs the heartbeat and Meeting notes on.
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as MeetingAPI from "../../wailsjs/go/app/MeetingAPI";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import type { app } from "../../wailsjs/go/models";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import { EventsOn } from "../host";
 import { cardIcon, cardState } from "../configCards";
 import { ConfigIcon } from "../configGlyphs";
 import { capitalised, isNo, possessive } from "../meetingNotes";

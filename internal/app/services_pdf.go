@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-desktop/internal/runfile"
 )
 
@@ -238,10 +236,10 @@ func (r *RunAPI) SaveRunPDF(runID, rel string) (string, error) {
 	save := r.saveFile
 	if save == nil {
 		save = func(name string) (string, error) {
-			return runtime.SaveFileDialog(r.app.ctx, runtime.SaveDialogOptions{
+			return nativeSaveFile(r.app.ctx, pickOptions{
 				Title:           "Save the PDF",
 				DefaultFilename: name,
-				Filters:         []runtime.FileFilter{{DisplayName: "PDF (*.pdf)", Pattern: "*.pdf"}},
+				Filters:         []fileFilter{{Name: "PDF (*.pdf)", Pattern: "*.pdf"}},
 			})
 		}
 	}

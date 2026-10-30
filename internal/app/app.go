@@ -10,13 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
-// App carries the Wails lifecycle context the bound services share.
+// App carries the application context the bound services share.
 type App struct {
 	ctx context.Context
 
@@ -39,29 +37,12 @@ type App struct {
 	keyFiles keyFilePicks
 	// pickKeyFile is the native file picker ChooseHostKeyFile opens; nil
 	// is the OS's, and a test substitutes one.
-	pickKeyFile func(ctx context.Context, opts runtime.OpenDialogOptions) (string, error)
+	pickKeyFile func(ctx context.Context, opts pickOptions) (string, error)
 }
 
 // NewApp creates the application struct.
 func NewApp() *App {
 	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory}
-}
-
-// nativePickDirectory is the OS directory dialog.
-func nativePickDirectory(ctx context.Context, title string) (string, error) {
-	return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{Title: title})
-}
-
-// nativeConfirm is the OS question dialog, No by default and on cancel.
-func nativeConfirm(ctx context.Context, title, message string) (bool, error) {
-	answer, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type: runtime.QuestionDialog, Title: title, Message: message,
-		Buttons: []string{"Yes", "No"}, DefaultButton: "No", CancelButton: "No",
-	})
-	if err != nil {
-		return false, err
-	}
-	return answer == "Yes", nil
 }
 
 // errNotConfirmed is askConsent's answer to a No, for a binding whose No
@@ -227,7 +208,7 @@ func within(dir, p string) bool {
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
-// startup saves the runtime context.
+// startup saves the application context.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
@@ -277,7 +258,7 @@ func (a *App) pickDirectoryUnmarked(title string) (string, error) {
 // paths (empty when the user cancelled) — the run surface's input-files
 // channel is fed from here.
 func (a *App) ChooseFiles(title string) ([]string, error) {
-	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+	files, err := nativeOpenFiles(a.ctx, title)
 	if err != nil {
 		return nil, err
 	}
@@ -300,4 +281,4 @@ func (a *App) OpenExternal(url string) error {
 }
 
 // browserOpenURL opens an address in the system browser; a test replaces it.
-var browserOpenURL = runtime.BrowserOpenURL
+var browserOpenURL = nativeOpenURL

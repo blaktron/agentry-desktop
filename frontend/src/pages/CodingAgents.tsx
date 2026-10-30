@@ -7,10 +7,10 @@
 // model provider when neither is chosen — the folder for it, and the
 // switch "also install into <coding agent>", off by default.
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Notice, Spinner } from "../ui";
 
 // harnessLabel is the product's name the adapter carries ("Claude Code"),

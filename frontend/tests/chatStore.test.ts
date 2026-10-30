@@ -4,7 +4,7 @@
 // nothing open, and follows a chat In Agentry by its run's id.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { createChatStore, working } from "../src/sessionChat.ts";
 
 type Cb = (v: never) => void;

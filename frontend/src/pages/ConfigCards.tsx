@@ -12,9 +12,10 @@
 // way. A mail provider's server card can disable its provider, which keeps
 // the sign-in; a calendar feed's card renames it.
 import { useEffect, useState } from "react";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import type { app, build } from "../../wailsjs/go/models";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import { EventsOn } from "../host";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import type * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
 import { addFormOf, calendarFeedLine, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";

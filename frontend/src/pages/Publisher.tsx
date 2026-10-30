@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as PublisherAPI from "../../wailsjs/go/app/PublisherAPI";
-import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
+import * as PublisherAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/publisherapi";
+import * as BrowseAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/browseapi";
 import { forkProgressLine } from "../fork";
-import { app } from "../../wailsjs/go/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Toolbar, fmtDate,
 } from "../ui";

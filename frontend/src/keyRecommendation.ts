@@ -1,4 +1,4 @@
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
 // The AI Review key's recommendation: the words, the link's label and
 // where the link goes, in one place, so every surface that recommends a key
