@@ -2528,6 +2528,15 @@ export class HostedRunView {
     "error"?: string;
 
     /**
+     * ExitClassMeaning is the class's one-phrase meaning and
+     * RetryLikelyHelps its retry hint, from the CLI's exit-class table; both
+     * absent while the run moves, when it succeeded, and when the registry
+     * named no class.
+     */
+    "exitClassMeaning"?: string;
+    "retryLikelyHelps"?: boolean;
+
+    /**
      * Turns and WallMS are the run's use as the person is told it; its
      * tokens and their dollar cost stay with the registry, which settles
      * them in credits.
@@ -2663,26 +2672,26 @@ export class HostedRunView {
      * Creates a new HostedRunView instance from a string or object.
      */
     static createFrom($$source: any = {}): HostedRunView {
-        const $$createField19_0 = $$createType42;
-        const $$createField21_0 = $$createType60;
-        const $$createField26_0 = $$createType62;
-        const $$createField28_0 = $$createType46;
-        const $$createField31_0 = $$createType64;
+        const $$createField21_0 = $$createType42;
+        const $$createField23_0 = $$createType60;
+        const $$createField28_0 = $$createType62;
+        const $$createField30_0 = $$createType46;
+        const $$createField33_0 = $$createType64;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("capabilitiesEnforced" in $$parsedSource) {
-            $$parsedSource["capabilitiesEnforced"] = $$createField19_0($$parsedSource["capabilitiesEnforced"]);
+            $$parsedSource["capabilitiesEnforced"] = $$createField21_0($$parsedSource["capabilitiesEnforced"]);
         }
         if ("knowledge" in $$parsedSource) {
-            $$parsedSource["knowledge"] = $$createField21_0($$parsedSource["knowledge"]);
+            $$parsedSource["knowledge"] = $$createField23_0($$parsedSource["knowledge"]);
         }
         if ("outputs" in $$parsedSource) {
-            $$parsedSource["outputs"] = $$createField26_0($$parsedSource["outputs"]);
+            $$parsedSource["outputs"] = $$createField28_0($$parsedSource["outputs"]);
         }
         if ("caps" in $$parsedSource) {
-            $$parsedSource["caps"] = $$createField28_0($$parsedSource["caps"]);
+            $$parsedSource["caps"] = $$createField30_0($$parsedSource["caps"]);
         }
         if ("session" in $$parsedSource) {
-            $$parsedSource["session"] = $$createField31_0($$parsedSource["session"]);
+            $$parsedSource["session"] = $$createField33_0($$parsedSource["session"]);
         }
         return new HostedRunView($$parsedSource as Partial<HostedRunView>);
     }
@@ -7257,6 +7266,18 @@ export class RecentRunView {
     "exitClass"?: string;
 
     /**
+     * ExitClassMeaning is the class's one-phrase meaning and
+     * RetryLikelyHelps its retry hint, from the CLI's exit-class table, for
+     * a run that did not end ok; Cause is the runner's last error line as
+     * the record keeps it. LogKept says the history keeps the run's log,
+     * which the run page reads by the run's id.
+     */
+    "exitClassMeaning"?: string;
+    "retryLikelyHelps"?: boolean;
+    "cause"?: string;
+    "logKept"?: boolean;
+
+    /**
      * State is a run In Agentry's place in the site's words; Tone is ok,
      * bad or warn.
      */
@@ -7387,6 +7408,12 @@ export class RecordedRunView {
      */
     "resultJson"?: string;
 
+    /**
+     * Log is the run's kept log, as the history wrote it when the run
+     * ended; "" when none was kept, or it is no longer there.
+     */
+    "log"?: string;
+
     /** Creates a new RecordedRunView instance. */
     constructor($$source: Partial<RecordedRunView> = {}) {
         if (!("run" in $$source)) {
@@ -7417,7 +7444,16 @@ export class RecordedRunView {
  */
 export class RegistryView {
     "url": string;
+
+    /**
+     * HasToken says the app holds a sign-in the registry accepts: a stored
+     * token the registry has not refused. TokenRejected says a token is
+     * stored but the registry answered 401 to it since it was stored or
+     * the app started, so the page shows the registry signed out, with Sign
+     * in; signing in again, or out, clears it.
+     */
     "hasToken": boolean;
+    "tokenRejected"?: boolean;
 
     /**
      * TokenSource is "keyring", "file", or "" when signed out.
@@ -8659,9 +8695,14 @@ export class RunResultView {
      * ExitClass names exitCode in the CLI's words; Stage and Reason say
      * where and why a failed run stopped, in its closed words: a blocked
      * run's reason says whether the QuickAgent or the runner's tools stopped
-     * it.
+     * it. ExitClassMeaning is the class's one-phrase meaning and
+     * RetryLikelyHelps its retry hint, from the CLI's exit-class table, so
+     * the page shows the words every client shows; both are set for a run
+     * that did not end ok.
      */
     "exitClass"?: string;
+    "exitClassMeaning"?: string;
+    "retryLikelyHelps"?: boolean;
     "stage"?: string;
     "reason"?: receipt$0.Reason | null;
 
@@ -8721,13 +8762,13 @@ export class RunResultView {
      */
     static createFrom($$source: any = {}): RunResultView {
         const $$createField18_0 = $$createType193;
-        const $$createField24_0 = $$createType195;
+        const $$createField26_0 = $$createType195;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("policy" in $$parsedSource) {
             $$parsedSource["policy"] = $$createField18_0($$parsedSource["policy"]);
         }
         if ("reason" in $$parsedSource) {
-            $$parsedSource["reason"] = $$createField24_0($$parsedSource["reason"]);
+            $$parsedSource["reason"] = $$createField26_0($$parsedSource["reason"]);
         }
         return new RunResultView($$parsedSource as Partial<RunResultView>);
     }

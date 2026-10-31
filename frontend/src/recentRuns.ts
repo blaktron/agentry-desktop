@@ -14,6 +14,10 @@ export type RunRow = {
   endedAt?: string;
   outcome: string;
   exitCode?: number;
+  /** The exit class by name, with its meaning from the CLI's table, for a
+   *  run that did not end ok. */
+  exitClass?: string;
+  exitClassMeaning?: string;
   state?: string;
   tone: string;
   /** A schedule on this computer fired it. */
@@ -56,26 +60,33 @@ export const isBuiltin = (kind: string): boolean => kind in BUILTIN;
 export const whereRan = (row: Pick<RunRow, "where" | "scheduled">): string =>
   row.where === "agentry" ? "In Agentry" : row.scheduled ? "Scheduled, on this computer" : "On this computer";
 
-/** How it ended, in a few words; a run In Agentry in the site's words. */
-export function howItEnded(row: Pick<RunRow, "where" | "outcome" | "exitCode" | "state">): string {
+/** How it ended, in a few words: a failure by its exit class's name; a run
+ *  In Agentry in the site's words. */
+export function howItEnded(row: Pick<RunRow, "where" | "outcome" | "exitCode" | "exitClass" | "state">): string {
   if (row.where === "agentry") return row.state || row.outcome;
   switch (row.outcome) {
     case "ok": return "Finished";
     case "stopped": return "Stopped";
     case "blocked": return "Blocked";
-    default: return row.exitCode ? `Ended in an error (exit ${row.exitCode})` : "Did not finish";
+    default:
+      if (row.exitClass) return `Failed (${row.exitClass})`;
+      return row.exitCode ? `Failed (exit ${row.exitCode})` : "Did not finish";
   }
 }
 
-/** The run page's headline: how the run ended, in a sentence. A run In
- *  Agentry's own line is the registry's (HostedRunView.outcomeLine). */
-export function headline(row: Pick<RunRow, "kind" | "outcome" | "exitCode">): string {
+/** The run page's headline: how the run ended, in a sentence; a failure
+ *  names its class and what it means. A run In Agentry's own line is the
+ *  registry's (HostedRunView.outcomeLine). */
+export function headline(row: Pick<RunRow, "kind" | "outcome" | "exitCode" | "exitClass" | "exitClassMeaning">): string {
   const subject = row.kind === "run" || row.kind === "chat" ? "It" : "The job";
   switch (row.outcome) {
     case "ok": return "Finished.";
     case "stopped": return `${subject} was stopped.`;
     case "blocked": return `${subject} was blocked: the QuickAgent could not do the task with what it had.`;
-    default: return row.exitCode ? `${subject} ended in an error (exit ${row.exitCode}).` : `${subject} did not finish.`;
+    default:
+      if (row.exitClass && row.exitClassMeaning) return `${subject} failed (${row.exitClass}): ${row.exitClassMeaning}.`;
+      if (row.exitClass) return `${subject} failed (${row.exitClass}).`;
+      return row.exitCode ? `${subject} failed (exit ${row.exitCode}).` : `${subject} did not finish.`;
   }
 }
 

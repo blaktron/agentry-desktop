@@ -26,11 +26,15 @@ test("where and how it ended, here in the app's words and In Agentry in the site
   // A run that ended blocked (exit 18) is neither an error nor a pass.
   assert.equal(howItEnded({ where: "here", outcome: "blocked", exitCode: 18 }), "Blocked");
   assert.equal(headline({ kind: "run", outcome: "blocked", exitCode: 18 }), "It was blocked: the QuickAgent could not do the task with what it had.");
-  assert.equal(howItEnded({ where: "here", outcome: "error", exitCode: 3 }), "Ended in an error (exit 3)");
+  assert.equal(howItEnded({ where: "here", outcome: "error", exitCode: 3 }), "Failed (exit 3)");
+  assert.equal(howItEnded({ where: "here", outcome: "error", exitCode: 14, exitClass: "harness" }), "Failed (harness)");
   assert.equal(howItEnded({ where: "here", outcome: "error" }), "Did not finish");
   assert.equal(howItEnded({ where: "agentry", outcome: "succeeded", state: "done — pass" }), "done — pass");
   assert.equal(howItEnded({ where: "agentry", outcome: "running", state: "running" }), "running");
-  assert.equal(headline({ kind: "run", outcome: "error", exitCode: 2 }), "It ended in an error (exit 2).");
+  assert.equal(headline({ kind: "run", outcome: "error", exitCode: 2 }), "It failed (exit 2).");
+  assert.equal(headline({ kind: "run", outcome: "error", exitCode: 14, exitClass: "harness", exitClassMeaning: "the agent's harness failed or could not reach its model" }),
+    "It failed (harness): the agent's harness failed or could not reach its model.");
+  assert.equal(headline({ kind: "draft", outcome: "error", exitClass: "policy" }), "The job failed (policy).");
   assert.equal(headline({ kind: "draft", outcome: "error" }), "The job did not finish.");
   assert.equal(headline({ kind: "review", outcome: "stopped" }), "The job was stopped.");
 });

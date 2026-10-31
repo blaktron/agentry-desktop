@@ -393,7 +393,33 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-ac
   padding: 10px 12px;
   margin: 10px 0;
   user-select: text;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
+.error-box-cause { min-width: 0; overflow-wrap: anywhere; }
+.error-box-retry { flex: none; }
+
+/* A run that did not finish (FailedRun.tsx): the facts as a list, the cause
+   as the runner wrote it, the actions in a row. */
+.run-failure { margin-bottom: 12px; }
+.run-failure-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0; }
+.run-failure-facts dt { color: var(--color-muted); }
+.run-failure-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.run-failure-cause {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  white-space: pre-wrap;
+  font-size: 12px;
+  max-height: 160px;
+  overflow: auto;
+}
+.run-failure-actions { margin-top: 8px; }
 
 .notice {
   border: 1px solid var(--color-border);

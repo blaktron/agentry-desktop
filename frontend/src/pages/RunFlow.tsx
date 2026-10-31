@@ -16,15 +16,26 @@
 // meanwhile is refused with what is running. Every string the run wrote
 // (the log, the error, the result) is drawn as text.
 import { useEffect, useRef, useState } from "react";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { failureOf, localFailureInput, reportText } from "../failedRun";
 import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, shownLog } from "../localRun";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
+import { FailedRunView } from "./FailedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 
-export default function RunFlow(props: {
+export type RunFlowActions = {
   /** Opens the run's setup again, with the answers as they were. */
   onBackToSetup: (s: RunSetup) => void;
+  /** Run again: the setup opens with the answers as they were and starts the
+   *  run at once. Offered on a failure whose class says a retry may help. */
+  onRunAgain?: (s: RunSetup) => void;
+  /** Report: opens Report bug with the failure's facts filled in. */
+  onReport?: (text: string) => void;
+};
+
+export default function RunFlow(props: RunFlowActions & {
   /** Harness-only: open as the corner card. */
   initialMinimized?: boolean;
 }) {
@@ -79,8 +90,7 @@ function QueueCard({ queue }: { queue: QueuedRun[] }) {
   );
 }
 
-function FollowedRun({ onBackToSetup, initialMinimized }: {
-  onBackToSetup: (s: RunSetup) => void;
+function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: RunFlowActions & {
   initialMinimized?: boolean;
 }) {
   const s = useLocalRun();
@@ -155,8 +165,26 @@ function FollowedRun({ onBackToSetup, initialMinimized }: {
     const s = backToSetup();
     if (s) onBackToSetup(s);
   };
+  // Run again: the same answers, started at once.
+  const again = onRunAgain && s.setup ? () => {
+    const setup = backToSetup();
+    if (setup) onRunAgain(setup);
+  } : undefined;
+  // A run that failed: its facts and actions stand where the headline was,
+  // for a run with a result and one that ended before it had one alike.
+  const failure = res ? failureOf(localFailureInput(res, r.stopped)) : r.stopped ? null : failureOf({ where: "here", status: "error", cause: r.error ?? "", ref: r.ref });
+  const runId = res?.runId ?? r.runId ?? "";
+  const failed = failure && (
+    <FailedRunView
+      failure={failure}
+      runAgain={again && { label: "Run again with the same answers", onClick: again }}
+      openFolder={res?.outDir ? () => void RunAPI.ShowRunFolder(res.runId).catch(() => undefined) : undefined}
+      report={onReport ? () => { minimize(); onReport(reportText(failure, runId)); } : undefined}
+    />
+  );
   // Closing the dialog of a run that is over keeps its card: only Dismiss
-  // makes the app forget the run.
+  // makes the app forget the run. Report shrinks the dialog to its card
+  // first, so the Report bug card it opens is the one in front.
   return (
     <Modal title={`Run ${r.ref}`} onClose={minimize} wide>
       {res ? (
@@ -164,7 +192,8 @@ function FollowedRun({ onBackToSetup, initialMinimized }: {
           runId={res.runId}
           headline={headlineOf(res, r.stopped).line}
           tone={headlineOf(res, r.stopped).tone}
-          error={res.error || undefined}
+          error={failure ? undefined : res.error || undefined}
+          lead={failed || undefined}
           resultJson={res.resultJson}
           knowledge={res.knowledge}
           decode={res.decode}
@@ -174,8 +203,8 @@ function FollowedRun({ onBackToSetup, initialMinimized }: {
         </RunResultView>
       ) : (
         <>
-          <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>
-          <ErrorBox error={r.error} />
+          {failed ?? <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>}
+          {!failed && <ErrorBox error={r.error} />}
           {r.log.length > 0 && <LogPane label="Run log" lines={shownLog(r)} reveal />}
         </>
       )}

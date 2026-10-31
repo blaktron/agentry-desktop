@@ -25,12 +25,15 @@ import { withheldLine } from "../deliverables";
 import { DeliverableItem, SentTo } from "./Deliverables";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, knowledge, decode, unsafeExec, ask, children,
+  runId, headline, tone, error, lead, resultJson, knowledge, decode, unsafeExec, ask, children,
 }: {
   runId: string;
   headline: string;
   tone: "ok" | "bad" | "warn";
   error?: string;
+  /** Drawn under the headline, before the result: a failed run's facts and
+   *  actions (FailedRunView), which then carries the headline itself. */
+  lead?: React.ReactNode;
   /** The run/v1 envelope's result, as JSON text. */
   resultJson: string;
   /** The receipt's knowledge line: the packs this run could search, and how
@@ -50,6 +53,8 @@ export function RunResultView({
 }) {
   const [outputs, setOutputs] = useState<app.RunOutputsView | null>(null);
   const [outputsErr, setOutputsErr] = useState<string | null>(null);
+  // Bumped by the outputs box's Try again.
+  const [outputsTry, setOutputsTry] = useState(0);
   const [folderErr, setFolderErr] = useState<string | null>(null);
   // The files the run was for, which Go lists after checking each against the
   // run's record: first on the result.
@@ -59,6 +64,7 @@ export function RunResultView({
     if (!runId) return;
     let live = true;
     setDeliverables(null);
+    setOutputsErr(null);
     RunAPI.RunOutputs(runId)
       .then((v) => live && setOutputs(v))
       .catch((e) => live && setOutputsErr(String(e)));
@@ -70,12 +76,12 @@ export function RunResultView({
     return () => {
       live = false;
     };
-  }, [runId]);
+  }, [runId, outputsTry]);
 
   const files = outputs?.files ?? [];
   return (
     <div className="run-result-view">
-      <h3 className={`run-outcome run-outcome-${tone}`}>{headline}</h3>
+      {lead ?? <h3 className={`run-outcome run-outcome-${tone}`}>{headline}</h3>}
       {error && <ErrorBox error={error} />}
 
       {deliverables && (deliverables.files.length > 0 || deliverables.withheld > 0) && (
@@ -141,7 +147,7 @@ export function RunResultView({
           )}
         </div>
         <ErrorBox error={folderErr} />
-        <ErrorBox error={outputsErr} />
+        <ErrorBox error={outputsErr} onRetry={() => setOutputsTry((n) => n + 1)} />
         <p className="muted small">What is under the folder&apos;s outputs/ and reports/: if the folder was used before, earlier files are here too.</p>
         {outputs && files.length === 0 && <p className="muted small">There is nothing in outputs/ or reports/.</p>}
         {files.map((f) => f.pdf ? (
@@ -276,7 +282,7 @@ export function LocalRunDetails({ result, log }: { result: app.RunResultView; lo
         <div className="row">
           {result.status === "ok"
             ? <span className="badge ok">ok</span>
-            : <span className="badge bad">error (exit {result.exitCode})</span>}
+            : <span className="badge bad">{result.exitClass || "error"} (exit {result.exitCode})</span>}
           <span className={`badge ${result.attestationState === "verified" ? "ok" : "warn"}`}>
             attestation: {result.attestationState}
           </span>

@@ -17,7 +17,10 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Spinner } from "../ui";
 import { RunResultView } from "./RunResult";
+import { FailedRunView } from "./FailedRun";
 import { HostedResult } from "./HostedRun";
+import { failureOf, hostedFailureInput, nameOf as refName, reportText, rowFailureInput } from "../failedRun";
+import { LogPane } from "../progress";
 import { type BuiltinPage, builtinPlace, headline, howItEnded, isBuiltin, rowLine, versionOf, whatRan } from "../recentRuns";
 import type { Tone as JobTone } from "../jobProgress";
 import { ReviewReport } from "./ReviewFlow";
@@ -27,7 +30,15 @@ export type RunPageSource = "local" | "hosted";
 type Tone = Exclude<JobTone, "">;
 const tone = (t?: string): Tone => (t === "ok" || t === "bad" ? t : "warn");
 
-export default function RunPage({ source, id, registry, backLabel, onBack, onOpenPlace, onOpenDraft }: {
+/** What a run page can do beyond reading: open the QuickAgent's run setup
+ *  again (the history keeps no answers, so the setup opens as it does from
+ *  the page), and Report bug with a failure's facts filled in. */
+export type RunPageActions = {
+  onRunAgain?: (registry: string, ns: string, name: string) => void;
+  onReport?: (text: string) => void;
+};
+
+export default function RunPage({ source, id, registry, backLabel, onBack, onOpenPlace, onOpenDraft, onRunAgain, onReport }: RunPageActions & {
   source: RunPageSource;
   id: string;
   // The registry a run In Agentry is read from.
@@ -38,8 +49,17 @@ export default function RunPage({ source, id, registry, backLabel, onBack, onOpe
   onOpenDraft: (draft: app.DraftView) => void;
 }) {
   return source === "hosted"
-    ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />
-    : <LocalRunPage registry={registry} id={id} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />;
+    ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} onRunAgain={onRunAgain} onReport={onReport} />
+    : <LocalRunPage registry={registry} id={id} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} onRunAgain={onRunAgain} onReport={onReport} />;
+}
+
+/** Run again from a run page: the QuickAgent's run setup, for a run of a
+ *  release (a built-in's job has its own place). */
+function runAgainOf(onRunAgain: RunPageActions["onRunAgain"], registry: string, kind: string, ref?: string) {
+  const name = refName(ref);
+  if (!onRunAgain || kind !== "run" || !name.includes("/")) return undefined;
+  const [ns, n] = name.split("/");
+  return { label: "Run it again", onClick: () => onRunAgain(registry, ns, n) };
 }
 
 function Back({ label, onBack }: { label: string; onBack: () => void }) {
@@ -98,7 +118,7 @@ function GoneFolder({ id, error, onRemoved }: { id: string; error?: string; onRe
   );
 }
 
-function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraft }: {
+function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraft, onRunAgain, onReport }: RunPageActions & {
   registry: string;
   id: string;
   backLabel: string;
@@ -108,11 +128,14 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
 }) {
   const [view, setView] = useState<app.RecordedRunView | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Bumped by the read's Try again.
+  const [attempt, setAttempt] = useState(0);
   // An Examiner review's report, which is the review's page.
   const [report, setReport] = useState<app.ReviewView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
+    setErr(null);
     RunAPI.RecordedRun(id).then((v) => {
       if (!live) return;
       setView(v);
@@ -121,13 +144,13 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
       }
     }).catch((e) => live && setErr(String(e)));
     return () => { live = false; };
-  }, [id]);
+  }, [id, attempt]);
   if (err) {
     return (
       <div>
         <Back label={backLabel} onBack={onBack} />
         <PageHeader title="Run" />
-        <ErrorBox error={err} />
+        <ErrorBox error={err} onRetry={() => setAttempt((n) => n + 1)} />
       </div>
     );
   }
@@ -135,6 +158,19 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
   const row = view.run;
   const hostedLine = row.where === "agentry" ? `${howItEnded(row)}.` : null;
   const version = versionOf(row.ref);
+  // A run that failed: its facts, with the log the history kept.
+  const failure = failureOf(rowFailureInput(row, view.folderState === "present" ? view.folder : undefined));
+  const log = view.log ? view.log.replace(/\n$/, "").split("\n") : [];
+  const failed = failure && (
+    <FailedRunView
+      failure={failure}
+      runAgain={runAgainOf(onRunAgain, row.registry || registry, row.kind, row.ref)}
+      openFolder={view.folderState === "present" ? () => void RunAPI.ShowRunFolder(row.id).catch(() => undefined) : undefined}
+      report={onReport ? () => onReport(reportText(failure, row.id)) : undefined}
+    >
+      {log.length > 0 && <LogPane label="Run log" lines={log} reveal />}
+    </FailedRunView>
+  );
   return (
     <div className="run-page" data-run-page={row.id}>
       <Back label={backLabel} onBack={onBack} />
@@ -151,12 +187,14 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
           </details>
         </>
       ) : view.folderState === "present" ? (
-        <RunResultView runId={row.id} headline={hostedLine ?? headline(row)} tone={tone(row.tone)} resultJson={view.resultJson ?? ""}>
+        <RunResultView runId={row.id} headline={hostedLine ?? headline(row)} tone={tone(row.tone)} lead={failed || undefined} resultJson={view.resultJson ?? ""}>
+          {!failed && log.length > 0 && <LogPane label="Run log" lines={log} reveal />}
           <RunFacts row={row} version={version} folder={view.folder} />
         </RunResultView>
       ) : (
         <Card>
-          <h3 className={`run-outcome run-outcome-${tone(row.tone)}`}>{hostedLine ?? headline(row)}</h3>
+          {failed ?? <h3 className={`run-outcome run-outcome-${tone(row.tone)}`}>{hostedLine ?? headline(row)}</h3>}
+          {!failed && log.length > 0 && <LogPane label="Run log" lines={log} reveal />}
           {view.folderState === "none" && (
             <p className="muted small">
               {isBuiltin(row.kind)
@@ -185,7 +223,7 @@ function RunFacts({ row, version, folder }: { row: app.RecentRunView; version: s
   );
 }
 
-function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDraft }: {
+function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDraft, onRunAgain, onReport }: RunPageActions & {
   id: string;
   registry: string;
   backLabel: string;
@@ -195,13 +233,15 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
 }) {
   const [view, setView] = useState<app.HostedRecordView | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [downloadErr, setDownloadErr] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
+    setErr(null);
     RunAPI.HostedRecord(registry, id).then((v) => live && setView(v)).catch((e) => live && setErr(String(e)));
     return () => { live = false; };
-  }, [registry, id]);
+  }, [registry, id, attempt]);
   async function download() {
     setBusy(true);
     setDownloadErr(null);
@@ -218,7 +258,7 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
       <div>
         <Back label={backLabel} onBack={onBack} />
         <PageHeader title="Run In Agentry" />
-        <ErrorBox error={err} />
+        <ErrorBox error={err} onRetry={() => setAttempt((n) => n + 1)} />
       </div>
     );
   }
@@ -227,6 +267,18 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
   const row = { kind: view.kind, ref: run.ref };
   const said = run.outcomeLine || run.statusLine || run.state || run.status;
   const line = `${said.charAt(0).toUpperCase()}${said.slice(1)}.`;
+  // A run that failed In Agentry, its record read live: the registry's
+  // class and error line, the run page as the evidence.
+  const failure = run.final || run.status === "finished" ? failureOf(hostedFailureInput({ ...run, outDir: view.kept ? run.outDir : "" } as app.HostedRunView)) : null;
+  const failed = failure && (
+    <FailedRunView
+      failure={failure}
+      runAgain={view.kind === "run" ? runAgainOf(onRunAgain, registry, "run", run.ref) : undefined}
+      openRun={() => void RunAPI.OpenHostedRunPage(registry, run.id).catch(() => undefined)}
+      openFolder={view.kept ? () => void RunAPI.ShowRunFolder(run.id).catch(() => undefined) : undefined}
+      report={onReport ? () => onReport(reportText(failure, run.id)) : undefined}
+    />
+  );
   return (
     <div className="run-page" data-run-page={run.id} data-run-source="hosted">
       <Back label={backLabel} onBack={onBack} />
@@ -234,13 +286,13 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
       {view.followed && <Notice tone="info">This run is followed in its card, which brings its output here when it ends.</Notice>}
       {view.folderState === "gone" && <GoneFolder id={run.id} error={view.folderError} onRemoved={onBack} />}
       {view.kept ? (
-        <RunResultView runId={run.id} headline={line} tone={tone(run.outcomeTone)} resultJson={run.resultJson ?? ""}>
+        <RunResultView runId={run.id} headline={line} tone={tone(run.outcomeTone)} lead={failed || undefined} resultJson={run.resultJson ?? ""}>
           <HostedResult run={run} />
         </RunResultView>
       ) : (
         <>
           <Card>
-            <h3 className={`run-outcome run-outcome-${tone(run.outcomeTone)}`}>{line}</h3>
+            {failed ?? <h3 className={`run-outcome run-outcome-${tone(run.outcomeTone)}`}>{line}</h3>}
             {view.noOutput && <p className="small" data-no-output>{view.noOutput.charAt(0).toUpperCase() + view.noOutput.slice(1)}.</p>}
             {view.downloadable && (
               <>
@@ -251,7 +303,7 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
                 <Button variant="primary" disabled={busy} data-download-output onClick={() => void download()}>
                   {busy ? "Downloading…" : "Download output"}
                 </Button>
-                <ErrorBox error={downloadErr} />
+                <ErrorBox error={downloadErr} onRetry={() => void download()} retrying={busy} />
               </>
             )}
           </Card>

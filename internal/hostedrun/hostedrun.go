@@ -430,8 +430,8 @@ func New(regURL, token string) *Client {
 	return &Client{
 		base:     strings.TrimRight(regURL, "/"),
 		token:    token,
-		HTTP:     &http.Client{Timeout: 2 * time.Minute, CheckRedirect: registry.KeepTokenHome},
-		Download: &http.Client{CheckRedirect: registry.KeepTokenHome},
+		HTTP:     &http.Client{Timeout: 2 * time.Minute, CheckRedirect: registry.KeepTokenHome, Transport: registry.Transport},
+		Download: &http.Client{CheckRedirect: registry.KeepTokenHome, Transport: registry.Transport},
 	}
 }
 

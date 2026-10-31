@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
 import { agentOf, cardStatus, clickDoes, iconDate, iconKind, iconName } from "../../deliverables";
 import { FileIcon } from "../../fileIcons";
 import { RevealText, plainName } from "../../reveal";
@@ -22,15 +22,16 @@ import { ErrorBox } from "../../ui";
 // accessible name; nothing else of it is drawn. Open folder shows the
 // folder itself; the card's title opens Run defaults, where the folder is
 // chosen and the switch lives.
-export function DeliverablesCard({ view, error, now, onOpenSettings }: {
+export function DeliverablesCard({ view, error, onRetry, now, onOpenSettings }: {
   view: app.RecentDeliverablesView | null;
   error: string | null;
+  onRetry?: () => void;
   now: Date;
   onOpenSettings: () => void;
 }) {
   const files = view?.files ?? [];
   const [failure, setFailure] = useState<string | null>(null);
-  const status = cardStatus({
+  const status = error ? <CouldNotRead what="Deliverables" error={error} onRetry={onRetry} /> : cardStatus({
     on: view?.on ?? true, remember: view?.remember ?? true, count: files.length, error, reading: !view && !error,
   });
   const run = (f: () => Promise<void>) => { setFailure(null); f().catch((e) => setFailure(String(e))); };

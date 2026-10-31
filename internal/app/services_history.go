@@ -96,8 +96,9 @@ func localOutcome(ctx context.Context, res *run.Result) (string, int) {
 
 // recordLocal records a QuickAgent's run or chat on this computer from the
 // engine's result as Go read it (res is nil when the engine never wrote an
-// envelope).
-func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *run.Result) {
+// envelope; err is then why), with its log, kept in a file of its own while
+// the history is on.
+func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *run.Result, err error) {
 	if l == nil {
 		return
 	}
@@ -112,6 +113,22 @@ func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *
 		}
 		e.Digest = res.Digest
 		e.Folder = cleanAbs(res.OutDir)
+		if res.Status != "ok" {
+			e.ExitClass, e.Cause = res.ExitClass, res.Error
+		}
+	} else if err != nil && outcome == runhistory.OutcomeError {
+		e.Cause = err.Error()
+	}
+	if !historyOn() {
+		return
+	}
+	if lines := l.kept(); len(lines) > 0 {
+		path, kerr := runhistory.KeepLog(l.id, lines)
+		if kerr != nil {
+			log.Printf("agentry-desktop: run history: %v", kerr)
+		} else {
+			e.Log = path
+		}
 	}
 	record(e)
 }
@@ -200,11 +217,15 @@ func recordHosted(reg string, h *hostedrun.Run, dir string) {
 	if outcome == "" {
 		outcome = h.Status
 	}
-	record(runhistory.Entry{
+	e := runhistory.Entry{
 		ID: h.ID, Kind: hostedKind(h), Where: runhistory.WhereAgentry, Registry: settings.Normalize(reg),
 		Ref: refOrEmpty(h.Ref), Digest: h.Digest, StartedAt: started.UTC(), EndedAt: ended.UTC(),
 		Outcome: outcome, ExitClass: h.ExitClass, Folder: cleanAbs(dir),
-	})
+	}
+	if outcome != hostedrun.OutcomeSucceeded {
+		e.Cause = h.Error
+	}
+	record(e)
 }
 
 // cleanAbs is dir made absolute and clean, as the history keeps a folder;
@@ -356,6 +377,15 @@ type RecentRunView struct {
 	Outcome   string `json:"outcome"`
 	ExitCode  int    `json:"exitCode,omitempty"`
 	ExitClass string `json:"exitClass,omitempty"`
+	// ExitClassMeaning is the class's one-phrase meaning and
+	// RetryLikelyHelps its retry hint, from the CLI's exit-class table, for
+	// a run that did not end ok; Cause is the runner's last error line as
+	// the record keeps it. LogKept says the history keeps the run's log,
+	// which the run page reads by the run's id.
+	ExitClassMeaning string `json:"exitClassMeaning,omitempty"`
+	RetryLikelyHelps bool   `json:"retryLikelyHelps,omitempty"`
+	Cause            string `json:"cause,omitempty"`
+	LogKept          bool   `json:"logKept,omitempty"`
 	// State is a run In Agentry's place in the site's words; Tone is ok,
 	// bad or warn.
 	State string `json:"state,omitempty"`
@@ -402,7 +432,8 @@ func entryView(e runhistory.Entry) RecentRunView {
 	v := RecentRunView{
 		ID: e.ID, Kind: e.Kind, Where: e.Where, Registry: e.Registry, Ref: e.Ref,
 		StartedAt: rfc3339(e.StartedAt), EndedAt: rfc3339(e.EndedAt),
-		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Kept: e.Folder != "", Source: sourceLocal,
+		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Cause: e.Cause, LogKept: e.Log != "",
+		Kept: e.Folder != "", Source: sourceLocal,
 	}
 	if e.Where == runhistory.WhereAgentry {
 		h := &hostedrun.Run{Status: hostedrun.StatusFinished, Outcome: e.Outcome}
@@ -410,8 +441,14 @@ func entryView(e runhistory.Entry) RecentRunView {
 			h.Status, h.Outcome = hostedrun.StatusCancelled, ""
 		}
 		v.State, v.Tone = hostedrun.State(h), hostedrun.Read(h).Tone
+		if e.Outcome != hostedrun.OutcomeSucceeded && e.ExitClass != "" {
+			v.ExitClassMeaning, v.RetryLikelyHelps = exitClassWords(e.ExitClass, 0)
+		}
 	} else {
 		v.Tone = localTone(e.Outcome)
+		if e.Outcome == runhistory.OutcomeError || e.Outcome == runhistory.OutcomeBlocked {
+			v.ExitClassMeaning, v.RetryLikelyHelps = exitClassWords(e.ExitClass, e.ExitCode)
+		}
 	}
 	return v
 }
@@ -517,6 +554,9 @@ type RecordedRunView struct {
 	// ResultJSON is the result in the folder's result.json, its result
 	// alone: how the run ended is the entry's, never the file's.
 	ResultJSON string `json:"resultJson,omitempty"`
+	// Log is the run's kept log, as the history wrote it when the run
+	// ended; "" when none was kept, or it is no longer there.
+	Log string `json:"log,omitempty"`
 }
 
 // RecordedRun is a run the history keeps, by its id: the run page's local
@@ -545,6 +585,13 @@ func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
 	v := &RecordedRunView{Run: entryView(e), Folder: e.Folder, FolderState: folderNone}
 	if schedule != "" {
 		v.Run.Scheduled, v.Run.Schedule = true, schedule
+	}
+	if e.Log != "" {
+		if b, ok := readRegular(e.Log, runhistory.MaxLogBytes); ok {
+			v.Log = string(b)
+		} else {
+			v.Run.LogKept = false
+		}
 	}
 	if e.Folder == "" {
 		return v, nil
@@ -706,6 +753,20 @@ func (r *RunAPI) HostedRecord(reg, runID string) (*HostedRecordView, error) {
 		return nil, fmt.Errorf("the registry answered the run %s as %q", runID, h.ID)
 	}
 	return r.collectedRecordView(h), nil
+}
+
+// OpenHostedRunPage opens a run In Agentry's own page on the site, in the
+// system browser: the site and the registry share an origin, and the page
+// is the run's by its id. Nothing is sent but the address.
+func (r *RunAPI) OpenHostedRunPage(reg, runID string) error {
+	if !validRunID(runID) {
+		return errUnknownRun
+	}
+	reg = settings.Normalize(reg)
+	if err := settings.ValidateURL(reg); err != nil {
+		return err
+	}
+	return r.app.OpenExternal(originOf(reg) + "/runs/" + runID)
 }
 
 // collectedRecordView is hostedRecordView for a run page being opened: a

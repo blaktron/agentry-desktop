@@ -4,6 +4,7 @@
 // only; the trust/mode/capability badges live in ui.tsx, which re-exports
 // these so a page imports everything from "../ui".
 import React from "react";
+import { causeOf } from "./errorText";
 
 type ButtonVariant = "default" | "primary" | "danger" | "ghost" | "link";
 
@@ -87,9 +88,25 @@ export function Spinner({ label }: { label?: string }) {
   return <div className="spinner">{label ?? "Loading…"}</div>;
 }
 
-export function ErrorBox({ error }: { error: string | null }) {
-  if (!error) return null;
-  return <div className="error-box selectable">{error}</div>;
+/** What went wrong, as a sentence (causeOf), announced as an alert. With
+ *  onRetry, the box offers the action again: a read that can be made again,
+ *  a start that can be tried again. retrying draws that button busy. */
+export function ErrorBox({ error, onRetry, retryLabel = "Try again", retrying }: {
+  error: string | null | undefined;
+  onRetry?: () => void;
+  retryLabel?: string;
+  retrying?: boolean;
+}) {
+  const cause = causeOf(error);
+  if (!cause) return null;
+  return (
+    <div className="error-box selectable" role="alert">
+      <span className="error-box-cause">{cause}</span>
+      {onRetry && (
+        <Button className="error-box-retry" onClick={onRetry} busy={retrying} busyLabel="Trying again…">{retryLabel}</Button>
+      )}
+    </div>
+  );
 }
 
 /** A one-line status message. `tone` picks the accent; default is neutral. */

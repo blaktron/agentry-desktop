@@ -1,5 +1,5 @@
 import * as install from "../../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
 import { installedLine, recentInstalls } from "../../homeLines";
 
 // Home's Installed QuickAgents card: how many
@@ -7,10 +7,11 @@ import { installedLine, recentInstalls } from "../../homeLines";
 // check's snapshot, never a new check), and the newest five. The card
 // opens the Library; a name opens its page, or the Library for one
 // installed from a folder, which has no page.
-export function InstalledCard({ records, updates, error, onOpenLibrary, onOpenBrowse, onOpenAgent }: {
+export function InstalledCard({ records, updates, error, onRetry, onOpenLibrary, onOpenBrowse, onOpenAgent }: {
   records: install.Item[] | null;
   updates: number;
   error: string | null;
+  onRetry?: () => void;
   onOpenLibrary: () => void;
   onOpenBrowse: () => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;
@@ -25,7 +26,7 @@ export function InstalledCard({ records, updates, error, onOpenLibrary, onOpenBr
       title="Installed QuickAgents"
       onOpen={onOpenLibrary}
       className="home-card"
-      status={error ? "The Library could not be read." : records ? installedLine(onComputer.length, updates) : "Reading the Library…"}
+      status={error ? <CouldNotRead what="The Library" error={error} onRetry={onRetry} /> : records ? installedLine(onComputer.length, updates) : "Reading the Library…"}
     >
       {records && recent.length > 0 && (
         <ul className="home-card-list">
