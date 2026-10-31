@@ -9,10 +9,13 @@
 // task) and Review and start (the recap, the output folder, Advanced, the
 // consents and Run). A step the release does not need is left out. The gates
 // are the blockers the Run button reads, the native consent dialog on Run
-// (runGates), and paths from native pickers only. Once a run or a chat starts,
-// this setup hands it to its flow above the pages (RunFlow, HostedRunFlow,
-// ChatFlow) and closes: it shows only the setup, a refusal, and the
-// missing-secret ask.
+// (runGates), and paths from native pickers only. A run on this machine
+// needs a container engine and a way to pay for the model: while either is
+// missing the setup for it is shown in this panel, on Before you start and
+// on Review and start, so what was entered is kept and the run goes on once
+// it answers. Once a run or a chat starts, this setup hands it to its flow
+// above the pages (RunFlow, HostedRunFlow, ChatFlow) and closes: it shows
+// only the setup, a refusal, and the missing-secret ask.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
@@ -50,6 +53,8 @@ import { HostQuestion } from "./HostQuestion";
 import { SendTo } from "./SendTo";
 import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
+import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
+import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from "../runReadiness";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it. */
@@ -269,8 +274,13 @@ export default function RunPanel({
   // The author's guide for this exact release (manifest v2), if any.
   const guide = profile?.guide ?? null;
 
+  // This machine's readiness: read when the panel opens, and again when the
+  // engine setup shown in place reports the engine answering (recheckSetup)
+  // or the model setup saves (takeSetup); the answers are untouched by it.
+  const takeSetup = (s: app.SetupStatusView) => { setSetup(s); setSetupErr(null); };
+  const recheckSetup = () => RunAPI.SetupStatus().then(takeSetup).catch((e) => setSetupErr(String(e)));
   useEffect(() => {
-    RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
+    void recheckSetup();
     SettingsAPI.RunDefaults()
       .then((d) => {
         setDefaults(d);
@@ -498,9 +508,11 @@ export default function RunPanel({
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
     else if (!offer?.available) blockers.push(offer?.reason || "A run In Agentry is not available for this release.");
   } else if (!setup) {
-    blockers.push("Checking this machine's setup.");
-  } else if (!setup.dockerOk) {
-    blockers.push("The container engine is not ready — set it up in Settings → Run defaults" + (hosted?.offered ? ", or run this release In Agentry." : "."));
+    blockers.push(setupErr ? `This machine's setup could not be read: ${setupErr}` : "Checking this machine's setup.");
+  } else {
+    // The engine, then the model: each set up in this panel, below.
+    const gapLine = gapBlocker(setup, false, !!hosted?.offered);
+    if (gapLine) blockers.push(gapLine);
   }
   // The release's own profile is this machine's: a run In Agentry takes its
   // keys from the account's secrets there instead.
@@ -585,6 +597,32 @@ export default function RunPanel({
     if (check.state === "done" && !check.ready) blockers.push(...check.gaps.map((g) => `A scheduled run would not have it: ${g}`));
   }
   const canRun = !busy && blockers.length === 0;
+  const why = runButtonWhy(blockers, busy);
+  // The setup a run on this machine still needs, shown in place: the
+  // container engine's card while no engine answers, then the model
+  // provider's form while there is no way to pay for the model. Each
+  // reports back through the setup status, and nothing entered in this
+  // panel is touched by it. A run In Agentry needs neither.
+  const gap = setupGap(setup, inAgentry);
+  const setupInPlace = gap && setup && (
+    <div className="run-setup-in-place" data-setup-gap={gap}>
+      {gap === "engine" ? (
+        <>
+          <p className="small"><strong>The container engine first.</strong> {engineGapLine(!!hosted?.offered)}</p>
+          <PrereqCard onDone={recheckSetup} />
+        </>
+      ) : (
+        <>
+          <p className="small"><strong>The model provider first.</strong> {modelGapLine(setup, !!hosted?.offered)}</p>
+          <RuntimeSetup
+            heading="Model provider"
+            intro="Choose the provider runs on this computer use and how to pay for it: a plan you already have, a connected account, or an API key kept on this machine. Saving here writes the same runner policy as Settings → Model provider."
+            onStatus={takeSetup}
+          />
+        </>
+      )}
+    </div>
+  );
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -1163,13 +1201,7 @@ export default function RunPanel({
               {/* Machine readiness — the local modes only; a run In
                   Agentry needs nothing from this machine. */}
               {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
-              {setup && !setup.dockerOk && !inAgentry && (
-                <div className="error-box selectable">
-                  No container engine answers — a QuickAgent run on this machine needs one.
-                  {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Set it up in Settings → Run defaults, then reopen this panel
-                  {hosted?.offered ? ", or run this release In Agentry" : ""}.
-                </div>
-              )}
+              {setupInPlace}
               {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
                 <Notice tone="warn">
                   The gateway/harness/runner images are not all present yet — this run will install
@@ -1844,6 +1876,7 @@ export default function RunPanel({
                   executing and refuses a release whose signature cannot be verified.
                 </div>
               )}
+              {setupInPlace}
               {!busy && blockers.length > 0 && (
                 <div className="muted small run-blockers">
                   <strong>{scheduling ? "Before you can schedule:" : "Before you can run:"}</strong>
@@ -1947,12 +1980,17 @@ export default function RunPanel({
             {step === "review" ? (
               <>
                 <Button onClick={onClose} disabled={running}>Close</Button>
-                <Button variant="primary" disabled={!canRun} onClick={runAgent}>{runLabel}</Button>
+                <Button variant="primary" disabled={!canRun} onClick={runAgent} aria-describedby={why ? "run-button-why" : undefined}>{runLabel}</Button>
               </>
             ) : (
               <Button variant="primary" onClick={next}>Next: {STEP_LABEL[steps[at + 1]]}</Button>
             )}
           </div>
+          {/* Why the button is off, beside it and in plain text: the first
+              of the blockers above, which a tooltip alone would hide. */}
+          {step === "review" && why && (
+            <p className="run-button-why muted small" id="run-button-why" role="status">{why}</p>
+          )}
         </section>
         
 

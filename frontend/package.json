@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test 'tests/**/*.test.ts'"
+    "test": "node --import ./tests/register.mjs --experimental-strip-types --no-warnings=ExperimentalWarning --test 'tests/**/*.test.ts'"
   },
   "dependencies": {
     "@tiptap/core": "^3.32.2",

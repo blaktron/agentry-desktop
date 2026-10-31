@@ -76,6 +76,12 @@ type Status struct {
 	KeyNotice   string
 	BaseURL     string
 	ImagesReady bool
+	// ModelReady: a run on this computer has a way to pay for its model
+	// (modelReadiness has the rule); ModelGap says in one sentence what is
+	// missing when it is not, so the run setup can offer the model setup
+	// before the run. It never carries a value.
+	ModelReady bool
+	ModelGap   string
 	// Budget defaults, for the run form's placeholders.
 	TimeoutSeconds int
 	MaxTurns       int
@@ -135,6 +141,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 		}
 	}
 	st.ProviderSetUp = st.PolicyExists && !reflect.DeepEqual(pol.Model, policy.Default().Model)
+	st.ModelReady, st.ModelGap = modelReadiness(pol, st.KeysStored, st.KeyStoreErr)
 	st.BaseURL = pol.Model.BaseURL
 	st.TimeoutSeconds = pol.Budgets.TimeoutSeconds
 	st.MaxTurns = pol.Budgets.MaxTurns
@@ -152,6 +159,77 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.DockerOK = true
 	st.ImagesReady = imagesReady(ctx, newDockerClient(), pol)
 	return st, nil
+}
+
+// signInRecord is the kept model sign-in for a vendor, modelsignin.ErrNone
+// for none: a seam, so a test needs no store on disk.
+var signInRecord = func(vendor string) (*modelsignin.Record, error) {
+	s, _, err := signInStore()
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(vendor)
+}
+
+// modelReadiness is whether a run on this computer has a way to pay for
+// its model, and what is missing when it has none. keysStored and
+// keyStoreErr are the keychain's answers GetStatus already gathered, so
+// the keychain is asked once. The rule is the CLI preflight's: a model
+// sign-in kind needs its sign-in kept and working; Agentry credits need a
+// sign-in to the registry the model endpoint is under; a key comes from
+// the variable the policy names, set in this process, else from the
+// keychain where that is the policy's source. The variable, the source
+// and the kind are read as a run reads them: the harness block of the
+// adapter a run here would use, where it sets them, else the model's.
+func modelReadiness(pol *policy.Policy, keysStored []string, keyStoreErr string) (bool, string) {
+	m := pol.Model
+	if m.Provider == "" || m.Name == "" {
+		return false, "No model provider is chosen for runs on this computer."
+	}
+	hp := pol.Harness[adapter.DefaultFor(pol)]
+	kind := policy.KeyKind(hp, m)
+	if vendor := modelsignin.VendorOf(kind); vendor != "" {
+		spends := policy.SignInSentence(kind)
+		r, err := signInRecord(vendor)
+		switch {
+		case errors.Is(err, modelsignin.ErrNone):
+			return false, fmt.Sprintf("Runs on this computer spend %s, and none is kept here: sign in to use it.", spends)
+		case err != nil:
+			return false, fmt.Sprintf("Runs on this computer spend %s, and the kept sign-in could not be read: %v.", spends, err)
+		case r.Broken != "":
+			return false, fmt.Sprintf("Runs on this computer spend %s, and the kept sign-in no longer works (%s): sign in again.", spends, r.Broken)
+		}
+		return true, ""
+	}
+	if m.Provider == policy.ProviderAgentry {
+		reg, err := policy.AgentryRegistry(m)
+		if err != nil {
+			return false, fmt.Sprintf("Runs on this computer are paid with Agentry credits, and the policy's model endpoint is not a registry's: %v.", err)
+		}
+		if CreditsClient(pol) == nil {
+			return false, fmt.Sprintf("Runs on this computer are paid with your Agentry credits at %s, and this computer is not signed in there.", reg)
+		}
+		return true, ""
+	}
+	keyEnv := policy.KeyEnv(hp, m)
+	if keyEnv == "" {
+		return false, fmt.Sprintf("The runner policy names no variable for the %s key.", m.Provider)
+	}
+	if os.Getenv(keyEnv) != "" {
+		return true, ""
+	}
+	if policy.KeySource(hp, m) != modelkey.SourceKeyring {
+		return false, fmt.Sprintf("$%s is not set in this app's environment, and the policy reads the %s key from the environment only.", keyEnv, m.Provider)
+	}
+	for _, p := range keysStored {
+		if p == m.Provider {
+			return true, ""
+		}
+	}
+	if keyStoreErr != "" {
+		return false, fmt.Sprintf("$%s is not set in this app's environment, and the OS keychain could not be asked for the %s key: %s.", keyEnv, m.Provider, keyStoreErr)
+	}
+	return false, fmt.Sprintf("$%s is not set in this app's environment, and no %s key is saved on this computer.", keyEnv, m.Provider)
 }
 
 // providersToAsk is the setup table plus custom (setup.Providers), and the
