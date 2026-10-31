@@ -391,6 +391,12 @@ type SetupStatusView struct {
 	KeyNotice   string `json:"keyNotice,omitempty"`
 	BaseURL     string `json:"baseUrl,omitempty"`
 	ImagesReady bool   `json:"imagesReady"`
+	// ModelReady: a run on this computer has a way to pay for its model
+	// (a working sign-in, a registry sign-in for Agentry credits, or a key
+	// in the named variable or the keychain); ModelGap says in a sentence
+	// what is missing when it is not. No value, ever.
+	ModelReady bool   `json:"modelReady"`
+	ModelGap   string `json:"modelGap,omitempty"`
 	// Policy budget defaults, shown as the run form's placeholders.
 	TimeoutSeconds int `json:"timeoutSeconds"`
 	MaxTurns       int `json:"maxTurns"`
@@ -416,6 +422,8 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		KeyNotice:             s.KeyNotice,
 		BaseURL:               s.BaseURL,
 		ImagesReady:           s.ImagesReady,
+		ModelReady:            s.ModelReady,
+		ModelGap:              s.ModelGap,
 		TimeoutSeconds:        s.TimeoutSeconds,
 		MaxTurns:              s.MaxTurns,
 		KeepProfilesByDefault: s.KeepProfilesByDefault,
