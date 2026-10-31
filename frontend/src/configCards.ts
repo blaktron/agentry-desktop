@@ -4,7 +4,7 @@
 // offers, and the Add card that ends each grid. Pure, so the components and
 // their tests share it. Every name and line is data the runner, the agent
 // or the person wrote, drawn as text.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AGENT_STATES } from "./persistentAgents.ts";
 
 /** The grids, in their order. Mail and calendar is the Assistant's alone:
@@ -259,7 +259,7 @@ export function setUpOf(e: Pick<app.PersistentRosterEntry, "state" | "setUpSecre
 
 /** googleWords is what the Google Workspace set-up says it holds: the client,
  *  then the account gog named, never anything of the client itself. */
-export function googleWords(g: Pick<app.PersistentGoogleView, "client" | "account" | "stale"> | undefined): string {
+export function googleWords(g: Pick<app.PersistentGoogleView, "client" | "account" | "stale"> | null | undefined): string {
   if (!g || !g.client) return "No Google Cloud client yet.";
   if (!g.account) return "Your Google Cloud client is kept. Sign in next.";
   if (g.stale) return `Signed in as ${g.account} with your earlier client: sign in again with the new one.`;
@@ -344,7 +344,7 @@ export function microsoftAdminWords(kind: string, who: string): string {
  *  the person's own Entra app or Agentry's own Microsoft app where the
  *  registry offers one (agentryApp) and no Entra app is kept, then the
  *  account the server named, never anything secret. */
-export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale" | "signedInWithAgentryApp"> | undefined, agentryApp = false): string {
+export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" | "account" | "stale" | "signedInWithAgentryApp"> | null | undefined, agentryApp = false): string {
   if (m?.account && m.signedInWithAgentryApp) {
     return m.stale
       ? `Signed in as ${m.account} with Agentry's Microsoft app: sign in again to use your own app.`
@@ -359,7 +359,7 @@ export function microsoftWords(m: Pick<app.PersistentMicrosoftView, "clientID" |
 /** microsoftCanSignIn says the sign-in has an app to run with: the
  *  person's own Entra app, or Agentry's own Microsoft app where the
  *  registry offers it. */
-export function microsoftCanSignIn(m: Pick<app.PersistentMicrosoftView, "clientID"> | undefined, agentryApp: boolean): boolean {
+export function microsoftCanSignIn(m: Pick<app.PersistentMicrosoftView, "clientID"> | null | undefined, agentryApp: boolean): boolean {
   return !!m?.clientID || agentryApp;
 }
 
@@ -374,7 +374,7 @@ export function microsoftScopeWords(roster: Pick<app.PersistentRosterEntry, "id"
 
 /** fastmailWords is what the Fastmail set-up says it holds: whether a
  *  token is kept, never the token. */
-export function fastmailWords(f: Pick<app.PersistentFastmailView, "token"> | undefined): string {
+export function fastmailWords(f: Pick<app.PersistentFastmailView, "token"> | null | undefined): string {
   return f?.token
     ? "Your Fastmail token is kept in your system keychain. It can do what the token allows."
     : "No Fastmail token yet.";

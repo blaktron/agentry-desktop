@@ -1,0 +1,61 @@
+# The tasks `wails3 dev` runs (make dev): a debug build of the app, the Vite
+# dev server for the frontend, and the app itself. Releases and packages are
+# the Makefile's; nothing here builds one.
+version: '3'
+
+vars:
+  APP_NAME: agentry-desktop
+  BIN_DIR: build/bin
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+tasks:
+  build:
+    summary: A debug build of the app for this computer
+    deps:
+      - task: install:frontend
+    cmds:
+      - go build -buildvcs=false -gcflags=all="-l" -o "{{.BIN_DIR}}/{{.APP_NAME}}" .
+    env:
+      CGO_ENABLED: '{{if eq OS "windows"}}0{{else}}1{{end}}'
+
+  install:frontend:
+    summary: The frontend's packages
+    dir: frontend
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules
+    cmds:
+      - npm install --no-audit --no-fund
+
+  dev:frontend:
+    summary: The Vite dev server
+    dir: frontend
+    deps:
+      - task: install:frontend
+    cmds:
+      - npm run dev -- --port {{.VITE_PORT}} --strictPort
+
+  run:
+    summary: The app, from the debug build
+    cmds:
+      - task: '{{if eq OS "darwin"}}run:darwin{{else}}run:other{{end}}'
+
+  run:other:
+    internal: true
+    cmds:
+      - '"./{{.BIN_DIR}}/{{.APP_NAME}}{{exeExt}}"'
+
+  # macOS identifies the app, its notifications and its keychain items by its
+  # bundle, so a debug run is inside one.
+  run:darwin:
+    internal: true
+    cmds:
+      - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
+      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources/iconfile.icns"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/"
+      - node scripts/build/stamp.mjs build/darwin/Info.dev.plist "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
+      - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'

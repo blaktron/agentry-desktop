@@ -12,9 +12,9 @@
 // own place. A folder that has gone is said, with a way to remove
 // the entry; it is never looked for.
 import { useEffect, useRef, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Spinner } from "../ui";
 import { RunResultView } from "./RunResult";
 import { HostedResult } from "./HostedRun";

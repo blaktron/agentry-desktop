@@ -3,7 +3,7 @@
 // for its panel, and Settings' status line. Pure, so the pages and their
 // tests share it. Every text here is data the agent or the person wrote, or
 // the runner's sentence, drawn as text.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { applyEvent, newChat, type Chat, type SessionEvent } from "./sessionChat.ts";
 
 /** The states an agent's view reads. */

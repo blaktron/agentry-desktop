@@ -17,8 +17,8 @@
 // string here that an agent or the registry wrote (the log, the refusal,
 // the error) is drawn as text.
 import { useEffect, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { app } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
 import type { Tone } from "../jobProgress";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";

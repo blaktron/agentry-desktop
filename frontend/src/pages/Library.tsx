@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
-import { install, installed, trust } from "../../wailsjs/go/models";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
+import * as installed from "../../bindings/github.com/blaktron/agentry-cli/pkg/installed/models";
+import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar, fmtDate,
 } from "../ui";

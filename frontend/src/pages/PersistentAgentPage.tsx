@@ -18,8 +18,8 @@
 // roster's full cards with their Add cards and, for an agent that keeps
 // time, its Tasks. Every view sends, stops, adds files and starts alike.
 import { useEffect, useRef, useState } from "react";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import type { app } from "../../wailsjs/go/models";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
 import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";

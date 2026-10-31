@@ -71,11 +71,12 @@
 // a build In Agentry that stopped short). The run lock is unchanged: a run
 // started meanwhile is refused with the reason.
 import { useEffect, useRef, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/app/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { knowledge, app } from "../../wailsjs/go/models";
+import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import { EventsOn } from "../host";
+import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
 import { buildHoldLine, creatorUseLine } from "../usage";

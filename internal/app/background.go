@@ -11,10 +11,12 @@ package app
 // Agentry starts and continues its conversation.
 //
 // The window's close, a quit from the tray, Cmd-Q, the Dock and a signal all
-// reach OnBeforeClose alike, so a quit carries an intent of the app's own:
-// the tray's Quit, macOS's application Quit and quit Apple event
+// ask the services first (BeforeClose), so a quit carries an intent of the
+// app's own: the tray's Quit, macOS's application Quit and quit Apple event
 // (internal/macquit), and SIGTERM, SIGINT and SIGHUP (a session ending on
-// Linux) set it, and the window's close hides only without it.
+// Linux) set it, and the window's close hides only without it. A quit nobody
+// asked about yet is held until the services have asked, and goes ahead once
+// Shutdown has run (ShouldQuit).
 
 import (
 	"context"
@@ -28,8 +30,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-desktop/internal/loginitem"
 	"github.com/blaktron/agentry-desktop/internal/macquit"
@@ -52,6 +52,9 @@ type background struct {
 	// trayMu orders the tray's updates: each reads the state and draws it
 	// before the next reads, so an older state is never drawn last.
 	trayMu sync.Mutex
+	// approved says the services have asked and shut down: the quit may go
+	// ahead (ShouldQuit).
+	approved atomic.Bool
 	// launching is the work the app starts on goroutines of its own: the
 	// start of the agents set to run when Agentry starts, and the stop of
 	// Main as the window closes. A caller that needs it over waits for it.
@@ -61,12 +64,11 @@ type background struct {
 // windowShow and windowHide are the runtime's, a test's seams.
 var (
 	windowShow = func(ctx context.Context) {
-		runtime.WindowShow(ctx)
-		runtime.WindowUnminimise(ctx)
+		nativeShowWindow(ctx)
 		tray.Activate()
 	}
-	windowHide = runtime.WindowHide
-	appQuit    = runtime.Quit
+	windowHide = nativeHideWindow
+	appQuit    = nativeQuit
 	// trayStart, traySet and trayMeeting are the tray's, a test's seams.
 	trayStart   = tray.Start
 	traySet     = tray.SetRunning
@@ -189,11 +191,29 @@ func (s *Services) followAgents(ctx context.Context) {
 	trayMeeting(meetingTray(s.meeting.recording(), s.meeting.recordsRoomsNow()))
 }
 
-// quit is the person's quit: the intent, then the window's quit, which runs
-// OnBeforeClose (a run in flight still asks) and OnShutdown.
+// quit is the person's quit: the intent, then the question a window's close
+// asks (a run in flight still asks), then the shutdown, then the
+// application's own quit.
 func (s *Services) quit(ctx context.Context) {
 	s.bg.quitting.Store(true)
+	if s.BeforeClose(ctx) {
+		return
+	}
+	s.Shutdown(ctx)
 	appQuit(ctx)
+}
+
+// ShouldQuit answers the application's quit: yes once the services have
+// asked and shut down. A quit that did not start here (Cmd-Q, the Dock's
+// Quit, the session ending) is held, and put through quit on a goroutine: it
+// can arrive on the thread that draws the window, which a question must not
+// block.
+func (s *Services) ShouldQuit() bool {
+	if s.bg.approved.Load() {
+		return true
+	}
+	go s.quit(s.app.ctxOrBackground())
+	return false
 }
 
 // closeToBackground hides the window instead of closing it when an agent
@@ -254,7 +274,7 @@ func (s *Services) noteBackgroundOnce(ctx context.Context) {
 
 // notice is the OS information dialog, a test's seam.
 var notice = func(ctx context.Context, title, message string) {
-	_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.InfoDialog, Title: title, Message: message})
+	nativeInfo(ctx, title, message)
 }
 
 // StartsAtSignIn reports whether Agentry starts, hidden, when the person

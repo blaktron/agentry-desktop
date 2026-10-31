@@ -10,7 +10,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/persistent/assistant"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Google Workspace's set-up in the app: the person's Google Cloud OAuth
@@ -119,9 +118,9 @@ func (p *PersistentAPI) pickGoogleClient() (string, error) {
 	if p.pickFile != nil {
 		return p.pickFile()
 	}
-	return runtime.OpenFileDialog(p.app.ctx, runtime.OpenDialogOptions{
+	return nativeOpenFile(p.app.ctx, pickOptions{
 		Title:   "Choose your Google Cloud client file (client_secret_….json)",
-		Filters: []runtime.FileFilter{{DisplayName: "Google Cloud client (.json)", Pattern: "*.json"}},
+		Filters: []fileFilter{{Name: "Google Cloud client (.json)", Pattern: "*.json"}},
 	})
 }
 
@@ -199,7 +198,7 @@ func (p *PersistentAPI) GoogleSignIn(name, email string) (*PersistentAgentView, 
 	open := p.browse
 	if open == nil {
 		open = func(u string) error {
-			runtime.BrowserOpenURL(p.app.ctx, u)
+			browserOpenURL(p.app.ctx, u)
 			return nil
 		}
 	}

@@ -16,8 +16,8 @@
 // Examiner's model could have written is drawn as text, with its invisible
 // characters shown.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import type { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { RevealText } from "../reveal";
 import { type ReviewProgress, outcome, outcomeTone } from "../review";

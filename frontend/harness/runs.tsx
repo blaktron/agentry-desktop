@@ -174,7 +174,7 @@ const reports = [
 ];
 const lines = [
   "using verified install demo1/incident-summarizer@1.2.0",
-  "gateway: docker/mcp-gateway:v0.43.3 ready",
+  "gateway: ghcr.io/blaktron/agentry-mcp-gateway:v0.44.3 ready",
   "run 7c1e4a90: demo1/incident-summarizer@1.2.0 against openai qwen3.8-flash-next",
   "tool: read_input incident-channel.txt",
   ...(hostile ? ["tool: write_report <img src=x onerror=alert(1)><script>alert(2)</script> ‮gnp.exe"] : []),
@@ -412,7 +412,7 @@ function selectedDraft() {
     notes: "Notes retained from the selected run.", decodeNotes: [], matches: [], sources: [], openQuestions: [], problems: [], unmentioned: [],
     check: { rubric: "flagged", draft: "pass", findings: [{ id: "C3_undeclared_capability", question: "Undeclared capability", score: 2, path: "AGENT.md" }], flagged: [], checks: 1 },
     aiReview: { scan: "registry", read: 5, passed: 5, withheld: 0, notScanned: 0, withheldSources: [] },
-  } as unknown as import("../wailsjs/go/models").app.DraftView;
+  } as unknown as import("../bindings/github.com/blaktron/agentry-desktop/internal/app/models").DraftView;
 }
 function RunPagePreview() {
   const [opened, setOpened] = useState(false);

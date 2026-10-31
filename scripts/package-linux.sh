@@ -97,7 +97,7 @@ fi
 # whole folder, its libraries' links included, as
 # /usr/lib/agentry-desktop/whisper, where the app looks for it beside
 # /usr/bin. whisper-cli finds its libraries through its own RUNPATH
-# ($ORIGIN). It links libstdc++ (GCC 12's, for GLIBCXX_3.4.30) and
+# ($ORIGIN). It links libstdc++ (GCC 13's, for GLIBCXX_3.4.32) and
 # libgcc_s, which the app does not, so the description declares them too;
 # the Vulkan backend's loader is not declared, since the backend is loaded
 # at run time and the CPU runs without it. The two folders are the
@@ -122,9 +122,9 @@ if [ -f "$sidecar/whisper-cli" ]; then
     fi
   done
   awk -v e="$entries" '{print} /^contents:$/{printf "%s", e}' "$desc" >"$desc.new"
-  awk '{print} /^      - libwebkit2gtk-4.1-0$/{print "      - libstdc++6 (>= 12)\n      - libgcc-s1"} /^      - webkit2gtk4.1$/{print "      - libstdc++ >= 12\n      - libgcc"}' "$desc.new" >"$desc"
+  awk '{print} /^      - libwebkitgtk-6.0-4$/{print "      - libstdc++6 (>= 13)\n      - libgcc-s1"} /^      - webkitgtk6.0$/{print "      - libstdc++ >= 13\n      - libgcc"}' "$desc.new" >"$desc"
   rm -f "$desc.new"
-  grep -q "^    dst: $lib/whisper/whisper-cli$" "$desc" && grep -q '^      - libstdc++6 (>= 12)$' "$desc" && grep -q '^      - libstdc++ >= 12$' "$desc" ||
+  grep -q "^    dst: $lib/whisper/whisper-cli$" "$desc" && grep -q '^      - libstdc++6 (>= 13)$' "$desc" && grep -q '^      - libstdc++ >= 13$' "$desc" ||
     { echo "package-linux: could not add the transcriber to the description" >&2; exit 1; }
   echo "package-linux: carrying the transcriber in $lib/whisper ($(find "$sidecar" -maxdepth 1 ! -name SHA256SUMS \( -type f -o -type l \) | grep -c .) files)"
 fi

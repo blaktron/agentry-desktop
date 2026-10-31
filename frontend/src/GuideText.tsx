@@ -30,7 +30,7 @@ const TRAILING_RE = /[.,;:!?]+$/;
 // connectHelp is the author's help for one declared key, or "". The map is
 // the author's, so only its own string entries count: a secret named
 // "constructor" must not find Object.prototype's.
-export function connectHelp(connect: { [key: string]: string } | undefined, name: string): string {
+export function connectHelp(connect: { [key: string]: string | undefined } | undefined, name: string): string {
   if (!connect || !Object.prototype.hasOwnProperty.call(connect, name)) return "";
   const help = connect[name];
   return typeof help === "string" ? help : "";

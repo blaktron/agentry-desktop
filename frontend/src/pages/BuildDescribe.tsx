@@ -22,11 +22,13 @@
 // HTML, no image, links only to the system browser), a withheld address is
 // plain text and never a link, and every other field is text.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { build, knowledge, app } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
+import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";

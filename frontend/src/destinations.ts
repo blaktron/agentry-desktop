@@ -98,7 +98,7 @@ export function nameProblem(name: string): string {
 }
 
 /** A signing secret to give the receiver: whsec_ and 32 random bytes in base64url. */
-export function newSecret(random: (bytes: Uint8Array) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
+export function newSecret(random: (bytes: Uint8Array<ArrayBuffer>) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
   const bytes = random(new Uint8Array(32));
   let bin = "";
   for (const b of bytes) bin += String.fromCharCode(b);

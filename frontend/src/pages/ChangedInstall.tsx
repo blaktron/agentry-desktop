@@ -1,7 +1,7 @@
 // The refusal a run of a changed install meets, shown before Run with every
 // changed path and, for a registry release, Repair.
 import { useState } from "react";
-import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
 import { Button, ErrorBox, Notice } from "../ui";
 import { RECORD_PROVES, changedLines, repairLine, type ChangedInstall } from "../changedInstall";
 

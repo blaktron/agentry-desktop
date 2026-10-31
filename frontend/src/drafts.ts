@@ -6,9 +6,9 @@
 // pages) follow it; and whichever page is showing when it lands takes the
 // draft (takeLandedDraft). One can be in flight at a time.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../wailsjs/go/app/BuildAPI";
-import { EventsOn } from "../wailsjs/runtime/runtime";
-import { app } from "../wailsjs/go/models";
+import * as BuildAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import { EventsOn } from "./host";
+import * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress } from "./jobProgress";
 
 export type Where = "agentry" | "here";

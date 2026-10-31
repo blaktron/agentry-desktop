@@ -13,7 +13,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/connection"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -283,7 +282,7 @@ func (p *PersistentAPI) MicrosoftSignIn(name, email string) (*PersistentAgentVie
 	open := p.browse
 	if open == nil {
 		open = func(u string) error {
-			runtime.BrowserOpenURL(p.app.ctx, u)
+			browserOpenURL(p.app.ctx, u)
 			return nil
 		}
 	}

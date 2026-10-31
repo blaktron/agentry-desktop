@@ -4,10 +4,10 @@
 // and Settings read, read again whenever runner:agent-state says one
 // started or stopped. The logic is persistentAgents.ts's.
 import { useEffect, useState } from "react";
-import * as HomeAPI from "../wailsjs/go/app/HomeAPI";
-import * as PersistentAPI from "../wailsjs/go/app/PersistentAPI";
-import { EventsOn } from "../wailsjs/runtime/runtime";
-import type { app } from "../wailsjs/go/models";
+import * as HomeAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
+import * as PersistentAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import { EventsOn } from "./host";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AGENT_STATES, ASSISTANT_AGENT, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
 

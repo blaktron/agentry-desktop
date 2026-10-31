@@ -10,8 +10,8 @@
 // through a field and into Go; Go's views carry none back, so a saved one is
 // shown as kept, never as a value.
 import { useEffect, useRef, useState } from "react";
-import * as DestinationsAPI from "../../wailsjs/go/app/DestinationsAPI";
-import { destinations } from "../../wailsjs/go/models";
+import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
+import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice } from "../ui";
 import { credentialsLine, defaultLine, kindPhrase, keyPairLine, nameProblem, newSecret, objectPath, problemSentence } from "../destinations";
 

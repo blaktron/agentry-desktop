@@ -2,7 +2,7 @@
 // state, switch and menu, and the secret form's rules.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import {
   cardIcon,
   cardMenu,

@@ -6,8 +6,8 @@
 // dialog and card (ReviewFlow). Without the person's own TypeSafe key it
 // says to add one and opens Provider settings at the key, and runs nothing.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import type { app } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button } from "../ui";
 
 export function ReviewAction({ onReview, busy, disabled, onOpenSettings, what = "it" }: {

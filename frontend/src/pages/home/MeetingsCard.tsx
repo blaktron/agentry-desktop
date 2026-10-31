@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import * as MeetingAPI from "../../../wailsjs/go/app/MeetingAPI";
-import type { app } from "../../../wailsjs/go/models";
-import { EventsOn } from "../../../wailsjs/runtime/runtime";
+import * as MeetingAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
+import type * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import { EventsOn } from "../../host";
 import { CardFrame } from "../../cards";
 import { Button, ErrorBox } from "../../ui";
 import { canAskAssistant, deliveryWords, elapsed, isNo, meetingState, recordingWhat, windowStateWords, windowWhen } from "../../meetingNotes";

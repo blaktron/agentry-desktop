@@ -182,7 +182,7 @@ interface VersionFacts {
   review: string;
   digest?: string;
   createdAt: string;
-  reviewedAt?: string;
+  reviewedAt?: string | null;
 }
 
 interface AccountFacts {
@@ -384,7 +384,7 @@ export function voiceAddressLines(text: string): string[] {
  *  that reads none or fewer. */
 export function addressesProblem(
   n: number,
-  check: { check?: { problem?: string; lines?: { address: string; problem?: string }[] }; reviewReady?: boolean; reviewWhy?: string } | null,
+  check: { check?: { problem?: string; lines?: { address: string; problem?: string }[] } | null; reviewReady?: boolean; reviewWhy?: string } | null,
   where: "local" | "agentry",
   agentry?: { takesUrls?: boolean; maxUrls?: number },
 ): string | null {

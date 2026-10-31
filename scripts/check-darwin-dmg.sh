@@ -15,7 +15,7 @@
 #   4. the bundle on the image is universal: lipo names both arm64 and
 #      x86_64, the same check the release already runs on the built bundle;
 #   5. its signature verifies, whoever made it: the authority is printed
-#      rather than asserted (the ad-hoc one wails applies, or the Developer
+#      rather than asserted (the ad-hoc one the build applies, or the Developer
 #      ID one a release signs with, which that release reads back itself);
 #   6. the bundle on the image is byte-for-byte the bundle <agentry-desktop.app>
 #      holds, which is the bundle the zip was made from: the dmg is a second

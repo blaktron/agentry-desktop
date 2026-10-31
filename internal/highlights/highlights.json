@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.6.1006",
+      "highlights": [
+        "Agentry Desktop now runs on Wails 3 with GTK 4 on Linux: Debian 13, Ubuntu 24.04 and Fedora 44 or later.",
+        "Agents run on the newest runtime images.",
+        "Meeting notes use a rebuilt transcriber."
+      ]
+    },
+    {
       "version": "0.6.1005",
       "highlights": [
         "After Agentry Desktop moves to a newer version, What's new shows what each version since your last one brings.",

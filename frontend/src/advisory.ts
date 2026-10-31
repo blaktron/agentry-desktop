@@ -3,7 +3,7 @@
 // what a run weighs. A High advisory the gate rates medium reads as both,
 // never as "high" alone on a server that runs.
 
-export type AdvisoryLike = { severity: string; rating?: string; cvssScore?: number };
+export type AdvisoryLike = { severity: string; rating?: string; cvssScore?: number | null };
 
 export function advisoryWords(a: AdvisoryLike): string {
   let w = a.severity || "unrated";

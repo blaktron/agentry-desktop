@@ -6,10 +6,10 @@
 // the draft's progress dialog (DraftFlow), and the revision lands in the
 // Build tab with its diff (BuildRevision).
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { app } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { startRevision, useDraft } from "../drafts";
 import { MAX_REVISION_TEXT_BYTES, canStart, firstWhere, revisionBytes, textsProblem, type ReviseWhere, type ReviseWays } from "../revise";
 import { Button, Card, ErrorBox, Modal, Notice, Textarea } from "../ui";

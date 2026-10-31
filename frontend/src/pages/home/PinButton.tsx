@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import * as HomeAPI from "../../../wailsjs/go/app/HomeAPI";
-import { app } from "../../../wailsjs/go/models";
+import * as HomeAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
+import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button } from "../../ui";
 import { homeFullSentence, pinOffer } from "../../pins";
 

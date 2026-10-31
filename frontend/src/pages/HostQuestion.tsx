@@ -9,7 +9,7 @@
 // parser and never returns a sign-in. The host key is checked when the run
 // starts; one no known_hosts file holds is shown in a native dialog.
 import { useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { Button } from "../ui";
 import { recentOffers, signInWords, type HostForm, type TargetHost } from "../hosts";
 

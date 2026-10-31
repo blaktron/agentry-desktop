@@ -1,4 +1,4 @@
-# DO NOT EDIT - Generated automatically by `wails build`
+# DO NOT EDIT the product facts below: scripts/build/installer-tools.mjs writes them from wails.json
 
 !include "x64.nsh"
 !include "WinVer.nsh"
@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "Agentry Desktop"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "0.6.1005"
+    !define INFO_PRODUCTVERSION "0.6.1006"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright © 2026 SecureAgentry"

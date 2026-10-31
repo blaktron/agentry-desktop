@@ -9,9 +9,9 @@
 // AIReviewKey.tsx's shape, as WebSearchKey.tsx does. The kinds of file it
 // names are the CLI's (pkg/runner/hybrid's risky types), said in words.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/app/App";
-import { app } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { keyStanding } from "../keyRecommendation";
 

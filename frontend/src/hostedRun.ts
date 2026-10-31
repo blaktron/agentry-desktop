@@ -5,7 +5,7 @@
 // desktop follows the run and never drives it: Cancel asks the
 // registry, and what the dialog and card say is what the registry said.
 // Pure, so the store (runs.ts) and its tests share one set of rules.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
 type View = app.HostedRunView;

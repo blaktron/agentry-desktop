@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
-import { app } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
 import {
@@ -24,7 +24,7 @@ const submissionsLeft = (s: app.SubscriptionView) => (s.submissionCost > 0 ? Mat
 
 // privateAgentsPhrase: "none" where the registry disables them, with the
 // count still held; "4 of no cap" where max is 0; "4 of 10" otherwise.
-function privateAgentsPhrase(p: { max: number; used: number; enabled?: boolean }): string {
+function privateAgentsPhrase(p: { max: number; used: number; enabled?: boolean | null }): string {
   if (p.enabled === false) return p.used > 0 ? `none may be added; ${p.used} held` : "none";
   return `${p.used} of ${p.max === 0 ? "no cap" : p.max}`;
 }
@@ -215,7 +215,7 @@ function UpgradeButton({ sub, onOpen }: { sub: app.SubscriptionView; onOpen: () 
 }
 
 // PersonView is the site's personal Subscription card.
-function PersonView({ sub, runs, onOpen, onTopUp }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView; onOpen: () => void; onTopUp: () => void }) {
+function PersonView({ sub, runs, onOpen, onTopUp }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView | null; onOpen: () => void; onTopUp: () => void }) {
   const promo = runningPromo(sub);
   const topUp = topUpOffer(sub);
   const left = submissionsLeft(sub);
@@ -321,7 +321,7 @@ function TopUpCard({ sub, topUp, onBuy }: { sub: app.SubscriptionView; topUp: ap
 // MemberView is the site's member view: the organization pays for this
 // person's work from its pool, and their own account is not in force while
 // they belong to it.
-function MemberView({ sub, runs, onOpen }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView; onOpen: () => void }) {
+function MemberView({ sub, runs, onOpen }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView | null; onOpen: () => void }) {
   const org = sub.memberOf!;
   const lapsed = sub.standing && sub.standing !== "active";
   const limit = sub.knowledge ? knowledgeLimitSentence(sub.knowledge, org) : null;

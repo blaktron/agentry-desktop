@@ -2,7 +2,7 @@
 // Go has reported of it, keyed by its id, and how it ended. Pure, so the
 // store (runs.ts) and its tests share one set of rules: a report or a line of
 // another run, or of this run after it ended, changes nothing.
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
 /** How far a run on this computer has got, as Go reports it

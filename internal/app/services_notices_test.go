@@ -8,7 +8,7 @@ func TestTheNoticesAreBoundAndServedWhole(t *testing.T) {
 	const text = "Third-party notices\n\n  héllo\n"
 	var bound *NoticesAPI
 	for _, b := range New(text).Bind() {
-		if n, ok := b.(*NoticesAPI); ok {
+		if n, ok := b.Instance().(*NoticesAPI); ok {
 			bound = n
 		}
 	}

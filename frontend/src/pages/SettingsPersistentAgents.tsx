@@ -9,10 +9,11 @@
 // here, then natively; the Assistant has three, Reset history, Reset agent
 // and Reset all, each with the words Go gives its native dialog. A folder comes from the native picker alone.
 import { useEffect, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
-import * as PersistentAPI from "../../wailsjs/go/app/PersistentAPI";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import type { app, run } from "../../wailsjs/go/models";
+import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import type * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { forgetChat, refreshAgents, setAgentEnabled, startAgent, stopStart, updateAgent, useAgents } from "../agents";
 import { helperSuperseded } from "../homeAgent";
 import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords, compactingWords } from "../persistentAgents";

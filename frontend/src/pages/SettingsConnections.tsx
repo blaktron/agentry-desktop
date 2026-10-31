@@ -5,8 +5,9 @@
 // same store (`agentry connections`), so what either made is listed here.
 // Nothing here carries a token or a client secret: Go's views have none.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/app/RunAPI";
-import { app, run } from "../../wailsjs/go/models";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { clientWords, dateOf, hostOf, scopeWords, sharedGrantWarning } from "../connections";
 export { connectionsStatus } from "../connections";

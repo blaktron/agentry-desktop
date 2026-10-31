@@ -13,9 +13,10 @@
 // createHostedRunStore, which node tests hold; this module wires them to
 // Go's events and calls.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../wailsjs/go/app/RunAPI";
-import { EventsOn } from "../wailsjs/runtime/runtime";
-import { app, trust } from "../wailsjs/go/models";
+import * as RunAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import { EventsOn } from "./host";
+import * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as trust from "../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
 import { type QueuedRun, type RunStoreState, createRunStore } from "./localRun";
 import { type HostedRunState, createHostedRunStore } from "./hostedRun";
 import { type ChatStoreState, createChatStore } from "./sessionChat";

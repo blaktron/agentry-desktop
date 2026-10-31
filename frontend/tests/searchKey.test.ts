@@ -3,7 +3,7 @@
 // provider's key, decided once.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { app } from "../wailsjs/go/models";
+import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { initialProvider, replaceNote, searchKeySentence } from "../src/searchKey.ts";
 
 const providers = [

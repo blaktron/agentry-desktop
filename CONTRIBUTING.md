@@ -1,7 +1,7 @@
 # Contributing to Agentry Desktop
 
 This repository holds the desktop client for macOS, Windows and Linux: a
-[Wails v2](https://wails.io) application with a Go backend and a React,
+[Wails v3](https://wails.io) application with a Go backend and a React,
 TypeScript and Vite frontend. Verification, scanning and running use the
 same Go libraries as the server and the CLI, so most behaviour a QuickAgent
 run depends on lives in those modules, not here.
@@ -29,14 +29,16 @@ and say in the pull request what you verified and on which platform.
 ## Development setup
 
 The prerequisites are in the [README](README.md#prerequisites): Go at the
-version `go.mod` names, Node 22 and npm, the Wails CLI at the version
-`go.mod` pins, and on Linux the GTK 3 and WebKit2GTK 4.1 headers.
+version `go.mod` names, Node 26 and npm, the `wails3` CLI at the version
+`go.mod` pins, and, to build or run the app on Linux, the GTK 4 and
+WebKitGTK 6.0 headers. `make check` and `make bindings` need no C toolchain:
+they build with the `server` tag.
 
 | Command | What |
 |---|---|
 | `make check` | frontend type check and bundle, lint, Go tests, the copy check and `go build ./...`: run it before you push |
-| `make dev` | the live-reload development shell (`wails dev`) |
-| `make test` | `go test ./...` |
+| `make dev` | the live-reload development shell (`wails3 dev`) |
+| `make test` | `go test -tags server ./...` |
 | `make lint` | gofmt, `go vet`, golangci-lint (when installed) and the scripts check |
 | `make frontend` | the frontend type check, `vite build` and the frontend unit tests |
 | `make copy` | the copy check over the text the app ships |
@@ -44,7 +46,7 @@ version `go.mod` names, Node 22 and npm, the Wails CLI at the version
 | `make notices` | regenerate `THIRD_PARTY_NOTICES` after a dependency, font or logo changes; `make check` fails while the committed file is stale |
 | `make workflows-check` | no workflow job that a fork's pull request can start runs on a self-hosted runner without the fork guard (needs python3 with PyYAML) |
 
-`frontend/wailsjs/` is generated: never edit it by hand, run `make
+`frontend/bindings/` is generated: never edit it by hand, run `make
 bindings`. A pull request that changes a bound method carries the
 regenerated bindings.
 
