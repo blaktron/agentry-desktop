@@ -17,6 +17,7 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/applink"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -35,11 +36,16 @@ type fakeMainOps struct {
 	docsPages []string
 	docsBody  string
 	docsCode  int
+	// usageInfo is what usage answers, a release with no questions when nil;
+	// usageRefs the refs it was asked for.
+	usageInfo *run.ProfileInfo
+	usageRefs []string
 }
 
 type fakeMainRun struct {
 	ref, task, share string
 	inputs           []string
+	intake           map[string]string
 }
 
 func (f *fakeMainOps) registry() string  { return "https://registry.example" }
@@ -59,6 +65,15 @@ func (f *fakeMainOps) report(string, string, string, string) (*ReportView, error
 func (f *fakeMainOps) requirements(string, string, string) (*MCPView, error) {
 	return &MCPView{CapabilityLines: []string{"Reads the files you give it"}}, nil
 }
+func (f *fakeMainOps) usage(_, ref string) (*run.ProfileInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.usageRefs = append(f.usageRefs, ref)
+	if f.usageInfo != nil {
+		return f.usageInfo, nil
+	}
+	return &run.ProfileInfo{Ref: ref, Modes: []string{"autonomous"}, Takes: []string{"any"}, InputView: "both"}, nil
+}
 func (f *fakeMainOps) installed() ([]install.Item, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -70,9 +85,9 @@ func (f *fakeMainOps) install(_, ref, who string) (*install.Result, error) {
 	f.installs = append(f.installs, who+" "+ref)
 	return &install.Result{Message: "installed " + ref}, nil
 }
-func (f *fakeMainOps) run(_, ref, task string, inputs []string, share, _ string, began func(string, bool)) (*RunResultView, error) {
+func (f *fakeMainOps) run(_, ref, task string, inputs []string, intake map[string]string, share, _ string, began func(string, bool)) (*RunResultView, error) {
 	f.mu.Lock()
-	f.runs = append(f.runs, fakeMainRun{ref: ref, task: task, share: share, inputs: inputs})
+	f.runs = append(f.runs, fakeMainRun{ref: ref, task: task, share: share, inputs: inputs, intake: intake})
 	gate := f.runGate
 	f.mu.Unlock()
 	began("01JMAINRUN0000000000000000", false)
