@@ -32,7 +32,7 @@ export { providerLabel };
  * endpoint test; the answer fills the model list. Settings (`advanced`) keeps
  * the environment-variable path under Advanced, where a person who sets
  * variables will look and one who does not never has to. */
-export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenPrereqs }: {
+export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenPrereqs, onStatus }: {
   heading?: React.ReactNode;
   intro?: React.ReactNode;
   // Settings shows the advanced choices (the variable, forgetting the
@@ -48,8 +48,14 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // given this, a missing engine is a pointer there rather than the
   // prerequisites card itself, which the welcome still shows.
   onOpenPrereqs?: () => void;
+  // Told the machine's status each time an action here changed it (a
+  // save, a key stored, the engine answering after its card), so a page
+  // that embeds this form and gates something on that status (the run
+  // setup's Run button) reads the same state without asking Go again.
+  onStatus?: (s: app.SetupStatusView) => void;
 } = {}) {
   const [status, setStatus] = useState<app.SetupStatusView | null>(null);
+  const takeStatus = (s: app.SetupStatusView) => { setStatus(s); onStatus?.(s); };
   const [checkingDocker, setCheckingDocker] = useState(true);
   const dockerCheckPending = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +151,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setError(null);
     try {
       // Refresh readiness only; provider fields may hold unsaved edits.
-      setStatus(await RunAPI.SetupStatus());
+      takeStatus(await RunAPI.SetupStatus());
     } catch (e) {
       setError(String(e));
     } finally {
@@ -247,7 +253,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       const w = waysFor(provider).find((x) => x.id === way);
       const s = await RunAPI.ApplySignInSetup(provider, model.trim(), w?.id === "connect" ? "" : w?.kind ?? "", w?.id === "connect",
         way === "copilot" ? copilotPlan : "", pullImages);
-      setStatus(s);
+      takeStatus(s);
       setNotice(pullImages
         ? "Setup complete — QuickAgents on this computer run on your sign-in, and the images are ready."
         : `Saved: QuickAgents on this computer run on ${w?.label ?? "your sign-in"}.`);
@@ -325,7 +331,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     }
     try {
       const s = await RunAPI.ApplySetup("agentry", "", "", "", pullImages, "", false);
-      setStatus(s);
+      takeStatus(s);
       setNotice(pullImages
         ? "Setup complete — QuickAgents on this computer run on your Agentry credits, and the images are ready."
         : "Saved: QuickAgents on this computer run on your Agentry credits.");
@@ -358,6 +364,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       setApiKey("");
       if (key) {
         try {
+          // The form's own badge only: the save is not done until the
+          // policy is written, and a page embedding this form must not
+          // read the stored key as the setup complete and take the form
+          // away mid-save.
           setStatus(await RunAPI.StoreModelKey(provider, key));
         } catch (e) {
           throw new Error(`${e} — the key you typed was cleared; type it again to retry.`);
@@ -365,7 +375,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       }
       const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURLFor(provider, baseURL), pullImages, source, forgetKey);
       setForgetKey(false);
-      setStatus(s);
+      takeStatus(s);
       setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
       setKeyNotice(s.keyNotice ?? null);
       setNotice(pullImages
@@ -418,7 +428,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       {status && !status.dockerOk && !checkingDocker && !onOpenPrereqs && (
         <PrereqCard
           onDone={async () => {
-            try { setStatus(await RunAPI.SetupStatus()); } catch { /* badge stays */ }
+            try { takeStatus(await RunAPI.SetupStatus()); } catch { /* badge stays */ }
           }}
         />
       )}

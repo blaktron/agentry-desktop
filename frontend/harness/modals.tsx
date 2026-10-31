@@ -384,7 +384,7 @@ const profile = signInShape
       ? { shipsKnowledge: ["pagerduty-docs"], acceptsKnowledge: { prompt: "Your team's own incident runbooks", required: true } }
       : { shipsKnowledge: [] }),
   };
-const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns: 60, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" };
+const setup = { dockerOk: true, imagesReady: true, modelReady: true, timeoutSeconds: 900, maxTurns: 60, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" };
 const mcp = {
   refusal: "", vulnerabilityLine: "have no known high or critical advisories", toolRows: [],
   servers: keysShape ? ["github-mcp-server-js"] : [], vulnerabilities: [], dataAccess: keysShape ? ["code"] : [],

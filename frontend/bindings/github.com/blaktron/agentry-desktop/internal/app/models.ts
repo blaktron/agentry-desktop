@@ -9598,6 +9598,15 @@ export class SetupStatusView {
     "imagesReady": boolean;
 
     /**
+     * ModelReady: a run on this computer has a way to pay for its model
+     * (a working sign-in, a registry sign-in for Agentry credits, or a key
+     * in the named variable or the keychain); ModelGap says in a sentence
+     * what is missing when it is not. No value, ever.
+     */
+    "modelReady": boolean;
+    "modelGap"?: string;
+
+    /**
      * Policy budget defaults, shown as the run form's placeholders.
      */
     "timeoutSeconds": number;
@@ -9639,6 +9648,9 @@ export class SetupStatusView {
         }
         if (!("imagesReady" in $$source)) {
             this["imagesReady"] = false;
+        }
+        if (!("modelReady" in $$source)) {
+            this["modelReady"] = false;
         }
         if (!("timeoutSeconds" in $$source)) {
             this["timeoutSeconds"] = 0;
