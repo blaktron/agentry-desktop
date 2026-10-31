@@ -6,6 +6,7 @@
 // pressable inside a card carries .build-way-part, which lifts it above the
 // stretched button.
 import { Children, type ReactNode } from "react";
+import { causeOf } from "./errorText";
 
 export function CardFrame({ title, onOpen, aside, figure, blurb, status, children, foot, className = "" }: {
   title: string;
@@ -44,5 +45,16 @@ export function CardFrame({ title, onOpen, aside, figure, blurb, status, childre
       {Children.toArray(children).length > 0 && <div className="build-way-body">{children}</div>}
       {foot && <p className="muted small build-way-foot">{foot}</p>}
     </div>
+  );
+}
+
+/** A card's status when its read failed: what could not be read, the
+ *  cause in a sentence, and Try again where the card can read again. */
+export function CouldNotRead({ what, error, onRetry }: { what: string; error: string; onRetry?: () => void }) {
+  return (
+    <span data-could-not-read>
+      {what} could not be read: {causeOf(error)}
+      {onRetry && <> <button type="button" className="link build-way-part" onClick={onRetry}>Try again</button></>}
+    </span>
   );
 }

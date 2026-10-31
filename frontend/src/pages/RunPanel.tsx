@@ -61,7 +61,7 @@ import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from 
 export const SCHEDULED_EVENT = "agentry:scheduled";
 
 export default function RunPanel({
-  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm, initialWhen,
+  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm, initialRun, initialWhen,
 }: {
   registry: string;
   ns: string;
@@ -84,6 +84,10 @@ export default function RunPanel({
   /** The answers as the person left them, when Back to the setup reopens
    *  the setup of a run that is over. */
   initialForm?: RunForm;
+  /** Run again: start as soon as this machine's readiness and the release
+   *  are read and nothing holds the run, once. The same consent is asked as
+   *  for any run. */
+  initialRun?: boolean;
   /** Schedule a new run opens the setup with When on Repeat. */
   initialWhen?: WhenChoice;
 }) {
@@ -598,6 +602,17 @@ export default function RunPanel({
   }
   const canRun = !busy && blockers.length === 0;
   const why = runButtonWhy(blockers, busy);
+  // Run again starts once, as soon as the run could be started by hand: a
+  // blocker that stays (a missing engine, a chat open) leaves the setup
+  // open with the blocker said, as it would be.
+  const startedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!initialRun || startedOnOpen.current || !canRun || !profile || !setup || (!local && !hostedKnown)) return;
+    startedOnOpen.current = true;
+    void runAgent();
+  // runAgent reads the answers as they stand; the start is one event.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRun, canRun, profile, setup, local, hostedKnown]);
   // The setup a run on this machine still needs, shown in place: the
   // container engine's card while no engine answers, then the model
   // provider's form while there is no way to pay for the model. Each

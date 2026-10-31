@@ -350,7 +350,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	if l := r.current(); l != nil {
 		// A chat's end is how the person ends it, not a stop: its outcome
 		// is the engine's.
-		recordLocal(context.Background(), runhistory.KindChat, l, s.Ref(), res)
+		recordLocal(context.Background(), runhistory.KindChat, l, s.Ref(), res, err)
 		l.cancel()
 		r.endRun(l)
 	}
@@ -1047,10 +1047,15 @@ type RunResultView struct {
 	// ExitClass names exitCode in the CLI's words; Stage and Reason say
 	// where and why a failed run stopped, in its closed words: a blocked
 	// run's reason says whether the QuickAgent or the runner's tools stopped
-	// it.
-	ExitClass string          `json:"exitClass,omitempty"`
-	Stage     string          `json:"stage,omitempty"`
-	Reason    *receipt.Reason `json:"reason,omitempty"`
+	// it. ExitClassMeaning is the class's one-phrase meaning and
+	// RetryLikelyHelps its retry hint, from the CLI's exit-class table, so
+	// the page shows the words every client shows; both are set for a run
+	// that did not end ok.
+	ExitClass        string          `json:"exitClass,omitempty"`
+	ExitClassMeaning string          `json:"exitClassMeaning,omitempty"`
+	RetryLikelyHelps bool            `json:"retryLikelyHelps,omitempty"`
+	Stage            string          `json:"stage,omitempty"`
+	Reason           *receipt.Reason `json:"reason,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -1150,6 +1155,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 		return nil, err
 	}
 	logw := r.runLineWriter(live.id)
+	logw.also = live.keep
 	defer logw.Flush()
 	usage, stopUsage := usageOf(meter)
 	defer stopUsage()
@@ -1158,6 +1164,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	// its progress to logw from another goroutine. Every line it is given
 	// is whole, so it holds nothing to flush.
 	agentw := r.runLineWriter(live.id)
+	agentw.also = live.keep
 	agentLog := newRunEventLog(func(line string) { _, _ = agentw.Write([]byte(line + "\n")) })
 	// A file an agent's run answers a question with is a file in its share
 	// folder, judged as its input files are, since no dialog picked it.
@@ -1204,7 +1211,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	}, logw)
 	// The run has returned: what it said reaches the log before its result.
 	agentLog.Close()
-	recordLocal(ctx, runhistory.KindRun, live, ref, res)
+	recordLocal(ctx, runhistory.KindRun, live, ref, res, err)
 	// A sign-in the run saved reaches the schedules that run while the
 	// person is signed out, as every other key change does.
 	if savesHostSignIn(hostSignIns) {
@@ -1247,7 +1254,25 @@ func runResultView(res *run.Result) *RunResultView {
 	if res.Unsafe {
 		v.UnsafeExec = res.Exec
 	}
+	if res.Status != "ok" {
+		v.ExitClassMeaning, v.RetryLikelyHelps = exitClassWords(res.ExitClass, res.ExitCode)
+	}
 	return v
+}
+
+// exitClassWords is an exit class's meaning and retry hint from the CLI's
+// exit-class table, by its name, else by its code; "" and false for a
+// class the table does not hold and no code (a run In Agentry whose record
+// names no class).
+func exitClassWords(name string, code int) (meaning string, retryLikelyHelps bool) {
+	if c, ok := receipt.ExitClassByName(name); ok {
+		return c.Meaning, c.RetryLikelyHelps
+	}
+	if code == 0 && name == "" {
+		return "", false
+	}
+	c := receipt.ExitClassOf(code)
+	return c.Meaning, c.RetryLikelyHelps
 }
 
 // MCPToolRow is one granted gateway tool and the declaration granting it.
@@ -1381,6 +1406,9 @@ type lineEventWriter struct {
 	event string
 	// wrap, when set, makes each line's payload (a run's line with its id).
 	wrap func(line string) any
+	// also, when set, is given each line too: the run's own record of its
+	// log, kept for the history once the run has ended.
+	also func(line string)
 	buf  bytes.Buffer
 }
 
@@ -1410,6 +1438,9 @@ func (w *lineEventWriter) Flush() {
 func (w *lineEventWriter) emit(line string) {
 	if line == "" {
 		return
+	}
+	if w.also != nil {
+		w.also(line)
 	}
 	// Through the one emitter (services_hostedrun.go), so a run followed
 	// without a webview — the hosted lifecycle tests — can read what the

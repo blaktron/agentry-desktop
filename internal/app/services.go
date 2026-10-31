@@ -45,8 +45,14 @@ type SettingsAPI struct {
 
 // RegistryView is one configured registry as the frontend sees it.
 type RegistryView struct {
-	URL      string `json:"url"`
-	HasToken bool   `json:"hasToken"`
+	URL string `json:"url"`
+	// HasToken says the app holds a sign-in the registry accepts: a stored
+	// token the registry has not refused. TokenRejected says a token is
+	// stored but the registry answered 401 to it since it was stored or
+	// the app started, so the page shows the registry signed out, with Sign
+	// in; signing in again, or out, clears it.
+	HasToken      bool `json:"hasToken"`
+	TokenRejected bool `json:"tokenRejected,omitempty"`
 	// TokenSource is "keyring", "file", or "" when signed out.
 	TokenSource string `json:"tokenSource,omitempty"`
 	IsDefault   bool   `json:"isDefault"`
@@ -89,8 +95,9 @@ func settingsView() (*SettingsView, error) {
 	for _, r := range s.Registries {
 		src := settings.TokenSource(r.URL)
 		kind, _ := s.SignInFor(r.URL)
+		rejected := src != "" && tokenRejected(r.URL)
 		rv := RegistryView{
-			URL: settings.Normalize(r.URL), HasToken: src != "", TokenSource: src,
+			URL: settings.Normalize(r.URL), HasToken: src != "" && !rejected, TokenRejected: rejected, TokenSource: src,
 			IsDefault: settings.Normalize(r.URL) == settings.Normalize(s.DefaultRegistry),
 			SignIn:    kind,
 		}
@@ -328,6 +335,7 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the PAT is valid but could not be stored: %w", err)
 	}
+	tokenAccepted(url)
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
 	// A schedule that runs signed out carries the registry token sealed
 	// beside it: the new one is sealed in its place.
@@ -345,6 +353,7 @@ func (s *SettingsAPI) SignOut(url string) (*SettingsView, error) {
 	if err := settings.DeleteToken(url); err != nil {
 		return nil, err
 	}
+	tokenAccepted(url)
 	resealSchedules(s.app)
 	return settingsView()
 }

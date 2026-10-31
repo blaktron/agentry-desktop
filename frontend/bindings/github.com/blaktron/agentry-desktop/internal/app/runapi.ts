@@ -664,6 +664,15 @@ export function OpenHostedConnect(reg: string, ref: string): $CancellablePromise
 }
 
 /**
+ * OpenHostedRunPage opens a run In Agentry's own page on the site, in the
+ * system browser: the site and the registry share an origin, and the page
+ * is the run's by its id. Nothing is sent but the address.
+ */
+export function OpenHostedRunPage(reg: string, runID: string): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.OpenHostedRunPage", reg, runID);
+}
+
+/**
  * OpenRunDeliverable opens a deliverable of the run in the program the
  * system has for its type. The type must be on the list and its bytes what
  * the type says; the file opened is the copy in the Deliverables folder when

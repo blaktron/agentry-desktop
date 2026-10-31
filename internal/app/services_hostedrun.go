@@ -190,6 +190,12 @@ type HostedRunView struct {
 	OutcomeLine string `json:"outcomeLine,omitempty"`
 	OutcomeTone string `json:"outcomeTone,omitempty"`
 	Error       string `json:"error,omitempty"`
+	// ExitClassMeaning is the class's one-phrase meaning and
+	// RetryLikelyHelps its retry hint, from the CLI's exit-class table; both
+	// absent while the run moves, when it succeeded, and when the registry
+	// named no class.
+	ExitClassMeaning string `json:"exitClassMeaning,omitempty"`
+	RetryLikelyHelps bool   `json:"retryLikelyHelps,omitempty"`
 
 	// Turns and WallMS are the run's use as the person is told it; its
 	// tokens and their dollar cost stay with the registry, which settles
@@ -964,6 +970,9 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 		v.OutcomeLine, v.OutcomeTone = verdict.Line, verdict.Tone
 		if v.Outcome == "" {
 			v.Outcome = verdict.Outcome
+		}
+		if v.Outcome != hostedrun.OutcomeSucceeded && r.ExitClass != "" {
+			v.ExitClassMeaning, v.RetryLikelyHelps = exitClassWords(r.ExitClass, 0)
 		}
 	}
 	if r.FinishedAt != nil {

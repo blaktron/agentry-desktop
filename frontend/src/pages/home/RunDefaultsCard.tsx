@@ -1,14 +1,15 @@
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
 import { fmtDuration } from "../../usage";
 
 // Home's Run defaults card: where runs go, their time
 // and turn limits, the output folder, and Unsafe Mode while it is on, as
 // Settings → Run defaults keeps them. It edits nothing; the card opens that
 // page.
-export function RunDefaultsCard({ defaults, error, onOpen }: {
+export function RunDefaultsCard({ defaults, error, onRetry, onOpen }: {
   defaults: app.RunDefaultsView | null;
   error: string | null;
+  onRetry?: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -16,7 +17,7 @@ export function RunDefaultsCard({ defaults, error, onOpen }: {
       title="Run defaults"
       onOpen={onOpen}
       className="home-card"
-      status={error ? "Run defaults could not be read." : defaults ? null : "Reading run defaults…"}
+      status={error ? <CouldNotRead what="Run defaults" error={error} onRetry={onRetry} /> : defaults ? null : "Reading run defaults…"}
     >
       {defaults && (
         <>

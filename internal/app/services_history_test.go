@@ -587,3 +587,94 @@ func TestALocalBlockedRunIsRecordedAsBlocked(t *testing.T) {
 		t.Fatalf("ok: %s", o)
 	}
 }
+
+// A run that fails is recorded with its exit class, the runner's last error
+// line and its log, kept in a file of its own; the run page reads all three
+// by the run's id, with the class's meaning and retry hint from the CLI's
+// table, after Dismiss and in a new process alike.
+func TestAFailedRunIsRecordedWithItsClassCauseAndLog(t *testing.T) {
+	freshConfig(t)
+	out := t.TempDir()
+	r := flowAPI(t, func(_ context.Context, req run.Request, logw io.Writer) (*run.Result, error) {
+		_, _ = io.WriteString(logw, "pulling the image\nthe harness exited 1\n")
+		return &run.Result{Status: "error", ExitCode: 14, ExitClass: "harness", Error: "harness: the model answered 503", RunID: req.RunID,
+			Ref: "acme/agent@1.0.0", OutDir: out}, nil
+	})
+	v, err := runAgent(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.ExitClassMeaning != "the agent's harness failed or could not reach its model" || !v.RetryLikelyHelps {
+		t.Fatalf("the result view's class words: %q, retry %v", v.ExitClassMeaning, v.RetryLikelyHelps)
+	}
+	e := onlyEntry(t)
+	if e.ExitClass != "harness" || e.Cause != "harness: the model answered 503" || e.Log == "" {
+		t.Fatalf("entry %+v", e)
+	}
+	raw, err := os.ReadFile(e.Log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "pulling the image\nthe harness exited 1\n" {
+		t.Fatalf("the kept log holds %q", raw)
+	}
+	r.ForgetRun(v.RunID)
+	again := &RunAPI{app: &App{ctx: context.Background()}}
+	rec, err := again.RecordedRun(v.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Run.ExitClass != "harness" || rec.Run.Cause != e.Cause || !rec.Run.LogKept || rec.Log != string(raw) ||
+		rec.Run.ExitClassMeaning != v.ExitClassMeaning || !rec.Run.RetryLikelyHelps {
+		t.Fatalf("the run page's view after Dismiss: %+v, log %q", rec.Run, rec.Log)
+	}
+	// A run that ended ok records no class, cause or meaning, and its log.
+	ok := flowAPI(t, func(_ context.Context, req run.Request, logw io.Writer) (*run.Result, error) {
+		_, _ = io.WriteString(logw, "done\n")
+		return &run.Result{Status: "ok", RunID: req.RunID, OutDir: out}, nil
+	})
+	ok.newRunID = func() (string, error) { return "ab12cd35", nil }
+	if _, err := runAgent(ok); err != nil {
+		t.Fatal(err)
+	}
+	rec, err = again.RecordedRun("ab12cd35")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Run.ExitClass != "" || rec.Run.Cause != "" || rec.Run.ExitClassMeaning != "" || rec.Log != "done\n" {
+		t.Fatalf("a run that ended ok: %+v, log %q", rec.Run, rec.Log)
+	}
+	// With the history off, no log is kept either.
+	setRemember(t, false)
+	off := flowAPI(t, func(_ context.Context, req run.Request, logw io.Writer) (*run.Result, error) {
+		_, _ = io.WriteString(logw, "quiet\n")
+		return &run.Result{Status: "error", ExitCode: 13, ExitClass: "gateway", RunID: req.RunID, OutDir: out}, nil
+	})
+	off.newRunID = func() (string, error) { return "ab12cd36", nil }
+	if _, err := runAgent(off); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := runhistory.LogPath("ab12cd36"); p != "" {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Fatalf("a log was kept with the history off: %v", err)
+		}
+	}
+}
+
+// A run In Agentry that failed records the registry's error line as its
+// cause, and its row carries the class's words.
+func TestAFailedHostedRunIsRecordedWithItsCause(t *testing.T) {
+	freshConfig(t)
+	now := time.Now().UTC()
+	h := &hostedrun.Run{ID: "11111111-2222-3333-4444-555555555555", Ref: "acme/agent@1.0.0", Status: hostedrun.StatusFinished,
+		Outcome: hostedrun.OutcomeFailed, ExitClass: "timeout", Error: "the run's time budget ran out", CreatedAt: now, FinishedAt: &now}
+	recordHosted("https://r.example", h, t.TempDir())
+	e := onlyEntry(t)
+	if e.ExitClass != "timeout" || e.Cause != "the run's time budget ran out" {
+		t.Fatalf("entry %+v", e)
+	}
+	row := entryView(e)
+	if row.ExitClassMeaning != "the run's time budget ran out" || row.RetryLikelyHelps || row.Cause != e.Cause {
+		t.Fatalf("row %+v", row)
+	}
+}

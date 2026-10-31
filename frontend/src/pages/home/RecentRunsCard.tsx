@@ -1,5 +1,5 @@
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
 import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
 
 // Home's Recent runs card: the last five runs, chats and built-in jobs,
@@ -7,16 +7,17 @@ import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from
 // registry's list, read live while signed in). A row opens the run page;
 // the card opens Run defaults' Recent runs, where the history is turned off
 // or cleared. Nothing a run wrote is shown here.
-export function RecentRunsCard({ view, error, now, onOpenRun, onOpenSettings }: {
+export function RecentRunsCard({ view, error, onRetry, now, onOpenRun, onOpenSettings }: {
   view: app.RecentRunsView | null;
   error: string | null;
+  onRetry?: () => void;
   now: Date;
   onOpenRun: (row: app.RecentRunView) => void;
   onOpenSettings: () => void;
 }) {
   const rows = view?.runs ?? [];
   const status = error
-    ? "Recent runs could not be read."
+    ? <CouldNotRead what="Recent runs" error={error} onRetry={onRetry} />
     : !view
       ? "Reading recent runs…"
       : rows.length === 0
@@ -24,7 +25,7 @@ export function RecentRunsCard({ view, error, now, onOpenRun, onOpenSettings }: 
         : null;
   return (
     <CardFrame title="Recent runs" onOpen={onOpenSettings} className="home-card" status={status}
-      foot={view && !view.signedIn ? signedOutNote : view?.hostedError ? "Your runs In Agentry could not be read just now." : undefined}>
+      foot={view && !view.signedIn ? signedOutNote : view?.hostedError ? <CouldNotRead what="Your runs In Agentry" error={view.hostedError} onRetry={onRetry} /> : undefined}>
       {rows.length > 0 && (
         <ul className="home-card-list recent-runs" data-recent-runs>
           {rows.map((r) => (

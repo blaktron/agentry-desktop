@@ -61,7 +61,9 @@ test("how it ended, for the card", () => {
   const begun = withProgress(starting("acme/a@1.0.0"), report("r1", "acme/a@1.0.0"));
   assert.deepEqual(outcome(begun), { line: "", tone: "" });
   assert.deepEqual(outcome(finished(begun, result("r1"))), { line: "Finished.", tone: "ok" });
-  assert.deepEqual(outcome(finished(begun, result("r1", "error", 7))), { line: "It ended in an error (exit 7).", tone: "bad" });
+  assert.deepEqual(outcome(finished(begun, result("r1", "error", 7))), { line: "Failed (exit 7).", tone: "bad" });
+  const classed = { ...result("r1", "error", 14), exitClass: "harness", exitClassMeaning: "the agent's harness failed or could not reach its model" } as unknown as app.RunResultView;
+  assert.deepEqual(outcome(finished(begun, classed)), { line: "Failed (harness): the agent's harness failed or could not reach its model.", tone: "bad" });
   assert.deepEqual(outcome(failed(begun, "docker is not running")), { line: "The run did not finish.", tone: "bad" });
   const stopped = finished(stopAsked(begun), result("r1", "error", 130));
   assert.equal(stopped.stopped, true);
@@ -96,7 +98,7 @@ test("a blocked run says who stopped it, as a warning", () => {
   }
   assert.match(outcome(finished(begun, blocked(undefined))).line, /failed this run/);
   // Any other failure is still the error it was.
-  assert.deepEqual(outcome(finished(begun, result("r1", "error", 14))), { line: "It ended in an error (exit 14).", tone: "bad" });
+  assert.deepEqual(outcome(finished(begun, result("r1", "error", 14))), { line: "Failed (exit 14).", tone: "bad" });
 });
 
 test("a queued run's line says what it waits for", () => {

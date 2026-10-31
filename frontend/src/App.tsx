@@ -106,13 +106,16 @@ export default function App() {
   // The corner the running flows' cards stack in (progress.tsx).
   const [corner, setCorner] = useState<HTMLElement | null>(null);
   // A run on this computer's setup, opened again by Back to the setup from
-  // the run's flow, with the answers as they were.
-  const [reopened, setReopened] = useState<RunSetup | null>(null);
+  // the run's flow, with the answers as they were; Run again opens it the
+  // same way and starts the run at once (runNow).
+  const [reopened, setReopened] = useState<(RunSetup & { runNow?: boolean }) | null>(null);
+  const runAgain = (s: RunSetup) => setReopened({ ...s, runNow: true });
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<app.SettingsView | null>(null);
-  // The Report bug card over the page.
-  const [reportingBug, setReportingBug] = useState(false);
+  // The Report bug card over the page: false, or the text it opens with
+  // ("" for an empty box; a failed run's facts from its Report).
+  const [reportingBug, setReportingBug] = useState<string | false>(false);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
   // A newer Agentry Desktop, when the last check found one. Reading the
@@ -211,6 +214,10 @@ export default function App() {
   useEffect(() => {
     if (registry) void attachHostedRun(registry);
   }, [registry]);
+
+  // A registry answered 401 to the sign-in this app holds: the settings
+  // view now says so, and everything drawn from it reads as signed out.
+  useEffect(() => EventsOn("auth:changed", () => { refreshSettings().catch(() => {}); }), [refreshSettings]);
 
   useEffect(() => {
     refreshSettings()
@@ -316,7 +323,7 @@ export default function App() {
             {/* Report bug, directly above the version: a card over the
                 page, filed with the active registry as the person signed
                 in there. */}
-            <button type="button" className="report-bug" onClick={() => setReportingBug(true)}>Report bug</button>
+            <button type="button" className="report-bug" onClick={() => setReportingBug("")}>Report bug</button>
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (
               <div className="update-line">
@@ -348,10 +355,11 @@ export default function App() {
             <div className="nowrap" title={registry}>{registry.replace(/^https?:\/\//, "")}</div>
           </div>
         </div>
-        {reportingBug && (
+        {reportingBug !== false && (
           <BugReportDialog
             registry={registry}
             signedIn={signedIn}
+            initialText={reportingBug}
             onClose={() => setReportingBug(false)}
             onSignIn={() => {
               setReportingBug(false);
@@ -414,6 +422,8 @@ export default function App() {
                   setOpenDraftRev((n) => n + 1);
                   nav({ page: "build" });
                 }}
+                onRunAgain={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home", run: true })}
+                onReport={setReportingBug}
               />
             )}
             {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} />}
@@ -518,14 +528,15 @@ export default function App() {
             setOpenDraftRev((n) => n + 1);
           }}
         />
-        <RunFlow onBackToSetup={setReopened} />
-        <HostedRunFlow onBackToSetup={setReopened} />
+        <RunFlow onBackToSetup={setReopened} onRunAgain={runAgain} onReport={setReportingBug} />
+        <HostedRunFlow onBackToSetup={setReopened} onRunAgain={runAgain} onReport={setReportingBug} />
         <ChatFlow onBackToSetup={setReopened} />
         <ReviewFlow />
         {reopened && (
           <RunPanel
             {...reopened.panel}
             initialForm={reopened.form}
+            initialRun={reopened.runNow}
             onClose={() => setReopened(null)}
           />
         )}
