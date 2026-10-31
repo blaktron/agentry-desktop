@@ -210,6 +210,10 @@ type ProfileInfo struct {
 	// in the run setup's Knowledge step and never to the agent; nil when it
 	// asks for nothing.
 	AcceptsKnowledge *manifest.KnowledgeAccepts
+	// Takes are the kinds of file the release takes (inputs.kinds, [any] when
+	// it declares none), and InputView the view its agent reads them in first.
+	Takes     []string
+	InputView string
 	// BrowserSites are the url questions the release's browser names as sites
 	// (capabilities.browser.sites): the run setup asks each for the site to
 	// test, an http or https address, never as an input source to fetch. Nil
@@ -278,6 +282,10 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Intake:          sig.Manifest.Intake,
 		Guide:           sig.Manifest.Guide,
 		ShipsKnowledge:  sig.Manifest.ShippedPacks(),
+		InputView:       string(sig.Manifest.DefaultInputView()),
+	}
+	for _, k := range sig.Manifest.TakesKinds() {
+		info.Takes = append(info.Takes, string(k))
 	}
 	if b := sig.Manifest.Capabilities.Browser; b != nil {
 		info.BrowserSites = b.Sites

@@ -36,12 +36,15 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/blaktron/agentry/pkg/manifest"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 	"github.com/blaktron/agentry-cli/runnerimage/applink"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -91,9 +94,12 @@ type mainOps interface {
 	agent(reg, ns, name string) (*AgentDetailView, error)
 	report(reg, ns, name, version string) (*ReportView, error)
 	requirements(reg, ns, name string) (*MCPView, error)
+	// usage is what the run setup reads of a release before a run: its
+	// questions, the files it takes, its keys and its guide.
+	usage(reg, ref string) (*run.ProfileInfo, error)
 	installed() ([]install.Item, error)
 	install(reg, ref, who string) (*install.Result, error)
-	run(reg, ref, task string, inputs []string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error)
+	run(reg, ref, task string, inputs []string, intake map[string]string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error)
 	recorded(runID string) (*RecordedRunView, error)
 	schedules() (*SchedulesView, error)
 	addSchedule(req schedules.Request, who string) (*ScheduleMadeView, error)
@@ -205,14 +211,15 @@ func (m *mainLink) call(ctx context.Context, tool string, raw json.RawMessage) (
 		return m.install(a.Ref)
 	case "quickagent_run":
 		var a struct {
-			Ref   string   `json:"ref"`
-			Task  string   `json:"task"`
-			Files []string `json:"files"`
+			Ref     string            `json:"ref"`
+			Task    string            `json:"task"`
+			Files   []string          `json:"files"`
+			Answers map[string]string `json:"answers"`
 		}
 		if err := args(raw, &a); err != nil {
 			return "", err
 		}
-		return m.run(ctx, a.Ref, a.Task, a.Files)
+		return m.run(ctx, a.Ref, a.Task, a.Files, a.Answers)
 	case "run_result":
 		var a struct {
 			Run string `json:"run"`
@@ -228,14 +235,15 @@ func (m *mainLink) call(ctx context.Context, tool string, raw json.RawMessage) (
 		return m.installedList()
 	case "schedule_add":
 		var a struct {
-			Ref  string `json:"ref"`
-			When string `json:"when"`
-			Task string `json:"task"`
+			Ref     string            `json:"ref"`
+			When    string            `json:"when"`
+			Task    string            `json:"task"`
+			Answers map[string]string `json:"answers"`
 		}
 		if err := args(raw, &a); err != nil {
 			return "", err
 		}
-		return m.scheduleAdd(a.Ref, a.When, a.Task)
+		return m.scheduleAdd(a.Ref, a.When, a.Task, a.Answers)
 	case "schedule_list":
 		if err := args(raw, &struct{}{}); err != nil {
 			return "", err
@@ -376,10 +384,21 @@ func (m *mainLink) show(ref string) (string, error) {
 	} else {
 		fmt.Fprintf(&b, "Latest version: %s\n", d.Latest)
 	}
-	if it, _ := m.installedHere(ns, name); it != nil {
+	it, _ := m.installedHere(ns, name)
+	if it != nil {
 		fmt.Fprintf(&b, "Installed on this computer: %s\n", it.Version)
 	} else {
 		b.WriteString("Not installed on this computer.\n")
+	}
+	// How to run it is the installed version's when there is one, since
+	// that is the version a run takes, else the latest's.
+	var usage *run.ProfileInfo
+	var usageErr error
+	switch {
+	case it != nil && !it.Local:
+		usage, usageErr = m.ops.usage(it.Origin, ns+"/"+name+"@"+it.Version)
+	case d.Latest != "":
+		usage, usageErr = m.ops.usage(reg, ns+"/"+name+"@"+d.Latest)
 	}
 	if d.Latest != "" {
 		if req, err := m.ops.requirements(reg, ns, name); err == nil {
@@ -392,13 +411,19 @@ func (m *mainLink) show(ref string) (string, error) {
 			for _, s := range req.Servers {
 				fmt.Fprintf(&b, "- MCP server: %s\n", s)
 			}
-			if len(req.SecretNames) > 0 {
+			if len(req.SecretNames) > 0 && usage == nil {
 				fmt.Fprintf(&b, "- Keys it needs: %s\n", strings.Join(req.SecretNames, ", "))
 			}
 		}
 		if r, err := m.ops.report(reg, ns, name, d.Latest); err == nil {
 			b.WriteString(securityLine(r))
 		}
+	}
+	switch {
+	case usage != nil:
+		b.WriteString(usageText(usage))
+	case usageErr != nil:
+		fmt.Fprintf(&b, "How to run it: Agentry could not read it (%v). Show it again before a run.\n", usageErr)
 	}
 	return b.String(), nil
 }
@@ -490,7 +515,7 @@ func fileIn(dir, p string) error {
 	return nil
 }
 
-func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (string, error) {
+func (m *mainLink) run(ctx context.Context, ref, task string, files []string, answers map[string]string) (string, error) {
 	ns, name, version, err := parseRef(ref)
 	if err != nil {
 		return "", err
@@ -524,7 +549,18 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 		inputs = append(inputs, p)
 	}
 	exact := ns + "/" + name + "@" + it.Version
-	if err := m.agreeToRun(exact, task, files); err != nil {
+	info, err := m.ops.usage(it.Origin, exact)
+	if err != nil {
+		return "", fmt.Errorf("%s was not started: its questions could not be read: %w", exact, err)
+	}
+	if !slices.Contains(info.Modes, string(manifest.ModeAutonomous)) {
+		return "", fmt.Errorf("%s runs only as a session the person takes part in: they start it from its page", exact)
+	}
+	given, err := checkAnswers(info, answers, share, true)
+	if err != nil {
+		return "", err
+	}
+	if err := m.agreeToRun(exact, task, files, given); err != nil {
 		return "", err
 	}
 	// began carries the run's id the first time it is known: when it waits
@@ -538,7 +574,7 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string) (s
 	go func() {
 		defer close(r.done)
 		defer emitEvent(m.app, eventHomeChanged)
-		r.res, r.err = m.ops.run(it.Origin, ns+"/"+name+"@"+it.Version, task, inputs, share, m.ops.outputDir(), func(id string, queued bool) {
+		r.res, r.err = m.ops.run(it.Origin, ns+"/"+name+"@"+it.Version, task, inputs, given.intake, share, m.ops.outputDir(), func(id string, queued bool) {
 			m.mu.Lock()
 			if m.runs == nil {
 				m.runs = map[string]*mainRun{}
@@ -585,7 +621,9 @@ type agreed struct {
 
 // agreeToRun asks the person before Main's first run of a QuickAgent at a
 // version, and records a Yes; a later run of the same version asks nothing.
-func (m *mainLink) agreeToRun(exact, task string, files []string) error {
+// A run that fetches a repository or a file is agreed to with its
+// addresses, so the same version fetching from another address asks again.
+func (m *mainLink) agreeToRun(exact, task string, files []string, given *checkedAnswers) error {
 	path, err := m.agreedPath()
 	if err != nil {
 		return err
@@ -594,7 +632,8 @@ func (m *mainLink) agreeToRun(exact, task string, files []string) error {
 	if b, err := os.ReadFile(path); err == nil { //nolint:gosec // the app's own record
 		_ = json.Unmarshal(b, &rec)
 	}
-	if slices.Contains(rec.Runs, exact) {
+	key := agreedKey(exact, given.sources)
+	if slices.Contains(rec.Runs, key) {
 		return nil
 	}
 	who := m.who()
@@ -604,16 +643,26 @@ func (m *mainLink) agreeToRun(exact, task string, files []string) error {
 		fmt.Fprintf(&msg, " on %s from its share folder", strings.Join(files, ", "))
 	}
 	msg.WriteString(".")
+	if len(given.lines) > 0 {
+		fmt.Fprintf(&msg, "\n\nThe answers %s gave its questions:\n- %s", who, strings.Join(given.lines, "\n- "))
+	}
+	if len(given.sources) > 0 {
+		msg.WriteString("\n\nThe run fetches from those addresses before it starts, with the key saved in Agentry for each address's host, if there is one.")
+	}
 	if t := strings.TrimSpace(task); t != "" {
 		// Main's words, quoted, so they cannot pass for the dialog's own.
 		fmt.Fprintf(&msg, "\n\nThe task %s wrote for it: %s", who, quoted(cut(t, 500)))
 	}
-	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. " + who + " may run this version again without asking.\n\nRun it?")
+	again := " may run this version again without asking."
+	if len(given.sources) > 0 {
+		again = " may run this version on the same addresses again without asking; other addresses ask again."
+	}
+	msg.WriteString("\n\nIt runs as any run of it does, under what it was installed with: it is listed in Recent runs and writes to your output folder. " + who + again + "\n\nRun it?")
 	if err := m.app.askConsent("Run "+exact+" for "+who+"?", msg.String()); err != nil {
 		return err
 	}
 	rec.Version = 1
-	rec.Runs = append(rec.Runs, exact)
+	rec.Runs = append(rec.Runs, key)
 	b, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
 		return err
@@ -622,6 +671,17 @@ func (m *mainLink) agreeToRun(exact, task string, files []string) error {
 		return err
 	}
 	return os.WriteFile(path, b, 0o600)
+}
+
+// agreedKey is a run's entry in the record of agreed runs: the exact
+// version, and each source it fetches as id=address, sorted.
+func agreedKey(exact string, sources []string) string {
+	if len(sources) == 0 {
+		return exact
+	}
+	s := slices.Clone(sources)
+	slices.Sort(s)
+	return exact + " " + strings.Join(s, " ")
 }
 
 // cut is s at most n bytes long, on a rune boundary, marked where cut.
@@ -710,7 +770,7 @@ func (m *mainLink) installedList() (string, error) {
 	return "Installed on this computer:\n" + b.String(), nil
 }
 
-func (m *mainLink) scheduleAdd(ref, when, task string) (string, error) {
+func (m *mainLink) scheduleAdd(ref, when, task string, answers map[string]string) (string, error) {
 	ns, name, _, err := parseRef(ref)
 	if err != nil {
 		return "", err
@@ -729,9 +789,21 @@ func (m *mainLink) scheduleAdd(ref, when, task string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	exact := ns + "/" + name + "@" + it.Version
+	info, err := m.ops.usage(it.Origin, exact)
+	if err != nil {
+		return "", fmt.Errorf("%s was not scheduled: its questions could not be read: %w", exact, err)
+	}
+	given, err := checkAnswers(info, answers, "", false)
+	if err != nil {
+		return "", err
+	}
 	req := schedules.Request{
-		Registry: it.Origin, Ref: ns + "/" + name + "@" + it.Version, Task: strings.TrimSpace(task),
+		Registry: it.Origin, Ref: exact, Task: strings.TrimSpace(task),
 		OutDir: m.ops.outputDir(), MaxTurns: -1, When: w,
+	}
+	if len(given.intake) > 0 {
+		req.Intake = given.intake
 	}
 	made, err := m.ops.addSchedule(req, m.who())
 	if err != nil {
@@ -1130,19 +1202,23 @@ func (o appMainOps) requirements(reg, ns, name string) (*MCPView, error) {
 	return o.runner.GatewayRequirements(reg, ns, name)
 }
 
+func (o appMainOps) usage(reg, ref string) (*run.ProfileInfo, error) {
+	return run.ProfileStatus(o.runner.app.ctx, reg, ref)
+}
+
 func (o appMainOps) installed() ([]install.Item, error) { return o.installer.ListInstalled() }
 
 func (o appMainOps) install(reg, ref, who string) (*install.Result, error) {
 	return o.installer.installRunner(reg, ref, who)
 }
 
-func (o appMainOps) run(reg, ref, task string, inputs []string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error) {
+func (o appMainOps) run(reg, ref, task string, inputs []string, intake map[string]string, share, outDir string, began func(id string, queued bool)) (*RunResultView, error) {
 	h := runHooks{
 		began:    func(id string) { began(id, false) },
 		queued:   func(id string) { began(id, true) },
 		inputsIn: share,
 	}
-	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
+	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, intake, false, false, nil, false, nil, nil, nil)
 }
 
 func (o appMainOps) recorded(runID string) (*RecordedRunView, error) {
