@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.6.1007",
+      "highlights": [
+        "Your personal agent reads how a QuickAgent wants to run: its questions, the files it takes and its guide.",
+        "Ask it to run a QuickAgent on a repository and it gives the address; Agentry fetches it, no download needed.",
+        "Before a run that fetches from a new address, Agentry asks you first."
+      ]
+    },
+    {
       "version": "0.6.1006",
       "highlights": [
         "Agentry Desktop now runs on Wails 3 with GTK 4 on Linux: Debian 13, Ubuntu 24.04 and Fedora 44 or later.",
