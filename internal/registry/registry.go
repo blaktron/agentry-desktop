@@ -49,10 +49,39 @@ func ExtractLimits() pkgarchive.ExtractLimits {
 // httpTimeout bounds every request. Archive downloads are the long pole.
 const httpTimeout = 5 * time.Minute
 
+// Transport is the round tripper under every client that carries the
+// account's token: the default transport, watched for a registry's 401 to
+// the token this app has stored for it (Unauthorized).
+var Transport http.RoundTripper = authWatch{next: http.DefaultTransport}
+
 // HTTPClient is the one client every request goes through (also handed to
 // pkg/trust so key fetches share the timeout). A request on it that carries
 // the stored token never follows a redirect (KeepTokenHome).
-var HTTPClient = &http.Client{Timeout: httpTimeout, CheckRedirect: KeepTokenHome}
+var HTTPClient = &http.Client{Timeout: httpTimeout, CheckRedirect: KeepTokenHome, Transport: Transport}
+
+// Unauthorized, when set, is told the origin of a registry that answered
+// 401 to a request carrying the token this app has stored for that origin:
+// the sign-in is no longer accepted there, whatever the keychain holds. A
+// 401 to any other bearer (a token being checked at sign-in, another
+// host's) is not reported. nil reports nothing.
+var Unauthorized func(origin string)
+
+// authWatch is Transport: it passes every request through and reports the
+// rejections Unauthorized is for.
+type authWatch struct{ next http.RoundTripper }
+
+func (w authWatch) RoundTrip(req *http.Request) (*http.Response, error) {
+	res, err := w.next.RoundTrip(req)
+	if err == nil && res.StatusCode == http.StatusUnauthorized && Unauthorized != nil && req.URL != nil {
+		origin := req.URL.Scheme + "://" + req.URL.Host
+		if bearer, ok := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer "); ok && bearer != "" {
+			if stored := settings.TokenFor(origin); stored != "" && stored == bearer {
+				Unauthorized(origin)
+			}
+		}
+	}
+	return res, err
+}
 
 // maxRedirects is net/http's own limit, kept for the requests that still
 // follow one: setting CheckRedirect replaces the default that enforced it.

@@ -12,19 +12,21 @@
 // The desktop follows a run In Agentry and never drives it: every
 // sentence here is the registry's, or says what the registry said.
 import { useEffect, useRef, useState } from "react";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import { failureOf, hostedFailureInput, reportText } from "../failedRun";
 import { hostedActive, hostedHeadline, hostedProgress, hostedTone, lostTouch } from "../hostedRun";
 import { CornerCard, ProgressView, RunningView } from "../progress";
 import {
   type RunSetup, backToHostedSetup, cancelHostedRun, dismissHostedRun, followHostedRunAgain, showHostedRun, useHostedRun,
 } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
+import { FailedRunView } from "./FailedRun";
 import { HostedResult, StarAsk } from "./HostedRun";
+import type { RunFlowActions } from "./RunFlow";
 import { RunResultView } from "./RunResult";
 
-export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
-  /** Opens the run's setup again, with the answers as they were. */
-  onBackToSetup: (s: RunSetup) => void;
+export default function HostedRunFlow({ onBackToSetup, onRunAgain, onReport, initialMinimized }: RunFlowActions & {
   /** Harness-only: open as the corner card. */
   initialMinimized?: boolean;
 }) {
@@ -110,6 +112,22 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
     const setup = backToHostedSetup();
     if (setup) onBackToSetup(setup);
   };
+  const runAgainNow = onRunAgain && s.setup ? () => {
+    const setup = backToHostedSetup();
+    if (setup) onRunAgain(setup);
+  } : undefined;
+  // A run that failed In Agentry: the registry's class and error line, the
+  // run page as the evidence, and the outputs that came down.
+  const failure = lost ? null : failureOf(hostedFailureInput(r));
+  const failed = failure && (
+    <FailedRunView
+      failure={failure}
+      runAgain={runAgainNow && { label: "Run again with the same answers", onClick: runAgainNow }}
+      openRun={() => void RunAPI.OpenHostedRunPage(s.registry, r.id).catch(() => undefined)}
+      openFolder={r.outputs.length > 0 && r.outDir ? () => void RunAPI.ShowRunFolder(r.id).catch(() => undefined) : undefined}
+      report={onReport ? () => onReport(reportText(failure, r.id)) : undefined}
+    />
+  );
   // Closing the dialog of a run that is over keeps its card: only Dismiss
   // makes the app forget the run.
   return (
@@ -130,6 +148,7 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
           headline={hostedHeadline(r)}
           tone={hostedTone(r)}
           error={r.downloadError || undefined}
+          lead={failed || undefined}
           resultJson={r.resultJson ?? ""}
           knowledge={r.knowledgeLine || undefined}
           ask={<StarAsk registry={s.registry} run={r} />}

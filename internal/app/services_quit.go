@@ -22,6 +22,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
@@ -75,6 +76,45 @@ type liveRun struct {
 	// leaves no opened copy in the store; one that does not leaves it for
 	// the store's own sweep, an hour on, as a killed app does.
 	release func()
+	// lines are the run's log lines as the page was shown them, the
+	// newest maxKeptLogLines of them, for the log the history keeps once
+	// the run has ended (keep, kept); logDropped counts the earlier ones.
+	logMu      sync.Mutex
+	lines      []string
+	logDropped int
+}
+
+// maxKeptLogLines is how many lines of a run's log the history keeps: the
+// same as the page shows.
+const maxKeptLogLines = 5000
+
+// keep takes one line of the run's log.
+func (l *liveRun) keep(line string) {
+	l.logMu.Lock()
+	defer l.logMu.Unlock()
+	l.lines = append(l.lines, line)
+	if n := len(l.lines) - maxKeptLogLines; n > 0 {
+		l.lines = append(l.lines[:0], l.lines[n:]...)
+		l.logDropped += n
+	}
+}
+
+// kept is the run's log as it stands: a first line counting the lines let
+// go, when any were, then the lines kept. nil for a run that logged nothing.
+func (l *liveRun) kept() []string {
+	l.logMu.Lock()
+	defer l.logMu.Unlock()
+	if len(l.lines) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(l.lines)+1)
+	switch {
+	case l.logDropped == 1:
+		out = append(out, "(1 earlier line is not kept here.)")
+	case l.logDropped > 1:
+		out = append(out, fmt.Sprintf("(%d earlier lines are not kept here.)", l.logDropped))
+	}
+	return append(out, l.lines...)
 }
 
 // beginRun records a run about to enter the engine and returns its id and

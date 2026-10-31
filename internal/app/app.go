@@ -211,6 +211,7 @@ func within(dir, p string) bool {
 // startup saves the application context.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	watchAuth()
 }
 
 // ctxOrBackground is the window's context, or a background one before it exists.

@@ -1,6 +1,8 @@
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
+import { rejectedLine } from "../../signInState";
 import { creditCount, tierLabel, topUpOffer } from "../../subscription";
+import { Button } from "../../ui";
 import { nameOf } from "../../homeLines";
 import { hostOf } from "../Settings";
 
@@ -8,14 +10,18 @@ import { hostOf } from "../Settings";
 // the credit balance, read live from the registry as Settings → Profile
 // reads them (nothing is stored). It edits nothing: the card opens Settings
 // → Profile, and Top up credits opens the site, where the tier offers packs.
-// Signed out it is a Sign in card.
-export function ProfileCard({ registry, signedIn, profile, error, onOpenProfile, onSignIn, onTopUp }: {
+// Signed out it is a Sign in card, and so is a sign-in the registry no
+// longer accepts, which says so.
+export function ProfileCard({ registry, signedIn, rejected, profile, error, onRetry, onOpenProfile, onSignIn, onTopUp }: {
   registry: string;
   // null until the settings are read, so the card never shows Sign in to
   // someone who is signed in.
   signedIn: boolean | null;
+  // The registry answered 401 to the sign-in this app holds.
+  rejected?: boolean;
   profile: app.ProfileView | null;
   error: string | null;
+  onRetry?: () => void;
   onOpenProfile: () => void;
   onSignIn: () => void;
   onTopUp: () => void;
@@ -27,8 +33,12 @@ export function ProfileCard({ registry, signedIn, profile, error, onOpenProfile,
         title="Sign in"
         onOpen={onSignIn}
         className="home-card"
-        blurb={<>Sign in to <span className="mono">{host}</span> to see your profile and credits here, and to run QuickAgents In Agentry.</>}
-      />
+        blurb={rejected
+          ? <span data-signin-rejected>{rejectedLine(host)}</span>
+          : <>Sign in to <span className="mono">{host}</span> to see your profile and credits here, and to run QuickAgents In Agentry.</>}
+      >
+        <Button variant="primary" className="build-way-part" data-sign-in onClick={onSignIn}>Sign in</Button>
+      </CardFrame>
     );
   }
   const user = profile?.user;
@@ -38,7 +48,7 @@ export function ProfileCard({ registry, signedIn, profile, error, onOpenProfile,
       title="Profile"
       onOpen={onOpenProfile}
       className="home-card"
-      status={error ? "Your profile could not be read." : profile ? null : "Reading your profile…"}
+      status={error ? <CouldNotRead what="Your profile" error={error} onRetry={onRetry} /> : profile ? null : "Reading your profile…"}
     >
       {user && (
         <dl className="home-card-facts">

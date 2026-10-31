@@ -104,13 +104,17 @@ export function stopAsked(r: LocalRun): LocalRun {
 }
 
 /** How a run that produced a result ended, as its result view's headline
- *  says it: stopped, finished, or in an error. A chat's result says it the
- *  same way. */
+ *  says it: stopped, finished, blocked, or failed, by its exit class's name
+ *  and meaning (the CLI's table, which Go hands over). A chat's result says
+ *  it the same way. */
 export function headlineOf(result: app.RunResultView, stopped = false): { line: string; tone: Exclude<Tone, ""> } {
   if (stopped) return { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" };
   if (result.status === "ok") return { line: "Finished.", tone: "ok" };
   if (result.exitClass === "blocked") return { line: blockedLine(result), tone: "warn" };
-  return { line: `It ended in an error (exit ${result.exitCode}).`, tone: "bad" };
+  if (result.exitClass && result.exitClassMeaning) {
+    return { line: `Failed (${result.exitClass}): ${result.exitClassMeaning.trim().replace(/\.?$/, ".")}`, tone: "bad" };
+  }
+  return { line: `Failed (${result.exitClass || `exit ${result.exitCode}`}).`, tone: "bad" };
 }
 
 /** The prefix the CLI puts before a QuickAgent's own end_blocked sentence

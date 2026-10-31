@@ -1,5 +1,5 @@
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CardFrame } from "../../cards";
+import { CardFrame, CouldNotRead } from "../../cards";
 import { asSentence, byDay, mergeFires, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
 import { MonthGrid } from "../MonthGrid";
 
@@ -9,9 +9,10 @@ import { MonthGrid } from "../MonthGrid";
 // account's schedules In Agentry, marked so. Large, pinned from the
 // Scheduled page's options menu. The card opens the Scheduled page, where
 // every change is made; it changes and runs nothing.
-export function ScheduledCard({ view, error, weeks, title, onOpen }: {
+export function ScheduledCard({ view, error, onRetry, weeks, title, onOpen }: {
   view: app.ScheduledCardView | null;
   error: string | null;
+  onRetry?: () => void;
   /** This month's grid (monthGrid of now), and its title. */
   weeks: GridDay[][];
   title: string;
@@ -21,7 +22,7 @@ export function ScheduledCard({ view, error, weeks, title, onOpen }: {
   const next = view?.next ?? [];
   const foot = [view?.reason ? asSentence(view.reason) : "", view?.hostedReason ?? ""].filter(Boolean).join(" ");
   return (
-    <CardFrame title="Scheduled" onOpen={onOpen} className="home-card home-scheduled" status={scheduledCardStatus(view, error)}
+    <CardFrame title="Scheduled" onOpen={onOpen} className="home-card home-scheduled" status={error ? <CouldNotRead what="The schedules" error={error} onRetry={onRetry} /> : scheduledCardStatus(view, error)}
       foot={foot || undefined}>
       {view && (
         <div className="home-scheduled-body">

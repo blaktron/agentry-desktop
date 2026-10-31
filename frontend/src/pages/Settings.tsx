@@ -39,6 +39,7 @@ import { LicencesSettings } from "./SettingsLicences";
 import PersistentAgentsSettings from "./SettingsPersistentAgents";
 import { persistentAgentsStatus } from "../persistentAgents";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
+import { rejectedLine } from "../signInState";
 
 // Settings as five cards: the landing is a card per section, each card the
 // whole of a link to its section page, with one sentence, a status line
@@ -388,7 +389,7 @@ export const signedInTo = (settings: app.SettingsView, url: string) =>
 export function registryStatus(settings: app.SettingsView, activeRegistry: string): string {
   const r = settings.registries.find((x) => x.url === activeRegistry);
   if (!r) return settings.registries.length ? "No registry in use." : "No registry added yet.";
-  return `${hostOf(r.url)}, ${r.hasToken ? "signed in" : "not signed in"}.`;
+  return `${hostOf(r.url)}, ${r.hasToken ? "signed in" : r.tokenRejected ? "sign-in no longer accepted" : "not signed in"}.`;
 }
 
 export function updateStatus(v: app.SelfUpdateView): string {
@@ -1034,8 +1035,15 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                 {r.url === activeRegistry && <span className="badge ok">active</span>}
                 {r.signIn && (r.hasToken
                   ? <span className="badge">signed in ({r.tokenSource})</span>
-                  : <span className="badge warn">anonymous</span>)}
+                  : r.tokenRejected
+                    ? <span className="badge bad" data-signin-rejected>sign-in no longer accepted</span>
+                    : <span className="badge warn">anonymous</span>)}
               </div>
+              {/* A sign-in the registry answered 401 to: said, with Sign in
+                  again below and Sign out to drop the token it refused. */}
+              {r.tokenRejected && (
+                <div className="muted small" style={{ marginTop: 4 }}>{rejectedLine(hostOf(r.url))}</div>
+              )}
               {/* A registry the app keeps no sign-in for says why, and
                   offers only Remove. */}
               {r.signInRefused && (
@@ -1067,6 +1075,11 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                 </Button>
               ) : r.signIn && (
                 <>
+                  {r.tokenRejected && (
+                    <Button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SignOut(r.url); await onChanged(); setNotice(`Signed out of ${r.url}.`); })}>
+                      Sign out
+                    </Button>
+                  )}
                   <Button
                     variant="primary"
                     disabled={busy}

@@ -11,6 +11,7 @@ import { Button, Notice, PageHeader } from "../ui";
 import { cardsToDraw, HOME_DEFAULTS, scheduledOnHome, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
 import { greeting } from "../homeLines";
 import { signedInTo } from "./Settings";
+import { signInState } from "../signInState";
 import { InstalledCard } from "./home/InstalledCard";
 import { ProfileCard } from "./home/ProfileCard";
 import { RunDefaultsCard } from "./home/RunDefaultsCard";
@@ -131,6 +132,9 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
 
   // Read again when an install or a run Agentry Helper asked for ends.
   const [changes, setChanges] = useState(0);
+  // Each card's Try again: a count per read, bumped to read it again.
+  const [tries, setTries] = useState<Record<string, number>>({});
+  const retry = (key: string) => () => setTries((t) => ({ ...t, [key]: (t[key] ?? 0) + 1 }));
   useEffect(() => {
     // The harness has no runtime.
     try { return EventsOn("applink:home-changed", () => setChanges((n) => n + 1)); } catch { return undefined; }
@@ -140,7 +144,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     let live = true;
     InstallAPI.ListInstalled().then(...settle(() => live)(setRecords));
     return () => { live = false; };
-  }, [changes]);
+  }, [changes, tries.records]);
 
   useEffect(() => {
     let live = true;
@@ -148,9 +152,14 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     HomeAPI.Layout().then(...put(setLayout));
     // The launch check's snapshot: reading it never starts a check.
     InstallAPI.UpdatesStatus().then((v) => { if (live) { setUpdates(v.updates ?? []); setUpdateCount(v.available); } }).catch(() => {});
-    SettingsAPI.RunDefaults().then(...put(setDefaults));
     return () => { live = false; };
   }, []);
+
+  useEffect(() => {
+    let live = true;
+    SettingsAPI.RunDefaults().then(...settle(() => live)(setDefaults));
+    return () => { live = false; };
+  }, [tries.defaults]);
 
   // Recent runs: this computer's history and, signed in, the account's runs
   // In Agentry; read again when the registry or the sign-in changes. It
@@ -160,7 +169,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     let live = true;
     RunAPI.RecentRuns(registry, RUNS_READ).then(...settle(() => live)(setRecent));
     return () => { live = false; };
-  }, [registry, signedIn, changes]);
+  }, [registry, signedIn, changes, tries.recent]);
 
   // The Deliverables card: the runs this computer remembers and each one's
   // envelope, read when Home opens and only while the layout holds the card.
@@ -172,14 +181,14 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     let live = true;
     RunAPI.RecentDeliverables(DELIVERABLE_ROWS).then(...settle(() => live)(setDeliverables));
     return () => { live = false; };
-  }, [wantsDeliverables, changes]);
+  }, [wantsDeliverables, changes, tries.deliverables]);
 
   useEffect(() => {
     if (!signedIn) { setProfile(pending); return; }
     let live = true;
     SettingsAPI.Profile(registry).then(...settle(() => live)(setProfile));
     return () => { live = false; };
-  }, [registry, signedIn]);
+  }, [registry, signedIn, tries.profile]);
 
   // The Scheduled card's read, only while the layout holds the card: Home
   // reads the CLI's store and, signed in, the account's schedules In
@@ -196,7 +205,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     // The harness has no runtime.
     try { off = EventsOn("schedules:changed", read); } catch { off = undefined; }
     return () => { live = false; off?.(); };
-  }, [wantsScheduled, weeks, registry]);
+  }, [wantsScheduled, weeks, registry, tries.scheduled]);
 
   // A move or a resize on the grid: one change Go makes, answered with the
   // layout as it now is, or refused, which the page says above the grid.
@@ -228,28 +237,29 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     // The agent card is drawn while an agent it can show is on.
     ...(agentDrawn ? { main: () => <AgentCard onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} /> } : {}),
     deliverables: () => (
-      <DeliverablesCard view={deliverables.value} error={deliverables.error} now={new Date()} onOpenSettings={open.deliverables} />
+      <DeliverablesCard view={deliverables.value} error={deliverables.error} onRetry={retry("deliverables")} now={new Date()} onOpenSettings={open.deliverables} />
     ),
     "recent-runs": () => (
-      <RecentRunsCard view={recentView} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
+      <RecentRunsCard view={recentView} error={recent.error} onRetry={retry("recent")} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
     ),
     installed: () => (
-      <InstalledCard records={records.value} updates={updateCount} error={records.error}
+      <InstalledCard records={records.value} updates={updateCount} error={records.error} onRetry={retry("records")}
         onOpenLibrary={open.library} onOpenBrowse={open.browse} onOpenAgent={open.agent} />
     ),
     profile: () => (
-      <ProfileCard registry={registry} signedIn={signedIn} profile={profile.value} error={profile.error}
+      <ProfileCard registry={registry} signedIn={signedIn} rejected={!!settings && signInState(settings.registries, registry) === "rejected"}
+        profile={profile.value} error={profile.error} onRetry={retry("profile")}
         onOpenProfile={open.profile} onSignIn={open.signIn}
         onTopUp={() => { SettingsAPI.OpenTopUp(registry).catch(() => {}); }} />
     ),
-    "run-defaults": () => <RunDefaultsCard defaults={defaults.value} error={defaults.error} onOpen={open.runDefaults} />,
+    "run-defaults": () => <RunDefaultsCard defaults={defaults.value} error={defaults.error} onRetry={retry("defaults")} onOpen={open.runDefaults} />,
     pinned: (c) => (
       <PinnedCard pins={c.pins} records={records.value ?? (records.error ? [] : null)} updates={updates}
         runs={recent.value?.runs ?? (recent.error ? [] : null)} now={new Date()}
         onOpenLibrary={open.library} onOpenAgent={open.agent} onOpenRun={open.run} onUnpin={unpin}
         onRun={(rec) => (rec.local ? setRunningLocal(rec) : open.runAgent(rec.origin, rec.namespace, rec.name))} />
     ),
-    scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} weeks={weeks} title={monthTitle(now.getFullYear(), now.getMonth())} onOpen={open.scheduled} />,
+    scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} onRetry={retry("scheduled")} weeks={weeks} title={monthTitle(now.getFullYear(), now.getMonth())} onOpen={open.scheduled} />,
     ...(meetings ? { meetings: () => <MeetingsCard onOpen={open.meetings} /> } : {}),
   };
   const cards = layout.value || layout.error

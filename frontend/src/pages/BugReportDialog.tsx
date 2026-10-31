@@ -9,13 +9,16 @@ import { bugReportOutcome, bugTextProblem } from "../bugReport";
 // text with the active registry as the person (SettingsAPI.ReportBug),
 // with the app's version and OS; filed, it thanks them and closes itself.
 // The text is plain text and is shown back only in the box.
-export default function BugReportDialog({ registry, signedIn, onClose, onSignIn }: {
+export default function BugReportDialog({ registry, signedIn, initialText = "", onClose, onSignIn }: {
   registry: string;
   signedIn: boolean;
+  /** What the box opens with: a failed run's facts from its Report, which
+   *  the person reads and adds to before Submit. */
+  initialText?: string;
   onClose: () => void;
   onSignIn: () => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<ReturnType<typeof bugReportOutcome> | null>(null);
   const [error, setError] = useState<string | null>(null);
