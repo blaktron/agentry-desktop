@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -1150,6 +1151,17 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	// is whole, so it holds nothing to flush.
 	agentw := r.runLineWriter(live.id)
 	agentLog := newRunEventLog(func(line string) { _, _ = agentw.Write([]byte(line + "\n")) })
+	// A file an agent's run answers a question with is a file in its share
+	// folder, judged as its input files are, since no dialog picked it.
+	pathPicked := r.app.requirePicked
+	if in := h.inputsIn; in != "" {
+		pathPicked = func(what, p string) error {
+			if err := fileIn(in, p); err != nil {
+				return fmt.Errorf("%s: %w", what, err)
+			}
+			return nil
+		}
+	}
 	res, err := r.runEngine(ctx, run.Request{
 		OnBudgets:          budgetsOf(meter),
 		OnUsage:            usage,
@@ -1178,7 +1190,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 		HostSignIns:        hostSignIns,
 		TrustHostKey:       r.app.trustHostKey,
 		KeyFilePicked:      r.app.keyFiles.require,
-		PathPicked:         r.app.requirePicked,
+		PathPicked:         pathPicked,
 		Unsafe:             unsafe,
 		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)

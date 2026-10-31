@@ -60,6 +60,16 @@ func parseSource(qtype, answer string) (sources.Source, error) {
 	return k.Parse(answer)
 }
 
+// SourceShown checks a source question's answer with the CLI's own parser
+// and returns the address as a run shows it, or why it is refused.
+func SourceShown(qtype, answer string) (string, error) {
+	s, err := parseSource(qtype, answer)
+	if err != nil {
+		return "", err
+	}
+	return s.Shown(), nil
+}
+
 // GetSourceKeyStatus checks an answer and says whether a key is saved for
 // its host. An answer the CLI would refuse is a Problem, not an error; an
 // error is a question type that asks for no source.
