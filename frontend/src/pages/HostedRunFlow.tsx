@@ -125,11 +125,12 @@ export default function HostedRunFlow({ onBackToSetup, onRunAgain, onReport, ini
       runAgain={runAgainNow && { label: "Run again with the same answers", onClick: runAgainNow }}
       openRun={() => void RunAPI.OpenHostedRunPage(s.registry, r.id).catch(() => undefined)}
       openFolder={r.outputs.length > 0 && r.outDir ? () => void RunAPI.ShowRunFolder(r.id).catch(() => undefined) : undefined}
-      report={onReport ? () => onReport(reportText(failure, r.id)) : undefined}
+      report={onReport ? () => { minimize(); onReport(reportText(failure, r.id)); } : undefined}
     />
   );
   // Closing the dialog of a run that is over keeps its card: only Dismiss
-  // makes the app forget the run.
+  // makes the app forget the run. Report shrinks the dialog to its card
+  // first, so the Report bug card it opens is the one in front.
   return (
     <Modal title={`Run ${r.ref} In Agentry`} onClose={minimize} wide>
       {lost ? (

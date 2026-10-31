@@ -179,11 +179,12 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
       failure={failure}
       runAgain={again && { label: "Run again with the same answers", onClick: again }}
       openFolder={res?.outDir ? () => void RunAPI.ShowRunFolder(res.runId).catch(() => undefined) : undefined}
-      report={onReport ? () => onReport(reportText(failure, runId)) : undefined}
+      report={onReport ? () => { minimize(); onReport(reportText(failure, runId)); } : undefined}
     />
   );
   // Closing the dialog of a run that is over keeps its card: only Dismiss
-  // makes the app forget the run.
+  // makes the app forget the run. Report shrinks the dialog to its card
+  // first, so the Report bug card it opens is the one in front.
   return (
     <Modal title={`Run ${r.ref}`} onClose={minimize} wide>
       {res ? (
