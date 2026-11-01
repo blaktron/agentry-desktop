@@ -57,7 +57,7 @@ const detail = {
 };
 const report = {
   findingCounts: { medium: 1, low: 2 }, versionStatus: "published", rulesetVersion: "2026.09.1",
-  finishedAt: "2026-09-01T10:04:00Z", judgeModel: "claude-sonnet-4-5",
+  finishedAt: "2026-09-01T10:04:00Z", judgeModel: "claude-sonnet-5-5",
   findings: [
     { severity: "medium", scanner: "S4", title: "Prompt-injection signature in a bundled sample", filePath: "samples/incident.md", lineStart: 12, excerpt: "Ignore previous instructions and…", verdict: "open", verdictReason: "" },
     { severity: "low", scanner: "S1", title: "Large vendored file", filePath: "vendor/data.bin", lineStart: 0, excerpt: "", verdict: "open", verdictReason: "" },
@@ -65,7 +65,7 @@ const report = {
 };
 const prov = unscanned
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
-  : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-4-5" };
+  : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-5-5" };
 // The Library's three sections: two installs this
 // app manages, a run consent the CLI wrote into the same file, and a record
 // whose directory is gone.
@@ -1399,7 +1399,7 @@ g.go = { app: {
     RestartNow: async () => undefined,
     SetupStatus: async () => (window.location.hash === "#setup-custom-http"
       ? { dockerOk: true, engine: engineFound("docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
-      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap|managed)$/.test(window.location.hash), engine: harnessEngineChoice === "podman" ? { ...engineFound("podman"), chosen: true, choice: "podman", summary: engineFound("podman").summary + ", your choice" } : engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap|managed)$/.test(window.location.hash), engine: harnessEngineChoice === "podman" ? { ...engineFound("podman"), chosen: true, choice: "podman", summary: engineFound("podman").summary + ", your choice" } : engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
     // machine; "" for https and loopback.
     EndpointWarning: async (u: string) => {
@@ -1407,7 +1407,7 @@ g.go = { app: {
       if (!m || m[1] === "localhost" || m[1].startsWith("127.")) return "";
       return `${u.trim()} uses plain http: the API key and the prompts travel unencrypted to ${m[1]}. Use https if the endpoint supports it.`;
     },
-    ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
+    ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5" }] }),
     // Model sign-ins: #signins keeps a ChatGPT
     // sign-in, a Claude one and a connected Poe account whose key expires,
     // listed under Kept on this computer with Remove and Disconnect.

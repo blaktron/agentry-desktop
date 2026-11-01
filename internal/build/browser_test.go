@@ -157,6 +157,12 @@ var leftOut = map[string]bool{
 	// The withdrawn v1 mcp-server kind's launch spec: decodeManifest
 	// refuses that kind, and it is never valid for publish.
 	"entrypoints.mcp": true,
+	// A persistent agent's persona and what it may do beyond a run, and the
+	// one line that says why an agent dependency is used: the form does not
+	// offer them yet, so a draft that carries them says so in its notes.
+	"persona":                 true,
+	"capabilities.persistent": true,
+	"dependencies.agents.why": true,
 }
 
 // TestDraftFieldsCoverTheCoresSchema walks the core's manifest types and

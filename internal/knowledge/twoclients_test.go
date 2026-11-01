@@ -105,12 +105,16 @@ func TestTwoClientsOpenEachOthersPacks(t *testing.T) {
 
 	// The desktop keeps a pack; the CLI lists it and writes it out.
 	mine := keep(t, desk, reg.URL, "from-desktop")
-	var listed []struct {
-		Name, Wrapper, SHA256 string
+	// The CLI's list is an object with the packs under their name.
+	var listing struct {
+		Packs []struct {
+			Name, Wrapper, SHA256 string
+		}
 	}
-	if err := json.Unmarshal([]byte(agentry("knowledge", "list", "--json")), &listed); err != nil {
+	if err := json.Unmarshal([]byte(agentry("knowledge", "list", "--json")), &listing); err != nil {
 		t.Fatalf("agentry knowledge list --json: %v", err)
 	}
+	listed := listing.Packs
 	if len(listed) != 1 || listed[0].Name != "from-desktop" || listed[0].Wrapper != "registry" || listed[0].SHA256 != mine.Manifest.SHA256 {
 		t.Fatalf("the CLI lists %+v, want the desktop's pack", listed)
 	}

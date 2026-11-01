@@ -46,7 +46,7 @@ const catalog = {
   models: [
     { id: "claude-opus-5", displayName: "Claude Opus 5" },
     { id: "claude-sonnet-5", displayName: "Claude Sonnet 5" },
-    { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" },
+    { id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5" },
     { id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5" },
   ],
 };
@@ -96,7 +96,7 @@ const setup = {
   dockerOk: dockerState === "", engine: dockerState === "" ? engineFound : engineMissing, imagesReady: !nothing && !keyOnly, policyExists: !nothing,
   providerSetUp: !nothing && !keyOnly,
   policyPath: "~/.agentry/runner/policy.yaml",
-  provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
+  provider: "anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY",
   apiKeySource: nothing || keyOnly ? "" : "keyring", keysStored: nothing || keyOnly ? [] : ["anthropic"], keyStoreErr: "",
   apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,

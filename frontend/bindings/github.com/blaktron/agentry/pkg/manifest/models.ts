@@ -6,6 +6,47 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * AgentDependency references another agent by namespace/name plus a
+ * semver constraint. In a persistent release it is a subagent, and both
+ * the constraint and Why are required (V18).
+ */
+export class AgentDependency {
+    /**
+     * Ref is "namespace/name".
+     */
+    "ref": string;
+
+    /**
+     * Version is a semver constraint (e.g. "^1.2"); empty means any,
+     * except for a subagent.
+     */
+    "version"?: string;
+
+    /**
+     * Why says what the agent uses it for, in one plain line of at most
+     * MaxSubagentWhyChars, shown when the person agrees.
+     */
+    "why"?: string;
+
+    /** Creates a new AgentDependency instance. */
+    constructor($$source: Partial<AgentDependency> = {}) {
+        if (!("ref" in $$source)) {
+            this["ref"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AgentDependency instance from a string or object.
+     */
+    static createFrom($$source: any = {}): AgentDependency {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AgentDependency($$parsedSource as Partial<AgentDependency>);
+    }
+}
+
+/**
  * Browser is capabilities.browser (v2, V15).
  */
 export class Browser {
@@ -225,6 +266,116 @@ export class MCPOAuthFile {
     static createFrom($$source: any = {}): MCPOAuthFile {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new MCPOAuthFile($$parsedSource as Partial<MCPOAuthFile>);
+    }
+}
+
+/**
+ * Persistent is capabilities.persistent (v2, V16). Every field is off
+ * unless declared.
+ */
+export class Persistent {
+    /**
+     * Clock gives the agent the time on each turn, its own tasks and the
+     * heartbeat that fires them.
+     */
+    "clock"?: boolean;
+
+    /**
+     * Memory gives the agent a memory wiki on its own volume, seeded from
+     * the archive's memory/ folder, with compaction and recall.
+     */
+    "memory"?: boolean;
+
+    /**
+     * Skills gives the agent the archive's skills/ folder and the skills
+     * the person adds.
+     */
+    "skills"?: boolean;
+
+    /**
+     * Secrets names the stored secrets the person may keep for the agent
+     * in their keychain, by environment variable name.
+     */
+    "secrets"?: string[];
+
+    /**
+     * SelfConfigure lets the agent change its own name and persona.
+     */
+    "selfConfigure"?: boolean;
+
+    /**
+     * Calendars lets the agent read the calendar feeds the person adds.
+     */
+    "calendars"?: boolean;
+
+    /**
+     * Meetings lets the agent take meeting notes the person arms.
+     */
+    "meetings"?: boolean;
+
+    /**
+     * Mail names the mail providers the agent may reach once the person
+     * signs in, from MailProviderNames.
+     */
+    "mail"?: string[];
+
+    /**
+     * ImageServers names the servers the runner runs from its own pinned
+     * images that the agent may use once the person signs in, from
+     * ImageServerNames.
+     */
+    "imageServers"?: string[];
+
+    /**
+     * Coder gives the agent the coding toolchain: any program in the
+     * runner's coding image, open web egress for its commands, a public
+     * browser, a development host, ports, and git host accounts.
+     */
+    "coder"?: boolean;
+
+    /**
+     * Web gives the agent the web tools, web_search and web_fetch.
+     */
+    "web"?: boolean;
+
+    /**
+     * Helper gives the agent Agentry's helper tools: search the registry,
+     * show, install and run QuickAgents, read their results, list what is
+     * installed, keep schedules, open settings and read the docs. Each
+     * install, schedule change and first run of a new version is still
+     * the person's to agree to.
+     */
+    "helper"?: boolean;
+
+    /**
+     * Review gives the agent AI Review with the person's own key.
+     */
+    "review"?: boolean;
+
+    /** Creates a new Persistent instance. */
+    constructor($$source: Partial<Persistent> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Persistent instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Persistent {
+        const $$createField3_0 = $$createType0;
+        const $$createField7_0 = $$createType0;
+        const $$createField8_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("secrets" in $$parsedSource) {
+            $$parsedSource["secrets"] = $$createField3_0($$parsedSource["secrets"]);
+        }
+        if ("mail" in $$parsedSource) {
+            $$parsedSource["mail"] = $$createField7_0($$parsedSource["mail"]);
+        }
+        if ("imageServers" in $$parsedSource) {
+            $$parsedSource["imageServers"] = $$createField8_0($$parsedSource["imageServers"]);
+        }
+        return new Persistent($$parsedSource as Partial<Persistent>);
     }
 }
 

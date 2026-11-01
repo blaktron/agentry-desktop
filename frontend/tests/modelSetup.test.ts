@@ -76,7 +76,7 @@ test("how each way asks for the model", () => {
   assert.equal(hf.mode, "typed");
   assert.equal(hf.defaultModel, "", "the person types the model id");
   assert.match(hf.placeholder, /:groq/);
-  assert.equal(modelAsk("anthropic", "key", []).defaultModel, "claude-sonnet-4-5");
+  assert.equal(modelAsk("anthropic", "key", []).defaultModel, "claude-sonnet-5-5");
 });
 
 test("a sign-in way saves once something is signed in and a model is named", () => {
@@ -91,7 +91,7 @@ test("a sign-in way saves once something is signed in and a model is named", () 
 test("a way starts on the saved model only where the policy already pays that way", () => {
   const saved = { provider: "anthropic", model: "opus", way: "claude" as const };
   assert.equal(startingModel("anthropic", "claude", saved, []), "opus");
-  assert.equal(startingModel("anthropic", "key", saved, []), "claude-sonnet-4-5");
+  assert.equal(startingModel("anthropic", "key", saved, []), "claude-sonnet-5-5");
   assert.equal(startingModel("openai", "chatgpt", saved, ["gpt-5.2"]), "gpt-5.2");
 });
 

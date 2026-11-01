@@ -284,8 +284,9 @@ func (n *NotificationsAPI) noticeVersionMove() {
 
 // watchFires reads the schedules' fires every firesPoll and makes an entry
 // for each that ended since the last one noticed. The first run of this
-// copy starts from now: the fires before it are the Scheduled page's
-// history, not news.
+// copy starts from when it began watching: the fires before it are the
+// Scheduled page's history, not news. That start is kept in memory until
+// a fire is noticed, so a copy that has nothing to record writes no file.
 func (n *NotificationsAPI) watchFires(ctx context.Context) {
 	for {
 		n.noticeFires()
@@ -317,10 +318,12 @@ func (n *NotificationsAPI) noticeFires() {
 		now = n.now()
 	}
 	if seen.IsZero() {
-		if err := notifications.SetFiresSeen(now); err != nil {
-			log.Printf("agentry-desktop: notifications: %v", err)
+		n.mu.Lock()
+		if n.firesSince.IsZero() {
+			n.firesSince = now
 		}
-		return
+		seen = n.firesSince
+		n.mu.Unlock()
 	}
 	list, err := fires()
 	if err != nil {
