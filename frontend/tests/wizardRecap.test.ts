@@ -62,20 +62,20 @@ test("a provider somebody set up is a done row", () => {
 
 test("a policy written from defaults is not a provider set up, and the row claims nothing about a key", () => {
   assert.deepEqual(
-    providerRow(setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY" })),
-    { ok: false, text: "The runner policy has only the default provider, anthropic (claude-sonnet-4-5), with its key read from $ANTHROPIC_API_KEY — choose yours in Settings" },
+    providerRow(setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY" })),
+    { ok: false, text: "The runner policy has only the default provider, anthropic (claude-sonnet-5-5), with its key read from $ANTHROPIC_API_KEY — choose yours in Settings" },
   );
 });
 
 test("no policy, or a status that could not be read, is the first run's to write", () => {
   const want = { ok: false, text: "Provider defaults will be written on your first run" };
-  assert.deepEqual(providerRow(setup({ policyExists: false, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-4-5" })), want);
+  assert.deepEqual(providerRow(setup({ policyExists: false, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-5-5" })), want);
   assert.deepEqual(providerRow(null), want);
 });
 
 test("saving only the AI Review key leaves nothing set up", () => {
   // The key's save wrote the policy; no sign-in, no provider, no coding agent.
-  const afterKeyOnly = setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-4-5" });
+  const afterKeyOnly = setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-5-5" });
   assert.equal(nothingSetUp({ signedIn: false, setup: afterKeyOnly, codingAgentChosen: false }), true);
   // Any one of the three things the wizard is for is something set up.
   assert.equal(nothingSetUp({ signedIn: true, setup: afterKeyOnly, codingAgentChosen: false }), false);

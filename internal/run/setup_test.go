@@ -130,8 +130,10 @@ func TestApplySetupWritesProviderTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pol.Model.Provider != "openai" || pol.Model.Name != "gpt-5.2" || pol.Model.APIKeyEnv != "OPENAI_API_KEY" {
-		t.Fatalf("model block = %+v, want the openai table row", pol.Model)
+	// The row is the CLI's table's, whatever model it names today.
+	row := setup.DefaultsFor("openai")
+	if row == nil || pol.Model.Provider != "openai" || pol.Model.Name != row.Model || pol.Model.APIKeyEnv != row.APIKeyEnv || pol.Model.APIKeyEnv != "OPENAI_API_KEY" {
+		t.Fatalf("model block = %+v, want the openai table row %+v", pol.Model, row)
 	}
 	if len(pol.Model.ProxyAllow) != 1 || pol.Model.ProxyAllow[0] != "api.openai.com:443" {
 		t.Fatalf("proxyAllow = %v", pol.Model.ProxyAllow)
@@ -151,7 +153,7 @@ func TestApplySetupWritesProviderTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !st.PolicyExists || st.Provider != "openai" || st.Model != "gpt-5.2" {
+	if !st.PolicyExists || st.Provider != "openai" || st.Model != row.Model {
 		t.Fatalf("status after setup = %+v", st)
 	}
 }
