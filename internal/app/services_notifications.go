@@ -368,8 +368,10 @@ func (n *NotificationsAPI) MarkRead(reg, id string, accountID int64) error {
 		if _, err := notifications.MarkRead(id); err != nil {
 			return err
 		}
-		n.changed()
 	}
+	// The page and the bell read again once both halves are marked, so the
+	// count they read is the one after the write-back.
+	defer n.changed()
 	if accountID != 0 {
 		client, _ := n.accountClient(ctx, reg)
 		if client == nil {
@@ -388,7 +390,7 @@ func (n *NotificationsAPI) MarkAllRead(reg string) error {
 	if _, err := notifications.MarkAllRead(); err != nil {
 		return err
 	}
-	n.changed()
+	defer n.changed()
 	ctx, cancel := context.WithTimeout(n.ctx(), accountCall)
 	defer cancel()
 	if client, _ := n.accountClient(ctx, reg); client != nil {
