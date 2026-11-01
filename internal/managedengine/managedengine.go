@@ -430,7 +430,7 @@ func (e *Engine) fetch(ctx context.Context, a Asset, path string) error {
 		return err
 	}
 	h := sha256.New()
-	_, cerr := io.Copy(io.MultiWriter(f, h), resp.Body)
+	_, cerr := io.Copy(io.MultiWriter(f, h, e.progressLog(a.Name, max(resp.ContentLength, 0))), resp.Body)
 	if err := f.Close(); err != nil && cerr == nil {
 		cerr = err
 	}
@@ -442,6 +442,38 @@ func (e *Engine) fetch(ctx context.Context, a Asset, path string) error {
 		return fmt.Errorf("%s does not match its pinned SHA-256 (got %s, want %s): refused, nothing installed", a.Name, got, a.SHA256)
 	}
 	return nil
+}
+
+// progressEvery is how many bytes pass between two progress lines of a
+// download.
+const progressEvery = 4 << 20
+
+// progressLog is a writer that logs a download's progress as "Downloading
+// <name>: <done> of <total> MB" every progressEvery bytes, the line the
+// card draws its bar from; with no total announced, the bytes so far alone.
+func (e *Engine) progressLog(name string, total int64) io.Writer {
+	return &progressLogger{name: name, total: total, logf: e.logf}
+}
+
+type progressLogger struct {
+	name  string
+	total int64
+	done  int64
+	last  int64
+	logf  func(format string, args ...any)
+}
+
+func (p *progressLogger) Write(b []byte) (int, error) {
+	p.done += int64(len(b))
+	if p.done-p.last >= progressEvery {
+		p.last = p.done
+		if p.total > 0 {
+			p.logf("Downloading %s: %d of %d MB", p.name, p.done>>20, p.total>>20)
+		} else {
+			p.logf("Downloading %s: %d MB so far", p.name, p.done>>20)
+		}
+	}
+	return len(b), nil
 }
 
 // install puts one verified binary in place, executable.

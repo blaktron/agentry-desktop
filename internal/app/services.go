@@ -904,6 +904,11 @@ func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatu
 
 // ----------------------------------------------------------------- install
 
+// eventInstallProgress carries each stage of an install (resolving,
+// downloading, verifying, unpacking, writing, recording) to the page, so
+// the button that started it says what it is doing.
+const eventInstallProgress = "install:progress"
+
 // InstallAPI drives the install/installed surfaces.
 type InstallAPI struct {
 	app    *App
@@ -1163,6 +1168,9 @@ func (i *InstallAPI) installRunner(reg, ref, who string) (*install.Result, error
 		res.Warning += exportNote
 		res.Message += " — " + exportNote
 	}
+	// Installed, so it is news for the Notifications page, and for the
+	// desktop unless the Library or the QuickAgent's page is in front.
+	i.app.noticed(installEntry(reg, plan.Namespace, plan.Name, plan.Version), true, "library")
 	return res, nil
 }
 

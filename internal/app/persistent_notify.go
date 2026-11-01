@@ -51,7 +51,7 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 		return
 	}
 	task, line, ok := taskNotice(ev.Text)
-	if !ok || !taskNotificationsOn() || p.isViewing(name) {
+	if !ok {
 		return
 	}
 	// Only an agent that keeps tasks has a page a click can open for them.
@@ -66,6 +66,12 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 	}
 	if strings.TrimSpace(line) == "" {
 		line = emptyAnswer
+	}
+	// The Notifications page lists every answer, whether or not a
+	// notification is raised for it.
+	p.app.noticed(taskEntry(name, title, line), false)
+	if !taskNotificationsOn() || p.isViewing(name) {
+		return
 	}
 	show := p.showNotice
 	if show == nil {

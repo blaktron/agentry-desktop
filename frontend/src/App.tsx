@@ -46,6 +46,10 @@ import { useAgents } from "./agents";
 import { agentNavEntries, CODER_AGENT, coderRunning, viewingAgent } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
+import Notifications from "./pages/Notifications";
+import * as NotificationsAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/notificationsapi";
+import { bellCount, bellLabel, noticeRoute, showingKeys, type NoticeRoute } from "./notifications";
+import { useHostedRun, useLocalRun } from "./runs";
 import { requestEdit, sameRegistry } from "./edit";
 
 export type Route =
@@ -59,7 +63,7 @@ export type Route =
   // one; back: where the ← link returns to.
   // run: open the page with its run setup open (a pin's Run on Home).
   // schedule: the run setup opens with When on Repeat (Schedule a new run).
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled"; run?: boolean; schedule?: boolean }
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled" | "notifications"; run?: boolean; schedule?: boolean }
   // The schedules on this computer; focus: one just made.
   | { page: "scheduled"; focus?: string }
   // A persistent agent's page, by its name.
@@ -68,7 +72,9 @@ export type Route =
   | { page: "meetings" }
   // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).
-  | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" }
+  | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" | "notifications" }
+  // What the app noticed, and the account's notices: the bell's page.
+  | { page: "notifications" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
@@ -82,7 +88,42 @@ export type Route =
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
-const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Schedule" } as const;
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Schedule", notifications: "← back to Notifications" } as const;
+
+// Tells Go what results are on screen (NotificationsAPI.SetShowing), so an
+// ending whose result is already in front raises no desktop notification:
+// the page open and the runs whose dialogs are up. Its own component, so the
+// run stores' every event re-renders this and not the app.
+function ShowingReporter({ route }: { route: Route }) {
+  const local = useLocalRun();
+  const hosted = useHostedRun();
+  const localRunId = local.shown ? local.run?.runId ?? null : null;
+  const hostedRunId = hosted.shown && !hosted.asCard ? hosted.run?.id ?? null : null;
+  useEffect(() => {
+    const report = () => {
+      NotificationsAPI.SetShowing(showingKeys(route, { localRunId, hostedRunId }, document.hasFocus(), document.visibilityState === "visible")).catch(() => {});
+    };
+    report();
+    window.addEventListener("focus", report);
+    window.addEventListener("blur", report);
+    document.addEventListener("visibilitychange", report);
+    return () => {
+      window.removeEventListener("focus", report);
+      window.removeEventListener("blur", report);
+      document.removeEventListener("visibilitychange", report);
+    };
+  }, [route, localRunId, hostedRunId]);
+  return null;
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+    </svg>
+  );
+}
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app.
@@ -145,6 +186,9 @@ export default function App() {
   const [unsafeLive, setUnsafeLive] = useState(false);
   // The persistent agents, for the sidebar's entries.
   const agents = useAgents();
+  // The bell's count: the unread notifications here and the account's,
+  // read on a slow cadence and whenever Go says the record changed.
+  const [unread, setUnread] = useState(0);
   // Whether this copy records meetings here, for Meeting notes' entry.
   const [meetings, setMeetings] = useState(false);
   useEffect(() => {
@@ -187,6 +231,24 @@ export default function App() {
   }, [route]);
   // A click on Meeting notes' notification opens its page.
   useEffect(() => EventsOn("meeting:open", () => setRoute({ page: "meetings" })), []);
+  // A click on one of the Notifications page's desktop notifications opens
+  // the result it is about, and the entry is read.
+  useEffect(() => EventsOn("notifications:open", (v: app.NotificationView) => {
+    const r = noticeRoute(v);
+    if (r) openNotice(r);
+    else setRoute({ page: "notifications" });
+    NotificationsAPI.MarkRead("", v.id, 0).catch(() => {});
+  }), []);
+  const readUnread = useCallback(() => {
+    NotificationsAPI.Unread(registry).then((v) => setUnread(v.unread)).catch(() => {});
+  }, [registry]);
+  useEffect(() => {
+    readUnread();
+    const t = setInterval(readUnread, 60_000);
+    return () => clearInterval(t);
+  }, [readUnread]);
+  useEffect(() => EventsOn("notifications:changed", readUnread), [readUnread]);
+  useEffect(() => EventsOn("auth:changed", readUnread), [readUnread]);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
     if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
   }), []);
@@ -268,6 +330,15 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
+  // Opens what a notification is about. A Settings section the app does
+  // not have opens the landing.
+  function openNotice(r: NoticeRoute) {
+    if (r.page === "settings") {
+      setRoute(SECTIONS.some((x) => x.id === r.section) ? { page: "settings", section: r.section as SettingsSection, part: r.part as SettingsPart | undefined } : { page: "settings" });
+      return;
+    }
+    setRoute(r as Route);
+  }
   // Home shows it.
   const setupBanner = setupMissing && (
     <div className="setup-banner">
@@ -294,6 +365,18 @@ export default function App() {
         <div className="sidebar">
           <div className="brand">
             <Wordmark sub="Desktop" />
+            <button
+              type="button"
+              className={`bell${route.page === "notifications" ? " active" : ""}`}
+              aria-label={bellLabel(unread)}
+              title={bellLabel(unread)}
+              aria-current={route.page === "notifications" ? "page" : undefined}
+              onClick={() => nav({ page: "notifications" })}
+              data-bell
+            >
+              <BellIcon />
+              {bellCount(unread) && <span className="bell-count" data-bell-count>{bellCount(unread)}</span>}
+            </button>
           </div>
           <SidebarNav
             page={route.page}
@@ -428,6 +511,7 @@ export default function App() {
             )}
             {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} />}
             {route.page === "meetings" && <MeetingNotes />}
+            {route.page === "notifications" && <Notifications registry={registry} onOpen={openNotice} />}
             {route.page === "browse" && (
               // Browse takes its query only when it mounts, so the key gives
               // a new search from the Library a fresh Browse.
@@ -591,6 +675,7 @@ export default function App() {
           />
         )}
         <div className="corner-cards" ref={setCorner} />
+        <ShowingReporter route={route} />
         {unsafeShown && <UnsafeGlow />}
       </div>
     </CornerHost.Provider>

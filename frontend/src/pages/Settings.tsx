@@ -30,6 +30,8 @@ import WhatsNew from "./WhatsNew";
 import type { WhatsNewData } from "../whatsNew";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
+import { BytesBar } from "../progress";
+import { bytesProgress, updateStageWords } from "../bytesProgress";
 import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
 import { settingsLine as deliverablesLine } from "../deliverables";
@@ -771,6 +773,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               {unsafeBusy && !defaults.unsafeMode && (
                 <div role="status" className="small" style={{ marginTop: 8 }}>
                   <Spinner label={unsafeLog.length ? "Downloading the Unsafe Mode image…" : "Waiting for your answer in the dialog…"} />
+                  {(() => { const p = bytesProgress(unsafeLog); return p ? <BytesBar progress={p} label="Downloaded" /> : null; })()}
                   {unsafeLog.length > 0 && <pre className="run-log selectable" data-unsafe-log>{unsafeLog.join("\n")}</pre>}
                 </div>
               )}
@@ -1202,10 +1205,13 @@ function WhatsNewButton() {
 function SelfUpdateCard() {
   const [view, setView] = useState<app.SelfUpdateView | null>(null);
   const [busy, setBusy] = useState(false);
+  // How far an install under way has got, as Go reports each change.
+  const [progress, setProgress] = useState<app.SelfUpdateProgress | null>(null);
 
   useEffect(() => {
     SelfUpdateAPI.SelfUpdateStatus().then(setView).catch(() => setView(null));
   }, []);
+  useEffect(() => EventsOn("selfupdate:progress", (p: app.SelfUpdateProgress) => setProgress(p)), []);
 
   const run = async (fn: () => Promise<app.SelfUpdateView>) => {
     setBusy(true);
@@ -1267,10 +1273,13 @@ function SelfUpdateCard() {
           {canInstall && (
             <div className="row gap install-row">
               <Button variant="primary" disabled={busy} onClick={() => run(SelfUpdateAPI.InstallSelfUpdate)}>
-                {view.applying ? "Installing…" : "Install and relaunch"}
+                {view.applying || busy ? updateStageWords((progress ?? view.progress)?.stage) : "Install and relaunch"}
               </Button>
               <span className="muted small">The app closes and reopens on the new version.</span>
             </div>
+          )}
+          {(view.applying || busy) && (progress ?? view.progress)?.stage === "downloading" && (
+            <BytesBar progress={{ done: (progress ?? view.progress)?.done ?? 0, total: (progress ?? view.progress)?.total ?? 0 }} label="Downloaded" />
           )}
           {!canInstall && view.cannotApplyWhy && (
             <div className="muted small">{view.cannotApplyWhy} Download it instead:{" "}

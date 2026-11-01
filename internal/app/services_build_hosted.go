@@ -385,7 +385,7 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 		return v
 	}
 	b.run.rememberFolder(id, outDir)
-	recordHosted(reg, final, outDir)
+	recordHosted(b.app, reg, final, outDir)
 	ns := ""
 	if u, err := whoami(b.app, reg, token); err == nil {
 		ns = u.Handle

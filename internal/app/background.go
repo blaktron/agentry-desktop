@@ -130,6 +130,9 @@ func (s *Services) startBackground(ctx context.Context) {
 	// A click on a task's notification opens its agent's page, and one on
 	// Meeting notes' opens that page.
 	notify.SetOnClick(func(name string) {
+		if s.notifications.clicked(ctx, name) {
+			return
+		}
 		if name == meetingNoticeKey {
 			windowShow(ctx)
 			emitEvent(s.app, eventOpenMeetings)

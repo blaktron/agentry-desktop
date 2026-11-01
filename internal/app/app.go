@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/blaktron/agentry-desktop/internal/notifications"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -38,6 +39,20 @@ type App struct {
 	// pickKeyFile is the native file picker ChooseHostKeyFile opens; nil
 	// is the OS's, and a test substitutes one.
 	pickKeyFile func(ctx context.Context, opts pickOptions) (string, error)
+	// notifications is the Notifications page's API, which every service
+	// reports an ending to (noticed); nil, as in a test that builds one
+	// service alone, records nothing.
+	notifications *NotificationsAPI
+}
+
+// noticed reports an ending to the Notifications page: kept in its
+// record, and raised as a desktop notification when finished says it is
+// something the person started that has ended (NotificationsAPI.noticed).
+func (a *App) noticed(e notifications.Entry, finished bool, alsoShown ...string) {
+	if a == nil || a.notifications == nil {
+		return
+	}
+	a.notifications.noticed(e, finished, alsoShown...)
 }
 
 // NewApp creates the application struct.

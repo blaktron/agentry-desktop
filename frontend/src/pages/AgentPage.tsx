@@ -28,6 +28,7 @@ import { PinButton, useHomeLayout } from "./home/PinButton";
 import { instructionsNote } from "../instructions";
 import { RevealText } from "../reveal";
 import { PERSISTENT_ONLY_SENTENCE, persistentOnly } from "../persistentAgents";
+import { useInstallStage } from "../installProgress";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -100,6 +101,8 @@ export default function AgentPage({
     SettingsAPI.CodingAgents().then(setCodingAgents).catch(() => setCodingAgents(null));
   }, []);
   const [installBusy, setInstallBusy] = useState(false);
+  // What the install is doing, while it does: the button says it.
+  const installStage = useInstallStage(installBusy);
   const [installError, setInstallError] = useState<string | null>(null);
   // What a successful one-click install did not do (the coding-agent
   // export it could not write): a page with no result screen says it here.
@@ -268,7 +271,7 @@ export default function AgentPage({
   // — enabled only when the check named a newer version.
   let installButton: React.ReactNode;
   if (installBusy) {
-    installButton = <Button variant="primary" disabled>Installing…</Button>;
+    installButton = <Button variant="primary" disabled>{installStage || "Installing…"}</Button>;
   } else if (!runnerInstall) {
     installButton = <Button variant="primary" onClick={installOneClick}>Install {detail.latest}</Button>;
   } else if (runnerUpdate?.updateAvailable) {
