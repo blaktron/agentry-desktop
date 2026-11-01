@@ -121,6 +121,22 @@ export class CapSnapshot {
      */
     "browser"?: manifest$0.Browser | null;
 
+    /**
+     * Persistent is a persistent release's capabilities.persistent: a key
+     * newly declared, or a name added to one of its lists, is a widening
+     * the consent gate re-asks about. Absent in records written before the
+     * block existed, which reads as "declares none".
+     */
+    "persistent"?: manifest$0.Persistent | null;
+
+    /**
+     * Subagents are a persistent release's subagents, each with its
+     * constraint and its reason: a new one, or a changed constraint, is a
+     * widening the consent gate re-asks about. Absent in records written
+     * before subagents existed, which reads as "none".
+     */
+    "subagents"?: manifest$0.AgentDependency[];
+
     /** Creates a new CapSnapshot instance. */
     constructor($$source: Partial<CapSnapshot> = {}) {
 
@@ -145,6 +161,8 @@ export class CapSnapshot {
         const $$createField14_0 = $$createType0;
         const $$createField15_0 = $$createType0;
         const $$createField16_0 = $$createType11;
+        const $$createField17_0 = $$createType13;
+        const $$createField18_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("egressHosts" in $$parsedSource) {
             $$parsedSource["egressHosts"] = $$createField0_0($$parsedSource["egressHosts"]);
@@ -187,6 +205,12 @@ export class CapSnapshot {
         }
         if ("browser" in $$parsedSource) {
             $$parsedSource["browser"] = $$createField16_0($$parsedSource["browser"]);
+        }
+        if ("persistent" in $$parsedSource) {
+            $$parsedSource["persistent"] = $$createField17_0($$parsedSource["persistent"]);
+        }
+        if ("subagents" in $$parsedSource) {
+            $$parsedSource["subagents"] = $$createField18_0($$parsedSource["subagents"]);
         }
         return new CapSnapshot($$parsedSource as Partial<CapSnapshot>);
     }
@@ -321,7 +345,7 @@ export class Record {
      * Creates a new Record instance from a string or object.
      */
     static createFrom($$source: any = {}): Record {
-        const $$createField7_0 = $$createType12;
+        const $$createField7_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("capabilities" in $$parsedSource) {
             $$parsedSource["capabilities"] = $$createField7_0($$parsedSource["capabilities"]);
@@ -430,4 +454,8 @@ const $$createType8 = ServerCapsSnapshot.createFrom;
 const $$createType9 = $Create.Map($Create.Any, $$createType8);
 const $$createType10 = manifest$0.Browser.createFrom;
 const $$createType11 = $Create.Nullable($$createType10);
-const $$createType12 = CapSnapshot.createFrom;
+const $$createType12 = manifest$0.Persistent.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);
+const $$createType14 = manifest$0.AgentDependency.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = CapSnapshot.createFrom;
