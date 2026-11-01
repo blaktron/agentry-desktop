@@ -349,8 +349,9 @@ func TestThePageMergesTheAccountsNoticesWhereTheRegistryHasThem(t *testing.T) {
 	}
 	stub.mu.Unlock()
 
+	// The bell counts as the page lists: the folded pair is one.
 	u, err := rig.n.Unread(reg)
-	if err != nil || u.Unread != 4 || u.Here != 2 || u.Account != 2 {
+	if err != nil || u.Unread != 3 || u.Here != 2 || u.Account != 1 {
 		t.Fatalf("unread %+v %v", u, err)
 	}
 

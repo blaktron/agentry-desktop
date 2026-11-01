@@ -73,6 +73,21 @@ export function bytesProgress(lines: readonly string[]): BytesProgress | null {
   return own;
 }
 
+/** How far an image build has got: its newest step against the steps it
+ *  has. The docker command writes one line per step, "#7 [3/6] RUN …" with
+ *  BuildKit or "Step 3/6 : RUN …" without; null when the lines hold none. */
+export function stepProgress(lines: readonly string[]): { step: number; steps: number } | null {
+  let out: { step: number; steps: number } | null = null;
+  for (const line of lines) {
+    const m = /^(?:#\d+ )?\[\s*(\d+)\/(\d+)\]|^Step (\d+)\/(\d+)\b/.exec(line);
+    if (!m) continue;
+    const step = Number(m[1] ?? m[3]);
+    const steps = Number(m[2] ?? m[4]);
+    if (steps > 0 && step > 0) out = { step: Math.min(step, steps), steps };
+  }
+  return out;
+}
+
 /** A progress's words: "12 of 40 MB", or "12 MB so far" with no total. */
 export function bytesWords(p: BytesProgress): string {
   const mb = (n: number) => `${Math.round(n / 1e6)}`;

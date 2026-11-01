@@ -122,8 +122,9 @@ export function accountLine(v: Pick<app.NotificationsView, "signedIn" | "account
 /** The place a page shows while it is in front, as the key Go matches an
  *  ending against (an entry whose result is on screen raises no desktop
  *  notification): the run page by its run, a QuickAgent's page by its
- *  reference, the Library, a Settings section, Meeting notes, plus the runs
- *  whose dialogs are open. "" when the window is not in front. */
+ *  reference, the Library, Build (where a draft and an AI Review land),
+ *  Knowledge, Voice, Schedule, a Settings section, Meeting notes, plus the
+ *  runs whose dialogs are open. "" when the window is not in front. */
 export function showingKeys(
   route: { page: string; id?: string; ns?: string; name?: string; section?: string },
   dialogs: { localRunId?: string | null; hostedRunId?: string | null },
@@ -136,6 +137,9 @@ export function showingKeys(
     case "run": if (route.id) keys.push(`run:${route.id}`); break;
     case "agent": if (route.ns && route.name) keys.push(`agent:${route.ns}/${route.name}`); break;
     case "library": keys.push("library"); break;
+    case "build": case "validate": keys.push("build"); break;
+    case "knowledge": keys.push("knowledge"); break;
+    case "voice": keys.push("voice"); break;
     case "settings": if (route.section) keys.push(`settings:${route.section}`); break;
     case "meetings": keys.push("meetings"); break;
     case "scheduled": keys.push("scheduled"); break;

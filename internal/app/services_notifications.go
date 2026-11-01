@@ -62,8 +62,15 @@ const (
 const accountNoticesPage = 50
 
 // extensionsFor is how long a registry's extension list is believed before
-// it is read again.
-const extensionsFor = 10 * time.Minute
+// it is read again; extensionsRetry how soon one that could not be read is
+// asked for again.
+const (
+	extensionsFor   = 10 * time.Minute
+	extensionsRetry = time.Minute
+)
+
+// accountCall bounds one call to the registry about the account's notices.
+const accountCall = 20 * time.Second
 
 // NotificationsAPI is the Notifications page's and the bell's bound surface.
 type NotificationsAPI struct {
@@ -88,6 +95,8 @@ type NotificationsAPI struct {
 type cachedExtensions struct {
 	exts []string
 	at   time.Time
+	// keep is how long this answer stands.
+	keep time.Duration
 }
 
 func newNotificationsAPI(app *App) *NotificationsAPI {
@@ -134,11 +143,13 @@ type NotificationsView struct {
 	AccountError string `json:"accountError,omitempty"`
 }
 
-// NotificationsUnreadView is the bell's count.
+// NotificationsUnreadView is the bell's count: the unread notifications
+// the page lists, counted as the page counts them.
 type NotificationsUnreadView struct {
 	Unread int `json:"unread"`
-	// Here and Account are the two halves; AccountError says the account's
-	// could not be read, in which case Unread is the local count alone.
+	// Here and Account are the two halves as listed; AccountError says the
+	// account's could not be read, in which case Unread is the local count
+	// alone.
 	Here         int    `json:"here"`
 	Account      int    `json:"account"`
 	AccountError string `json:"accountError,omitempty"`
@@ -245,7 +256,8 @@ func (n *NotificationsAPI) tokenFor(reg string) string {
 
 // hasExtension reports whether reg runs the notifications extension, from
 // its /meta, read at most once every extensionsFor. A registry whose
-// extensions cannot be read is taken as one without.
+// extensions cannot be read is taken as one without, and asked again after
+// extensionsRetry.
 func (n *NotificationsAPI) hasExtension(ctx context.Context, reg string) bool {
 	now := time.Now()
 	if n.now != nil {
@@ -254,16 +266,16 @@ func (n *NotificationsAPI) hasExtension(ctx context.Context, reg string) bool {
 	n.mu.Lock()
 	c, ok := n.exts[reg]
 	n.mu.Unlock()
-	if !ok || now.Sub(c.at) > extensionsFor {
+	if !ok || now.Sub(c.at) > c.keep {
 		read := n.extensions
 		if read == nil {
 			read = extensionsOf
 		}
 		exts, err := read(ctx, reg)
+		c = cachedExtensions{exts: exts, at: now, keep: extensionsFor}
 		if err != nil {
-			exts = nil
+			c = cachedExtensions{at: now, keep: extensionsRetry}
 		}
-		c = cachedExtensions{exts: exts, at: now}
 		n.mu.Lock()
 		n.exts[reg] = c
 		n.mu.Unlock()
@@ -277,11 +289,15 @@ func (n *NotificationsAPI) hasExtension(ctx context.Context, reg string) bool {
 }
 
 // accountClient is the client for the account's notices on reg, nil where
-// the person is signed out or the registry runs no inbox.
-func (n *NotificationsAPI) accountClient(ctx context.Context, reg string) (*hostedrun.Client, bool) {
+// the person is signed out or the registry runs no inbox; signedIn says
+// which.
+func (n *NotificationsAPI) accountClient(ctx context.Context, reg string) (client *hostedrun.Client, signedIn bool) {
 	token := n.tokenFor(reg)
-	if token == "" || !n.hasExtension(ctx, reg) {
-		return nil, token != ""
+	if token == "" {
+		return nil, false
+	}
+	if !n.hasExtension(ctx, reg) {
+		return nil, true
 	}
 	return hostedrun.New(reg, token), true
 }
@@ -295,7 +311,7 @@ func (n *NotificationsAPI) List(reg string) (*NotificationsView, error) {
 	}
 	v := &NotificationsView{}
 	var account []hostedrun.Notice
-	ctx, cancel := context.WithTimeout(n.ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(n.ctx(), accountCall)
 	defer cancel()
 	client, signedIn := n.accountClient(ctx, reg)
 	v.SignedIn = signedIn
@@ -313,23 +329,23 @@ func (n *NotificationsAPI) List(reg string) (*NotificationsView, error) {
 	return v, nil
 }
 
-// Unread is the bell's count: the local unread entries and the account's
-// unread notices.
+// Unread is the bell's count: the unread notifications the page would
+// list, counted as the page counts them, so the bell and the page agree
+// (an account notice folded into a local entry counts once).
 func (n *NotificationsAPI) Unread(reg string) (*NotificationsUnreadView, error) {
-	here, err := notifications.Unread()
+	list, err := n.List(reg)
 	if err != nil {
 		return nil, err
 	}
-	v := &NotificationsUnreadView{Here: here, Unread: here}
-	ctx, cancel := context.WithTimeout(n.ctx(), 20*time.Second)
-	defer cancel()
-	if client, _ := n.accountClient(ctx, reg); client != nil {
-		count, err := client.UnreadNotices(ctx)
-		if err != nil {
-			v.AccountError = err.Error()
+	v := &NotificationsUnreadView{Unread: list.Unread, AccountError: list.AccountError}
+	for _, x := range list.Notifications {
+		if x.Read {
+			continue
+		}
+		if x.Source == sourceAgentry {
+			v.Account++
 		} else {
-			v.Account = int(count)
-			v.Unread += v.Account
+			v.Here++
 		}
 	}
 	return v, nil
@@ -340,7 +356,7 @@ func (n *NotificationsAPI) Unread(reg string) (*NotificationsUnreadView, error) 
 // registry. Reading a local entry about a run In Agentry also marks the
 // account's notice about it, when the page knows which (accountID).
 func (n *NotificationsAPI) MarkRead(reg, id string, accountID int64) error {
-	ctx, cancel := context.WithTimeout(n.ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(n.ctx(), accountCall)
 	defer cancel()
 	if rest, ok := strings.CutPrefix(id, accountIDPrefix); ok && accountID == 0 {
 		if parsed, err := strconv.ParseInt(rest, 10, 64); err == nil {
@@ -373,7 +389,7 @@ func (n *NotificationsAPI) MarkAllRead(reg string) error {
 		return err
 	}
 	n.changed()
-	ctx, cancel := context.WithTimeout(n.ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(n.ctx(), accountCall)
 	defer cancel()
 	if client, _ := n.accountClient(ctx, reg); client != nil {
 		if _, err := client.ReadAllNotices(ctx); err != nil {

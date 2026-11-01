@@ -5119,14 +5119,16 @@ export class NotificationView {
 }
 
 /**
- * NotificationsUnreadView is the bell's count.
+ * NotificationsUnreadView is the bell's count: the unread notifications
+ * the page lists, counted as the page counts them.
  */
 export class NotificationsUnreadView {
     "unread": number;
 
     /**
-     * Here and Account are the two halves; AccountError says the account's
-     * could not be read, in which case Unread is the local count alone.
+     * Here and Account are the two halves as listed; AccountError says the
+     * account's could not be read, in which case Unread is the local count
+     * alone.
      */
     "here": number;
     "account": number;

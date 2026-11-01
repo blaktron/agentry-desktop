@@ -59,6 +59,11 @@ func TestAddRefusesWhatCannotBeShown(t *testing.T) {
 		"unknown kind": {Kind: "surprise", Title: "t"},
 		"unknown page": {Kind: KindRun, Title: "t", Open: Open{Page: "elsewhere"}},
 		"blank title":  {Kind: KindRun, Title: " \n\t "},
+		"odd run id":   {Kind: KindRun, Title: "t", Open: Open{Page: PageRun, ID: "../x"}},
+		"odd agent":    {Kind: KindInstall, Title: "t", Open: Open{Page: PageAgent, ID: "reporter"}},
+		"no section":   {Kind: KindUpdate, Title: "t", Open: Open{Page: PageSettings}},
+		"odd registry": {Kind: KindRun, Title: "t", Open: Open{Page: PageRun, ID: "r1", Registry: "javascript:alert(1)"}},
+		"plain http":   {Kind: KindRun, Title: "t", Open: Open{Page: PageRun, ID: "r1", Registry: "http://reg.example"}},
 	} {
 		if _, err := Add(e); err == nil {
 			t.Errorf("%s: added", name)
@@ -199,6 +204,7 @@ func TestOpenKeys(t *testing.T) {
 	}{
 		{Open{Page: PageRun, ID: "r1", Hosted: true, Registry: "https://x"}, "run:r1"},
 		{Open{Page: PageAgent, ID: "acme/reporter"}, "agent:acme/reporter"},
+		{Open{Page: PageScheduled, ID: "s1"}, "scheduled"},
 		{Open{Page: PagePersistent, ID: "assistant"}, "persistent:assistant"},
 		{Open{Page: PageSettings, Section: "updates", Part: "desktop"}, "settings:updates"},
 		{Open{Page: PageMeetings}, "meetings"},

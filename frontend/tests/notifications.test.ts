@@ -51,6 +51,10 @@ test("the page reports the results on screen while the window is in front", () =
   assert.equal(showingKeys({ page: "run", id: "r1" }, {}, true, true), "run:r1");
   assert.equal(showingKeys({ page: "agent", ns: "acme", name: "reporter" }, {}, true, true), "agent:acme/reporter");
   assert.equal(showingKeys({ page: "library" }, {}, true, true), "library");
+  assert.equal(showingKeys({ page: "validate" }, {}, true, true), "build");
+  assert.equal(showingKeys({ page: "knowledge" }, {}, true, true), "knowledge");
+  assert.equal(showingKeys({ page: "voice" }, {}, true, true), "voice");
+  assert.equal(showingKeys({ page: "scheduled" }, {}, true, true), "scheduled");
   assert.equal(showingKeys({ page: "settings", section: "updates" }, {}, true, true), "settings:updates");
   assert.equal(showingKeys({ page: "settings" }, {}, true, true), "");
   assert.equal(showingKeys({ page: "home" }, { localRunId: "r2", hostedRunId: "h1" }, true, true), "run:r2,run:h1");

@@ -9,9 +9,11 @@
 // bell counts the unread ones.
 //
 // Only Go writes it, from what Go itself saw end. An entry never holds a
-// task's text, a secret, a file's content or an excerpt of what an agent
-// wrote: a title and a body of the app's own words, and the id of what it
-// opens. The page names an entry by its id and nothing else.
+// run's task, a secret, a file's content or anything an agent wrote: a
+// title and a body of the app's own words (a QuickAgent's name, the
+// person's own name for a schedule or a persistent agent's task among
+// them), and the id of what it opens. The page names an entry by its id
+// and nothing else.
 package notifications
 
 import (
@@ -22,6 +24,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -32,6 +35,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // Max is how many entries are kept; the oldest go first.
@@ -108,15 +113,47 @@ type Open struct {
 // Key names the place an Open shows, as the page reports the place that is
 // on screen: an entry whose result is on screen raises no desktop
 // notification. A run page is its run, a QuickAgent's page its reference,
-// a persistent agent's page its agent, a Settings section its section.
+// a persistent agent's page its agent, a Settings section its section; the
+// Scheduled page shows every schedule, so it is one place.
 func (o Open) Key() string {
 	switch o.Page {
-	case PageRun, PageAgent, PagePersistent, PageScheduled:
+	case PageRun, PageAgent, PagePersistent:
 		return o.Page + ":" + o.ID
 	case PageSettings:
 		return o.Page + ":" + o.Section
 	}
 	return o.Page
+}
+
+// idPattern is a run's id as the run page takes one, or a schedule's or a
+// persistent agent's name: letters, digits and a few marks.
+var idPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$`)
+
+// agentPattern is a QuickAgent's namespace/name.
+var agentPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._-]{0,63}/[0-9A-Za-z][0-9A-Za-z._-]{0,63}$`)
+
+// valid is what an Open must be for the app to follow it: a page the app
+// has, an id of the shape that page takes, and a registry that is a
+// registry URL. An Open that names no page opens nothing and is valid.
+func (o Open) valid() bool {
+	if o.Page == "" {
+		return o == Open{}
+	}
+	if !pages[o.Page] {
+		return false
+	}
+	if o.Registry != "" && settings.ValidateURL(o.Registry) != nil {
+		return false
+	}
+	switch o.Page {
+	case PageRun, PagePersistent, PageScheduled:
+		return o.ID == "" || idPattern.MatchString(o.ID)
+	case PageAgent:
+		return agentPattern.MatchString(o.ID)
+	case PageSettings:
+		return o.Section != "" && idPattern.MatchString(o.Section) && (o.Part == "" || idPattern.MatchString(o.Part))
+	}
+	return o.ID == ""
 }
 
 // Entry is one thing the app noticed.
@@ -153,10 +190,10 @@ type file struct {
 const version = 1
 
 // valid is what an entry must be to be kept or read: an id, a known kind, a
-// title, and a page the app has when it opens one. An entry that is not (a
+// title, and an Open the app can follow. An entry that is not (a
 // hand-edited file) is dropped, never shown.
 func (e Entry) valid() bool {
-	return e.ID != "" && kinds[e.Kind] && e.Title != "" && (e.Open.Page == "" || pages[e.Open.Page])
+	return e.ID != "" && kinds[e.Kind] && e.Title != "" && e.Open.valid()
 }
 
 // normalized is e as Add keeps it: the title and the body plain text, one
@@ -217,7 +254,7 @@ func load() (file, error) {
 		return file{Version: version}, nil
 	}
 	if err != nil {
-		return file{}, fmt.Errorf("read %s: %w", FileName, err)
+		return file{}, fmt.Errorf("read the notifications: %w", err)
 	}
 	var f file
 	if err := yaml.Unmarshal(b, &f); err != nil || f.Version != version {
@@ -241,34 +278,42 @@ func save(f file) error {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("write %s: %w", FileName, err)
+		return fmt.Errorf("write the notifications: %w", err)
 	}
 	f.Version = version
-	sort.SliceStable(f.Entries, func(i, j int) bool { return f.Entries[i].CreatedAt.After(f.Entries[j].CreatedAt) })
+	sortNewestFirst(f.Entries)
 	if len(f.Entries) > Max {
 		f.Entries = f.Entries[:Max]
 	}
 	b, err := yaml.Marshal(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("write the notifications: %w", err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+FileName+"-*")
 	if err != nil {
-		return fmt.Errorf("write %s: %w", FileName, err)
+		return fmt.Errorf("write the notifications: %w", err)
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
 	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write %s: %w", FileName, err)
+		return fmt.Errorf("write the notifications: %w", err)
 	}
 	if _, err := tmp.Write(b); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write %s: %w", FileName, err)
+		return fmt.Errorf("write the notifications: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", FileName, err)
+		return fmt.Errorf("write the notifications: %w", err)
 	}
-	return os.Rename(tmp.Name(), path)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("write the notifications: %w", err)
+	}
+	return nil
+}
+
+// sortNewestFirst orders entries by when they were noticed, newest first.
+func sortNewestFirst(entries []Entry) {
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].CreatedAt.After(entries[j].CreatedAt) })
 }
 
 // newID is a fresh entry id.
@@ -319,7 +364,7 @@ func List() ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(f.Entries, func(i, j int) bool { return f.Entries[i].CreatedAt.After(f.Entries[j].CreatedAt) })
+	sortNewestFirst(f.Entries)
 	return f.Entries, nil
 }
 

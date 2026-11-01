@@ -69,7 +69,7 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 	}
 	// The Notifications page lists every answer, whether or not a
 	// notification is raised for it.
-	p.app.noticed(taskEntry(name, title, line), false)
+	p.app.noticed(taskEntry(name, title), false)
 	if !taskNotificationsOn() || p.isViewing(name) {
 		return
 	}

@@ -3,7 +3,7 @@
 // lines.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bytesProgress, bytesShare, bytesWords, parseSize, updateStageWords } from "../src/bytesProgress.ts";
+import { bytesProgress, bytesShare, bytesWords, parseSize, stepProgress, updateStageWords } from "../src/bytesProgress.ts";
 
 test("docker's sizes read in bytes", () => {
   assert.equal(parseSize("12.5MB"), 12_500_000);
@@ -39,6 +39,13 @@ test("the app's own download line is the progress, the newest one winning", () =
   assert.equal(bytesShare({ done: 12_000_000, total: 0 }), 0);
   assert.equal(bytesProgress(["Installing…", "Verified."]), null);
   assert.equal(bytesProgress([]), null);
+});
+
+test("an image build's progress is its newest step against the steps it has", () => {
+  assert.deepEqual(stepProgress(["#1 [internal] load build definition", "#5 [2/6] RUN apt-get update", "#6 [3/6] COPY . ."]), { step: 3, steps: 6 });
+  assert.deepEqual(stepProgress(["Step 1/4 : FROM alpine", "Step 2/4 : RUN true"]), { step: 2, steps: 4 });
+  assert.equal(stepProgress(["Tool call: grep", "Agent: done"]), null);
+  assert.equal(stepProgress([]), null);
 });
 
 test("an update's stage has its words", () => {

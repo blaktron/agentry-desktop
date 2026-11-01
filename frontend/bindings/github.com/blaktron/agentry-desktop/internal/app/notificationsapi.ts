@@ -71,8 +71,9 @@ export function SetShowing(keys: string): $CancellablePromise<void> {
 }
 
 /**
- * Unread is the bell's count: the local unread entries and the account's
- * unread notices.
+ * Unread is the bell's count: the unread notifications the page would
+ * list, counted as the page counts them, so the bell and the page agree
+ * (an account notice folded into a local entry counts once).
  */
 export function Unread(reg: string): $CancellablePromise<$models.NotificationsUnreadView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.NotificationsAPI.Unread", reg).then(($result: any) => {

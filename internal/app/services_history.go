@@ -119,7 +119,9 @@ func recordLocal(ctx context.Context, app *App, kind string, l *liveRun, ref str
 	} else if err != nil && outcome == runhistory.OutcomeError {
 		e.Cause = err.Error()
 	}
-	app.noticed(localEntry(e, ref), true)
+	// A chat ends by the person's End or its idle timeout, with its dialog
+	// in front: listed, never raised.
+	app.noticed(localEntry(e, ref), ended(e.Outcome) && kind != runhistory.KindChat)
 	if !historyOn() {
 		return
 	}
@@ -169,7 +171,7 @@ func recordBuiltin(ctx context.Context, app *App, l *liveRun, err error) {
 		ID: l.id, Kind: kind, Where: runhistory.WhereHere,
 		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, Folder: cleanAbs(l.folder),
 	}
-	app.noticed(localEntry(e, ""), true)
+	app.noticed(localEntry(e, ""), ended(e.Outcome), shownAt(kind)...)
 	record(e)
 }
 
@@ -228,7 +230,7 @@ func recordHosted(app *App, reg string, h *hostedrun.Run, dir string) {
 	if outcome != hostedrun.OutcomeSucceeded {
 		e.Cause = h.Error
 	}
-	app.noticed(hostedEntry(reg, h), true)
+	app.noticed(hostedEntry(reg, h), h.Status != hostedrun.StatusCancelled, shownAt(hostedKind(h))...)
 	record(e)
 }
 

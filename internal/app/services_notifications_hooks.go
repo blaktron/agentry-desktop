@@ -11,6 +11,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -62,6 +63,26 @@ func classBody(exitClass string, exitCode int) string {
 	}
 	return "The run page says what happened."
 }
+
+// shownAt is where a job's result is shown besides the page its entry
+// opens: a draft and an AI Review land in Build, a knowledge build in
+// Knowledge, a Writing Voice build on the Voice page. A person on that page
+// is looking at the result, so no notification is raised for it.
+func shownAt(kind string) []string {
+	switch kind {
+	case runhistory.KindDraft, runhistory.KindReview:
+		return []string{"build"}
+	case runhistory.KindKnowledge:
+		return []string{"knowledge"}
+	case runhistory.KindVoice:
+		return []string{"voice"}
+	}
+	return nil
+}
+
+// ended says whether an outcome is something that ended on its own, which
+// a notification is for: a run the person stopped is not.
+func ended(outcome string) bool { return outcome != runhistory.OutcomeStopped }
 
 // localEntry is a run, chat or built-in's job on this computer as an entry,
 // from its history entry (recorded or not) and the reference it ran.
@@ -121,23 +142,35 @@ func hostedEntry(reg string, h *hostedrun.Run) notifications.Entry {
 	}
 	ok := h.Status == hostedrun.StatusFinished && h.Outcome == hostedrun.OutcomeSucceeded
 	name := nameOr(h.Ref, "The QuickAgent")
+	var done, undone string
 	switch n.Kind {
 	case runhistory.KindDraft:
-		n.Title = map[bool]string{true: "Your draft In Agentry is ready", false: "The draft In Agentry did not finish"}[ok]
+		done, undone = "Your draft In Agentry is ready", "The draft In Agentry did not finish"
 	case runhistory.KindKnowledge:
-		n.Title = map[bool]string{true: "The knowledge build In Agentry finished", false: "The knowledge build In Agentry did not finish"}[ok]
+		done, undone = "The knowledge build In Agentry finished", "The knowledge build In Agentry did not finish"
 	case runhistory.KindVoice:
-		n.Title = map[bool]string{true: "Your Writing Voice In Agentry is ready", false: "The Writing Voice build In Agentry did not finish"}[ok]
+		done, undone = "Your Writing Voice In Agentry is ready", "The Writing Voice build In Agentry did not finish"
 	case runhistory.KindChat:
-		n.Title = "The chat with " + name + " In Agentry ended"
+		done, undone = "The chat with "+name+" In Agentry ended", "The chat with "+name+" In Agentry ended"
 	default:
-		n.Title = map[bool]string{true: name + " finished In Agentry", false: name + " did not finish In Agentry"}[ok]
+		done, undone = name+" finished In Agentry", name+" did not finish In Agentry"
 	}
-	line := strings.TrimSpace(verdict.Line)
-	if line != "" {
-		n.Body = strings.ToUpper(line[:1]) + line[1:] + "."
+	n.Title = undone
+	if ok {
+		n.Title = done
+	}
+	if line := strings.TrimSpace(verdict.Line); line != "" {
+		n.Body = firstCapital(line)
 	}
 	return n
+}
+
+// firstCapital is line as one sentence: its first letter a capital, a full
+// stop at the end.
+func firstCapital(line string) string {
+	r := []rune(line)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r) + "."
 }
 
 // fireEntryOf is a schedule's fire as an entry: the run page where it ran,
@@ -203,10 +236,13 @@ func updatedEntry(current string, first string) notifications.Entry {
 	}
 }
 
-// taskEntry is a persistent agent's task that answered.
-func taskEntry(agent, title, line string) notifications.Entry {
+// taskEntry is a persistent agent's task that answered: the agent and the
+// person's own name for the task, never the answer, which is on the
+// agent's page (the notification the task raises shows its first line and
+// keeps nothing).
+func taskEntry(agent, title string) notifications.Entry {
 	return notifications.Entry{
-		Kind: notifications.KindTask, Title: title, Body: line,
+		Kind: notifications.KindTask, Title: title, Body: "Its answer is on the agent's page.",
 		Open: notifications.Open{Page: notifications.PagePersistent, ID: agent},
 	}
 }

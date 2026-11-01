@@ -155,6 +155,18 @@ export function BytesBar({ progress, label }: { progress: BytesProgress; label: 
   );
 }
 
+/** How far a job of counted steps has got: "Image build: step 3 of 6". */
+export function StepBar({ step, steps, label }: { step: number; steps: number; label: string }) {
+  return (
+    <div className="knowledge-progress" data-step-bar>
+      <div className="knowledge-progress-bar" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={steps} aria-valuenow={step}>
+        <span style={{ width: `${steps > 0 ? (step / steps) * 100 : 0}%` }} />
+      </div>
+      <p className="small muted">{label}: step {step} of {steps}</p>
+    </div>
+  );
+}
+
 /** A job's log as it streams, kept scrolled to its last line. `reveal`
  *  shows the invisible characters in it, for a log that carries what pages
  *  and a registry said. */
