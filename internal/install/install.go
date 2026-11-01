@@ -319,6 +319,27 @@ type pending struct {
 // Engine holds pending installs. One Engine lives for the app's lifetime.
 type Engine struct {
 	pending map[string]*pending
+	// Progress, when set, is told each stage of an install as it begins,
+	// in words a page shows beside its button: resolving, downloading,
+	// verifying, unpacking, writing, recording.
+	Progress func(stage string)
+}
+
+// The stages an install passes through, as Progress reports them.
+const (
+	StageResolving   = "Resolving the release…"
+	StageDownloading = "Downloading the archive…"
+	StageVerifying   = "Verifying the download…"
+	StageUnpacking   = "Unpacking the archive…"
+	StageWriting     = "Writing the files…"
+	StageRecording   = "Recording the install…"
+)
+
+// stage reports a stage to Progress, when anyone listens.
+func (e *Engine) stage(s string) {
+	if e != nil && e.Progress != nil {
+		e.Progress(s)
+	}
 }
 
 // NewEngine returns an empty engine.
@@ -350,6 +371,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		return nil, err
 	}
 
+	e.stage(StageResolving)
 	res, err := registry.Resolve(ctx, client, ref, true)
 	if err != nil {
 		return nil, err
@@ -358,11 +380,13 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if err != nil {
 		return nil, err
 	}
+	e.stage(StageDownloading)
 
 	archive, err := registry.Download(ctx, regURL, token, res)
 	if err != nil {
 		return nil, err
 	}
+	e.stage(StageVerifying)
 	computed := registry.Digest(archive)
 	if computed != res.Digest {
 		return nil, fmt.Errorf("digest mismatch: registry says %s, archive is %s — refusing to install", res.Digest, computed)
@@ -650,6 +674,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	// so an archive that survived the server's unpack is unpacked here by the
 	// same rules — path escapes, symlinks, device nodes, file-count and
 	// compression-ratio bombs all refused rather than written.
+	e.stage(StageUnpacking)
 	if err := pkgarchive.Extract(bytes.NewReader(p.archive), staging, int64(len(p.archive)), extractLimits()); err != nil {
 		return nil, fmt.Errorf("extract archive: %w", err)
 	}
@@ -670,6 +695,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	plan.DeclaredSecrets, plan.OptionalSecrets = declaredSecrets(m), optionalSecrets(m)
 
 	res := &Result{Dest: plan.Paths.Dest}
+	e.stage(StageWriting)
 	// after runs once the record is saved: the runner target's replace of
 	// the older version waits for the record, so a failed save never
 	// leaves a directory gone and a record naming it.
@@ -700,6 +726,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 
 	// Record only after the files actually landed: a record claiming an
 	// install that failed would suppress the next run's capability prompt.
+	e.stage(StageRecording)
 	state, serr := installed.Load()
 	if serr != nil {
 		state = installed.State{}

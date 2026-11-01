@@ -112,3 +112,8 @@ test("a section that needs a sign-in is listed only while signed in, as the land
   const inn = navRows({ page: "settings", buildOpen: false, sections, signedIn: true });
   assert.deepEqual(labels(inn), ["Home", "Library", "Schedule", "Build", "Settings", "Profile", "Home"]);
 });
+
+test("the Notifications page lights no row: the bell above the rows is its", () => {
+  assert.deepEqual(lit(rows({ page: "notifications" })), []);
+  assert.deepEqual(current(rows({ page: "notifications" })), []);
+});

@@ -11,6 +11,7 @@ import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
 import { PinButton, homeFullLine, useHomeLayout } from "./home/PinButton";
 import { browserCap, browserReach } from "../browser";
+import { useInstallStage } from "../installProgress";
 
 
 type UpdateMap = Record<string, install.UpdateInfo>;
@@ -51,6 +52,8 @@ export default function Library({
   const [warning, setWarning] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
   const [updatingRunner, setUpdatingRunner] = useState<string | null>(null);
+  // What the update is doing, while it does: its button says it.
+  const updateStage = useInstallStage(updatingRunner !== null);
   // A QuickAgent installed from a folder has no
   // registry page to open, so it runs from here.
   const [running, setRunning] = useState<install.Item | null>(null);
@@ -271,7 +274,7 @@ export default function Library({
                   meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.origin.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
                   actions={<>
                     <Button onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}>Details</Button>
-                    {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)} busy={updatingRunner === keyOf(rec)} busyLabel="Updating…">Update</Button>}
+                    {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)} busy={updatingRunner === keyOf(rec)} busyLabel={updateStage || "Updating…"}>Update</Button>}
                     <PinButton agentRef={`${rec.namespace}/${rec.name}`} registry={rec.origin} layout={homeLayout} onLayout={setHomeLayout} />
                     <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
                   </>}

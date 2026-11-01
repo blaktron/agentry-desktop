@@ -825,7 +825,7 @@ func (r *RunAPI) deliver(client *hostedrun.Client, reg string, final *hostedrun.
 	// an id.
 	if validRunID(final.ID) {
 		r.rememberFolder(final.ID, outDir)
-		recordHosted(reg, final, outDir)
+		recordHosted(r.app, reg, final, outDir)
 		// A run whose output came down whole has its deliverables copied
 		// where the person keeps them, as a run on this computer's are.
 		if derr == nil {

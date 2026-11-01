@@ -87,7 +87,30 @@ type SelfUpdateView struct {
 	// saying "not now" is saying it about today, and the update banner has
 	// the same shape.
 	Dismissed bool `json:"dismissed,omitempty"`
+	// Progress is how far an install under way has got (selfupdate:progress
+	// carries each change to the page).
+	Progress *SelfUpdateProgress `json:"progress,omitempty"`
 }
+
+// SelfUpdateProgress is how far an install of a newer Agentry Desktop has
+// got: its stage, and for the download, the bytes so far and the total the
+// channel announced (0 when it did not).
+type SelfUpdateProgress struct {
+	// Stage is checking, downloading or installing.
+	Stage string `json:"stage"`
+	Done  int64  `json:"done,omitempty"`
+	Total int64  `json:"total,omitempty"`
+}
+
+// The stages of an install.
+const (
+	selfUpdateChecking    = "checking"
+	selfUpdateDownloading = "downloading"
+	selfUpdateInstalling  = "installing"
+)
+
+// eventSelfUpdateProgress carries each change of an install's progress.
+const eventSelfUpdateProgress = "selfupdate:progress"
 
 // downloadPage turns the update channel into the page a person downloads
 // from: .../downloads/manifest.json → .../download. Empty when the channel is
@@ -138,8 +161,10 @@ type SelfUpdateAPI struct {
 	last SelfUpdateView
 	// dismissed is "Not now", for this run of the app only.
 	dismissed bool
-	// applying is set while a download or swap is in flight.
+	// applying is set while a download or swap is in flight; progress is
+	// how far it has got.
 	applying bool
+	progress *SelfUpdateProgress
 	// client is replaced in tests; nil means the default with its own timeout.
 	client *http.Client
 	now    func() time.Time
@@ -169,6 +194,10 @@ func (u *SelfUpdateAPI) SelfUpdateStatus() (*SelfUpdateView, error) {
 	v.Enabled = u.enabled()
 	v.Dismissed = u.dismissed
 	v.Applying = u.applying
+	if u.applying && u.progress != nil {
+		p := *u.progress
+		v.Progress = &p
+	}
 	if v.Available != nil {
 		v.DownloadURL = downloadPage(u.channel)
 	}
@@ -303,11 +332,17 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 	// A check that found a DIFFERENT release is news again: "not now" was
 	// about the release the person was shown, not about every release for
 	// ever.
-	if u.last.Available == nil || v.Available == nil || u.last.Available.Version != v.Available.Version {
+	news := u.last.Available == nil || v.Available == nil || u.last.Available.Version != v.Available.Version
+	if news {
 		u.dismissed = false
 	}
 	u.last = v
 	u.mu.Unlock()
+	// The Notifications page lists the release once; a later check that
+	// finds another replaces the entry.
+	if news && v.Available != nil {
+		u.app.noticed(updateAvailableEntry(v.Available.Version, v.Available.Retired), false)
+	}
 }
 
 // InstallSelfUpdate downloads the release this build was offered and
@@ -336,12 +371,15 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 		return u.SelfUpdateStatus()
 	}
 	u.applying = true
+	u.progress = &SelfUpdateProgress{Stage: selfUpdateChecking}
 	u.mu.Unlock()
 	defer func() {
 		u.mu.Lock()
 		u.applying = false
+		u.progress = nil
 		u.mu.Unlock()
 	}()
+	u.report(SelfUpdateProgress{Stage: selfUpdateChecking})
 
 	if rel == nil {
 		return nil, errors.New("there is no newer Agentry Desktop to install; check again first")
@@ -373,10 +411,13 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), selfUpdateDownloadTimeout)
 	defer cancel()
-	path, err := selfupdate.Download(ctx, u.client, u.channel, artifact, dir)
+	path, err := selfupdate.DownloadProgress(ctx, u.client, u.channel, artifact, dir, func(done, total int64) {
+		u.report(SelfUpdateProgress{Stage: selfUpdateDownloading, Done: done, Total: total})
+	})
 	if err != nil {
 		return nil, err
 	}
+	u.report(SelfUpdateProgress{Stage: selfUpdateInstalling})
 	// Past here the application is replaced and this process ends, so there
 	// is no view to return on success.
 	resume := func() {}
@@ -388,6 +429,15 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 		return nil, err
 	}
 	return u.SelfUpdateStatus()
+}
+
+// report keeps an install's progress for SelfUpdateStatus and sends it to
+// the page.
+func (u *SelfUpdateAPI) report(p SelfUpdateProgress) {
+	u.mu.Lock()
+	u.progress = &p
+	u.mu.Unlock()
+	emitEvent(u.app, eventSelfUpdateProgress, p)
 }
 
 // SetInstallOnQuit writes Settings → "Install automatically when I quit".

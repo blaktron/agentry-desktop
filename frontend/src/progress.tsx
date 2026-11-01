@@ -13,6 +13,7 @@ import { JobProgress, Tone, fmtClock } from "./jobProgress";
 import { progressTokens } from "./usage";
 import { Button, Spinner } from "./primitives";
 import { RevealText } from "./reveal";
+import { bytesShare, bytesWords, type BytesProgress } from "./bytesProgress";
 
 /** The corner the running flows' cards stack in; App provides it. */
 export const CornerHost = createContext<HTMLElement | null>(null);
@@ -128,6 +129,40 @@ export function ProgressView<P extends JobProgress>({ progress, job, compact, fa
           </>
         )}
       </dl>
+    </div>
+  );
+}
+
+/** How far a download or an image pull has got, as a bar and the bytes:
+ *  "Downloaded: 12 of 40 MB". With no total known the bar sweeps and the
+ *  line says the bytes so far. */
+export function BytesBar({ progress, label }: { progress: BytesProgress; label: string }) {
+  const known = progress.total > 0;
+  return (
+    <div className="knowledge-progress" data-bytes-bar>
+      <div
+        className={`knowledge-progress-bar${known ? "" : " indeterminate"}`}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={known ? progress.total : undefined}
+        aria-valuenow={known ? Math.min(progress.done, progress.total) : undefined}
+      >
+        <span style={known ? { width: `${bytesShare(progress) * 100}%` } : undefined} />
+      </div>
+      <p className="small muted">{label}: {bytesWords(progress)}</p>
+    </div>
+  );
+}
+
+/** How far a job of counted steps has got: "Image build: step 3 of 6". */
+export function StepBar({ step, steps, label }: { step: number; steps: number; label: string }) {
+  return (
+    <div className="knowledge-progress" data-step-bar>
+      <div className="knowledge-progress-bar" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={steps} aria-valuenow={step}>
+        <span style={{ width: `${steps > 0 ? (step / steps) * 100 : 0}%` }} />
+      </div>
+      <p className="small muted">{label}: step {step} of {steps}</p>
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, shownLo
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
+import { BytesBar, StepBar } from "../progress";
+import { bytesProgress, stepProgress } from "../bytesProgress";
 import { FailedRunView } from "./FailedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 
@@ -34,6 +36,19 @@ export type RunFlowActions = {
   /** Report: opens Report bug with the failure's facts filled in. */
   onReport?: (text: string) => void;
 };
+
+/** How far the run's preparation has got, read from its log: an image
+ *  pull's bytes and an image build's steps, while either is under way. */
+function PrepareBars({ log }: { log: string[] }) {
+  const pull = bytesProgress(log);
+  const build = stepProgress(log);
+  return (
+    <>
+      {pull && <BytesBar progress={pull} label="Pulled" />}
+      {build && <StepBar step={build.step} steps={build.steps} label="Image build" />}
+    </>
+  );
+}
 
 export default function RunFlow(props: RunFlowActions & {
   /** Harness-only: open as the corner card. */
@@ -154,6 +169,7 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
           </>}
         >
           <RunProgressView r={r} />
+          {!r.progress?.prepared && <PrepareBars log={r.log} />}
           <FoldedLog label="Run log" lines={shownLog(r)} reveal />
         </RunningView>
       </Modal>
