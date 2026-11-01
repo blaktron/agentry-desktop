@@ -129,11 +129,11 @@ const stoppedBrief = {
   key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 96_120, outputTokens: 22_410, costUsd: 0.0912,
 };
 const buildLog = [
-  "The Knowledge Creator runs on this computer against the model your runner policy names (anthropic claude-sonnet-4-5). It costs no credits, and nothing it reads or writes is scanned.",
+  "The Knowledge Creator runs on this computer against the model your runner policy names (anthropic claude-sonnet-5-5). It costs no credits, and nothing it reads or writes is scanned.",
   "decode: storage-guide.pdf — pdftotext, 38 pages of text",
   "decode: handbook/retention.docx — pandoc",
   "decode: handbook/scan-0042.heic — no decoder reads it",
-  "run 20260925T221004Z-3f9a: agentry/knowledge-creator (builtin) against anthropic claude-sonnet-4-5",
+  "run 20260925T221004Z-3f9a: agentry/knowledge-creator (builtin) against anthropic claude-sonnet-5-5",
   "tool: knowledge_list handbook",
   "tool: write_report wiki/topics/buckets.md",
 ];
@@ -200,7 +200,7 @@ const g = window as any;
 g.go = { app: {
   KnowledgeAPI: {
     List: async () => list,
-    CreatorModel: async () => "anthropic claude-sonnet-4-5",
+    CreatorModel: async () => "anthropic claude-sonnet-5-5",
     CreatorBudget: async () => ({ timeoutSeconds: 3600, maxTurns: 60 }),
     DocumentsSize: async () => ({
       bytes: hash === "create-documents-huge" ? 1_610_612_736 : hash.endsWith("-large") ? 50_331_648 : 2_411_724,
@@ -235,7 +235,7 @@ g.go = { app: {
     }),
   },
   RunAPI: {
-    SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
+    SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-5-5" }),
   },
   App: { ChooseFiles: async () => [], ChooseDirectory: async () => "", OpenExternal: async () => undefined },
   SettingsAPI: { Profile: async () => ({ user: {}, subscription: { knowledge: allocation } }) },

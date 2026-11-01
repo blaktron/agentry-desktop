@@ -71,7 +71,7 @@ export const COPILOT_AUTO = "auto";
  *  mirror the CLI's provider table (pkg/runner/setup), which fills any
  *  gap. */
 export const PROVIDERS: ProviderChoice[] = [
-  { id: "anthropic", label: "Anthropic (Claude)", short: "Anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", ways: [
+  { id: "anthropic", label: "Anthropic (Claude)", short: "Anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY", ways: [
     { id: "claude", label: CLAUDE_SIGN_IN_LABEL, vendor: "claude", kind: "claude-signin",
       hint: "Claude Code signs you in itself, in Anthropic's own page in your browser. Your Claude plan pays for the runs on this computer." },
     key("The Max and Team plans include monthly API credits, spent through a key from the Console organization linked to the plan."),

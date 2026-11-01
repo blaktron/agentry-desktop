@@ -107,7 +107,7 @@ const runButton = (node: Element) => button(node, /^Run$/);
 const why = (node: Element) => text(node.querySelector("#run-button-why"));
 
 test("no engine: the engine setup is in the panel, the answers stay, and the run goes on once it answers", async () => {
-  const setup: Setup = { dockerOk: false, dockerErr: "no engine answered", modelReady: false, modelGap: "$ANTHROPIC_API_KEY is not set in this app's environment, and no anthropic key is saved on this computer.", imagesReady: false, keysStored: [], policyExists: false, provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", timeoutSeconds: 900, maxTurns: 60 };
+  const setup: Setup = { dockerOk: false, dockerErr: "no engine answered", modelReady: false, modelGap: "$ANTHROPIC_API_KEY is not set in this app's environment, and no anthropic key is saved on this computer.", imagesReady: false, keysStored: [], policyExists: false, provider: "anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY", timeoutSeconds: 900, maxTurns: 60 };
   const prereq: Record<string, unknown> = { dockerOk: false, state: "manual", os: "linux", engineInstalled: false, dockerErr: "no engine answered", downloadUrl: "https://docs.docker.com/engine/install/", warnings: [] };
   const calls = mocks(setup, prereq);
   const panel = await open("details");
@@ -153,7 +153,7 @@ test("no engine: the engine setup is in the panel, the answers stay, and the run
 });
 
 test("no model: the model provider's setup is in the panel, and a save there turns Run on with the answers kept", async () => {
-  const setup: Setup = { dockerOk: true, modelReady: false, modelGap: "$ANTHROPIC_API_KEY is not set in this app's environment, and no anthropic key is saved on this computer.", imagesReady: true, keysStored: [], policyExists: false, provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", timeoutSeconds: 900, maxTurns: 60, engine: { kind: "docker", version: "28.0", summary: "docker 28.0" } };
+  const setup: Setup = { dockerOk: true, modelReady: false, modelGap: "$ANTHROPIC_API_KEY is not set in this app's environment, and no anthropic key is saved on this computer.", imagesReady: true, keysStored: [], policyExists: false, provider: "anthropic", model: "claude-sonnet-5-5", apiKeyEnv: "ANTHROPIC_API_KEY", timeoutSeconds: 900, maxTurns: 60, engine: { kind: "docker", version: "28.0", summary: "docker 28.0" } };
   const calls = mocks(setup, { dockerOk: true, state: "ready" });
   const panel = await open("details");
   await settle(() => typeInto(panel.querySelector<HTMLInputElement>("input[type=text]")!, "last Tuesday"));
