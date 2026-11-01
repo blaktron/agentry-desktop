@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.6.1008",
+      "highlights": [
+        "A Notifications page behind the bell lists what finished while you were elsewhere, with your account's notifications.",
+        "Your computer tells you when something you started finishes, unless the result is already in front of you.",
+        "A run that fails explains itself: the class, the cause, the kept log, Run again.",
+        "The run panel keeps your answers while you set up an engine or a provider in place."
+      ]
+    },
+    {
       "version": "0.6.1007",
       "highlights": [
         "Your personal agent reads how a QuickAgent wants to run: its questions, the files it takes and its guide.",
