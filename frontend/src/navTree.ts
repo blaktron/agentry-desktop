@@ -13,7 +13,7 @@
 
 // The pages a sidebar row can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "meetings" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "meetings" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings" | "notifications";
 
 /** A persistent agent's entry, after Home: the Assistant by the name the
  *  person gave it, with a dot for running or stopped. */

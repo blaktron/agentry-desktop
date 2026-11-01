@@ -10,6 +10,7 @@ import * as InstallAPI from "./installapi.js";
 import * as KnowledgeAPI from "./knowledgeapi.js";
 import * as MeetingAPI from "./meetingapi.js";
 import * as NoticesAPI from "./noticesapi.js";
+import * as NotificationsAPI from "./notificationsapi.js";
 import * as PersistentAPI from "./persistentapi.js";
 import * as PublisherAPI from "./publisherapi.js";
 import * as RunAPI from "./runapi.js";
@@ -29,6 +30,7 @@ export {
     KnowledgeAPI,
     MeetingAPI,
     NoticesAPI,
+    NotificationsAPI,
     PersistentAPI,
     PublisherAPI,
     RunAPI,
@@ -124,6 +126,9 @@ export {
     MeetingWindowView,
     MetaView,
     ModelView,
+    NotificationView,
+    NotificationsUnreadView,
+    NotificationsView,
     OrgMembership,
     OutputFileView,
     OutputPDFView,
@@ -201,6 +206,7 @@ export {
     SearchQuery,
     SearchView,
     Seats,
+    SelfUpdateProgress,
     SelfUpdateView,
     SendView,
     SessionEventView,

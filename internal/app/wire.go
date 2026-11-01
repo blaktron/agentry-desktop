@@ -35,8 +35,11 @@ type Services struct {
 	notices      *NoticesAPI
 	persistent   *PersistentAPI
 	meeting      *MeetingAPI
-	bg           background
-	stopOnce     sync.Once
+	// notifications is the Notifications page's API, also the notifier the
+	// other services report endings to.
+	notifications *NotificationsAPI
+	bg            background
+	stopOnce      sync.Once
 }
 
 // New builds the App and its APIs. notices is the third-party notices text
@@ -46,6 +49,7 @@ func New(notices string) *Services {
 	run := &RunAPI{app: app}
 	browse := &BrowseAPI{app: app}
 	installs := &InstallAPI{app: app, engine: install.NewEngine()}
+	installs.engine.Progress = func(stage string) { emitEvent(app, eventInstallProgress, stage) }
 	schedule := &ScheduleAPI{app: app, run: run}
 	ops := appMainOps{browse: browse, installer: installs, runner: run, scheduler: schedule}
 	links := map[string]*mainLink{
@@ -57,25 +61,28 @@ func New(notices string) *Services {
 	// hands its transcripts to the Assistant.
 	meetings := &MeetingAPI{app: app, assistant: persistentAssistant{p: persistentAPI}}
 	links[assistantAgent].meetings = meetings.answerTool
+	notifications := newNotificationsAPI(app)
+	app.notifications = notifications
 	return &Services{
-		app:          app,
-		settings:     &SettingsAPI{app: app},
-		browse:       browse,
-		install:      installs,
-		validate:     &ValidateAPI{app: app},
-		run:          run,
-		build:        &BuildAPI{app: app, run: run},
-		knowledge:    &KnowledgeAPI{app: app, run: run},
-		voice:        &VoiceAPI{app: app, run: run},
-		home:         &HomeAPI{},
-		publisher:    &PublisherAPI{app: app},
-		selfUpdate:   newSelfUpdateAPI(app, meetings.suspendForUpdate),
-		whatsNew:     newWhatsNewAPI(),
-		schedule:     schedule,
-		destinations: &DestinationsAPI{app: app},
-		notices:      &NoticesAPI{text: notices},
-		persistent:   persistentAPI,
-		meeting:      meetings,
+		app:           app,
+		settings:      &SettingsAPI{app: app},
+		browse:        browse,
+		install:       installs,
+		validate:      &ValidateAPI{app: app},
+		run:           run,
+		build:         &BuildAPI{app: app, run: run},
+		knowledge:     &KnowledgeAPI{app: app, run: run},
+		voice:         &VoiceAPI{app: app, run: run},
+		home:          &HomeAPI{},
+		publisher:     &PublisherAPI{app: app},
+		selfUpdate:    newSelfUpdateAPI(app, meetings.suspendForUpdate),
+		whatsNew:      newWhatsNewAPI(),
+		schedule:      schedule,
+		destinations:  &DestinationsAPI{app: app},
+		notices:       &NoticesAPI{text: notices},
+		persistent:    persistentAPI,
+		meeting:       meetings,
+		notifications: notifications,
 	}
 }
 
@@ -111,6 +118,8 @@ func (s *Services) Startup(ctx context.Context) {
 	// Meeting notes' leftovers recovered and its old audio swept; no
 	// audio device is opened until the person presses Record.
 	s.meeting.start(ctx)
+	// The schedules' fires that ended, and the version this copy moved to.
+	s.notifications.start(ctx)
 }
 
 // BeforeClose runs as the window closes, and reports whether to keep the
@@ -198,5 +207,6 @@ func (s *Services) Bind() []application.Service {
 		application.NewService(s.notices),
 		application.NewService(s.persistent),
 		application.NewService(s.meeting),
+		application.NewService(s.notifications),
 	}
 }

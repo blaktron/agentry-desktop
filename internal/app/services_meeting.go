@@ -160,6 +160,11 @@ func (m *MeetingAPI) manager() *meeting.Manager {
 			EngineID:    func() string { return sidecarID(sidecar) },
 			EngineReady: func() error { return meeting.CheckSidecar(sidecar) },
 			Notify: func(n meeting.Notice) error {
+				// A notice that tells, rather than asks (no buttons, not
+				// kept on screen), is listed on the Notifications page.
+				if n.Tag == "" && len(n.Actions) == 0 && !n.Resident {
+					m.app.noticed(meetingEntry(n.Title, n.Body), false)
+				}
 				out := notify.Notice{Title: n.Title, Body: n.Body, Key: meetingNoticeKey, Tag: n.Tag, Resident: n.Resident}
 				for _, a := range n.Actions {
 					out.Actions = append(out.Actions, notify.Action{ID: a.ID, Label: a.Label})

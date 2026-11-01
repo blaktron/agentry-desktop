@@ -86,6 +86,17 @@ func ArtifactFor(sums, version, goos, goarch string) (Artifact, error) {
 // The artifact is fetched from beside the manifest, under the same rule the
 // sums and the signature are — the channel cannot point this anywhere else.
 func Download(ctx context.Context, client *http.Client, manifestURL string, a Artifact, dir string) (path string, err error) {
+	return DownloadProgress(ctx, client, manifestURL, a, dir, nil)
+}
+
+// progressEvery is how many bytes pass between two reports of a download's
+// progress.
+const progressEvery = 256 << 10
+
+// DownloadProgress is Download that tells progress how far the download has
+// got, in bytes so far and the total the channel announced (0 when it did
+// not), every progressEvery bytes and at the end.
+func DownloadProgress(ctx context.Context, client *http.Client, manifestURL string, a Artifact, dir string, progress func(done, total int64)) (path string, err error) {
 	base, err := url.Parse(manifestURL)
 	if err != nil {
 		return "", fmt.Errorf("the update channel %q is not a URL: %w", manifestURL, err)
@@ -141,7 +152,16 @@ func Download(ctx context.Context, client *http.Client, manifestURL string, a Ar
 	}()
 
 	sum := sha256.New()
-	n, err := io.Copy(io.MultiWriter(f, sum), io.LimitReader(resp.Body, maxArtifact+1))
+	out := io.MultiWriter(f, sum)
+	if progress != nil {
+		total := max(resp.ContentLength, 0)
+		progress(0, total)
+		out = &progressWriter{w: out, total: total, report: progress}
+	}
+	n, err := io.Copy(out, io.LimitReader(resp.Body, maxArtifact+1))
+	if progress != nil {
+		progress(n, max(resp.ContentLength, 0))
+	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -155,6 +175,26 @@ func Download(ctx context.Context, client *http.Client, manifestURL string, a Ar
 		return "", fmt.Errorf("%s is not the file this release signed: its digest is %s and the release's checksums say %s", a.Name, got, a.SHA256)
 	}
 	return path, nil
+}
+
+// progressWriter counts what passes through it and reports every
+// progressEvery bytes.
+type progressWriter struct {
+	w      io.Writer
+	total  int64
+	done   int64
+	last   int64
+	report func(done, total int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	p.done += int64(n)
+	if p.done-p.last >= progressEvery {
+		p.last = p.done
+		p.report(p.done, p.total)
+	}
+	return n, err
 }
 
 // ThisPlatform names the artifact this build would install, for a caller that

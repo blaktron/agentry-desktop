@@ -350,7 +350,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	if l := r.current(); l != nil {
 		// A chat's end is how the person ends it, not a stop: its outcome
 		// is the engine's.
-		recordLocal(context.Background(), runhistory.KindChat, l, s.Ref(), res, err)
+		recordLocal(context.Background(), r.app, runhistory.KindChat, l, s.Ref(), res, err)
 		l.cancel()
 		r.endRun(l)
 	}
@@ -1211,7 +1211,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	}, logw)
 	// The run has returned: what it said reaches the log before its result.
 	agentLog.Close()
-	recordLocal(ctx, runhistory.KindRun, live, ref, res, err)
+	recordLocal(ctx, r.app, runhistory.KindRun, live, ref, res, err)
 	// A sign-in the run saved reaches the schedules that run while the
 	// person is signed out, as every other key change does.
 	if savesHostSignIn(hostSignIns) {
@@ -1546,7 +1546,7 @@ func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context
 	logw := r.eventWriter(event)
 	defer logw.Flush()
 	err = f(ctx, live.id, logw)
-	recordBuiltin(ctx, live, err)
+	recordBuiltin(ctx, r.app, live, err)
 	return err
 }
 

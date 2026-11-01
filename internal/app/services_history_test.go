@@ -668,7 +668,7 @@ func TestAFailedHostedRunIsRecordedWithItsCause(t *testing.T) {
 	now := time.Now().UTC()
 	h := &hostedrun.Run{ID: "11111111-2222-3333-4444-555555555555", Ref: "acme/agent@1.0.0", Status: hostedrun.StatusFinished,
 		Outcome: hostedrun.OutcomeFailed, ExitClass: "timeout", Error: "the run's time budget ran out", CreatedAt: now, FinishedAt: &now}
-	recordHosted("https://r.example", h, t.TempDir())
+	recordHosted(nil, "https://r.example", h, t.TempDir())
 	e := onlyEntry(t)
 	if e.ExitClass != "timeout" || e.Cause != "the run's time budget ran out" {
 		t.Fatalf("entry %+v", e)

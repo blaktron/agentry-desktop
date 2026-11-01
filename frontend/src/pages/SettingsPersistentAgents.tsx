@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import * as NotificationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/notificationsapi";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
@@ -40,11 +41,16 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [atSignIn, setAtSignIn] = useState<boolean | null>(null);
   // Notify me when a task runs: read when the page opens (null until read).
   const [taskNotes, setTaskNotes] = useState<boolean | null>(null);
+  // Notify me when something I started finishes: the one notification
+  // kind for a run, a draft, a knowledge build, a scheduled run or an
+  // install that ends (null until read).
+  const [finishedNotes, setFinishedNotes] = useState<boolean | null>(null);
 
   useEffect(() => {
     void refreshAgents();
     PersistentAPI.StartsAtSignIn().then(setAtSignIn).catch((e) => { setAtSignIn(false); setError(String(e)); });
     PersistentAPI.TaskNotifications().then(setTaskNotes).catch((e) => { setTaskNotes(true); setError(String(e)); });
+    NotificationsAPI.FinishedNotifications().then(setFinishedNotes).catch((e) => { setFinishedNotes(true); setError(String(e)); });
   }, []);
 
   const act = async (name: string, f: () => Promise<app.PersistentAgentView>, asked = false) => {
@@ -195,6 +201,26 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           When a task the Assistant runs on its own answers, your computer shows a notification with the task's name and the
           first line of the answer, unless the Assistant's page is in front of you. Clicking it opens that page. It shows only
           while the Assistant runs in this app.
+        </p>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            role="switch"
+            data-finished-notifications
+            checked={!!finishedNotes}
+            disabled={finishedNotes === null}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setError(null);
+              NotificationsAPI.SetFinishedNotifications(on).then(setFinishedNotes).catch((err) => setError(String(err)));
+            }}
+          />
+          Notify me when something I started finishes
+        </label>
+        <p className="small muted">
+          When a run, a draft, a knowledge build, a scheduled run or an install ends while another page is open or the window
+          is hidden, your computer shows a notification that opens the result. Nothing shows while the result is already in
+          front of you. Every ending is listed on the Notifications page either way.
         </p>
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}

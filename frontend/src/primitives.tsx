@@ -85,7 +85,12 @@ export function EmptyState({ title, children, action }: { title: React.ReactNode
 }
 
 export function Spinner({ label }: { label?: string }) {
-  return <div className="spinner">{label ?? "Loading…"}</div>;
+  return (
+    <div className="spinner" role="status">
+      <span className="spinner-ring" aria-hidden="true" />
+      {label ?? "Loading…"}
+    </div>
+  );
 }
 
 /** What went wrong, as a sentence (causeOf), announced as an alert. With

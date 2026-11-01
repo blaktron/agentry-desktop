@@ -205,10 +205,27 @@ code, pre, .mono {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-weight: 700;
   font-size: 15px;
   padding: 8px 10px 14px;
   letter-spacing: 0.01em;
+}
+/* The bell: the Notifications page's button, with the unread count on it. */
+.bell {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 0; background: none; color: var(--color-muted); cursor: pointer;
+  padding: 4px 6px; border-radius: var(--radius-md); font: inherit; font-weight: 600; font-size: 11px;
+}
+.bell:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); color: var(--color-fg); }
+.bell.active { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.bell svg { width: 16px; height: 16px; }
+.bell .bell-count {
+  min-width: 16px; padding: 0 4px; line-height: 16px; border-radius: 8px; text-align: center;
+  background: var(--color-accent); color: var(--color-bg, #fff); font-size: 10.5px;
 }
 .brand .sub { display: block; font-weight: 400; font-size: 11px; color: var(--color-muted); }
 
@@ -687,7 +704,40 @@ table.declared-servers td { overflow-wrap: anywhere; }
 .tab:hover { color: var(--color-fg); border-color: transparent; }
 .tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
 
-.spinner { color: var(--color-muted); padding: 18px 0; }
+.spinner { color: var(--color-muted); padding: 18px 0; display: flex; align-items: center; gap: 8px; }
+.spinner-ring {
+  display: inline-block; width: 14px; height: 14px; flex: none;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  border-top-color: var(--color-accent); border-radius: 50%;
+  animation: spinner-turn 0.9s linear infinite;
+}
+@keyframes spinner-turn { to { transform: rotate(360deg); } }
+/* A bar whose total is not known sweeps instead of filling. */
+.knowledge-progress-bar.indeterminate > span { width: 30%; animation: bar-sweep 1.4s ease-in-out infinite; }
+@keyframes bar-sweep { 0% { margin-left: 0; } 50% { margin-left: 70%; } 100% { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner-ring { animation: none; border-top-color: color-mix(in srgb, var(--color-accent) 25%, transparent); }
+  .knowledge-progress-bar.indeterminate > span { animation: none; width: 100%; opacity: 0.4; }
+}
+
+/* ---------- the Notifications page ---------- */
+.notification-list { list-style: none; margin: 0; padding: 0; }
+.notification-row + .notification-row { border-top: 1px solid var(--color-border); }
+.notification-open {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+  padding: 12px 14px; border: 0; background: none; color: var(--color-fg); font: inherit; cursor: pointer;
+}
+.notification-open:hover { background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.notification-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.notification-row.unread .notification-dot { background: var(--color-accent); }
+.notification-row.unread.tone-bad .notification-dot { background: var(--color-sev-high); }
+.notification-row.unread.tone-warn .notification-dot { background: var(--color-sev-medium); }
+.notification-row.unread.tone-ok .notification-dot { background: var(--color-ok); }
+.notification-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notification-title { font-weight: 600; }
+.notification-row.unread .notification-title { color: var(--color-fg); }
+.notification-row:not(.unread) .notification-title { font-weight: 500; color: var(--color-muted); }
+.notification-body { overflow-wrap: anywhere; }
 
 .kv { margin: 2px 0; user-select: text; }
 .kv .k { color: var(--color-muted); display: inline-block; min-width: 130px; }

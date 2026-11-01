@@ -11,6 +11,7 @@ import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, s
 import { secretsRow } from "../requiredKeys";
 import { browserCap, browserLine } from "../browser";
 import { acceptSentence } from "../installConsent";
+import { useInstallStage } from "../installProgress";
 
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
@@ -40,6 +41,8 @@ export default function InstallWizard({
   const [dir, setDir] = useState(presetDir ?? "");
   const [plan, setPlan] = useState<install.Plan | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The stage Go reports while busy, in place of the wizard's own word.
+  const stage = useInstallStage(busy !== null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<install.Result | null>(null);
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
@@ -132,7 +135,7 @@ export default function InstallWizard({
               <button onClick={pickDir}>Choose…</button>
             </div>
             <ErrorBox error={error} />
-            {busy ? <Spinner label={busy} /> : (
+            {busy ? <Spinner label={stage || busy} /> : (
               <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
                 <button onClick={close}>Cancel</button>
                 <button className="primary" disabled={targetInfo.needsDir && !dir} onClick={() => prepare()}>
@@ -229,7 +232,7 @@ export default function InstallWizard({
             )}
 
             <ErrorBox error={error} />
-            {busy ? <Spinner label={busy} /> : (
+            {busy ? <Spinner label={stage || busy} /> : (
               <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
                 <button onClick={close}>Cancel</button>
                 <button className="primary" disabled={!gatesOK} onClick={confirm}>Install</button>

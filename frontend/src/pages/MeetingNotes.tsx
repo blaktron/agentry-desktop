@@ -14,6 +14,7 @@ import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
+import { BytesBar } from "../progress";
 import {
   AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,
   gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, parsePeople, possessive, recordingWhat, windowStateWords,
@@ -338,7 +339,10 @@ export default function MeetingNotes() {
 
       <Card className="meeting-model">
         {prepareLine ? (
-          <div data-meeting-preparing><Spinner label={prepareLine} /></div>
+          <div data-meeting-preparing>
+            <Spinner label={prepareLine} />
+            {!!view.prepareTotal && <BytesBar progress={{ done: view.prepareDone ?? 0, total: view.prepareTotal }} label="Downloaded" />}
+          </div>
         ) : view.prepareError ? (
           <Notice tone="warn">
             The speech model is not ready: {view.prepareError}

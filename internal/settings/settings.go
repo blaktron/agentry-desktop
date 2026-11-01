@@ -75,6 +75,12 @@ type Settings struct {
 	// while nobody is looking at the window, and the notification is how the
 	// person learns it ran.
 	TaskNotificationsOff bool `yaml:"taskNotificationsOff,omitempty" json:"-"`
+	// FinishedNotificationsOff is Settings → Persistent Agents' "Notify me
+	// when something I started finishes" switched off. Absent is on: a run,
+	// a draft, a knowledge build, a scheduled run or an install that ends
+	// while another page is open, or the window is hidden, raises a
+	// notification, and that is how the person learns it ended.
+	FinishedNotificationsOff bool `yaml:"finishedNotificationsOff,omitempty" json:"-"`
 	// AgentView is the view a persistent agent's page is drawn in, chosen
 	// from that page's View menu for every agent: one of AgentViews, "" for
 	// Terminal. Read it through AgentViewNow.

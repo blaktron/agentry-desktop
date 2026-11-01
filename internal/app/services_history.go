@@ -98,7 +98,7 @@ func localOutcome(ctx context.Context, res *run.Result) (string, int) {
 // engine's result as Go read it (res is nil when the engine never wrote an
 // envelope; err is then why), with its log, kept in a file of its own while
 // the history is on.
-func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *run.Result, err error) {
+func recordLocal(ctx context.Context, app *App, kind string, l *liveRun, ref string, res *run.Result, err error) {
 	if l == nil {
 		return
 	}
@@ -119,6 +119,9 @@ func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *
 	} else if err != nil && outcome == runhistory.OutcomeError {
 		e.Cause = err.Error()
 	}
+	// A chat ends by the person's End or its idle timeout, with its dialog
+	// in front: listed, never raised.
+	app.noticed(localEntry(e, ref), ended(e.Outcome) && kind != runhistory.KindChat)
 	if !historyOn() {
 		return
 	}
@@ -152,7 +155,7 @@ func builtinKind(ref string) string {
 // recordBuiltin records a built-in's job on this computer as asRun ends it:
 // stopped when its context was cancelled, failed when it returned an error,
 // else ok; its folder is the one its flow kept (keepFolder).
-func recordBuiltin(ctx context.Context, l *liveRun, err error) {
+func recordBuiltin(ctx context.Context, app *App, l *liveRun, err error) {
 	kind := builtinKind(l.ref)
 	if kind == "" {
 		return
@@ -164,10 +167,12 @@ func recordBuiltin(ctx context.Context, l *liveRun, err error) {
 	case err != nil:
 		outcome = runhistory.OutcomeError
 	}
-	record(runhistory.Entry{
+	e := runhistory.Entry{
 		ID: l.id, Kind: kind, Where: runhistory.WhereHere,
 		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, Folder: cleanAbs(l.folder),
-	})
+	}
+	app.noticed(localEntry(e, ""), ended(e.Outcome), shownAt(kind)...)
+	record(e)
 }
 
 // keepFolder is a built-in's flow naming the folder its job wrote, from
@@ -202,7 +207,7 @@ func hostedKind(h *hostedrun.Run) string {
 
 // recordHosted records a run In Agentry whose output this app downloaded
 // into dir, from the registry's own record of it.
-func recordHosted(reg string, h *hostedrun.Run, dir string) {
+func recordHosted(app *App, reg string, h *hostedrun.Run, dir string) {
 	if h == nil || !validRunID(h.ID) {
 		return
 	}
@@ -225,6 +230,7 @@ func recordHosted(reg string, h *hostedrun.Run, dir string) {
 	if outcome != hostedrun.OutcomeSucceeded {
 		e.Cause = h.Error
 	}
+	app.noticed(hostedEntry(reg, h), h.Status != hostedrun.StatusCancelled, shownAt(hostedKind(h))...)
 	record(e)
 }
 
@@ -886,7 +892,9 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 		return nil, fmt.Errorf("the output could not be downloaded: %w", err)
 	}
 	r.rememberFolder(h.ID, dir)
-	recordHosted(reg, h, dir)
+	// Recorded, not noticed: the person asked for this download from the
+	// run's own page, long after the run ended.
+	recordHosted(nil, reg, h, dir)
 	return r.collectedRecordView(h), nil
 }
 

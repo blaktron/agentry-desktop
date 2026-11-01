@@ -13,6 +13,8 @@ import {
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
 import { ProviderTiles } from "./ProviderTiles";
 import { asSentence } from "../signIns";
+import { BytesBar } from "../progress";
+import { bytesProgress } from "../bytesProgress";
 
 // The provider table (src/modelSetup.ts) mirrors the CLI's for form
 // prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
@@ -680,7 +682,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         )}
         {busy && <Spinner label={busy} />}
         {log.length > 0 && (
-          <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
+          <>
+            {(() => { const p = bytesProgress(log); return p ? <BytesBar progress={p} label="Downloaded" /> : null; })()}
+            <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
+          </>
         )}
         {advanced && <KeptSignIns kept={kept} onChanged={() => void refreshKept()} />}
       </Card>
