@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.0",
+      "highlights": [
+        "The desktop app, the CLI, the MCP server and the Agentry server now share one version, 0.7.0.",
+        "The app is built on CLI 0.7.0, so what it runs on your computer uses that release."
+      ]
+    },
+    {
       "version": "0.6.1008",
       "highlights": [
         "A Notifications page behind the bell lists what finished while you were elsewhere, with your account's notifications.",

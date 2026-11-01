@@ -4,7 +4,7 @@
   "info": {
     "companyName": "SecureAgentry",
     "productName": "Agentry Desktop",
-    "productVersion": "0.6.1008",
+    "productVersion": "0.7.0",
     "copyright": "Copyright © 2026 SecureAgentry",
     "comments": "Desktop client for Agentry registries"
   },
