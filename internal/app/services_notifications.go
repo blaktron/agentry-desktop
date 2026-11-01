@@ -83,6 +83,10 @@ type NotificationsAPI struct {
 	showing string
 	// exts caches each registry's extension list.
 	exts map[string]cachedExtensions
+	// firesSince is when this copy started watching the schedules' fires,
+	// used as the watermark until the record holds one: a first start
+	// writes no file for a watermark alone.
+	firesSince time.Time
 
 	// Seams for tests; nil is the platform's own.
 	showNotice func(notify.Notice) error

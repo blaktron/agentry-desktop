@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -422,8 +423,14 @@ func TestSchedulesFiresAreNoticedOnce(t *testing.T) {
 
 	list = []schedules.Fire{{ScheduleID: "s1", Name: "Old", Outcome: schedules.Ran, RunID: "abcd1234", Ended: base.Add(-time.Hour).Format(time.RFC3339)}}
 	rig.n.noticeFires()
+	rig.n.noticeFires()
 	if l, _ := notifications.List(); len(l) != 0 {
 		t.Fatalf("the first read noticed %+v", l)
+	}
+	// A copy with nothing to record writes no file: the watermark waits in
+	// memory until a fire is noticed.
+	if path, _ := notifications.Path(); fileExists(path) {
+		t.Fatal("the first reads wrote the record for a watermark alone")
 	}
 	list = append([]schedules.Fire{
 		{ScheduleID: "s2", Name: "Later", Outcome: schedules.Missed, Ended: base.Add(2 * time.Minute).Format(time.RFC3339)},
@@ -442,6 +449,11 @@ func TestSchedulesFiresAreNoticedOnce(t *testing.T) {
 	if !seen.Equal(base.Add(2 * time.Minute)) {
 		t.Fatalf("watermark %v", seen)
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // The switch is read from and written to desktop.yaml; absent is on.
