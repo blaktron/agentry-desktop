@@ -1885,3 +1885,15 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 /* What's new: one version's highlights per card. */
 .whats-new-lines { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 6px; }
 .whats-new-foot { gap: 8px; align-items: center; margin-top: 8px; }
+
+/* A remote runhost's narration: its setup's checks and install, and its
+   removal, as they run (Runhosts.tsx). */
+.runhost-log {
+  max-height: 14em;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0.6em 0.8em;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}

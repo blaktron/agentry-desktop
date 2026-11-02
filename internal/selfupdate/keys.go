@@ -39,6 +39,11 @@ import (
 //go:embed keys.json
 var keysJSON []byte
 
+// KeysJSON is the committed key set as the file carries it, for a verifier
+// of another product's releases that takes the same publisher's keys (the
+// CLI's, which a remote runhost runs).
+func KeysJSON() []byte { return append([]byte(nil), keysJSON...) }
+
 // Key is one signing key this build trusts.
 type Key struct {
 	// Name is what this key is called in the record and in messages: "dev",

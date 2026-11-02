@@ -14,6 +14,7 @@ import * as NotificationsAPI from "./notificationsapi.js";
 import * as PersistentAPI from "./persistentapi.js";
 import * as PublisherAPI from "./publisherapi.js";
 import * as RunAPI from "./runapi.js";
+import * as RunhostsAPI from "./runhostsapi.js";
 import * as ScheduleAPI from "./scheduleapi.js";
 import * as SelfUpdateAPI from "./selfupdateapi.js";
 import * as SettingsAPI from "./settingsapi.js";
@@ -34,6 +35,7 @@ export {
     PersistentAPI,
     PublisherAPI,
     RunAPI,
+    RunhostsAPI,
     ScheduleAPI,
     SelfUpdateAPI,
     SettingsAPI,
@@ -196,6 +198,11 @@ export {
     RunDeliverablesView,
     RunOutputsView,
     RunResultView,
+    RunhostAddRequest,
+    RunhostAdmin,
+    RunhostSignInView,
+    RunhostStatusView,
+    RunhostView,
     ScheduleAvailabilityView,
     ScheduleMadeView,
     ScheduledCardView,

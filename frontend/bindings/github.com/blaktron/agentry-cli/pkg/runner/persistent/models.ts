@@ -31,6 +31,12 @@ export class SubagentPin {
      */
     "reach"?: string;
 
+    /**
+     * Digest is that version's archive digest, as the registry answered
+     * it when the constraint was resolved.
+     */
+    "digest"?: string;
+
     /** Creates a new SubagentPin instance. */
     constructor($$source: Partial<SubagentPin> = {}) {
         if (!("ref" in $$source)) {
