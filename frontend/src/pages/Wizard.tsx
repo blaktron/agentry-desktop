@@ -21,7 +21,7 @@ import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure, RemoteFigure } from "./WizardFigures";
 import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
-import { RunhostServerForm, RunhostSignIns } from "./Runhosts";
+import { RunhostCredits, RunhostServerForm, RunhostSignIns } from "./Runhosts";
 import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
 import { pickHomeAgent, setAgentEnabled, updateAgent, useAgents, useHomeAgent } from "../agents";
 import { homeAgentDrawn, homeChoices } from "../homeAgent";
@@ -799,8 +799,10 @@ function RemoteModelStep({ runhost, onChange, onBack, onNext }: {
           A run on {runhost.name} uses the model this computer is set up with. With an API key, the key travels with each
           run and nothing is kept there. With a Claude, ChatGPT or Copilot plan, sign the runhost in to it here: the sign-in
           opens in your browser and is kept on the runhost, where Claude Code, Codex or Copilot CLI runs in its container.
+          With Agentry credits, give the runhost a token that can only pay for model use; it needs you signed in.
         </p>
         <RunhostSignIns runhost={runhost} onChange={onChange} />
+        <RunhostCredits runhost={runhost} onChange={onChange} />
       </div>
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack}>Back</Button>

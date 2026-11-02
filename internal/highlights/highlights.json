@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.5",
+      "highlights": [
+        "A runhost can pay for its runs with your Agentry credits: Use my credits at its Model step or in Settings → Runhosts.",
+        "Revoke a runhost's credits token from Settings → Runhosts whenever you like."
+      ]
+    },
+    {
       "version": "0.7.4",
       "highlights": [
         "Set up a Linux server of yours as a remote runhost from the first-run wizard or Settings → Runhosts.",
