@@ -103,6 +103,7 @@ func TestAPersistentReleaseInstallsWithOneConsent(t *testing.T) {
 	for _, want := range []string{
 		"Install acme/helper@1.0.0 as a persistent agent?",
 		"a release with no attestation",
+		", from " + reg + ", runs as a persistent agent",
 		"keeps its conversation, its files and a share folder",
 		"the time on each turn, its own tasks and the heartbeat that fires them",
 		"persona Pip",

@@ -156,8 +156,8 @@ func persistentReleasesAllowed() bool {
 // none.
 func declaresFiles(a manifest.FSAccess) bool { return !a.IsZero() && a.Mode != manifest.FSModeNone }
 
-// persistentInstallText is the one consent of a persistent install: where
-// the release comes from when that needs accepting, what a persistent
+// persistentInstallText is the one consent of a persistent install: the
+// registry it comes from, its provenance when that needs accepting, what a persistent
 // agent keeps, what this version may do (on an update, what it adds), its
 // persona, the knowledge it ships and its subagents, each with the version
 // it is pinned to and that version's own reach.
@@ -170,7 +170,7 @@ func persistentInstallText(plan *install.Plan, m *manifest.Manifest, pins []pers
 	if accepting := provenanceAccepted(plan.Unsigned, plan.Unscanned); accepting != "" {
 		b.WriteString(strings.TrimSuffix(accepting, " Continue?") + "\n\n")
 	}
-	b.WriteString(exact + " runs as a persistent agent on this computer: it keeps its conversation, its files and a share folder with you between starts, until you reset it.\n")
+	b.WriteString(exact + ", from " + plan.Registry + ", runs as a persistent agent on this computer: it keeps its conversation, its files and a share folder with you between starts, until you reset it.\n")
 	if plan.RequiresWidenedConfirm && plan.Diff != nil {
 		b.WriteString("\nUpdating from " + plan.PrevVersion + " widens what it may do:\n")
 		for _, w := range plan.Diff.Widened {
