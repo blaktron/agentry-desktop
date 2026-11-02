@@ -2,8 +2,9 @@
 // SSH, that run their QuickAgents. The Server form sets one up (the first-run
 // wizard's Remote path and Settings → Runhosts both use it); the plan
 // sign-ins sign one in to a Claude, ChatGPT or Copilot plan from this
-// computer's browser; Settings lists each one with its state, its default,
-// its Unsafe Mode setting and its removal. The server's admin sign-in (a key
+// computer's browser; Settings lists each one with its state, its last
+// update, its default, its Unsafe Mode setting, its unpairing and its
+// removal, and pairs this computer with a runhost set up from another. The server's admin sign-in (a key
 // file chosen in the native picker, or a password, and the sudo password)
 // goes into Go for the one call and is kept nowhere; nothing comes back.
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +12,7 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Field, Input, Notice } from "../primitives";
-import { runhostNameProblem, signInWords, unsafeModeWords } from "../runhosts";
+import { runhostNameProblem, signInWords, unsafeModeWords, updateWords, type RunhostUpdate } from "../runhosts";
 
 /** The narration of one runhost's calls, newest last. */
 function useNarration(name: string): [string[], () => void] {
@@ -82,8 +83,10 @@ const adminReady = (a: Admin) => a.user.trim() !== "" && (a.keyFile !== "" || a.
 
 /** The Server step: name the runhost and the server, sign in as its
  *  administrator, and set it up. The preflight's findings and an unknown host
- *  key are put to the person in native dialogs. */
-export function RunhostServerForm({ onAdded }: { onAdded: (v: app.RunhostView) => void }) {
+ *  key are put to the person in native dialogs. With pair, the same form
+ *  pairs this computer with a runhost set up from another computer instead:
+ *  its keys alone go to the server. */
+export function RunhostServerForm({ onAdded, pair = false }: { onAdded: (v: app.RunhostView) => void; pair?: boolean }) {
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("");
@@ -101,7 +104,8 @@ export function RunhostServerForm({ onAdded }: { onAdded: (v: app.RunhostView) =
     setError(null);
     clear();
     try {
-      const v = await RunhostsAPI.Add(app.RunhostAddRequest.createFrom({ name: name.trim(), host: host.trim(), port: portNum, admin: toAdmin(admin) }));
+      const req = app.RunhostAddRequest.createFrom({ name: name.trim(), host: host.trim(), port: portNum, admin: toAdmin(admin) });
+      const v = pair ? await RunhostsAPI.Pair(req) : await RunhostsAPI.Add(req);
       setAdmin(blankAdmin);
       if (v) onAdded(v);
     } catch (e) {
@@ -117,7 +121,9 @@ export function RunhostServerForm({ onAdded }: { onAdded: (v: app.RunhostView) =
         <Input value={name} disabled={busy} aria-label="Runhost name" autoComplete="off" placeholder="lab" onChange={(e) => setName(e.target.value)} />
       </Field>
       {nameBad && <p className="small" role="alert">{nameBad}</p>}
-      <Field label="Server" hint="The server's address, as you reach it over SSH. Debian 12 or 13, or Ubuntu 22.04 or 24.04.">
+      <Field label="Server" hint={pair
+        ? "The runhost's address, as you reach it over SSH. It must belong to the Agentry account this app is signed in to."
+        : "The server's address, as you reach it over SSH. Debian 12 or 13, Ubuntu 22.04 or 24.04, Fedora 43 or 44, or RHEL, AlmaLinux or Rocky Linux 9 or 10."}>
         <span className="row">
           <Input value={host} disabled={busy} aria-label="Server address" autoComplete="off" placeholder="server.example.com" onChange={(e) => setHost(e.target.value)} />
           <Input value={port} disabled={busy} aria-label="SSH port" autoComplete="off" placeholder="22" style={{ width: "6em" }} onChange={(e) => setPort(e.target.value)} />
@@ -126,7 +132,9 @@ export function RunhostServerForm({ onAdded }: { onAdded: (v: app.RunhostView) =
       {portBad && <p className="small" role="alert">The port is a number from 1 to 65535.</p>}
       <AdminFields admin={admin} setAdmin={setAdmin} host={host.trim()} busy={busy} />
       <p className="row">
-        <Button variant="primary" disabled={!ready} busy={busy} busyLabel="Setting it up…" onClick={add} data-runhost-add>Set it up</Button>
+        <Button variant="primary" disabled={!ready} busy={busy} busyLabel={pair ? "Pairing…" : "Setting it up…"} onClick={add} data-runhost-add={pair ? undefined : true} data-runhost-pair={pair ? true : undefined}>
+          {pair ? "Pair this computer" : "Set it up"}
+        </Button>
         {busy && <Button onClick={() => RunhostsAPI.Cancel()}>Stop</Button>}
       </p>
       <Narration lines={lines} />
@@ -252,7 +260,7 @@ export function RunhostCredits({ runhost, onChange }: { runhost: app.RunhostView
 export function RunhostsSettings() {
   const [list, setList] = useState<app.RunhostView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<"add" | "pair" | null>(null);
   const load = () => RunhostsAPI.List().then(setList).catch((e) => setError(String(e)));
   useEffect(() => { load(); }, []);
   const put = (v: app.RunhostView) => setList((l) => (l ?? []).map((x) => (x.name === v.name ? v : x)));
@@ -269,12 +277,24 @@ export function RunhostsSettings() {
       <ErrorBox error={error} />
       {list && list.length === 0 && !adding && <p className="muted small">No runhosts yet.</p>}
       {list?.map((r) => <RunhostCard key={r.name} runhost={r} onChange={put} onGone={load} />)}
-      {!adding && <p className="row"><Button variant="primary" onClick={() => setAdding(true)} data-runhost-new>Add a runhost</Button></p>}
+      {!adding && (
+        <p className="row">
+          <Button variant="primary" onClick={() => setAdding("add")} data-runhost-new>Add a runhost</Button>
+          <Button onClick={() => setAdding("pair")} data-runhost-pair-new>Pair with a runhost set up on another computer</Button>
+        </p>
+      )}
       {adding && (
         <Card>
-          <h3 style={{ marginTop: 0 }}>Add a runhost</h3>
-          <RunhostServerForm onAdded={() => { setAdding(false); load(); }} />
-          <p className="row"><Button onClick={() => setAdding(false)}>Close</Button></p>
+          <h3 style={{ marginTop: 0 }}>{adding === "pair" ? "Pair with a runhost" : "Add a runhost"}</h3>
+          {adding === "pair" && (
+            <p className="muted small">
+              This computer gets its own key for a runhost you set up from another of your computers. The server&apos;s
+              administrator signs in for this step alone, and nothing else on the server changes. A runhost on an older
+              CLI than this app&apos;s is then updated to it.
+            </p>
+          )}
+          <RunhostServerForm pair={adding === "pair"} onAdded={() => { setAdding(null); load(); }} />
+          <p className="row"><Button onClick={() => setAdding(null)}>Close</Button></p>
         </Card>
       )}
     </section>
@@ -289,8 +309,41 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [lines, clear] = useNarration(runhost.name);
+  const [updating, setUpdating] = useState(false);
   const refresh = () => RunhostsAPI.Status(runhost.name).then(setStatus).catch((e) => setError(String(e)));
   useEffect(() => { refresh(); }, [runhost.name]);
+  const update = updateWords(runhost.update as RunhostUpdate | undefined);
+
+  async function updateNow() {
+    setBusy(true);
+    setUpdating(true);
+    setError(null);
+    clear();
+    try {
+      const v = await RunhostsAPI.Update(runhost.name);
+      if (v) onChange(v);
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+      setUpdating(false);
+    }
+  }
+
+  async function unpair() {
+    setBusy(true);
+    setError(null);
+    clear();
+    try {
+      await RunhostsAPI.Unpair(runhost.name);
+      onGone();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function withAdmin() {
     if (!asking) return;
@@ -327,6 +380,7 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
           {runhost.default
             ? <span className="muted small">Runs go here by default</span>
             : <Button disabled={busy} onClick={async () => { try { await RunhostsAPI.SetDefault(runhost.name); onChange({ ...runhost, default: true } as app.RunhostView); } catch (e) { setError(String(e)); } }}>Run here by default</Button>}
+          <Button disabled={busy} onClick={unpair} data-runhost-unpair>Unpair</Button>
           <Button variant="danger" disabled={busy} onClick={() => setAsking("remove")}>Remove</Button>
         </span>
       </div>
@@ -337,6 +391,14 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
           : `Not reached: ${status.problem}`}
         {status?.reachable && !status.sameVersion && " It runs another CLI version than this app: a run on it waits for its update."}
       </p>
+      {(update.line || (status?.reachable && !status.sameVersion)) && (
+        <p className="small" data-runhost-update={update.attention ? "attention" : "ok"}>
+          {update.attention ? <strong>{update.line}</strong> : update.line}{" "}
+          {status?.reachable && !status.sameVersion && (
+            <Button disabled={busy} busy={busy && updating} busyLabel="Updating…" onClick={updateNow} data-runhost-update-now>Update it now</Button>
+          )}
+        </p>
+      )}
       {status?.reachable && (
         <p className="small" data-runhost-unsafe={status.unsafeMode ? "on" : "off"}>
           <strong>Unsafe Mode:</strong> {unsafeModeWords(status.unsafeMode)}{" "}

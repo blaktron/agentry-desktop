@@ -32,3 +32,33 @@ export function unsafeModeWords(on: boolean): string {
 export function runhostOf(where: string | undefined): string {
   return where?.startsWith("runhost:") ? where.slice("runhost:".length) : "";
 }
+
+/** A runhost's last update by this app, as its fields come from Go. */
+export type RunhostUpdate = {
+  at: string;
+  from?: string;
+  to?: string;
+  updated: boolean;
+  waitsForJobs?: number;
+  deviceBehind?: string;
+  needsAttention?: string[];
+  problem?: string;
+};
+
+/** What a runhost's Settings card says of its last update: the sentence, and
+ *  whether the person has something to do ("attention"). */
+export function updateWords(u: RunhostUpdate | undefined | null): { line: string; attention: boolean } {
+  if (!u) return { line: "", attention: false };
+  if (u.problem) return { line: `Its last update did not go through: ${u.problem}`, attention: true };
+  if (u.needsAttention && u.needsAttention.length > 0) {
+    return { line: `Needs attention: ${u.needsAttention.join("; ")}`, attention: true };
+  }
+  if (u.deviceBehind) {
+    return { line: `It runs CLI ${u.deviceBehind}, newer than this app's: update this app to run there.`, attention: true };
+  }
+  if (u.updated && u.waitsForJobs) {
+    return { line: `Updated to CLI ${u.to}; it restarts into it once its ${u.waitsForJobs} running job${u.waitsForJobs === 1 ? "" : "s"} finish.`, attention: false };
+  }
+  if (u.updated) return { line: `Updated from CLI ${u.from} to ${u.to}.`, attention: false };
+  return { line: `Up to date at CLI ${u.to}.`, attention: false };
+}

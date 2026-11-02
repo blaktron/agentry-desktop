@@ -68,6 +68,34 @@ export function List(): $CancellablePromise<$models.RunhostView[]> {
 }
 
 /**
+ * Pair pairs this computer with a runhost set up from another of the
+ * person's: with the server's admin sign-in, for this call alone, it
+ * installs this computer's own run key and sealing key and nothing else.
+ * The runhost must belong to the account this app is signed in to; one set
+ * up signed out is bound to it. An unknown host key is put to the person in
+ * a native dialog. A runhost on an older CLI than this app's is then
+ * updated to it over the new run key.
+ */
+export function Pair(req: $models.RunhostAddRequest): $CancellablePromise<$models.RunhostView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Pair", req).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
+ * PostUpdate is the step after every update of this app: the first time a
+ * version of the app carries a CLI it has not run this for, it updates each
+ * runhost on another CLI version, one at a time, and records each outcome.
+ * Later calls with the same CLI do nothing. A runhost it cannot reach keeps
+ * its outcome for Settings, where Update tries it again.
+ */
+export function PostUpdate(): $CancellablePromise<$models.RunhostView[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.PostUpdate").then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * Remove takes runhost name off its server with the admin sign-in, after a
  * native confirmation: what it holds of the person's (its credits token, its
  * model sign-ins) ends first over the run key, then the server is cleaned,
@@ -130,6 +158,27 @@ export function SignIn(name: string, vendor: string): $CancellablePromise<$model
 export function Status(name: string): $CancellablePromise<$models.RunhostStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Status", name).then(($result: any) => {
         return $$createType4($result)!;
+    });
+}
+
+/**
+ * Unpair takes this computer off runhost name, over its run key: the
+ * runhost drops this computer's keys and revokes the credits token this
+ * computer gave it, and the runhost and its other devices go on. Then this
+ * computer's keys and record of it are removed. The last device of a
+ * runhost cannot unpair: removing the runhost does that.
+ */
+export function Unpair(name: string): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Unpair", name);
+}
+
+/**
+ * Update brings runhost name to the CLI this app carries now, over its run
+ * key, and records the outcome.
+ */
+export function Update(name: string): $CancellablePromise<$models.RunhostView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Update", name).then(($result: any) => {
+        return $$createType1($result)!;
     });
 }
 

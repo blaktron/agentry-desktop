@@ -4,6 +4,7 @@ import * as HomeAPI from "../bindings/github.com/blaktron/agentry-desktop/intern
 import { applyTheme } from "./theme";
 import { AppVersion, OpenExternal } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import * as WhatsNewAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/whatsnewapi";
+import * as RunhostsAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/selfupdateapi";
 import { UpdatesStatus } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
 import { UnsafeLive } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
@@ -296,6 +297,9 @@ export default function App() {
       })
       .catch(() => setSettings(null));
     AppVersion().then(setVersion).catch(() => {});
+    // After an update of the app, each runhost is brought to the CLI it now
+    // carries; Settings → Runhosts shows how each went.
+    RunhostsAPI.PostUpdate().catch(() => {});
   }, [refreshSettings]);
 
   // The background check writes its result as it finishes, so the chrome asks
