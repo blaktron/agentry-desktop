@@ -402,9 +402,25 @@ export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "statu
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");
 }
 
-/** What the app says where a release runs only persistent: the runner's own
- *  refusal, word for word. */
-export const PERSISTENT_ONLY_SENTENCE = "A persistent release runs only as a built-in in this version.";
+/** What a release's page says beside Install as a persistent agent, for a
+ *  release that runs only persistent: no run of it is offered. */
+export const PERSISTENT_ONLY_SENTENCE = "It runs as a persistent agent on this computer, beside the ones built into Agentry.";
+
+/** Whether a release declares the persistent mode, so its page offers to
+ *  install it as a persistent agent. */
+export function installsPersistent(modes?: string[]): boolean {
+  return (modes ?? []).includes("persistent");
+}
+
+/** A published agent's line in Settings: where it came from, its version,
+ *  the persona it takes on and how many subagents it declares. */
+export function publishedLine(a: Pick<app.PersistentAgentView, "ref" | "version" | "source" | "persona" | "subagents">): string {
+  const parts = [a.source === "local" ? `${a.ref} ${a.version}, installed from a folder on this computer` : `${a.ref} ${a.version}, from the registry`];
+  if (a.persona) parts.push(`takes on the persona ${a.persona}`);
+  const n = (a.subagents ?? []).length;
+  if (n > 0) parts.push(`${n} subagent${n === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
 
 /** Whether a release's modes are persistent alone: no run of it is offered. */
 export function persistentOnly(modes?: string[]): boolean {
@@ -544,4 +560,13 @@ export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger"
   return u.done
     ? `Last compacted ${when}, ${why}: a fresh conversation opened with its handoff.`
     : `The last compaction, ${when}, ${why}, did not finish: ${u.reason}. The conversation went on as it was.`;
+}
+
+/** A subagent run as the agent page lists it: running since when, or how
+ *  it ended and when. */
+export function subagentRunWords(r: Pick<app.PersistentSubagentRunView, "started" | "ended" | "outcome" | "error">): string {
+  const when = (t: string) => new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  if (!r.outcome) return `running since ${when(r.started)}`;
+  const how = r.outcome === "ok" ? "finished" : r.outcome === "error" ? "did not run" : r.outcome;
+  return `${how} ${r.ended ? when(r.ended) : when(r.started)}`;
 }

@@ -17,7 +17,7 @@ import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/in
 import type * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { forgetChat, refreshAgents, setAgentEnabled, startAgent, stopStart, updateAgent, useAgents } from "../agents";
 import { helperSuperseded } from "../homeAgent";
-import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, shareCheckWords, upkeepWords, compactingWords } from "../persistentAgents";
+import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, publishedLine, shareCheckWords, upkeepWords, compactingWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -33,6 +33,10 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [resetting, setResetting] = useState<app.PersistentAgentView | null>(null);
   const [resetKind, setResetKind] = useState("all");
+  // The published agent whose Uninstall is open, and whether it also
+  // removes the agent's data.
+  const [uninstalling, setUninstalling] = useState<app.PersistentAgentView | null>(null);
+  const [removeData, setRemoveData] = useState(false);
   const [exported, setExported] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -142,6 +146,9 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               </p>
             )}
             {isCoder && !enabled && <Notice tone="warn">{CODER_WARNING} Turning it on asks you first.</Notice>}
+            {a.published && (
+              <p className="small" data-published-agent={a.ref}>{publishedLine(a)}</p>
+            )}
             <p className="small">{a.share && <>Shares <span className="mono">{a.share}</span> with you.</>}</p>
             <StartFailure agent={a} />
             {a.state === AGENT_STATES.elsewhere && (
@@ -153,6 +160,12 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               {running && <Button disabled={busy !== null} onClick={() => void act(a.name, () => PersistentAPI.Stop(a.name))}>Stop</Button>}
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
+              {a.published && a.source === "registry" && (
+                <Button variant="ghost" data-persistent-update={a.name} disabled={busy !== null || a.state !== AGENT_STATES.stopped && a.state !== AGENT_STATES.disabled} title={running ? "Stop it first" : `Install the newest version of ${a.ref}`} onClick={() => void act(a.name, () => PersistentAPI.Update(a.name), true)}>Update</Button>
+              )}
+              {a.published && (
+                <Button variant="ghost" data-persistent-uninstall={a.name} disabled={busy !== null || a.state !== AGENT_STATES.stopped && a.state !== AGENT_STATES.disabled} title={running ? "Stop it first" : undefined} onClick={() => { setRemoveData(false); setUninstalling(a); }}>Uninstall…</Button>
+              )}
               {(a.resets ?? []).map((r) => (
                 <Button key={r.kind} variant="ghost" data-persistent-reset={a.name} data-reset-kind={r.kind} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => { setResetKind(r.kind); setResetting(a); }}>{r.title}…</Button>
               ))}
@@ -224,6 +237,33 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         </p>
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}
+      {uninstalling && (
+        <Modal title={`Uninstall ${uninstalling.ref}`} onClose={() => setUninstalling(null)}>
+          <p>{uninstalling.displayName} is no longer listed or started, and its release and your agreement to it are removed from this computer.</p>
+          <label className="check-row">
+            <input type="checkbox" data-uninstall-remove-data checked={removeData} onChange={(e) => setRemoveData(e.target.checked)} />
+            Also remove its conversation, its files and everything you chose for it
+          </label>
+          <p className="small muted">{removeData
+            ? "This cannot be undone. The files in its share folder are yours and stay."
+            : "They are kept: installing it again takes them up. The files in its share folder are yours and stay."}</p>
+          <div className="row gap">
+            <Button variant="danger" data-uninstall-confirm onClick={() => {
+              const target = uninstalling;
+              const wipe = removeData;
+              setUninstalling(null);
+              setBusy(target.name);
+              setError(null);
+              setNote(null);
+              PersistentAPI.Uninstall(target.name, wipe)
+                .then(() => { forgetChat(target.name); setNote(`${target.ref} is uninstalled.`); return refreshAgents(); })
+                .catch((e) => setError(String(e)))
+                .finally(() => setBusy(null));
+            }}>Uninstall</Button>
+            <Button variant="ghost" onClick={() => setUninstalling(null)}>Cancel</Button>
+          </div>
+        </Modal>
+      )}
       {resetting && (() => {
         const choice = chosenReset(resetting.resets, resetKind);
         const close = () => { setResetting(null); setExported(null); };

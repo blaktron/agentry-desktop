@@ -509,7 +509,7 @@ export default function App() {
                 onReport={setReportingBug}
               />
             )}
-            {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} />}
+            {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} onOpenRun={(id) => nav({ page: "run", source: "local", id })} />}
             {route.page === "meetings" && <MeetingNotes />}
             {route.page === "notifications" && <Notifications registry={registry} onOpen={openNotice} />}
             {route.page === "browse" && (
@@ -535,6 +535,7 @@ export default function App() {
                   ? (fns, fname, sentence) => nav({ page: "publisher", follow: { namespace: fns, name: fname, sentence } })
                   : undefined}
                 onOpenAgent={(ons, oname) => nav({ page: "agent", ns: ons, name: oname, registry: route.registry, back: route.back })}
+                onOpenPersistentAgent={(id) => nav({ page: "persistent", id })}
                 onEdit={!sameRegistry(route.registry ?? registry, registry) ? undefined : () => {
                   requestEdit({ registry: route.registry ?? registry, namespace: route.ns, name: route.name });
                   setOpenEditRev((n) => n + 1);

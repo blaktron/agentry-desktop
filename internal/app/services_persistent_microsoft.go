@@ -325,7 +325,7 @@ func (p *PersistentAPI) CancelMicrosoftSignIn(name string) {
 
 // hasImageServer says the agent offers the image server key.
 func hasImageServer(a persistent.Agent, key string) bool {
-	for _, s := range a.Builtin.ImageServers(policy.Images{}) {
+	for _, s := range a.ImageServers(policy.Images{}) {
 		if s.Key == key {
 			return true
 		}

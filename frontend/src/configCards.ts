@@ -109,7 +109,7 @@ export function cardIcon(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "nam
   if (e.iconKey && GLYPHS.has(e.iconKey)) return { kind: "glyph", key: e.iconKey };
   const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser" };
   if (Object.hasOwn(byID, e.id)) return { kind: "glyph", key: byID[e.id] };
-  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic", calendar: "calendar" };
+  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic", calendar: "calendar", subagent: "box", voice: "person" };
   if (Object.hasOwn(byKind, e.kind)) return { kind: "glyph", key: byKind[e.kind] };
   return { kind: "monogram", text: monogram(e.name) };
 }
@@ -298,9 +298,12 @@ export function providerWords(p: Pick<app.PersistentMailProviderView, "accounts"
   return p.accounts.length > 0 ? `Still signed in as ${p.accounts.join(", ")}: enabling it needs no new sign-in.` : "Set it up after enabling it.";
 }
 
-/** Who granted an entry, in words. */
+/** Who granted an entry, in words: the person, the release's publisher
+ *  (an installed agent's declared entries), or Agentry (a built-in's). */
 export function grantedWords(e: Pick<app.PersistentRosterEntry, "grantedBy">): string {
-  return e.grantedBy === "you" ? "Added by you" : "Built in";
+  if (e.grantedBy === "you") return "Added by you";
+  if (e.grantedBy === "release") return "From the publisher";
+  return "Built in";
 }
 
 /** A secret's name as the CLI takes it: an upper-case letter, then

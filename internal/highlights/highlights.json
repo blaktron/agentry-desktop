@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.1",
+      "highlights": [
+        "Install a persistent agent from its page in Browse, with one consent that names everything it is given.",
+        "Installed agents sit beside the built-in ones in Settings and the sidebar, with Update and Uninstall.",
+        "An agent's page lists the runs it started of its subagents, each opening the run's own page.",
+        "Starting a fourth persistent agent warns first: each one runs its own containers."
+      ]
+    },
+    {
       "version": "0.7.0",
       "highlights": [
         "The desktop app, the CLI, the MCP server and the Agentry server now share one version, 0.7.0.",

@@ -7,6 +7,9 @@ import type * as app from "../bindings/github.com/blaktron/agentry-desktop/inter
 import {
   MAX_EARLY,
   PERSISTENT_ONLY_SENTENCE,
+  installsPersistent,
+  publishedLine,
+  subagentRunWords,
   agentNavEntries,
   viewingAgent,
   agentCalled,
@@ -455,4 +458,30 @@ test("a stopped turn keeps what it had said and says it was stopped", () => {
   const events = [taskEv, { kind: "assistant_turn", time: t, text: "Half", stopReason: "interrupted" }];
   const blocks = termBlocks(chatFromTranscript(events, now));
   assert.deepEqual((blocks[0] as { runs: { blocks: unknown[] }[] }).runs[0].blocks, [{ kind: "agent", text: "Half" }, { kind: "note", text: "Stopped." }]);
+});
+
+test("a release that declares persistent installs as a persistent agent", () => {
+  assert.equal(installsPersistent(["persistent"]), true);
+  assert.equal(installsPersistent(["autonomous", "persistent"]), true);
+  assert.equal(installsPersistent(["autonomous"]), false);
+  assert.equal(installsPersistent(undefined), false);
+});
+
+test("a published agent's Settings line names where it came from, its persona and its subagents", () => {
+  const pin = { ref: "acme/summarize", constraint: "^1.0.0", why: "summarises", version: "1.2.0" };
+  assert.equal(
+    publishedLine({ ref: "acme/helper", version: "1.0.0", source: "registry", persona: "Pip", subagents: [pin] }),
+    "acme/helper 1.0.0, from the registry · takes on the persona Pip · 1 subagent",
+  );
+  assert.equal(
+    publishedLine({ ref: "acme/helper", version: "0.1.0", source: "local", persona: "", subagents: [] }),
+    "acme/helper 0.1.0, installed from a folder on this computer",
+  );
+});
+
+test("a subagent run reads running until it ends, then how it ended", () => {
+  const started = "2026-11-02T09:00:00Z";
+  assert.match(subagentRunWords({ started, ended: "", outcome: "", error: "" }), /^running since /);
+  assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "ok", error: "" }), /^finished /);
+  assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "error", error: "x" }), /^did not run /);
 });
