@@ -202,6 +202,7 @@ export {
     RunhostAdmin,
     RunhostSignInView,
     RunhostStatusView,
+    RunhostUpdateView,
     RunhostView,
     ScheduleAvailabilityView,
     ScheduleMadeView,

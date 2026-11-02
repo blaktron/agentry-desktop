@@ -79,6 +79,8 @@ type RunhostView struct {
 	Credits string `json:"credits,omitempty"`
 	// Default says runs go here unless the run setup says otherwise.
 	Default bool `json:"default"`
+	// Update is the runhost's last update by this app, when there was one.
+	Update *RunhostUpdateView `json:"update,omitempty"`
 }
 
 // RunhostStatusView is what a runhost says of itself over the run key.
@@ -173,9 +175,14 @@ func (r *RunhostsAPI) List() ([]RunhostView, error) {
 		return nil, err
 	}
 	s, _ := settings.Load()
+	u := loadRunhostUpdates()
 	out := []RunhostView{}
 	for _, rec := range recs.Runhosts {
-		out = append(out, viewOf(rec, s.RunWhere))
+		v := viewOf(rec, s.RunWhere)
+		if up, ok := u.Runhosts[rec.Name]; ok {
+			v.Update = &up
+		}
+		out = append(out, v)
 	}
 	return out, nil
 }
