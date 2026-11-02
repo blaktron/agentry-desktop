@@ -171,6 +171,11 @@ func (r *RunhostsAPI) PostUpdate() ([]RunhostView, error) {
 	if err != nil {
 		return nil, err
 	}
+	// With no runhost there is nothing to update or record, and a fresh
+	// install writes nothing.
+	if len(recs.Runhosts) == 0 {
+		return []RunhostView{}, nil
+	}
 	var stale []string
 	for _, rec := range recs.Runhosts {
 		if rec.CLIVersion != ver {

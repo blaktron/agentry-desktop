@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -134,5 +135,19 @@ func TestUnpairAsksFirst(t *testing.T) {
 	}
 	if list, _ := r.List(); len(list) != 1 {
 		t.Fatal("the record went with the confirmation refused")
+	}
+}
+
+// With no runhost the step writes nothing: a fresh install's first start
+// keeps its configuration folder as it was.
+func TestThePostUpdateStepWritesNothingWithoutARunhost(t *testing.T) {
+	r, _ := newRunhostsAPI(t)
+	asked := stubRunhostUpdates(t, "0.7.10", func(*runhost.Record) (remote.UpdateOutcome, error) { return remote.UpdateOutcome{}, nil })
+	if _, err := r.PostUpdate(); err != nil || len(*asked) != 0 {
+		t.Fatalf("%v %v", *asked, err)
+	}
+	p, _ := runhostUpdatesPath()
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Fatalf("the step wrote %s: %v", p, err)
 	}
 }
