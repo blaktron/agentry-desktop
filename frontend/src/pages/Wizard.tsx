@@ -19,7 +19,9 @@ import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents"
 import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } from "../wizardRecap";
 import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
-import { CloudFigure, LocalFigure } from "./WizardFigures";
+import { CloudFigure, LocalFigure, RemoteFigure } from "./WizardFigures";
+import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
+import { RunhostServerForm, RunhostSignIns } from "./Runhosts";
 import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
 import { pickHomeAgent, setAgentEnabled, updateAgent, useAgents, useHomeAgent } from "../agents";
 import { homeAgentDrawn, homeChoices } from "../homeAgent";
@@ -27,8 +29,9 @@ import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, enableOutcome } f
 import { AgentTiles } from "./AgentTiles";
 
 const LABELS: Record<WizardStep, string> = {
-  welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime", agents: "Agents",
+  welcome: "Welcome", signin: "Sign in", where: "Local, Remote or Cloud", runtime: "Runtime", agents: "Agents",
   reviewkey: "AI Review key", codingagent: "Coding agent", done: "Done", cloud: "Your data in the cloud",
+  server: "Your server", model: "Model", remotedone: "Done",
 };
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
@@ -55,6 +58,8 @@ export default function Wizard({
   // Which path the person picked after Sign in; null
   // until they pick, and the steps' dots follow it.
   const [path, setPath] = useState<WizardPath | null>(pathOf(initialStep));
+  // The runhost the Remote path set up, for its Model and Done steps.
+  const [runhost, setRunhost] = useState<app.RunhostView | null>(null);
   const steps = stepsFor(path);
   const at = steps.indexOf(step);
   const next = () => setStep((s) => stepAfter(s, path) ?? s);
@@ -111,6 +116,9 @@ export default function Wizard({
           />
         )}
         {step === "cloud" && <CloudStep onBack={back} onFinish={() => onFinish({ kind: "done" })} />}
+        {step === "server" && <ServerStep runhost={runhost} onAdded={(v) => { setRunhost(v); next(); }} onBack={back} onNext={next} />}
+        {step === "model" && runhost && <RemoteModelStep runhost={runhost} onChange={setRunhost} onBack={back} onNext={next} />}
+        {step === "remotedone" && runhost && <RemoteDoneStep runhost={runhost} onBack={back} onFinish={() => onFinish({ kind: "done" })} />}
       </div>
     </div>
   );
@@ -297,8 +305,8 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
       <div className="wizard-body">
         <h1>Where will your QuickAgents run?</h1>
         <p className="page-sub">
-          On this computer, or in Agentry&apos;s cloud. Each run&apos;s setup still lets you pick either, and
-          Settings → Run defaults changes where it starts.
+          On this computer, on a Linux server of yours, or in Agentry&apos;s cloud. Each run&apos;s setup still lets you
+          pick, and Settings changes where it starts.
         </p>
         <div className="wizard-choices">
           <ChoiceCard
@@ -306,6 +314,12 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
             blurb="Run QuickAgents on this computer, in containers, with the AI provider you choose. Next you set up a container engine and your provider, and if you like an AI Review key and a coding agent."
             figure={<LocalFigure />}
             onOpen={() => void local()}
+          />
+          <ChoiceCard
+            title="Remote"
+            blurb="Run QuickAgents on a Linux server of yours, set up from here over SSH, driven from this app. Next you name the server and sign in as its administrator, once, and choose its model."
+            figure={<RemoteFigure />}
+            onOpen={() => onChoose("remote")}
           />
           <ChoiceCard
             title="Cloud"
@@ -326,7 +340,7 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
   );
 }
 
-// ChoiceCard is one of WhereStep's two cards: the frame, figure and title
+// ChoiceCard is one of WhereStep's three cards: the frame, figure and title
 // button of the start pages' cards (CardFrame), with a locked state CardFrame
 // has no need for. Locked, the card is greyed and its button disabled, and
 // "Please sign in" is written across it in the accent's light, not greyed.
@@ -732,6 +746,94 @@ function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => v
         <p className="page-sub">
           We do our best to keep your data safe and secure.
         </p>
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>
+        <div className="grow" />
+        <Button variant="primary" onClick={() => void finish()} disabled={busy}>Finish</Button>
+      </div>
+    </>
+  );
+}
+
+// ServerStep is Remote's first: the Server form (Runhosts.tsx), whose checks
+// and install are said as they run, with the preflight's findings and an
+// unknown host key put to the person in native dialogs. A runhost already set
+// up on this path goes straight on.
+function ServerStep({ runhost, onAdded, onBack, onNext }: {
+  runhost: app.RunhostView | null; onAdded: (v: app.RunhostView) => void; onBack: () => void; onNext: () => void;
+}) {
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>Your server</h1>
+        <p className="page-sub">
+          A Linux server of yours, Debian 12 or 13 or Ubuntu 22.04 or 24.04, that you reach over SSH. Agentry gives it an
+          account of its own, Docker Engine where there is none, gVisor and a service that opens no network port. Your
+          admin sign-in is used for this step alone and kept nowhere; this computer keeps its own key for the server.
+        </p>
+        {runhost
+          ? <Notice tone="ok">{runhost.name} is set up on {runhost.host}.</Notice>
+          : <RunhostServerForm onAdded={onAdded} />}
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <div className="grow" />
+        {runhost && <Button variant="primary" onClick={onNext}>Next</Button>}
+      </div>
+    </>
+  );
+}
+
+// RemoteModelStep signs the runhost in to a plan from this computer's
+// browser; a run's own API key needs nothing here, since it travels with each
+// run, so the step can be passed.
+function RemoteModelStep({ runhost, onChange, onBack, onNext }: {
+  runhost: app.RunhostView; onChange: (v: app.RunhostView) => void; onBack: () => void; onNext: () => void;
+}) {
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>The model on {runhost.name}</h1>
+        <p className="page-sub">
+          A run on {runhost.name} uses the model this computer is set up with. With an API key, the key travels with each
+          run and nothing is kept there. With a Claude, ChatGPT or Copilot plan, sign the runhost in to it here: the sign-in
+          opens in your browser and is kept on the runhost, where Claude Code, Codex or Copilot CLI runs in its container.
+        </p>
+        <RunhostSignIns runhost={runhost} onChange={onChange} />
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <div className="grow" />
+        <Button variant="primary" onClick={onNext}>Next</Button>
+      </div>
+    </>
+  );
+}
+
+// RemoteDoneStep makes the runhost where runs go and closes the wizard.
+function RemoteDoneStep({ runhost, onBack, onFinish }: { runhost: app.RunhostView; onBack: () => void; onFinish: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function finish() {
+    setBusy(true); setError(null);
+    try {
+      await RunhostsAPI.SetDefault(runhost.name);
+      onFinish();
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>{runhost.name} is ready</h1>
+        <p className="page-sub">
+          Runs go to {runhost.name} unless a run&apos;s setup says otherwise. Settings → Runhosts shows its state, signs it
+          in to another plan, turns its Unsafe Mode on or off, and removes it.
+        </p>
+        <ErrorBox error={error} />
       </div>
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>

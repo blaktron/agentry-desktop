@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
@@ -22,6 +23,9 @@ type RunDefaultsView struct {
 	PolicyPath     string `json:"policyPath"`
 	// Where is settings.RunWhereHere or settings.RunWhereAgentry.
 	Where string `json:"where"`
+	// Runhost names the remote runhost runs go to by default, when one is
+	// (Settings → Runhosts); Where is then "here".
+	Runhost string `json:"runhost,omitempty"`
 	// OutputDir is the saved output folder, "" for none.
 	OutputDir string `json:"outputDir,omitempty"`
 	// ChatIdleTimeoutSeconds is the Chat idle timeout (desktop.yaml), 0 for
@@ -83,17 +87,23 @@ func (s *SettingsAPI) SetMalwareCheck(on bool) (*RunDefaultsView, error) {
 // two words; anything else is refused and the file is left as it was.
 func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 	if where != settings.RunWhereHere && where != settings.RunWhereAgentry {
-		return nil, fmt.Errorf("where to run is %q or %q, not %q", settings.RunWhereHere, settings.RunWhereAgentry, where)
+		return nil, fmt.Errorf("where to run is %q or %q, not %q; a runhost is made the default in Settings → Runhosts", settings.RunWhereHere, settings.RunWhereAgentry, where)
 	}
-	st, err := settings.Load()
-	if err != nil {
-		return nil, err
-	}
-	st.RunWhere = where
-	if err := settings.Save(st); err != nil {
+	if err := setRunWhere(where); err != nil {
 		return nil, err
 	}
 	return runDefaultsView()
+}
+
+// setRunWhere records where the run setup's Where step starts: one of the
+// two words, or a runhost this computer is paired with (RunhostsAPI).
+func setRunWhere(where string) error {
+	st, err := settings.Load()
+	if err != nil {
+		return err
+	}
+	st.RunWhere = where
+	return settings.Save(st)
 }
 
 // SetChatIdleTimeout records the Chat idle timeout for the next chat on this
@@ -205,13 +215,14 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	}
 	budgets := pol.Budgets
 	where := st.RunWhere
+	runhostName, onRunhost := strings.CutPrefix(where, settings.RunWhereRunhostPrefix)
 	if where != settings.RunWhereAgentry {
 		where = settings.RunWhereHere
 	}
 	dDir, dDefault, dOn, dErr := deliverablesFolder()
 	v := &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
-		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
+		Where: where, Runhost: map[bool]string{true: runhostName}[onRunhost], OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
 		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(), MalwareCheck: pol.MalwareCheckOn(),
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 		Deliverables: dOn, DeliverablesDir: dDir, DeliverablesDefault: dDefault,

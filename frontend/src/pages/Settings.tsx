@@ -37,6 +37,8 @@ import { homeStatus } from "../homeCards";
 import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
+import { RunhostsSettings } from "./Runhosts";
+import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { LicencesSettings } from "./SettingsLicences";
 import PersistentAgentsSettings from "./SettingsPersistentAgents";
 import { persistentAgentsStatus } from "../persistentAgents";
@@ -55,7 +57,7 @@ import { rejectedLine } from "../signInState";
 //
 // Report design comes second, after Profile, as on the site: the account's
 // report design and its editor.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "run-defaults" | "provider" | "connections" | "destinations" | "home" | "licences";
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "run-defaults" | "runhosts" | "provider" | "connections" | "destinations" | "home" | "licences";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -64,7 +66,7 @@ export type SettingsPart =
   | "themes" | "design-editor" | "design-preview"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
-  | "connections" | "own-clients" | "destinations"
+  | "connections" | "own-clients" | "destinations" | "runhosts"
   | "theme" | "home-agent" | "home-cards" | "pins" | "reset-home" | "licences";
 type Part = { id: SettingsPart; label: string };
 
@@ -111,6 +113,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
       { id: "output", label: "Output folder" }, { id: "deliverables", label: "Deliverables" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
       { id: "malware", label: "Malware check" }, { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
     ],
+  },
+  {
+    id: "runhosts", title: "Runhosts",
+    sentence: "Your own Linux servers that run your QuickAgents: set one up over SSH, sign it in to a plan, choose it as where runs go, its Unsafe Mode, and its removal.",
+    parts: [{ id: "runhosts", label: "Runhosts" }],
   },
   {
     id: "provider", title: "Provider settings",
@@ -271,6 +278,7 @@ export default function Settings({
       )}
       {section === "connections" && <ConnectionsSettings />}
       {section === "destinations" && <DestinationsSettings />}
+      {section === "runhosts" && <RunhostsSettings />}
       {section === "home" && <HomeSettings />}
       {section === "licences" && <LicencesSettings />}
     </div>
@@ -302,7 +310,15 @@ type Statuses = {
   connections?: app.KeptConnectionsView | null;
   destinations?: destinations.Status | null;
   agents?: app.PersistentAgentView[] | null;
+  runhosts?: app.RunhostView[] | null;
 };
+
+// runhostsStatus is the Runhosts card's line: how many, and the default.
+function runhostsStatus(list: app.RunhostView[]): string {
+  if (list.length === 0) return "No runhosts yet.";
+  const def = list.find((r) => r.default);
+  return `${list.length === 1 ? "1 runhost" : `${list.length} runhosts`}${def ? `; runs go to ${def.name} by default` : ""}.`;
+}
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
   settings: app.SettingsView;
@@ -325,6 +341,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     Promise.resolve().then(() => RunAPI.Connections()).then(put("connections")).catch(() => put("connections")(null));
     Promise.resolve().then(() => DestinationsAPI.List()).then(put("destinations")).catch(() => put("destinations")(null));
     Promise.resolve().then(() => PersistentAPI.List()).then(put("agents")).catch(() => put("agents")(null));
+    Promise.resolve().then(() => RunhostsAPI.List()).then(put("runhosts")).catch(() => put("runhosts")(null));
     return () => { live = false; };
   }, []);
 
@@ -339,6 +356,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
     connections: st.connections ? connectionsStatus(st.connections) : null,
     destinations: st.destinations ? destinationsStatus(st.destinations) : null,
+    runhosts: st.runhosts ? runhostsStatus(st.runhosts) : null,
     home: st.home ? homeStatus(st.home) : null,
     licences: null,
   };

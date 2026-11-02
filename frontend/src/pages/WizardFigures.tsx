@@ -1,4 +1,4 @@
-// The first-run wizard's Local and Cloud figures, in
+// The first-run wizard's Local, Remote and Cloud figures, in
 // the light-line language of the Build, Voice and Knowledge cards
 // (BuildWays.tsx): held lines with a spark running each, CSS keyframes only,
 // still under prefers-reduced-motion. They picture the card's title and
@@ -84,6 +84,48 @@ export function CloudFigure() {
       {/* Its feet, standing on the cloud's floor. */}
       <Beam d={`M ${RACK.x + 8} ${RACK.y + RACK.h} V 130`} color={VIOLET} glow={glow} length={6} delay={2} />
       <Beam d={`M ${RACK.x + RACK.w - 8} ${RACK.y + RACK.h} V 130`} color={VIOLET} glow={glow} length={6} delay={2.6} />
+    </Figure>
+  );
+}
+
+// A laptop joined by one held line to a server of the person's own: a remote
+// runhost, driven from this computer over SSH.
+const LAPTOP = { x: 34, y: 58, w: 96, h: 58 };
+const SERVER = { x: 204, y: 34, w: 72, h: 96 };
+const SERVER_UNITS = [46, 66, 86, 106];
+
+export function RemoteFigure() {
+  const glow = "wz-remote-glow";
+  const link = `M ${LAPTOP.x + LAPTOP.w + 6} 88 C 160 88, 172 82, ${SERVER.x - 6} 82`;
+  return (
+    <Figure glow={glow}>
+      {/* The laptop: its screen and its base. */}
+      <g style={{ "--cv-c": ACCENT } as CSSProperties}>
+        <rect x={LAPTOP.x} y={LAPTOP.y} width={LAPTOP.w} height={LAPTOP.h} rx="6" className="cv-box-glow" filter={`url(#${glow})`} />
+        <rect x={LAPTOP.x} y={LAPTOP.y} width={LAPTOP.w} height={LAPTOP.h} rx="6" className="cv-box" />
+        <rect x={LAPTOP.x + 7} y={LAPTOP.y + 7} width={LAPTOP.w - 14} height={LAPTOP.h - 14} rx="3" className="cv-field" />
+      </g>
+      <Beam d={`M ${LAPTOP.x - 12} ${LAPTOP.y + LAPTOP.h + 6} H ${LAPTOP.x + LAPTOP.w + 12}`} color={AMBER} glow={glow} length={LAPTOP.w + 24} delay={0} />
+      {[[44, 74], [30, 86], [52, 98]].map(([len, ly]) => (
+        <line key={ly} x1={LAPTOP.x + 16} x2={LAPTOP.x + 16 + len} y1={ly} y2={ly} className="cv-ink" />
+      ))}
+
+      {/* The link between them: SSH, the only way in. */}
+      <Beam d={link} color={SKY} glow={glow} length={80} delay={1.2} />
+
+      {/* The server: a frame and four units, each with a light. */}
+      <g style={{ "--cv-c": VIOLET } as CSSProperties}>
+        <rect x={SERVER.x} y={SERVER.y} width={SERVER.w} height={SERVER.h} rx="5" className="cv-box-glow" style={{ animationDelay: "1s" }} filter={`url(#${glow})`} />
+        <rect x={SERVER.x} y={SERVER.y} width={SERVER.w} height={SERVER.h} rx="5" className="cv-box" />
+      </g>
+      {SERVER_UNITS.map((uy, i) => (
+        <g key={uy}>
+          <rect x={SERVER.x + 7} y={uy} width={SERVER.w - 14} height={13} rx="2.5" className="cv-field" />
+          <line x1={SERVER.x + 13} x2={SERVER.x + 34} y1={uy + 6.5} y2={uy + 6.5} className="cv-ink" />
+          <circle cx={SERVER.x + SERVER.w - 15} cy={uy + 6.5} r="5" className="cv-node-glow" style={{ fill: i % 2 ? SKY : ACCENT, animationDelay: `${i * 0.8}s` }} filter={`url(#${glow})`} />
+          <circle cx={SERVER.x + SERVER.w - 15} cy={uy + 6.5} r="2.2" className="cv-node" style={{ fill: i % 2 ? SKY : ACCENT, animationDelay: `${i * 0.8}s` }} />
+        </g>
+      ))}
     </Figure>
   );
 }

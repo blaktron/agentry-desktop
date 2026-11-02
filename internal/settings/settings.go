@@ -299,6 +299,9 @@ func CheckChatIdleTimeout(seconds int) error {
 const (
 	RunWhereHere    = "here"
 	RunWhereAgentry = "agentry"
+	// RunWhereRunhostPrefix starts the run setup's default of a remote
+	// runhost: runhost:<name>.
+	RunWhereRunhostPrefix = "runhost:"
 )
 
 // UpdateCheckEnabled says whether the app should look for a newer Agentry
