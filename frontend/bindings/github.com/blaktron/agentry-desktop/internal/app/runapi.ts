@@ -937,6 +937,19 @@ export function RunDeliverables(runID: string): $CancellablePromise<$models.RunD
 }
 
 /**
+ * RunOnRunhost runs a release on remote runhost name, as RunAgent runs it on
+ * this computer: the same gates and native dialogs, the same run lock and
+ * queue, the same run log, and the result opened into the same output folder,
+ * naming the runhost it ran on. What a run from the app does not carry to a
+ * runhost yet is refused before anything is sent (run.RunhostCannotCarry).
+ */
+export function RunOnRunhost(name: string, reg: string, ref: string, task: string, inputPaths: string[], outDir: string, timeoutSec: number, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, acceptUnscanned: boolean): $CancellablePromise<$models.RunResultView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunOnRunhost", name, reg, ref, task, inputPaths, outDir, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, acceptUnscanned).then(($result: any) => {
+        return $$createType26($result)!;
+    });
+}
+
+/**
  * RunOutputs lists what the run wrote under outputs/ and reports/.
  */
 export function RunOutputs(runID: string): $CancellablePromise<$models.RunOutputsView> {

@@ -9,6 +9,7 @@ export {
     Managed,
     ModelSignIn,
     OwnClientGuide,
+    RanOn,
     ReleaseConnections,
     ServerConnection,
     SignedIn,
