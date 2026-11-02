@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.6",
+      "highlights": [
+        "After each update of the app, your runhosts are brought to its CLI; Settings → Runhosts shows how each went.",
+        "Pair another computer of yours with a runhost from Settings → Runhosts, or unpair this one.",
+        "A runhost can be Fedora, or RHEL, AlmaLinux or Rocky Linux, as well as Debian or Ubuntu."
+      ]
+    },
+    {
       "version": "0.7.5",
       "highlights": [
         "A runhost can pay for its runs with your Agentry credits: Use my credits at its Model step or in Settings → Runhosts.",
