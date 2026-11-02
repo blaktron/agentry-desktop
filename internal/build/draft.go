@@ -73,6 +73,12 @@ func FromDraft(manifestJSON []byte, instructions, namespace string, chosen ...Sh
 		notes = append(notes, fmt.Sprintf("The draft named its instruction file %q, which is not one file in the QuickAgent's folder; here it is %s.", f, defaultInstructionFile))
 		m.InstructionFile = defaultInstructionFile
 	}
+	if p := m.Persona; p != nil {
+		if f := strings.TrimSpace(p.File); f != "" && (!draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md") || f == m.InstructionFile) {
+			notes = append(notes, fmt.Sprintf("The draft named its persona file %q, which is not a file of its own in the QuickAgent's folder; here it is %s.", f, manifest.DefaultPersonaFile))
+			p.File = ""
+		}
+	}
 	if ns := strings.TrimSpace(namespace); ns != "" && ns != m.Namespace {
 		if m.Namespace != "" {
 			notes = append(notes, fmt.Sprintf("The draft's namespace %q is replaced with yours, %s.", m.Namespace, ns))
@@ -85,6 +91,28 @@ func FromDraft(manifestJSON []byte, instructions, namespace string, chosen ...Sh
 	m.Instructions = instructions
 	m.HadComments = false
 	return m, notes, nil
+}
+
+// SetPersonaText sets a persistent draft's persona text, the file its
+// persona names, which the draft carries beside its manifest. A text over
+// the persona's bound or not UTF-8 is refused. A text with no persona in the
+// manifest has no file to go in, so it is left out, and the note says so. It
+// returns the notes to add to the draft's.
+func (m *Model) SetPersonaText(text string) ([]string, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
+	if len(text) > manifest.MaxPersonaFileBytes {
+		return nil, fmt.Errorf("the draft's persona text is %d bytes; the Build surface reads at most %d", len(text), manifest.MaxPersonaFileBytes)
+	}
+	if !utf8.ValidString(text) {
+		return nil, errors.New("the draft's persona text is not text (UTF-8)")
+	}
+	if m.Persona == nil {
+		return []string{"The draft carried persona text but its manifest names no persona, so the text was left out."}, nil
+	}
+	m.PersonaText = text
+	return nil, nil
 }
 
 // draftInstructionRE is an instruction file a draft may name: one Markdown
@@ -102,6 +130,7 @@ var draftFields = map[string]any{
 	"summary": nil, "license": nil, "homepage": nil, "tags": nil,
 	"authors":     []any{map[string]any{"name": nil, "email": nil}},
 	"entrypoints": map[string]any{"instruction": nil, "skill": nil},
+	"persona":     map[string]any{"name": nil, "file": nil, "editable": nil},
 	"intake":      []any{map[string]any{"id": nil, "prompt": nil, "type": nil, "required": nil, "choices": nil}},
 	"inputs":      map[string]any{"kinds": nil, "view": nil},
 	"interactive": map[string]any{"opening": nil, "idleTimeoutSeconds": nil},
@@ -112,15 +141,25 @@ var draftFields = map[string]any{
 		"filesystem": map[string]any{"read": map[string]any{"paths": nil}, "write": map[string]any{"paths": nil}},
 		"exec":       map[string]any{"commands": nil},
 		"secrets":    nil, "optionalSecrets": nil, "dataAccess": nil, "targetHosts": nil,
-		"browser": map[string]any{"sites": nil, "hosts": nil, "scope": nil, "secrets": nil},
+		"persistent": persistentFields(),
+		"browser":    map[string]any{"sites": nil, "hosts": nil, "scope": nil, "secrets": nil},
 		"mcpServers": []any{map[string]any{
 			"npm": nil, "pypi": nil, "url": nil, "auth": nil, "scopes": nil, "version": nil, "args": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil,
 			"oauth": map[string]any{"issuer": nil, "scopes": nil, "files": []any{map[string]any{"path": nil, "template": nil}}, "env": nil},
 		}},
 	},
 	"knowledge":    map[string]any{"accepts": map[string]any{"prompt": nil, "required": nil}, "ships": nil},
-	"dependencies": map[string]any{"agents": []any{map[string]any{"ref": nil, "version": nil}}},
+	"dependencies": map[string]any{"agents": []any{map[string]any{"ref": nil, "version": nil, "why": nil}}},
 	"publish":      map[string]any{"include": nil, "channel": nil},
+}
+
+// persistentFields are the keys of capabilities.persistent the core knows.
+func persistentFields() map[string]any {
+	out := map[string]any{}
+	for _, c := range manifest.PersistentCapabilities() {
+		out[c.Key] = nil
+	}
+	return out
 }
 
 // unknownFields names, by path, every key of v that known does not hold.

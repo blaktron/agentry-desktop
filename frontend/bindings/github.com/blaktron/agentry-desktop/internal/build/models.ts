@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as manifest$0 from "../../../agentry/pkg/manifest/models.js";
+
 /**
  * AuthorRow is one authors entry.
  */
@@ -185,6 +189,12 @@ export class ConnectRow {
 export class DependencyRow {
     "ref": string;
     "version": string;
+
+    /**
+     * Why is the reason a persistent agent gives for the subagent, shown
+     * when the person agrees to it.
+     */
+    "why"?: string;
 
     /** Creates a new DependencyRow instance. */
     constructor($$source: Partial<DependencyRow> = {}) {
@@ -696,9 +706,22 @@ export class Model {
     "ships": ShipSource[];
 
     /**
-     * Dependencies are dependencies.agents.
+     * Dependencies are dependencies.agents: for an agent that supports the
+     * persistent mode, its subagents.
      */
     "dependencies": DependencyRow[];
+
+    /**
+     * Persona, Persistent and PersonaText are a persistent agent's own: the
+     * persona's name and file (persona), what it may do beyond an ordinary
+     * run (capabilities.persistent) and the persona's text, the file the
+     * persona names. The form has no editor for them and carries them
+     * unchanged from a draft or a load to the next save, as it does the
+     * browser block; nil is an ordinary QuickAgent.
+     */
+    "persona"?: manifest$0.Persona | null;
+    "persistent"?: manifest$0.Persistent | null;
+    "personaText"?: string;
 
     /**
      * PublishChannel is publish.channel (stable when empty).
@@ -862,7 +885,9 @@ export class Model {
         const $$createField34_0 = $$createType0;
         const $$createField35_0 = $$createType22;
         const $$createField36_0 = $$createType24;
-        const $$createField38_0 = $$createType0;
+        const $$createField37_0 = $$createType26;
+        const $$createField38_0 = $$createType28;
+        const $$createField41_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("modes" in $$parsedSource) {
             $$parsedSource["modes"] = $$createField2_0($$parsedSource["modes"]);
@@ -927,8 +952,14 @@ export class Model {
         if ("dependencies" in $$parsedSource) {
             $$parsedSource["dependencies"] = $$createField36_0($$parsedSource["dependencies"]);
         }
+        if ("persona" in $$parsedSource) {
+            $$parsedSource["persona"] = $$createField37_0($$parsedSource["persona"]);
+        }
+        if ("persistent" in $$parsedSource) {
+            $$parsedSource["persistent"] = $$createField38_0($$parsedSource["persistent"]);
+        }
         if ("publishInclude" in $$parsedSource) {
-            $$parsedSource["publishInclude"] = $$createField38_0($$parsedSource["publishInclude"]);
+            $$parsedSource["publishInclude"] = $$createField41_0($$parsedSource["publishInclude"]);
         }
         return new Model($$parsedSource as Partial<Model>);
     }
@@ -969,7 +1000,7 @@ export class OAuthRow {
      */
     static createFrom($$source: any = {}): OAuthRow {
         const $$createField1_0 = $$createType0;
-        const $$createField2_0 = $$createType26;
+        const $$createField2_0 = $$createType30;
         const $$createField3_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scopes" in $$parsedSource) {
@@ -1041,7 +1072,7 @@ export class PublishResult {
      * Creates a new PublishResult instance from a string or object.
      */
     static createFrom($$source: any = {}): PublishResult {
-        const $$createField6_0 = $$createType27;
+        const $$createField6_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("findingCounts" in $$parsedSource) {
             $$parsedSource["findingCounts"] = $$createField6_0($$parsedSource["findingCounts"]);
@@ -1278,6 +1309,13 @@ export class Summary {
      */
     "anyUnnamed": boolean;
 
+    /**
+     * Persistent is what an agent that stays running adds to the page: what
+     * it may do, its persona's name and its subagents. Nil for a QuickAgent
+     * that does not support the persistent mode.
+     */
+    "persistent"?: SummaryPersistent | null;
+
     /** Creates a new Summary instance. */
     constructor($$source: Partial<Summary> = {}) {
         if (!("name" in $$source)) {
@@ -1315,11 +1353,12 @@ export class Summary {
      * Creates a new Summary instance from a string or object.
      */
     static createFrom($$source: any = {}): Summary {
-        const $$createField3_0 = $$createType29;
-        const $$createField4_0 = $$createType31;
-        const $$createField5_0 = $$createType33;
+        const $$createField3_0 = $$createType33;
+        const $$createField4_0 = $$createType35;
+        const $$createField5_0 = $$createType37;
         const $$createField6_0 = $$createType0;
         const $$createField7_0 = $$createType0;
+        const $$createField9_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("keys" in $$parsedSource) {
             $$parsedSource["keys"] = $$createField3_0($$parsedSource["keys"]);
@@ -1336,7 +1375,56 @@ export class Summary {
         if ("knowledge" in $$parsedSource) {
             $$parsedSource["knowledge"] = $$createField7_0($$parsedSource["knowledge"]);
         }
+        if ("persistent" in $$parsedSource) {
+            $$parsedSource["persistent"] = $$createField9_0($$parsedSource["persistent"]);
+        }
         return new Summary($$parsedSource as Partial<Summary>);
+    }
+}
+
+/**
+ * SummaryCapability is one declared key of capabilities.persistent.
+ */
+export class SummaryCapability {
+    "key": string;
+
+    /**
+     * Words say what the key gives the agent, in the words the install
+     * consent uses.
+     */
+    "words": string;
+
+    /**
+     * Names are the names a list key declares (the stored secrets, the mail
+     * providers, the image servers); empty for a plain switch.
+     */
+    "names": string[];
+
+    /** Creates a new SummaryCapability instance. */
+    constructor($$source: Partial<SummaryCapability> = {}) {
+        if (!("key" in $$source)) {
+            this["key"] = "";
+        }
+        if (!("words" in $$source)) {
+            this["words"] = "";
+        }
+        if (!("names" in $$source)) {
+            this["names"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SummaryCapability instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SummaryCapability {
+        const $$createField2_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("names" in $$parsedSource) {
+            $$parsedSource["names"] = $$createField2_0($$parsedSource["names"]);
+        }
+        return new SummaryCapability($$parsedSource as Partial<SummaryCapability>);
     }
 }
 
@@ -1427,6 +1515,69 @@ export class SummaryKey {
 }
 
 /**
+ * SummaryPersistent is the part of the summary an agent that stays running
+ * has. It is read from the model alone, and only what the manifest
+ * declares is listed.
+ */
+export class SummaryPersistent {
+    /**
+     * Only says the agent runs in the persistent mode alone: no run of it is
+     * offered, and it is installed as a persistent agent.
+     */
+    "only": boolean;
+
+    /**
+     * Capabilities are the keys of capabilities.persistent the agent
+     * declares, in the core's order and words.
+     */
+    "capabilities": SummaryCapability[];
+
+    /**
+     * PersonaName is the persona's name, or "" for an agent with none.
+     */
+    "personaName": string;
+
+    /**
+     * Subagents are the QuickAgents it may start as runs of their own.
+     */
+    "subagents": SummarySubagent[];
+
+    /** Creates a new SummaryPersistent instance. */
+    constructor($$source: Partial<SummaryPersistent> = {}) {
+        if (!("only" in $$source)) {
+            this["only"] = false;
+        }
+        if (!("capabilities" in $$source)) {
+            this["capabilities"] = [];
+        }
+        if (!("personaName" in $$source)) {
+            this["personaName"] = "";
+        }
+        if (!("subagents" in $$source)) {
+            this["subagents"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SummaryPersistent instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SummaryPersistent {
+        const $$createField1_0 = $$createType41;
+        const $$createField3_0 = $$createType43;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("capabilities" in $$parsedSource) {
+            $$parsedSource["capabilities"] = $$createField1_0($$parsedSource["capabilities"]);
+        }
+        if ("subagents" in $$parsedSource) {
+            $$parsedSource["subagents"] = $$createField3_0($$parsedSource["subagents"]);
+        }
+        return new SummaryPersistent($$parsedSource as Partial<SummaryPersistent>);
+    }
+}
+
+/**
  * SummaryServer is one declared MCP server.
  */
 export class SummaryServer {
@@ -1500,7 +1651,7 @@ export class SummaryServer {
      */
     static createFrom($$source: any = {}): SummaryServer {
         const $$createField1_0 = $$createType0;
-        const $$createField2_0 = $$createType31;
+        const $$createField2_0 = $$createType35;
         const $$createField3_0 = $$createType0;
         const $$createField4_0 = $$createType0;
         const $$createField5_0 = $$createType0;
@@ -1525,6 +1676,46 @@ export class SummaryServer {
             $$parsedSource["signIn"] = $$createField7_0($$parsedSource["signIn"]);
         }
         return new SummaryServer($$parsedSource as Partial<SummaryServer>);
+    }
+}
+
+/**
+ * SummarySubagent is one subagent a persistent agent declares.
+ */
+export class SummarySubagent {
+    "ref": string;
+
+    /**
+     * Version is the semver constraint on the subagent's version.
+     */
+    "version": string;
+
+    /**
+     * Why is the reason the agent gives for it, shown when the person agrees.
+     */
+    "why": string;
+
+    /** Creates a new SummarySubagent instance. */
+    constructor($$source: Partial<SummarySubagent> = {}) {
+        if (!("ref" in $$source)) {
+            this["ref"] = "";
+        }
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("why" in $$source)) {
+            this["why"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SummarySubagent instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SummarySubagent {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SummarySubagent($$parsedSource as Partial<SummarySubagent>);
     }
 }
 
@@ -1582,12 +1773,22 @@ const $$createType21 = ShipSource.createFrom;
 const $$createType22 = $Create.Array($$createType21);
 const $$createType23 = DependencyRow.createFrom;
 const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = TokenFileRow.createFrom;
-const $$createType26 = $Create.Array($$createType25);
-const $$createType27 = $Create.Map($Create.Any, $Create.Any);
-const $$createType28 = SummaryKey.createFrom;
-const $$createType29 = $Create.Array($$createType28);
-const $$createType30 = SummaryHost.createFrom;
-const $$createType31 = $Create.Array($$createType30);
-const $$createType32 = SummaryServer.createFrom;
+const $$createType25 = manifest$0.Persona.createFrom;
+const $$createType26 = $Create.Nullable($$createType25);
+const $$createType27 = manifest$0.Persistent.createFrom;
+const $$createType28 = $Create.Nullable($$createType27);
+const $$createType29 = TokenFileRow.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = $Create.Map($Create.Any, $Create.Any);
+const $$createType32 = SummaryKey.createFrom;
 const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = SummaryHost.createFrom;
+const $$createType35 = $Create.Array($$createType34);
+const $$createType36 = SummaryServer.createFrom;
+const $$createType37 = $Create.Array($$createType36);
+const $$createType38 = SummaryPersistent.createFrom;
+const $$createType39 = $Create.Nullable($$createType38);
+const $$createType40 = SummaryCapability.createFrom;
+const $$createType41 = $Create.Array($$createType40);
+const $$createType42 = SummarySubagent.createFrom;
+const $$createType43 = $Create.Array($$createType42);

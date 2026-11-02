@@ -379,6 +379,49 @@ export class Persistent {
     }
 }
 
+/**
+ * Persona is the name and the text a persistent agent takes on (v2,
+ * V17). The text is a file in the archive, read by the scanners as they
+ * read the instruction; a tool it calls for needs its grant as one the
+ * instruction calls for does.
+ */
+export class Persona {
+    /**
+     * Name is the agent's name, shown to the person: one plain line of at
+     * most MaxPersonaNameBytes.
+     */
+    "name": string;
+
+    /**
+     * File is the persona's text in the archive, at most
+     * MaxPersonaFileBytes; empty means DefaultPersonaFile.
+     */
+    "file"?: string;
+
+    /**
+     * Editable lets the person replace the persona's text; nil means
+     * true. A locked persona can still be renamed.
+     */
+    "editable"?: boolean | null;
+
+    /** Creates a new Persona instance. */
+    constructor($$source: Partial<Persona> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Persona instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Persona {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Persona($$parsedSource as Partial<Persona>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = MCPOAuthFile.createFrom;

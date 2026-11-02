@@ -25,6 +25,7 @@
 // Describe again under them.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import { ChooseDirectory, OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import { EventsOn } from "../host";
@@ -35,6 +36,9 @@ import * as validate from "../../bindings/github.com/blaktron/agentry-desktop/in
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
 import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";
+import { updateAgent } from "../agents";
+import { offersAgentInstall, submittedRef } from "../builderPersistent";
+import { useInstallStage } from "../installProgress";
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { RevisionView } from "./BuildRevision";
@@ -356,7 +360,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, openEditRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenLibrary }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, openEditRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenLibrary, onOpenPersistentAgent }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
@@ -377,6 +381,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   onOpenReviewKey?: () => void;
   /** The Library, where Install puts the QuickAgent. */
   onOpenLibrary?: () => void;
+  /** A persistent agent's page, where Install as a persistent agent ends. */
+  onOpenPersistentAgent?: (name: string) => void;
 }) {
   const [dir, setDir] = useState(kept?.dir ?? "");
   const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
@@ -404,6 +410,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // What Install as a persistent agent is doing, while it does.
+  const installStage = useInstallStage(busy === "agent");
   const [result, setResult] = useState<validate.Result | null>(null);
   const [pubResult, setPubResult] = useState<build.PublishResult | null>(null);
   // What Install laid down on this computer.
@@ -625,6 +633,18 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (r) setPubResult(r);
     });
 
+  // Install as a persistent agent, once Submit passed: the same install as
+  // Browse's, with its one native consent, of the version just submitted;
+  // then the agent's page. A No installs nothing and is said.
+  const installAgent = () =>
+    wrap("agent", async () => {
+      if (!m || !pubResult) return;
+      const v = await PersistentAPI.Install(registry, submittedRef(m, pubResult.version));
+      updateAgent(v);
+      if (onOpenPersistentAgent) onOpenPersistentAgent(v.name);
+      else setNotice(`${v.displayName || v.name} is installed as a persistent agent.`);
+    });
+
   // Review Your QuickAgents locally reviews the saved
   // folder with the built-in Examiner on this computer: the Go side asks in
   // a native dialog first, and a No reviews nothing. The review is followed
@@ -798,6 +818,12 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             ))}
           </span>
         </div>
+        {(m.modes ?? []).includes("persistent") && (
+          <p className="muted small" data-persistent-mode>
+            It also runs as an agent that stays running: its capabilities, persona and subagents are in the summary, and the
+            form carries them as they are.
+          </p>
+        )}
         {(m.modes ?? []).includes("interactive") && (
           <div className="row" style={{ marginTop: 8 }}>
             <label className="small grow">opening line (the agent&apos;s first message when a session starts without a task; ≤ 500 chars)
@@ -1217,6 +1243,17 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     <Card className="mt">
       {log.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>}
       {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
+      {pubResult && offersAgentInstall(m.modes, pubResult.status) && (
+        <div className="small" style={{ marginTop: 8 }}>
+          <p>
+            It passed. Install it on this computer as a persistent agent, beside the built-in agents: you confirm once,
+            and the confirmation lists what it may do, its persona and its subagents.
+          </p>
+          <Button variant="primary" data-install-persistent busy={busy === "agent"} busyLabel={installStage || "Installing…"} disabled={!!busy} onClick={installAgent}>
+            Install as a persistent agent
+          </Button>
+        </div>
+      )}
       {localInstall && <LocalInstallOutcome v={localInstall} onOpenLibrary={onOpenLibrary} />}
     </Card>
   ) : null;

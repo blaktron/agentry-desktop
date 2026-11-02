@@ -46,6 +46,9 @@ func FromRelease(manifestJSON []byte, instructions, namespace, name, version str
 	if err != nil {
 		return nil, fmt.Errorf("the release's manifest does not fit the form: %w", err)
 	}
+	if m.IsPersistent() {
+		return nil, errors.New("this is an agent that stays running, and the form does not hold its persona, its capabilities or its subagents: edit its folder with the agentry CLI")
+	}
 	fresh := Default(namespace)
 	m.Namespace, m.Name, m.Version = namespace, name, version
 	if strings.TrimSpace(m.License) == "" {

@@ -8,5 +8,6 @@ export {
     CapabilityDiff,
     MCPOAuth,
     MCPOAuthFile,
-    Persistent
+    Persistent,
+    Persona
 } from "./models.js";

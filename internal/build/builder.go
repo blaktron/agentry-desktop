@@ -62,10 +62,13 @@ func SetByBuilder(m *Model, words string, taken []string) []string {
 const shipsGlob = "knowledge/**"
 
 // defaultInclude is the include list Save's files make: the manifest, the
-// instruction file, the README and LICENSE Save writes, and the packs the
-// release ships.
+// instruction file, the README and LICENSE Save writes, a persistent agent's
+// persona file, and the packs the release ships.
 func (m *Model) defaultInclude() []string {
 	out := []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
+	if f := m.personaFile(); f != "" {
+		out = append(out, f)
+	}
 	if len(compact(m.KnowledgeShips)) > 0 {
 		out = append(out, shipsGlob)
 	}
