@@ -36,6 +36,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -244,7 +246,16 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	if env == nil {
 		return nil, ranOn, ferr
 	}
-	return resultFromEnvelope(env, nil), ranOn, nil
+	return resultFromRunhost(env), ranOn, nil
+}
+
+// resultFromRunhost is a runhost run's result: its envelope, with no plan of
+// this computer's (the plan was the runhost's), and Unsafe Mode as the
+// runhost's own setting was when the job was sent.
+func resultFromRunhost(env *receipt.Envelope) *Result {
+	res := resultFromEnvelope(env, &spec.Plan{})
+	res.Unsafe = env.Runhost != nil && env.Runhost.UnsafeMode
+	return res
 }
 
 // RunhostCannotCarry names what of m a run on a runhost from this app does
