@@ -1077,11 +1077,12 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	return sv, nil
 }
 
-// called is the agent in a sentence: the name the person gave it, or "the
-// Assistant" while it has none.
+// called is the agent in a sentence: the name the person gave it, an
+// installed agent's persona's name or its release's title, or "the
+// Assistant" while a built-in has none.
 func called(a persistent.Agent, c persistent.Config) string {
-	if c.DisplayName != "" {
-		return c.DisplayName
+	if c.DisplayName != "" || a.Published() {
+		return a.DisplayName(c)
 	}
 	return "the " + a.Title
 }

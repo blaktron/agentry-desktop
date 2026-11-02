@@ -1218,6 +1218,11 @@ func (o appMainOps) run(reg, ref, task string, inputs []string, intake map[strin
 		queued:   func(id string) { began(id, true) },
 		inputsIn: share,
 	}
+	// A subagent run's output folder is the one its supervisor made under
+	// the agent's own folder in the runner home, never one a page named.
+	if home, err := o.runner.runnerHome(); err == nil {
+		h.outDirIn = filepath.Join(home, "persistent")
+	}
 	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, intake, false, false, nil, false, nil, nil, nil)
 }
 
