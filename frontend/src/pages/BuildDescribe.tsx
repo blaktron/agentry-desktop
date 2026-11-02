@@ -30,27 +30,13 @@ import * as build from "../../bindings/github.com/blaktron/agentry-desktop/inter
 import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
+import { NO_HINTS, PERSISTENT_WAY_NOTE, RUN_WAYS, hintLines, type Hints, type RunWay } from "../describeHints";
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
 import { readAndShipReason, shipPickLine, shipsOf, type ShipOption } from "../shipKnowledge";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
 import { GetAKeyLink } from "./AIReviewKey";
-
-// The hints as the site asks them, and the lines the Drafter reads for
-// them: each labelled
-// so it knows which hint it is. A blank one is left out.
-type Hints = { services: string; mode: "" | "autonomous" | "interactive"; example: string };
-const NO_HINTS: Hints = { services: "", mode: "", example: "" };
-function hintLines(h: Hints): string[] {
-  const out: string[] = [];
-  const one = (s: string) => s.replace(/\s+/g, " ").trim();
-  if (one(h.services)) out.push(`The services or sites it works with: ${one(h.services)}`);
-  if (h.mode === "autonomous") out.push("It runs on its own, from a task, with no conversation.");
-  else if (h.mode === "interactive") out.push("It runs in a conversation with a person.");
-  if (one(h.example)) out.push(`An example of the output wanted: ${one(h.example)}`);
-  return out;
-}
 
 // The description the page keeps while the tab is away, as Build keeps its
 // form (the tab unmounts on every change); a draft that lands clears it.
@@ -160,12 +146,11 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
         </label>
         <label className="small" style={{ display: "block", marginTop: 6 }}>How it runs
           <Select style={{ width: "100%" }} value={hints.mode} disabled={busy}
-            onChange={(e) => setHints({ ...hints, mode: e.target.value as Hints["mode"] })}>
-            <option value="">Either, or not sure</option>
-            <option value="autonomous">On its own, from a task</option>
-            <option value="interactive">In a conversation with a person</option>
+            onChange={(e) => setHints({ ...hints, mode: e.target.value as RunWay })}>
+            {RUN_WAYS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
           </Select>
         </label>
+        {hints.mode === "persistent" && <p className="muted small" data-persistent-way>{PERSISTENT_WAY_NOTE}</p>}
         <label className="small" style={{ display: "block", marginTop: 6 }}>An example of the output you want
           <input type="text" style={{ width: "100%" }} value={hints.example} placeholder="e.g. a table of problems per column" disabled={busy} maxLength={436}
             onChange={(e) => setHints({ ...hints, example: e.target.value })} />

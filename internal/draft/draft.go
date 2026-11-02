@@ -407,7 +407,11 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the draft could not be opened in the form (it is in %s): %w", outDir, err)
 	}
-	return &Result{Draft: d, Model: m, Notes: notes, OutDir: outDir}, nil
+	more, err := m.SetPersonaText(d.PersonaText)
+	if err != nil {
+		return nil, fmt.Errorf("the draft could not be opened in the form (it is in %s): %w", outDir, err)
+	}
+	return &Result{Draft: d, Model: m, Notes: append(notes, more...), OutDir: outDir}, nil
 }
 
 // Status is what Describe it, on this computer says before a draft: where

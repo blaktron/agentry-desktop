@@ -19,6 +19,14 @@
 // and reviews the folder with the built-in Examiner, after its own native
 // dialog; it holds none of the three.
 //
+// A draft that supports the persistent mode (an agent that stays running)
+// adds one card before Submit: the keys of capabilities.persistent it
+// declares in the core's words, the persona's name, and each subagent with
+// its version constraint and its reason (BuildAPI.Summary reads them from
+// the model, builderPersistent.ts words them). One that runs only as a
+// persistent agent has no local Install and no run: after Submit passes, Build
+// offers Install as a persistent agent beside the publish outcome.
+//
 // Every string here may be the Drafter's: the overview and each key's help
 // go through AgentMarkdown's rules (AuthorHelp frames the help as the
 // author's), and the rest is text through RevealText.
@@ -27,6 +35,7 @@ import * as build from "../../bindings/github.com/blaktron/agentry-desktop/inter
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AuthorHelp } from "../KeyHelp";
+import { NO_CAPABILITIES, NO_SUBAGENTS, capabilityLine, personaLine, persistentActionNote, subagentLine } from "../builderPersistent";
 import { ReviewAction } from "./ReviewAction";
 import { RevealText } from "../reveal";
 import { Button, Card } from "../ui";
@@ -41,6 +50,49 @@ function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) 
         </li>
       ))}
     </ul>
+  );
+}
+
+function PersistentCard({ p }: { p: build.SummaryPersistent }) {
+  return (
+    <Card className="mt">
+      <strong>An agent that stays running</strong>
+      <p className="muted small">
+        It keeps its conversation and its memory between sessions and runs on this computer beside the built-in agents.
+        Installing it asks once, and lists what is below.
+      </p>
+
+      <h4 className="small">What it may do</h4>
+      {p.capabilities.length === 0 ? <p className="muted small">{NO_CAPABILITIES}</p> : (
+        <ul className="small build-summary-list" aria-label="What it may do">
+          {p.capabilities.map((c) => (
+            <li key={c.key}>
+              <span className="mono selectable"><RevealText text={c.key} /></span>
+              <span className="muted">: </span>
+              <RevealText text={capabilityLine(c)} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h4 className="small">Persona</h4>
+      <p className="small"><RevealText text={personaLine(p.personaName)} /></p>
+
+      <h4 className="small">Subagents</h4>
+      {p.subagents.length === 0 ? <p className="muted small">{NO_SUBAGENTS}</p> : (
+        <ul className="small build-summary-list" aria-label="Subagents">
+          {p.subagents.map((sa) => {
+            const line = subagentLine(sa);
+            return (
+              <li key={sa.ref}>
+                <span className="mono selectable"><RevealText text={line.head} /></span>
+                <div>{line.why ? <RevealText text={line.why} /> : <span className="muted">No reason is given.</span>}</div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -76,10 +128,13 @@ export function SummaryView({
   /** The packs the previous version shipped that this one will not, named. */
   shipNotes?: string[];
 }) {
+  const persistentOnly = !!s.persistent?.only;
   return (
     <section aria-labelledby="build-summary-heading" className="build-summary">
       <h2 id="build-summary-heading" ref={headingRef} tabIndex={-1}>Summary</h2>
-      <p className="muted small">How the QuickAgent works and what it needs. Save it, install it here, or submit it when this is what you want; every other choice is in the form.</p>
+      <p className="muted small">
+        How the QuickAgent works and what it needs. Save it, {persistentOnly ? "" : "install it here, "}or submit it when this is what you want; every other choice is in the form.
+      </p>
 
       <Card>
         <strong>How it works</strong>
@@ -154,6 +209,8 @@ export function SummaryView({
         )}
       </Card>
 
+      {s.persistent && <PersistentCard p={s.persistent} />}
+
       {check && <p className={`small ${check.tone === "review" ? "build-summary-unnamed" : "muted"}`}>{check.text}</p>}
 
       {problem && (
@@ -172,22 +229,23 @@ export function SummaryView({
 
       <div className="row" style={{ marginTop: 12 }}>
         <Button disabled={!ready} onClick={onSave}>{busy === "save" ? "Saving…" : "Save"}</Button>
-        <Button disabled={!ready || !!problem} onClick={onInstall}>{busy === "install" ? "Installing…" : "Install"}</Button>
+        {!persistentOnly && <Button disabled={!ready || !!problem} onClick={onInstall}>{busy === "install" ? "Installing…" : "Install"}</Button>}
         <Button variant="primary" disabled={!ready || !!problem || !!publicProblem} onClick={onSubmit}>{busy === "submit" ? "Submitting…" : "Submit"}</Button>
       </div>
       <ul className="muted small build-summary-actions">
         <li>
           <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : <>a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder)</>}.
         </li>
-        <li>
+        {!persistentOnly && <li>
           <strong>Install</strong> saves it there too, then puts it on this computer only, in your Library: private, unsigned, with no
           registry and no credit. Every run asks you to accept that it is unsigned.
-        </li>
+        </li>}
         <li>
           <strong>Submit</strong> saves it there too, then sends it to <RevealText text={registry.replace(/^https?:\/\//, "")} /> for the security pipeline and
           makes it <strong>public</strong> (one that already exists private stays private). It first says what the submission
           costs, and sends nothing until you agree.
         </li>
+        {s.persistent && <li>{persistentActionNote(persistentOnly)}</li>}
       </ul>
       <ReviewAction onReview={onReview} busy={busy === "review"} disabled={!ready} onOpenSettings={onOpenReviewKey} />
       {outcome}

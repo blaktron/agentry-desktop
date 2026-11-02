@@ -40,6 +40,46 @@ type Summary struct {
 	// AnyUnnamed says whether anything it reaches is a host the draft's
 	// description did not name.
 	AnyUnnamed bool `json:"anyUnnamed"`
+	// Persistent is what an agent that stays running adds to the page: what
+	// it may do, its persona's name and its subagents. Nil for a QuickAgent
+	// that does not support the persistent mode.
+	Persistent *SummaryPersistent `json:"persistent,omitempty"`
+}
+
+// SummaryPersistent is the part of the summary an agent that stays running
+// has. It is read from the model alone, and only what the manifest
+// declares is listed.
+type SummaryPersistent struct {
+	// Only says the agent runs in the persistent mode alone: no run of it is
+	// offered, and it is installed as a persistent agent.
+	Only bool `json:"only"`
+	// Capabilities are the keys of capabilities.persistent the agent
+	// declares, in the core's order and words.
+	Capabilities []SummaryCapability `json:"capabilities"`
+	// PersonaName is the persona's name, or "" for an agent with none.
+	PersonaName string `json:"personaName"`
+	// Subagents are the QuickAgents it may start as runs of their own.
+	Subagents []SummarySubagent `json:"subagents"`
+}
+
+// SummaryCapability is one declared key of capabilities.persistent.
+type SummaryCapability struct {
+	Key string `json:"key"`
+	// Words say what the key gives the agent, in the words the install
+	// consent uses.
+	Words string `json:"words"`
+	// Names are the names a list key declares (the stored secrets, the mail
+	// providers, the image servers); empty for a plain switch.
+	Names []string `json:"names"`
+}
+
+// SummarySubagent is one subagent a persistent agent declares.
+type SummarySubagent struct {
+	Ref string `json:"ref"`
+	// Version is the semver constraint on the subagent's version.
+	Version string `json:"version"`
+	// Why is the reason the agent gives for it, shown when the person agrees.
+	Why string `json:"why"`
 }
 
 // SummaryKey is one key the QuickAgent or a server of it needs.
@@ -147,6 +187,9 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	}
 	s := &Summary{Name: m.Name, Summary: m.Summary, Overview: m.Guide.Overview,
 		Keys: []SummaryKey{}, Websites: []SummaryHost{}, Servers: []SummaryServer{}, Grants: []string{}, Knowledge: []string{}}
+	if m.IsPersistent() {
+		s.Persistent = m.summarizePersistent()
+	}
 	host := func(h string) SummaryHost {
 		sh := SummaryHost{Host: h, Unnamed: marked[strings.ToLower(h)]}
 		s.AnyUnnamed = s.AnyUnnamed || sh.Unnamed
@@ -281,4 +324,33 @@ func (m *Model) keyHelp(name string) string {
 		}
 	}
 	return ""
+}
+
+// summarizePersistent is the persistent agent's part of the summary.
+func (m *Model) summarizePersistent() *SummaryPersistent {
+	out := &SummaryPersistent{Only: m.PersistentOnly(), Capabilities: []SummaryCapability{}, Subagents: []SummarySubagent{}}
+	if p := m.Persistent; p != nil {
+		for _, c := range manifest.PersistentCapabilities() {
+			if !p.Declares(c.Key) {
+				continue
+			}
+			var names []string
+			switch c.Key {
+			case "secrets":
+				names = p.Secrets
+			case "mail":
+				names = p.Mail
+			case "imageServers":
+				names = p.ImageServers
+			}
+			out.Capabilities = append(out.Capabilities, SummaryCapability{Key: c.Key, Words: c.Words, Names: compact(names)})
+		}
+	}
+	if p := m.Persona; p != nil {
+		out.PersonaName = strings.TrimSpace(p.Name)
+	}
+	for _, d := range m.Dependencies {
+		out.Subagents = append(out.Subagents, SummarySubagent{Ref: strings.TrimSpace(d.Ref), Version: strings.TrimSpace(d.Version), Why: strings.TrimSpace(d.Why)})
+	}
+	return out
 }

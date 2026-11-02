@@ -588,7 +588,7 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenLibrary={() => nav({ page: "library" })} />
+              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenLibrary={() => nav({ page: "library" })} onOpenPersistentAgent={(id) => nav({ page: "persistent", id })} />
             )}
             {route.page === "validate" && <Validate registry={registry} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} />}
             {route.page === "settings" && (
