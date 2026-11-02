@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.4",
+      "highlights": [
+        "Set up a Linux server of yours as a remote runhost from the first-run wizard or Settings → Runhosts.",
+        "A QuickAgent can run on your runhost: choose it in the run's setup, and the result says where it ran.",
+        "Sign a runhost in to your Claude, ChatGPT or Copilot plan from your browser, and turn its Unsafe Mode on or off."
+      ]
+    },
+    {
       "version": "0.7.3",
       "highlights": [
         "The Assistant and the Coding agent start again with Brave Search or Fastmail on; 0.7.2 refused them."
