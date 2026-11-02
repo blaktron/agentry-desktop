@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.2",
+      "highlights": [
+        "Setup now says what it is preparing, and the Claude sign-in shows each step instead of waiting in the browser.",
+        "Claude Code and Codex are built from their newest releases, checked against each vendor's signature.",
+        "Runs on this computer get 30 minutes and no turn limit by default; set limits in Settings, Run defaults.",
+        "Build makes an agent that stays running, and installs it here as a persistent agent once it passes."
+      ]
+    },
+    {
       "version": "0.7.1",
       "highlights": [
         "Install a persistent agent from its page in Browse, with one consent that names everything it is given.",

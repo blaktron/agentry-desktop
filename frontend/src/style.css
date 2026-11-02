@@ -346,6 +346,7 @@ h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
 h2 { font-size: 15px; font-weight: 650; margin: 22px 0 8px; }
 h3 { font-size: 13.5px; font-weight: 650; margin: 14px 0 6px; }
 .page-sub { color: var(--color-muted); margin: 0 0 18px; }
+.page-sub .wizard-lead { display: block; color: var(--color-fg); margin-bottom: 6px; }
 
 .card {
   border: 1px solid var(--color-border);

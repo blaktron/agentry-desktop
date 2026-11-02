@@ -25,7 +25,17 @@ const (
 	signInURLEvent = "signin:url"
 	// signInCodeEvent is GitHub's device code and the page to enter it on.
 	signInCodeEvent = "signin:code"
+	// signInStepEvent is the step a sign-in is on (SignInStepView).
+	signInStepEvent = "signin:step"
 )
+
+// SignInStepView is the step a sign-in is on, and the sentence that says
+// it.
+type SignInStepView struct {
+	Vendor string `json:"vendor"`
+	Step   string `json:"step"`
+	Line   string `json:"line"`
+}
 
 // SignInSayView is one line a sign-in says.
 type SignInSayView struct {
@@ -66,6 +76,9 @@ func (r *RunAPI) signInUI(vendor string) run.SignInUI {
 		},
 		Code: func(page, code string) {
 			emitEvent(r.app, signInCodeEvent, SignInCodeView{Vendor: vendor, Page: page, Code: code})
+		},
+		Step: func(step, line string) {
+			emitEvent(r.app, signInStepEvent, SignInStepView{Vendor: vendor, Step: step, Line: line})
 		},
 	}
 }

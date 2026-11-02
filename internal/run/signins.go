@@ -107,6 +107,10 @@ type SignInUI struct {
 	Say  func(line string)
 	Open func(url string)
 	Code func(page, code string)
+	// Step is told each step of a sign-in that has steps before the
+	// browser (the Claude sign-in prepares Claude Code first): its name
+	// and the sentence that says it.
+	Step func(step, line string)
 }
 
 func (ui SignInUI) say(line string) {
@@ -263,7 +267,12 @@ func SignInClaude(ctx context.Context, ui SignInUI, logw io.Writer) (*SignedIn, 
 		return nil, err
 	}
 	out := io.MultiWriter(logw, &sayWriter{ui: ui})
-	rec, err := claude(home).Run(ctx, claudesignin.Person{Out: out, Open: ui.open}, false)
+	step := func(s claudesignin.Step, detail string) {
+		if ui.Step != nil {
+			ui.Step(string(s), s.Sentence(detail))
+		}
+	}
+	rec, err := claude(home).Run(ctx, claudesignin.Person{Out: out, Open: ui.open, Step: step}, false)
 	if err != nil {
 		return nil, err
 	}

@@ -45,6 +45,8 @@ const (
 var draftJSONFields = map[string]bool{
 	"manifest": true, "instructions": true, "notes": true, "matches": true, "sources": true, "openQuestions": true,
 	"drafter": true, "aiReview": true, "validation": true, "manifestError": true,
+	// A persistent agent's persona text, the file its persona names.
+	"personaText": true,
 	// The person's packs the Drafter read.
 	"knowledge": true,
 	// The release a revision drafted the next version of:
@@ -138,7 +140,18 @@ func Decode(raw []byte, namespace string, ships ...build.ShipSource) (*drafter.D
 	if err := holdDraft(&d); err != nil {
 		return nil, nil, nil, err
 	}
+	var persona string
+	if v, ok := top["personaText"]; ok && string(v) != "null" {
+		if err := json.Unmarshal(v, &persona); err != nil {
+			return nil, nil, nil, fmt.Errorf("draft.json's personaText is not text: %w", err)
+		}
+	}
 	model, more, err := build.FromDraft(d.Manifest, d.Instructions, namespace, ships...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	notes = append(notes, more...)
+	more, err = model.SetPersonaText(persona)
 	if err != nil {
 		return nil, nil, nil, err
 	}

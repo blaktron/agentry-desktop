@@ -279,3 +279,19 @@ func TestAPlainInstallOfAPersistentAgentsReleaseIsRefused(t *testing.T) {
 	}
 
 }
+
+// A contract that declares no filesystem access says nothing about files in
+// the consent: "none" is not something the release may do.
+func TestTheConsentNamesNoFilesystemDeclaredAsNone(t *testing.T) {
+	plan := &install.Plan{Version: "1.0.0", NeedsCapabilityConfirm: true}
+	plan.Capabilities.FSRead, plan.Capabilities.FSWrite = "none", "none"
+	for _, l := range declaredLines(plan) {
+		if strings.Contains(l, "filesystem") {
+			t.Fatalf("a filesystem of none is listed: %q", l)
+		}
+	}
+	plan.Capabilities.FSRead = "workspace"
+	if got := declaredLines(plan); len(got) != 1 || !strings.HasPrefix(got[0], "filesystem read: workspace") {
+		t.Fatalf("a declared read: %q", got)
+	}
+}

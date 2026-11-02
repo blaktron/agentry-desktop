@@ -130,8 +130,19 @@ type Model struct {
 	KnowledgeShips    []string     `json:"knowledgeShips"`
 	Ships             []ShipSource `json:"ships"`
 
-	// Dependencies are dependencies.agents.
+	// Dependencies are dependencies.agents: for an agent that supports the
+	// persistent mode, its subagents.
 	Dependencies []DependencyRow `json:"dependencies"`
+
+	// Persona, Persistent and PersonaText are a persistent agent's own: the
+	// persona's name and file (persona), what it may do beyond an ordinary
+	// run (capabilities.persistent) and the persona's text, the file the
+	// persona names. The form has no editor for them and carries them
+	// unchanged from a draft or a load to the next save, as it does the
+	// browser block; nil is an ordinary QuickAgent.
+	Persona     *manifest.Persona    `json:"persona,omitempty"`
+	Persistent  *manifest.Persistent `json:"persistent,omitempty"`
+	PersonaText string               `json:"personaText,omitempty"`
 	// PublishChannel is publish.channel (stable when empty).
 	PublishChannel string `json:"publishChannel"`
 	// PublishInclude is publish.include as loaded; empty means the four
@@ -293,6 +304,9 @@ func (r MCPServerRow) Hosts() []string {
 type DependencyRow struct {
 	Ref     string `json:"ref"`
 	Version string `json:"version"`
+	// Why is the reason a persistent agent gives for the subagent, shown
+	// when the person agrees to it.
+	Why string `json:"why,omitempty"`
 }
 
 // defaultInstructionFile is the manifest's default entrypoints.instruction.
@@ -322,7 +336,10 @@ var (
 	channelWords    = map[string]bool{"": true, "stable": true, "beta": true}
 )
 
-func validMode(s string) bool { return s == "autonomous" || s == "interactive" }
+func validMode(s string) bool { return s == "autonomous" || s == "interactive" || s == modePersistent }
+
+// modePersistent is the run mode of an agent that stays running.
+const modePersistent = string(manifest.ModePersistent)
 
 // Default returns a fresh form model with the scaffold's defaults.
 func Default(namespace string) *Model {
@@ -377,12 +394,12 @@ func (m *Model) formProblems() []SectionProblem {
 	}
 	modes := compact(m.Modes)
 	if len(modes) == 0 {
-		add(SectionBasics, "choose at least one run mode (autonomous, interactive)")
+		add(SectionBasics, "choose at least one run mode (autonomous, interactive, persistent)")
 	}
 	seenMode := map[string]bool{}
 	for _, mode := range modes {
 		if !validMode(mode) {
-			add(SectionBasics, "unknown run mode %q (want autonomous or interactive)", mode)
+			add(SectionBasics, "unknown run mode %q (want autonomous, interactive or persistent)", mode)
 		}
 		if seenMode[mode] {
 			add(SectionBasics, "run mode %s is listed twice", mode)
@@ -404,6 +421,18 @@ func (m *Model) formProblems() []SectionProblem {
 	}
 	if len(m.Instructions) > maxInstructionBytes {
 		add(SectionInstructions, "the instructions are at most 1 MiB (the registry's instruction-file quota)")
+	}
+	if m.Persona != nil {
+		switch f := m.personaFile(); {
+		case !draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md") || f == m.instructionFile():
+			add(SectionInstructions, "the persona's file must be one Markdown file at the workspace root, other than the instructions and the README")
+		case strings.TrimSpace(m.PersonaText) == "":
+			add(SectionInstructions, "the persona's text is empty: %s must hold what the agent takes on", f)
+		case len(m.PersonaText) > manifest.MaxPersonaFileBytes:
+			add(SectionInstructions, "the persona's text is at most %d KiB", manifest.MaxPersonaFileBytes>>10)
+		case !utf8.ValidString(m.PersonaText):
+			add(SectionInstructions, "the persona's text is not text (UTF-8)")
+		}
 	}
 
 	if m.EgressMode == "hosts" && len(compact(m.EgressHosts)) == 0 {
@@ -748,7 +777,7 @@ func sectionOf(path string) Section {
 	switch head {
 	case "name", "summary", "modes", "kind", "schemaVersion", "interactive":
 		return SectionBasics
-	case "entrypoints":
+	case "entrypoints", "persona":
 		return SectionInstructions
 	case "intake":
 		return SectionQuestions
@@ -834,6 +863,79 @@ func (m *Model) publishingRest() []string {
 
 func (m *Model) entrypointLines() []string {
 	return []string{"entrypoints:", "  instruction: " + q(m.instructionFile())}
+}
+
+// personaFile is the file the persona's text is saved to: the one the
+// persona names, or the core's default.
+func (m *Model) personaFile() string {
+	if m.Persona == nil {
+		return ""
+	}
+	if f := strings.TrimSpace(m.Persona.File); f != "" {
+		return f
+	}
+	return manifest.DefaultPersonaFile
+}
+
+// IsPersistent says the model supports the persistent mode: an agent that
+// stays running.
+func (m *Model) IsPersistent() bool { return slices.Contains(compact(m.Modes), modePersistent) }
+
+// PersistentOnly says the model runs in the persistent mode alone, so no
+// run of it is offered.
+func (m *Model) PersistentOnly() bool {
+	modes := compact(m.Modes)
+	return len(modes) == 1 && modes[0] == modePersistent
+}
+
+// personaLines is the persona block: the agent's name, the file its text is
+// in when that is not the default, and whether the person may replace it.
+func (m *Model) personaLines() []string {
+	p := m.Persona
+	if p == nil {
+		return nil
+	}
+	out := []string{"persona:", "  name: " + q(strings.TrimSpace(p.Name))}
+	if f := strings.TrimSpace(p.File); f != "" {
+		out = append(out, "  file: "+q(f))
+	}
+	if p.Editable != nil {
+		out = append(out, fmt.Sprintf("  editable: %t", *p.Editable))
+	}
+	return out
+}
+
+// persistentLines is capabilities.persistent, indented into the capabilities
+// block: only the keys the model declares, in the core's order.
+func (m *Model) persistentLines() []string {
+	p := m.Persistent
+	if p == nil {
+		return nil
+	}
+	keys := p.Keys()
+	if len(keys) == 0 {
+		return []string{"  persistent: {}"}
+	}
+	list := func(key string) string {
+		switch key {
+		case "secrets":
+			return seq(compact(p.Secrets))
+		case "mail":
+			return seq(compact(p.Mail))
+		default:
+			return seq(compact(p.ImageServers))
+		}
+	}
+	out := []string{"  persistent:"}
+	for _, k := range keys {
+		switch k {
+		case "secrets", "mail", "imageServers":
+			out = append(out, "    "+k+": "+list(k))
+		default:
+			out = append(out, "    "+k+": true")
+		}
+	}
+	return out
 }
 
 func (m *Model) interactiveLines() []string {
@@ -1155,6 +1257,9 @@ func (m *Model) dependencyLines() []string {
 		if v := strings.TrimSpace(d.Version); v != "" {
 			out = append(out, "      version: "+q(v))
 		}
+		if w := strings.TrimSpace(d.Why); w != "" {
+			out = append(out, "      why: "+q(w))
+		}
 	}
 	return out
 }
@@ -1178,11 +1283,11 @@ func (m *Model) fragment(sec Section) string {
 	case SectionBasics:
 		lines = append(m.identityLines(), m.interactiveLines()...)
 	case SectionInstructions:
-		lines = m.entrypointLines()
+		lines = append(m.entrypointLines(), m.personaLines()...)
 	case SectionTools:
 		lines = append(append([]string{"capabilities:"}, m.networkLines()...), m.serverLines()...)
 	case SectionAccess:
-		lines = append([]string{"capabilities:"}, m.accessLines()...)
+		lines = append(append([]string{"capabilities:"}, m.accessLines()...), m.persistentLines()...)
 	case SectionQuestions:
 		lines = m.intakeLines()
 	case SectionGuide:
@@ -1211,6 +1316,7 @@ func (m *Model) manifestYAML() string {
 	out = append(out, `schemaVersion: "2"`, m.nameLine(), m.namespaceLine(), m.modesLine(), m.versionLine(), m.summaryLine())
 	out = append(out, m.publishingRest()...)
 	block(m.entrypointLines())
+	block(m.personaLines())
 	block(m.intakeLines())
 	block(m.inputsLines())
 	block(m.guideLines())
@@ -1220,6 +1326,7 @@ func (m *Model) manifestYAML() string {
 	caps = append(caps, m.accessLines()...)
 	caps = append(caps, m.serverLines()...)
 	caps = append(caps, m.reachLines()...)
+	caps = append(caps, m.persistentLines()...)
 	block(append(caps, m.optionalLines()...))
 	block(m.knowledgeLines())
 	block(m.dependencyLines())
@@ -1300,6 +1407,15 @@ func Save(dir string, m *Model) error {
 	if err := os.WriteFile(filepath.Join(dir, entry), []byte(instructions), 0o644); err != nil { //nolint:gosec
 		return err
 	}
+	if m.Persona != nil {
+		persona := m.PersonaText
+		if !strings.HasSuffix(persona, "\n") {
+			persona += "\n"
+		}
+		if err := os.WriteFile(filepath.Join(dir, m.personaFile()), []byte(persona), 0o644); err != nil { //nolint:gosec
+			return err
+		}
+	}
 	onlyIfAbsent := map[string]string{
 		"README.md":  fmt.Sprintf("# %s\n\n%s\n", m.Name, m.Summary),
 		"LICENSE":    licenseFile(m.License, m.Namespace),
@@ -1355,7 +1471,26 @@ func Load(dir string) (*Model, error) {
 			m.Instructions = string(b)
 		}
 	}
+	// The persona's text is read the same way: a plain Markdown file in the
+	// picked folder, and nothing outside it.
+	if f := m.personaFile(); f != "" && draftInstructionRE.MatchString(f) {
+		if b, rerr := readBounded(filepath.Join(dir, f), manifest.MaxPersonaFileBytes); rerr == nil && utf8.Valid(b) {
+			m.PersonaText = string(b)
+		}
+	}
 	return m, nil
+}
+
+// readBounded reads a regular file of at most max bytes.
+func readBounded(path string, max int) ([]byte, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() || fi.Size() > int64(max) {
+		return nil, fmt.Errorf("%s is not a regular file of at most %d bytes", filepath.Base(path), max)
+	}
+	return os.ReadFile(path) //nolint:gosec // user-picked workspace
 }
 
 // CheckArgs refuses a package server's args the core would refuse, naming
@@ -1478,6 +1613,11 @@ func decodeManifest(raw []byte) (*Model, error) {
 			Models     []string `yaml:"models"`
 			Interfaces []string `yaml:"interfaces"`
 		} `yaml:"runtime"`
+		Persona *struct {
+			Name     string `yaml:"name"`
+			File     string `yaml:"file"`
+			Editable *bool  `yaml:"editable"`
+		} `yaml:"persona"`
 		Summary      string   `yaml:"summary"`
 		License      string   `yaml:"license"`
 		Homepage     string   `yaml:"homepage"`
@@ -1500,7 +1640,8 @@ func decodeManifest(raw []byte) (*Model, error) {
 				Scope   string   `yaml:"scope"`
 				Secrets []string `yaml:"secrets"`
 			} `yaml:"browser"`
-			DataAccess []string `yaml:"dataAccess"`
+			DataAccess []string             `yaml:"dataAccess"`
+			Persistent *manifest.Persistent `yaml:"persistent"`
 			MCPServers []struct {
 				NPM     string            `yaml:"npm"`
 				PyPI    string            `yaml:"pypi"`
@@ -1537,6 +1678,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 			Agents []struct {
 				Ref     string `yaml:"ref"`
 				Version string `yaml:"version"`
+				Why     string `yaml:"why"`
 			} `yaml:"agents"`
 		} `yaml:"dependencies"`
 		Publish struct {
@@ -1599,6 +1741,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 	m.FSWrite, m.FSWritePaths = decodeFS(doc.Capabilities.Filesystem.Write)
 	m.ExecCommands = decodeExec(doc.Capabilities.Exec)
 	m.TargetHosts = orEmpty(doc.Capabilities.TargetHosts)
+	m.Persistent = doc.Capabilities.Persistent
+	if p := doc.Persona; p != nil {
+		m.Persona = &manifest.Persona{Name: p.Name, File: p.File, Editable: p.Editable}
+	}
 	if b := doc.Capabilities.Browser; b != nil {
 		m.Browser = &BrowserRow{Sites: orEmpty(b.Sites), Hosts: orEmpty(b.Hosts), Scope: b.Scope, Secrets: orEmpty(b.Secrets)}
 	}
@@ -1648,7 +1794,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 		m.KnowledgeShips = append(m.KnowledgeShips, sh.Name)
 	}
 	for _, d := range doc.Dependencies.Agents {
-		m.Dependencies = append(m.Dependencies, DependencyRow{Ref: d.Ref, Version: d.Version})
+		m.Dependencies = append(m.Dependencies, DependencyRow{Ref: d.Ref, Version: d.Version, Why: d.Why})
 	}
 	m.PublishInclude, m.PublishChannel = orEmpty(doc.Publish.Include), doc.Publish.Channel
 	return m, nil
