@@ -36,7 +36,9 @@ import "../src/themes.css";
 // clicks Save; #3-preparing an image pull that never
 // ends in the harness, #3-prepared one that ends, #3-prepare-refused one the
 // backend refuses — the shot script clicks Prepare images now and shoots the
-// step holding, then releasing, its Continue and Back.
+// step holding, then releasing, its Continue and Back. #3-claudesteps is a
+// Claude sign-in that says it is checking, then building, the Claude Code
+// image and never reaches the browser.
 const suffix = (location.hash.match(/-(\w+)$/) || [])[1] || "";
 const modelsFail = suffix === "nomodels";
 const subscription = suffix === "subscription";
@@ -259,7 +261,13 @@ g.go = { app: {
       { id: "gpt-5-mini", name: "GPT-5 mini", multiplier: 0 },
     ],
     SignInChatGPT: async () => new Promise(() => {}),
-    SignInClaude: async () => ({ signedIn: { vendor: "claude", account: "you@example.com", models: [] } }),
+    SignInClaude: async () => {
+      if (suffix !== "claudesteps") return { signedIn: { vendor: "claude", account: "you@example.com", models: [] } };
+      const say = (step: string, line: string) => (handlers["signin:step"] ?? []).forEach((h) => h({ vendor: "claude", step, line }));
+      setTimeout(() => say("image", "Checking the Claude Code image…"), 20);
+      setTimeout(() => say("build", "Building the Claude Code 2.1.316 image on this computer — the download and build take a few minutes…"), 60);
+      return new Promise(() => {});
+    },
     SignInCopilot: async () => {
       setTimeout(() => (handlers["signin:code"] ?? []).forEach((h) => h({ vendor: "copilot", page: "https://github.com/login/device", code: "WDJB-MJHT" })), 50);
       return new Promise(() => {});
