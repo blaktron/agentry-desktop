@@ -23,6 +23,7 @@ import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-deskto
 import * as VoiceAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/voiceapi";
 import * as ScheduleAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/scheduleapi";
 import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
+import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { ChooseDirectory, ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
@@ -142,6 +143,10 @@ export default function RunPanel({
   // The hosts this computer's runs reached, newest first: addresses only.
   const [recentHosts, setRecentHosts] = useState<string[]>([]);
   const [mode, setMode] = useState(f0?.mode ?? "");
+  // The person's remote runhosts, each a place this run may go to.
+  const [runhosts, setRunhosts] = useState<app.RunhostView[]>([]);
+  useEffect(() => { Promise.resolve().then(() => RunhostsAPI.List()).then(setRunhosts).catch(() => setRunhosts([])); }, []);
+  const onRunhost = mode.startsWith("runhost:") ? mode.slice("runhost:".length) : "";
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
   // file intake question may pick one of these (Details), and a
@@ -470,6 +475,12 @@ export default function RunPanel({
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
     if (modeChosen.current || initialMode || !profile) return;
+    // A runhost made the default (Settings → Runhosts) is where an
+    // autonomous run starts, when it is still paired.
+    if (defaults?.runhost && runhosts.some((r) => r.name === defaults.runhost) && (profile.modes ?? []).includes("autonomous")) {
+      if (mode !== "runhost:" + defaults.runhost) setMode("runhost:" + defaults.runhost);
+      return;
+    }
     const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
     if (allowed && !inAgentry) {
       byDefault.current = true;
@@ -478,7 +489,7 @@ export default function RunPanel({
       byDefault.current = false;
       setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
     }
-  }, [defaults, hosted, unscanned, profile, initialMode, mode]);
+  }, [defaults, hosted, unscanned, profile, initialMode, mode, runhosts]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
   // The run and the chat the app follows above the pages: the registry runs
   // one per account and this app follows one at a time, so while one In
@@ -1051,6 +1062,10 @@ export default function RunPanel({
       startLocalSession();
       return;
     }
+    if (onRunhost) {
+      await runOnRunhost(onRunhost);
+      return;
+    }
     setRunning(true);
     setRunErr(null);
     const { timeout: t, turns: mt } = limits();
@@ -1074,14 +1089,35 @@ export default function RunPanel({
     }
   }
 
+  // A run on one of the person's runhosts: the same run flow as a run here,
+  // its narration the runhost's, and its result naming where it ran.
+  async function runOnRunhost(rhName: string) {
+    setRunning(true);
+    setRunErr(null);
+    const { timeout: t, turns: mt } = limits();
+    const form = currentForm();
+    try {
+      await startLocalRun(
+        { panel: { registry, ns, name, version, summary, attestation, local }, form },
+        agentRef,
+        () => RunAPI.RunOnRunhost(rhName, registry, agentRef, task, inputs, outDir.trim(), t, mt, unsigned && acceptUnsigned, intakeAnswers(), unscanned && acceptUnscanned),
+      );
+      onClose();
+    } catch (e) {
+      setRunErr(String(e));
+    } finally {
+      setRunning(false);
+    }
+  }
+
   const runLabel = scheduling
     ? running ? "Scheduling…" : "Schedule"
     : sessionInAgentry
     ? starting ? "Starting…" : "Start session In Agentry"
     : inAgentry
     ? starting ? "Starting…" : "Run In Agentry"
-    : running ? "Starting…" : mode === "interactive" ? "Start session" : "Run";
-  const modeWord = sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
+    : running ? "Starting…" : mode === "interactive" ? "Start session" : onRunhost ? `Run on ${onRunhost}` : "Run";
+  const modeWord = onRunhost ? `on ${onRunhost}, your remote runhost, autonomously` : sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
   const answered = (profile?.intake ?? []).filter((q) => q.type !== "secret");
   const secretRefused = hostedRefusal ? secretAnswerRefusal(hostedRefusal, profile?.intake) : null;
 
@@ -1144,6 +1180,15 @@ export default function RunPanel({
                         </span>
                       </label>
                     ))}
+                    {(profile.modes ?? []).includes("autonomous") && runhosts.map((rh) => (
+                      <label key={rh.name} className="check-row" style={{ margin: 0 }} data-run-on={rh.name}>
+                        <input type="radio" name="run-mode" checked={onRunhost === rh.name} onChange={() => chooseMode("runhost:" + rh.name)} disabled={running} />
+                        <span>
+                          <strong>{rh.name}</strong>{" "}
+                          <span className="muted">— on your server {rh.host}, autonomously, under gVisor; its output comes back here</span>
+                        </span>
+                      </label>
+                    ))}
                     {hosted?.offered && (
                       <label className="check-row" style={{ margin: 0 }}>
                         <input
@@ -1177,7 +1222,14 @@ export default function RunPanel({
                       Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
                     </p>
                   )}
-                  {fallback && !inAgentry && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
+                  {fallback && !inAgentry && !onRunhost && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
+                  {onRunhost && (
+                    <p className="muted small" style={{ margin: "4px 0" }} data-runhost-note>
+                      On {onRunhost} the run gets its task, your files, your answers and its secrets, sent for this run alone and
+                      deleted there when it ends. Knowledge packs, your Writing Voice and destinations go with runs on this
+                      computer; <span className="mono">agentry run --on {onRunhost}</span> in a terminal carries them too.
+                    </p>
+                  )}
                   {hosted && <HostedUnavailable hosted={hosted} />}
                   {hosted && <SessionUnavailable registry={registry} hosted={hosted} />}
                   {sessionInAgentry && hosted && (

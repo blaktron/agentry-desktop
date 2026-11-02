@@ -396,6 +396,38 @@ export class OwnClientGuide {
 }
 
 /**
+ * RanOn is the runhost a run ran on, for its result.
+ */
+export class RanOn {
+    "name": string;
+    "host": string;
+    "fingerprint": string;
+
+    /** Creates a new RanOn instance. */
+    constructor($$source: Partial<RanOn> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("host" in $$source)) {
+            this["host"] = "";
+        }
+        if (!("fingerprint" in $$source)) {
+            this["fingerprint"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RanOn instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RanOn {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RanOn($$parsedSource as Partial<RanOn>);
+    }
+}
+
+/**
  * ReleaseConnections is a release's servers that sign in by OAuth.
  */
 export class ReleaseConnections {

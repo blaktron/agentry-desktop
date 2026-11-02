@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runhost"
 	rhsetup "github.com/blaktron/agentry-cli/pkg/runhost/setup"
 
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/selfupdate"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -136,5 +138,31 @@ func TestUnsafeModeOnAsksFirst(t *testing.T) {
 	}
 	if !strings.Contains(asked, "Unsafe Mode") {
 		t.Fatalf("the person was asked %q", asked)
+	}
+}
+
+// A run on a runhost goes through the run lock and the run log as a local
+// run does, and its result names the runhost it ran on.
+func TestARunOnARunhostSaysWhereItRan(t *testing.T) {
+	r, _ := newRunhostsAPI(t)
+	var got run.RunhostRequest
+	r.run.runhostRun = func(_ context.Context, req run.RunhostRequest, _ io.Writer) (*run.Result, *run.RanOn, error) {
+		got = req
+		req.Say("harness: working")
+		return &run.Result{Status: "ok", RunID: "r1", Ref: req.Ref}, &run.RanOn{Name: req.Runhost, Host: "10.0.0.5", Fingerprint: "ED25519 SHA256:x"}, nil
+	}
+	v, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "the task", nil, "", 0, -1, false, map[string]string{"topic": "birds"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.RanOn == nil || v.RanOn.Name != "lab" || v.RanOn.Fingerprint != "ED25519 SHA256:x" || v.Status != "ok" {
+		t.Fatalf("result %+v %+v", v, v.RanOn)
+	}
+	if got.Runhost != "lab" || got.Task != "the task" || got.Intake["topic"] != "birds" {
+		t.Fatalf("request %+v", got)
+	}
+	// The run lock is free again.
+	if _, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "", nil, "", 0, -1, false, nil, false); err != nil {
+		t.Fatalf("a second run: %v", err)
 	}
 }

@@ -121,8 +121,10 @@ type RunAPI struct {
 	// (setUnsafeLive, endRun). Taken before liveMu.
 	unsafeMu sync.Mutex
 	// Engine seams for tests; nil means internal/run.
-	newRunID      func() (string, error)
-	engineRun     func(context.Context, run.Request, io.Writer) (*run.Result, error)
+	newRunID  func() (string, error)
+	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
+	// runhostRun stands in for run.RunOnRunhost in tests.
+	runhostRun    func(context.Context, run.RunhostRequest, io.Writer) (*run.Result, *run.RanOn, error)
 	engineSession func(context.Context, run.Request, io.Writer) (localSession, error)
 	sweep         func(context.Context, string) error
 	// runnerHomeDir is the runner home a test gives the app, "" for this
@@ -1010,21 +1012,23 @@ func (r *RunAPI) SaveProfile(reg, ref string, secrets map[string]string, keep bo
 // RunResultView is the §R8 envelope, flattened. It is returned for failed
 // runs too (status "error" + exit class) so the receipts stay reachable.
 type RunResultView struct {
-	Status       string  `json:"status"`
-	ExitCode     int     `json:"exitCode"`
-	Error        string  `json:"error,omitempty"`
-	RunID        string  `json:"runId"`
-	Ref          string  `json:"ref"`
-	Digest       string  `json:"digest"`
-	ResultJSON   string  `json:"resultJson"`
-	OutDir       string  `json:"outDir"`
-	ReceiptsDir  string  `json:"receiptsDir"`
-	RunPlanSHA   string  `json:"runPlanSha"`
-	InputTokens  int64   `json:"inputTokens"`
-	OutputTokens int64   `json:"outputTokens"`
-	CostUSD      float64 `json:"costUsd"`
-	WallMS       int64   `json:"wallMs"`
-	Turns        int     `json:"turns"`
+	// RanOn names the remote runhost the run ran on, nil for this computer.
+	RanOn        *run.RanOn `json:"ranOn,omitempty"`
+	Status       string     `json:"status"`
+	ExitCode     int        `json:"exitCode"`
+	Error        string     `json:"error,omitempty"`
+	RunID        string     `json:"runId"`
+	Ref          string     `json:"ref"`
+	Digest       string     `json:"digest"`
+	ResultJSON   string     `json:"resultJson"`
+	OutDir       string     `json:"outDir"`
+	ReceiptsDir  string     `json:"receiptsDir"`
+	RunPlanSHA   string     `json:"runPlanSha"`
+	InputTokens  int64      `json:"inputTokens"`
+	OutputTokens int64      `json:"outputTokens"`
+	CostUSD      float64    `json:"costUsd"`
+	WallMS       int64      `json:"wallMs"`
+	Turns        int        `json:"turns"`
 	// Credits is what a run paid with Agentry credits was charged
 	// (paidWithCredits), the registry's figure; both are absent for a run
 	// paid with a key or a sign-in, whose result names no credits.
