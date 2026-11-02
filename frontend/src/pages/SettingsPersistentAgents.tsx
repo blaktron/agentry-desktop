@@ -191,7 +191,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         </label>
         <p className="small muted">
           Agentry starts with its window hidden, and the agents set to run when Agentry starts run in the background. While
-          the Assistant or the Coding agent is on, closing the window keeps Agentry running; its icon opens the window or quits.
+          the Assistant, the Coding agent or an agent you installed is on, closing the window keeps Agentry running; its icon opens the window or quits.
         </p>
       </Card>
       <Card className="persistent-agent-card">

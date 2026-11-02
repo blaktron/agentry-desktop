@@ -1314,10 +1314,10 @@ func declaredLines(plan *install.Plan) []string {
 	if len(c.ExecCommands) > 0 {
 		lines = append(lines, "exec: "+strings.Join(c.ExecCommands, ", "))
 	}
-	if c.FSRead != "" {
+	if c.FSRead != "" && c.FSRead != "none" {
 		lines = append(lines, "filesystem read: "+c.FSRead+pathsNote(c.FSReadPaths))
 	}
-	if c.FSWrite != "" {
+	if c.FSWrite != "" && c.FSWrite != "none" {
 		lines = append(lines, "filesystem write: "+c.FSWrite+pathsNote(c.FSWritePaths))
 	}
 	if len(c.Secrets) > 0 {
