@@ -56,7 +56,7 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 	}
 	// Only an agent that keeps tasks has a page a click can open for them.
 	a, err := p.agent(name)
-	if err != nil || !a.Builtin.KeepsTime() {
+	if err != nil || !a.KeepsTime() {
 		return
 	}
 	title := task

@@ -125,7 +125,7 @@ func (p *PersistentAPI) ExportMemory(name string) (*PersistentExportView, error)
 	if err != nil {
 		return nil, err
 	}
-	if !a.Builtin.KeepsMemory() {
+	if !a.KeepsMemory() {
 		return nil, fmt.Errorf("the %s keeps no memory", a.Title)
 	}
 	parent, err := p.pickExportFolder()
@@ -223,7 +223,7 @@ func (p *PersistentAPI) SetAccount(name string, f PersistentAccountForm) (*Persi
 	if err != nil {
 		return nil, err
 	}
-	if !a.Builtin.Codes() {
+	if !a.Codes() {
 		return nil, fmt.Errorf("the %s has no git host accounts: the Coding agent alone is given them", a.Title)
 	}
 	home, err := p.home()

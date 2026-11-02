@@ -79,7 +79,7 @@ func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
 	for _, g := range cfg.Accounts {
 		hosts = append(hosts, offer.GitHost{Host: g.Host, Kind: string(g.Kind)})
 	}
-	for _, o := range a.Builtin.OfferedServers(hosts) {
+	for _, o := range a.OfferedServers(hosts) {
 		id := persistent.ServerEntryID(o.Server)
 		g := glyphFor(o.Name)
 		f.glyph[id] = g
@@ -87,7 +87,7 @@ func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
 		f.secret[id], f.account[id] = o.Secret, o.Account
 		f.fastmail[id] = o.MailProvider == assistant.MailFastmail
 	}
-	for _, s := range a.Builtin.ImageServers(policy.Images{}) {
+	for _, s := range a.ImageServers(policy.Images{}) {
 		id := persistent.ImageServerEntryID(s.Key)
 		f.glyph[id] = glyphFor(s.Name)
 		f.google[id] = s.Key == assistant.GogKey
@@ -97,7 +97,7 @@ func factsOf(a persistent.Agent, cfg persistent.Config) cardFacts {
 			f.glyph[sw], f.google[sw], f.microsoft[sw] = f.glyph[id], f.google[id], f.microsoft[id]
 		}
 	}
-	for _, s := range a.Builtin.SuggestedServers() {
+	for _, s := range a.SuggestedServers() {
 		f.glyph[persistent.ServerEntryID(s.Server)] = glyphFor(s.Key + " " + s.Name)
 	}
 	return f
@@ -317,7 +317,7 @@ func (p *PersistentAPI) SetSecret(name, secret, value string) (*PersistentAgentV
 	if err != nil {
 		return nil, err
 	}
-	if !a.Builtin.KeepsSecrets() {
+	if !a.KeepsSecrets() {
 		return nil, fmt.Errorf("the %s keeps no secrets", a.Title)
 	}
 	if err := persistent.CheckSecretName(secret); err != nil {

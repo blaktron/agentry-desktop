@@ -57,9 +57,10 @@ const (
 	agentElsewhere = "elsewhere"
 )
 
-// shownAgents are the persistent agents the app offers, in their order:
-// Main, whose place is its Home card, then the Assistant and the Coding
-// agent.
+// shownAgents are the built-in persistent agents the app offers, in their
+// order: Main, whose place is its Home card, then the Assistant and the
+// Coding agent. The agents installed in the runner home follow them
+// (shownNames).
 var shownAgents = []string{mainAgent, assistantAgent, coderAgent}
 
 // coderAgent is the Coding agent's name, its built-in's.
@@ -101,6 +102,9 @@ type PersistentAPI struct {
 	// docker is the engine client a reset removes the volumes through; nil
 	// is the docker CLI.
 	docker dockerx.Client
+	// ops are the app's own operations an agent's helper tools and subagent
+	// runs reach (services_persistent_helper.go); nil gives an agent neither.
+	ops mainOps
 	// links answer Agentry Helper's tools for each agent whose app link
 	// lists them, by its name; an agent without one has its calls of them
 	// answered as unanswered.
@@ -211,7 +215,7 @@ func (p *PersistentAPI) runningLabels() map[string]string {
 	}
 	p.mu.Unlock()
 	for _, name := range names {
-		a, err := persistent.Lookup(name)
+		a, err := p.agent(name)
 		if err != nil {
 			continue
 		}
@@ -492,13 +496,42 @@ type PersistentSwitch struct {
 
 func (p *PersistentAPI) home() (string, error) { return p.run.runnerHome() }
 
-// agent is a persistent agent the app offers.
+// agent is a persistent agent the app offers: a built-in of shownAgents,
+// or one installed in the runner home from the registry or a folder.
 func (p *PersistentAPI) agent(name string) (persistent.Agent, error) {
-	if !slices.Contains(shownAgents, name) {
+	if slices.Contains(shownAgents, name) {
+		return persistent.Lookup(name)
+	}
+	home, err := p.home()
+	if err != nil {
+		return persistent.Agent{}, err
+	}
+	a, err := persistent.LookupIn(home, name)
+	if err != nil || !a.Published() {
 		return persistent.Agent{}, fmt.Errorf("no persistent agent %q in this app", name)
 	}
-	return persistent.Lookup(name)
+	return a, nil
 }
+
+// shownNames are the persistent agents the app offers, in their order: the
+// built-ins of shownAgents, then each agent installed in the runner home,
+// by its name.
+func (p *PersistentAPI) shownNames() []string {
+	out := slices.Clone(shownAgents)
+	home, err := p.home()
+	if err != nil {
+		return out
+	}
+	for _, a := range persistent.AgentsIn(home) {
+		if a.Published() && !slices.Contains(out, a.Name) {
+			out = append(out, a.Name)
+		}
+	}
+	return out
+}
+
+// shows says the app offers the agent name.
+func (p *PersistentAPI) shows(name string) bool { return slices.Contains(p.shownNames(), name) }
 
 // List is every agent the app offers, as it stands. A Helper left enabled
 // beside the Assistant (by the CLI, or before the Assistant superseded it)
@@ -509,8 +542,9 @@ func (p *PersistentAPI) List() ([]PersistentAgentView, error) {
 			log.Printf("agentry-desktop: turning Agentry Helper off beside the Assistant: %v", err)
 		}
 	}
-	out := make([]PersistentAgentView, 0, len(shownAgents))
-	for _, name := range shownAgents {
+	names := p.shownNames()
+	out := make([]PersistentAgentView, 0, len(names))
+	for _, name := range names {
 		v, err := p.Get(name)
 		if err != nil {
 			return nil, err
@@ -537,7 +571,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v := &PersistentAgentView{
 		Name: a.Name, Title: a.Title, DisplayName: a.DisplayName(cfg), Personality: cfg.Personality,
 		DefaultShare: cfg.Share == "", Knowledge: append([]string{}, cfg.Knowledge...), Servers: []PersistentServerView{}, RunOnStart: cfg.RunOnStart,
-		Volumes: PersistentVolumesView{Session: persistent.SessionVolume(a.Name), Data: persistent.DataVolume(a.Name)},
+		Volumes: PersistentVolumesView{Session: persistent.SessionVolumeIn(home, a.Name), Data: persistent.DataVolumeIn(home, a.Name)},
 	}
 	v.Share, _ = persistent.ShareFolder(a, cfg)
 	if cfg.DevHost != nil {
@@ -585,8 +619,8 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.Roster = rosterView(roster, cfg.Servers, factsOf(a, cfg))
 	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
-	v.KeepsSecrets, v.TakesSkills = a.Builtin.KeepsSecrets(), !a.DesktopOnly
-	v.KeepsTime, v.KeepsMemory, v.Codes = a.Builtin.KeepsTime(), a.Builtin.KeepsMemory(), a.Builtin.Codes()
+	v.KeepsSecrets, v.TakesSkills = a.KeepsSecrets(), !a.DesktopOnly
+	v.KeepsTime, v.KeepsMemory, v.Codes = a.KeepsTime(), a.KeepsMemory(), a.Codes()
 	compaction, consolidation := persistent.LastUpkeep(home, a.Name)
 	v.LastCompaction = upkeepView(compaction)
 	if v.KeepsMemory {
@@ -597,7 +631,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	v.MailProviders = mailProviderViews(a, cfg)
 	v.Microsoft = microsoftView(a, cfg)
 	v.Fastmail = fastmailView(a, cfg)
-	v.ReadsCalendars, v.CalendarFeeds = a.Builtin.ReadsCalendars(), calendarFeedViews(a, cfg)
+	v.ReadsCalendars, v.CalendarFeeds = a.ReadsCalendars(), calendarFeedViews(a, cfg)
 	if v.Microsoft != nil {
 		p.mu.Lock()
 		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
@@ -1003,6 +1037,7 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
 		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
 		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
+		Helper: p.helper(), Subagents: p.subagents(),
 	}, nil
 }
 
@@ -1044,7 +1079,41 @@ func (p *PersistentAPI) startSupervisor(ctx context.Context, opts persistent.Opt
 		// Not the nil *Supervisor in the interface: that would read as one.
 		return nil, err
 	}
+	sv.OnQuestion(p.askFor(sv))
 	return sv, nil
+}
+
+// helper and subagents are an agent's helper tools and subagent runs over
+// the app's own operations; nil without them.
+func (p *PersistentAPI) helper() persistent.HelperOps {
+	if p.ops == nil {
+		return nil
+	}
+	return appHelper{app: p.app, ops: p.ops}
+}
+
+func (p *PersistentAPI) subagents() persistent.SubagentHost {
+	if p.ops == nil {
+		return nil
+	}
+	return appSubagents{ops: p.ops}
+}
+
+// answerer is a supervisor that takes the person's answer to its question.
+type answerer interface {
+	Answer(id string, yes bool) error
+}
+
+// askFor draws each question an agent's supervisor puts to the person as
+// the app's native dialog, which the agent's own request raised, and
+// answers it: a yes when the person agreed, else a no.
+func (p *PersistentAPI) askFor(sv answerer) func(persistent.Question) {
+	return func(q persistent.Question) {
+		go func() {
+			err := p.app.askConsent(q.Title, q.Text)
+			_ = sv.Answer(q.ID, err == nil)
+		}()
+	}
 }
 
 // follow keeps a started agent: its events go to the page keyed by its
