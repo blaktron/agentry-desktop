@@ -323,7 +323,6 @@ export default function AgentPage({
                 {installsPersistent(a.modes) && (asAgent
                   ? <Button variant={runnable ? "default" : "primary"} data-open-persistent={asAgent.name} onClick={() => onOpenPersistentAgent?.(asAgent.name)}>Open {asAgent.displayName}</Button>
                   : <Button variant={runnable ? "default" : "primary"} data-install-persistent busy={agentBusy} busyLabel={installStage || "Installing…"} disabled={agentBusy} onClick={() => void installAsAgent()}>Install as a persistent agent</Button>)}
-                {!runnable && !asAgent && <span className="small muted">{PERSISTENT_ONLY_SENTENCE}</span>}
                 {runnable && <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
@@ -337,6 +336,7 @@ export default function AgentPage({
             : <span className="badge">no published version</span>}
         </>}
       />
+      {!runnable && !asAgent && detail.latest && <p className="small muted" data-persistent-only>{PERSISTENT_ONLY_SENTENCE}</p>}
       <div className="row" style={{ margin: "0 0 8px" }}>
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />

@@ -65,6 +65,15 @@ export function SignedBadge({ att }: { att: trust.AttestationResult | null }) {
 
 /** Renders the declared capability block (canonical manifest JSON) as
  * badges. A fully-undeclared block is the "pure text" case. */
+/** The capabilities.persistent keys a release declares: a switch that is
+ *  on, or a list that names something. */
+export function persistentKeys(p: unknown): string[] {
+  if (!p || typeof p !== "object") return [];
+  return Object.entries(p as Record<string, unknown>)
+    .filter(([, v]) => v === true || (Array.isArray(v) && v.length > 0))
+    .map(([k]) => k);
+}
+
 export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
   const badges: React.ReactNode[] = [];
   const c = caps ?? {};
@@ -120,6 +129,24 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
     badges.push(
       <span key="br" className={`badge ${browser.scope === "public" ? "bad" : "warn"}`} title={browserLine(browser)}>
         {browserBadge(browser)}
+      </span>,
+    );
+  }
+
+  // A persistent release's own capabilities, by key, and its subagents:
+  // the coding toolchain runs any program and reaches the web.
+  const keys = persistentKeys(c.persistent);
+  if (keys.length > 0) {
+    badges.push(
+      <span key="persistent" className={`badge ${keys.includes("coder") ? "bad" : "warn"}`} title="What it is given as a persistent agent">
+        persistent: {keys.join(", ")}
+      </span>,
+    );
+  }
+  if (Array.isArray(c.subagents) && c.subagents.length > 0) {
+    badges.push(
+      <span key="subagents" className="badge warn" title="QuickAgents it may run as runs of their own, each under its own contract">
+        subagents: {c.subagents.map((s: { ref?: string }) => s?.ref ?? "?").join(", ")}
       </span>,
     );
   }

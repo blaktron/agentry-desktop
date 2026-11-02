@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -1091,6 +1092,10 @@ type runHooks struct {
 	// a persistent agent's share folder: each must be a regular file in it,
 	// not reached through a link, in place of a picked one.
 	inputsIn string
+	// outDirIn is the folder Go chose the run's output folder under, a
+	// persistent agent's own folder in the runner home for a run of one
+	// of its subagents: an output folder under it needs no pick.
+	outDirIn string
 }
 
 // runAgent is RunAgent with its hooks.
@@ -1108,7 +1113,11 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 		}
 		picked = nil
 	}
-	if err := r.localRunGates(reg, ref, picked, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
+	gateOut := outDir
+	if h.outDirIn != "" && outDir != "" && !hasDotDot(outDir) && within(h.outDirIn, filepath.Clean(outDir)) {
+		gateOut = ""
+	}
+	if err := r.localRunGates(reg, ref, picked, gateOut, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
 		return nil, err
 	}
 	// The run's id is known before it waits, so the page can follow a
