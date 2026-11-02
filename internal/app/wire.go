@@ -33,6 +33,7 @@ type Services struct {
 	schedule     *ScheduleAPI
 	destinations *DestinationsAPI
 	notices      *NoticesAPI
+	runhosts     *RunhostsAPI
 	persistent   *PersistentAPI
 	meeting      *MeetingAPI
 	// notifications is the Notifications page's API, also the notifier the
@@ -80,6 +81,7 @@ func New(notices string) *Services {
 		schedule:      schedule,
 		destinations:  &DestinationsAPI{app: app},
 		notices:       &NoticesAPI{text: notices},
+		runhosts:      &RunhostsAPI{app: app, run: run},
 		persistent:    persistentAPI,
 		meeting:       meetings,
 		notifications: notifications,
@@ -205,6 +207,7 @@ func (s *Services) Bind() []application.Service {
 		application.NewService(s.schedule),
 		application.NewService(s.destinations),
 		application.NewService(s.notices),
+		application.NewService(s.runhosts),
 		application.NewService(s.persistent),
 		application.NewService(s.meeting),
 		application.NewService(s.notifications),

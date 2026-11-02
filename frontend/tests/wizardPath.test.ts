@@ -1,6 +1,6 @@
-// The first-run wizard's Local and Cloud paths: Local
-// keeps every step the wizard had, Cloud ends on its data page, and Cloud is
-// open only to someone signed in to the registry the app browses.
+// The first-run wizard's Local, Remote and Cloud paths: Local keeps every step
+// the wizard had, Remote sets up a runhost, Cloud ends on its data page, and
+// Cloud is open only to someone signed in to the registry the app browses.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor } from "../src/wizardPath.ts";
@@ -67,4 +67,15 @@ test("back on the choice, the path is open again and the dots show Local's", () 
   assert.equal(pathAt("signin", "local"), null);
   assert.equal(pathAt("runtime", "local"), "local");
   assert.equal(pathAt("cloud", "cloud"), "cloud");
+});
+
+test("Remote sets up a server, signs it in, and makes it where runs go", () => {
+  assert.deepEqual(stepsFor("remote"), ["welcome", "signin", "where", "server", "model", "remotedone"]);
+  assert.equal(stepAfter("where", "remote"), "server");
+  assert.equal(stepAfter("server", "remote"), "model");
+  assert.equal(stepAfter("model", "remote"), "remotedone");
+  assert.equal(stepAfter("remotedone", "remote"), null);
+  assert.equal(stepBefore("server", "remote"), "where");
+  for (const s of ["server", "model", "remotedone"] as const) assert.equal(pathOf(s), "remote");
+  assert.equal(pathAt("where", "remote"), null);
 });
