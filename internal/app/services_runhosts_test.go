@@ -166,3 +166,18 @@ func TestARunOnARunhostSaysWhereItRan(t *testing.T) {
 		t.Fatalf("a second run: %v", err)
 	}
 }
+
+// A runhost's credits token is made on the person's account: refused while
+// the app is signed in to none, before any browser opens.
+func TestCreditsNeedASignedInAccount(t *testing.T) {
+	r, home := newRunhostsAPI(t)
+	saveRecord(t, home, runhost.Record{Name: "lab", Host: "10.0.0.5", Port: 22})
+	asked := false
+	r.app.confirm = func(context.Context, string, string) (bool, error) { asked = true; return true, nil }
+	if _, err := r.Credits("lab"); err == nil || !strings.Contains(err.Error(), "sign in") {
+		t.Fatalf("credits signed out: %v", err)
+	}
+	if asked {
+		t.Fatal("the person was asked before the sign-in was checked")
+	}
+}

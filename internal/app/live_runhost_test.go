@@ -2,11 +2,14 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
@@ -92,4 +95,85 @@ func TestLiveRunhostFromTheApp(t *testing.T) {
 	}
 	pf, _ := policy.Resolve("")
 	t.Logf("policy %s", pf.Path)
+}
+
+// TestLiveRunhostCreditsFromTheApp sets a server up as a runhost, gives it
+// the signed-in account's Agentry credits through the registry's authorize
+// page, runs a release there paid with them, revokes the token and removes
+// the runhost, all through the app's calls. The keychain is the in-memory
+// one, so nothing of it reaches this computer's. Besides the variables above
+// (no model key), AGENTRY_LIVE_RUNHOST_TOKEN is a sign-in token for the
+// registry; the authorize page's address is printed on stderr for a helper
+// to approve as the person's browser would.
+func TestLiveRunhostCreditsFromTheApp(t *testing.T) {
+	host, token := os.Getenv("AGENTRY_LIVE_RUNHOST_HOST"), os.Getenv("AGENTRY_LIVE_RUNHOST_TOKEN")
+	if host == "" || token == "" {
+		t.Skip("gives a runhost credits and runs on them: set AGENTRY_LIVE_RUNHOST_HOST, AGENTRY_LIVE_RUNHOST_TOKEN and the rest")
+	}
+	keyring.MockInit()
+	user, pw := os.Getenv("AGENTRY_LIVE_RUNHOST_USER"), os.Getenv("AGENTRY_LIVE_RUNHOST_PASSWORD")
+	reg, ref := os.Getenv("AGENTRY_LIVE_RUNHOST_REGISTRY"), os.Getenv("AGENTRY_LIVE_RUNHOST_REF")
+	// This build signs in to that registry, as a build for it does.
+	prevReg := settings.DefaultRegistryURL
+	settings.DefaultRegistryURL = reg
+	t.Cleanup(func() { settings.DefaultRegistryURL = prevReg })
+	runner := os.Getenv("AGENTRY_RUNNER_HOME")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
+	defer cancel()
+	app := &App{ctx: ctx, confirm: func(_ context.Context, title, msg string) (bool, error) {
+		t.Logf("dialog %q: %s", title, firstLine(msg))
+		return true, nil
+	}}
+	run := &RunAPI{app: app, runnerHomeDir: runner, openBrowser: func(u string) error {
+		_, _ = fmt.Fprintln(os.Stderr, "open "+u)
+		return nil
+	}}
+	r := &RunhostsAPI{app: app, run: run}
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.DefaultRegistry = reg
+	st.Upsert(settings.Registry{URL: reg})
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := settings.StoreToken(reg, token); err != nil {
+		t.Fatal(err)
+	}
+
+	admin := RunhostAdmin{User: user, Password: pw}
+	v, err := r.Add(RunhostAddRequest{Name: "lab", Host: host, Admin: admin})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	t.Logf("set up %s, owner %s", v.Name, v.Owner)
+	defer func() {
+		if err := r.Remove("lab", admin, false, false); err != nil {
+			t.Errorf("remove: %v", err)
+		}
+	}()
+	v, err = r.Credits("lab")
+	if err != nil {
+		t.Fatalf("credits: %v", err)
+	}
+	if !strings.Contains(v.Credits, "credits only") {
+		t.Fatalf("the runhost's record names no credits token: %+v", v)
+	}
+	t.Logf("credits token %q kept on lab", v.Credits)
+
+	out := filepath.Join(t.TempDir(), "out")
+	app.markPicked(out)
+	res, err := run.RunOnRunhost("lab", reg, ref, "Write the report the release asks for.", nil, out, 0, -1, false, nil, false)
+	if err != nil {
+		t.Fatalf("run on lab: %v", err)
+	}
+	t.Logf("run %s: %s exit %d, paid with credits %v (%d), ran on %s", res.RunID, res.Status, res.ExitCode, res.PaidWithCredits, res.Credits, res.RanOn.Name)
+	if res.Status != "ok" || !res.PaidWithCredits {
+		t.Fatalf("the run did not pay with the runhost's credits: %+v", res)
+	}
+	v, err = r.RemoveCredits("lab")
+	if err != nil || v.Credits != "" {
+		t.Fatalf("revoke: %+v %v", v, err)
+	}
 }
