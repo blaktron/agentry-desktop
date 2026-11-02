@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/mcpauth"
 	"github.com/blaktron/agentry-cli/pkg/mcpauth/mcpauthtest"
@@ -28,6 +29,17 @@ import (
 func signInFixture(t *testing.T) (string, *sync.Map) {
 	t.Helper()
 	home := isolateRunEnv(t)
+	// The vendors were just asked and had nothing newer than the tested
+	// releases, so a sign-in takes the tested image and reaches no registry.
+	if path, err := policy.DefaultPath(); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, name := range []string{"claude-image", "codex-image"} {
+			if err := policy.WriteNewest(policy.NewestPathFor(path), name, policy.Newest{Checked: time.Now()}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	oldKeys, oldStore, oldDelete := connectionKeys, connectStoreKey, connectDeleteKey
 	keys := &sync.Map{}
 	connectionKeys = func() connection.Keychain { return nil }
@@ -41,13 +53,14 @@ func signInFixture(t *testing.T) (string, *sync.Map) {
 // fake vendor's client, which approves), and records the lines, pages and
 // codes the sign-in showed.
 type signInPerson struct {
-	mu                  sync.Mutex
-	said, opened, codes []string
+	mu                         sync.Mutex
+	said, opened, codes, steps []string
 }
 
 func (b *signInPerson) ui(c *http.Client) SignInUI {
 	return SignInUI{
-		Say: func(l string) { b.mu.Lock(); b.said = append(b.said, l); b.mu.Unlock() },
+		Say:  func(l string) { b.mu.Lock(); b.said = append(b.said, l); b.mu.Unlock() },
+		Step: func(step, _ string) { b.mu.Lock(); b.steps = append(b.steps, step); b.mu.Unlock() },
 		Open: func(u string) {
 			b.mu.Lock()
 			b.opened = append(b.opened, u)
@@ -294,6 +307,16 @@ func TestUseYourClaudeSubscriptionSignsInThroughTheBrowser(t *testing.T) {
 	}
 	if got.Account != "person@example.com (Example)" || len(b.opened) != 1 || b.opened[0] != auto {
 		t.Fatalf("signed in %+v; opened %v", got, b.opened)
+	}
+	// The page is told each step, the image's check before the browser,
+	// and builds nothing the tested image already is.
+	if want := []string{"image", "start", "browser", "keep"}; strings.Join(b.steps, ",") != strings.Join(want, ",") {
+		t.Fatalf("steps %v, want %v", b.steps, want)
+	}
+	for _, op := range fd.Ops() {
+		if strings.HasPrefix(op, "Build:") {
+			t.Fatalf("built %s for a sign-in whose image is here", op)
+		}
 	}
 	if strings.Contains(log.String()+strings.Join(b.said, "\n"), "THE-CODE") {
 		t.Fatal("the code was shown")

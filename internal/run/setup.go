@@ -404,7 +404,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	if !opts.PullImages {
 		return nil
 	}
-	return prepareImages(ctx, home, pol, logw)
+	return prepareImages(ctx, home, policyPath, pol, logw)
 }
 
 // prepareImages stands up the gateway plane and the harness image model
@@ -412,7 +412,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 // docker-agent image for a key, or the Codex, Claude Code or Copilot CLI
 // image for a model sign-in, pulled or built on this machine from its
 // pinned artifact.
-func prepareImages(ctx context.Context, home string, pol *policy.Policy, logw io.Writer) error {
+func prepareImages(ctx context.Context, home, policyPath string, pol *policy.Policy, logw io.Writer) error {
 	docker := newDockerClient()
 	name := adapter.DefaultFor(pol)
 	ownImage := name == adapter.DefaultName
@@ -421,11 +421,10 @@ func prepareImages(ctx context.Context, home string, pol *policy.Policy, logw io
 		return fmt.Errorf("gateway/docker environment: %w", err)
 	}
 	if !ownImage {
-		h, ok := pol.Images.HarnessImageFor(name)
-		if !ok {
-			return fmt.Errorf("the policy names no %s harness image", name)
-		}
-		if err := gateway.EnsureHarnessImage(ctx, docker, name, h, logw); err != nil {
+		// Claude Code's and Codex's images are built from the vendor's
+		// newest release first, the tested release the fallback; the record
+		// sits beside the policy file the CLI reads too.
+		if _, err := gateway.EnsureNewestHarnessImage(ctx, docker, pol, policy.NewestPathFor(policyPath), name, logw, nil); err != nil {
 			return fmt.Errorf("the %s harness image: %w", name, err)
 		}
 	}
@@ -500,7 +499,7 @@ func applySignInSetup(ctx context.Context, home, policyPath, provider string, op
 	if !opts.PullImages {
 		return nil
 	}
-	return prepareImages(ctx, home, pol, logw)
+	return prepareImages(ctx, home, policyPath, pol, logw)
 }
 
 // formPrompter satisfies setup.Prompter for a GUI whose answers arrived as
@@ -688,5 +687,5 @@ func applyCreditsSetup(ctx context.Context, home, policyPath string, opts SetupO
 	if !opts.PullImages {
 		return nil
 	}
-	return prepareImages(ctx, home, pol, logw)
+	return prepareImages(ctx, home, policyPath, pol, logw)
 }
