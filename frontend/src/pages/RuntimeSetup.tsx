@@ -15,6 +15,7 @@ import { ProviderTiles } from "./ProviderTiles";
 import { asSentence } from "../signIns";
 import { BytesBar } from "../progress";
 import { bytesProgress } from "../bytesProgress";
+import { setupStep } from "../setupSteps";
 
 // The provider table (src/modelSetup.ts) mirrors the CLI's for form
 // prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
@@ -167,7 +168,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // log's. A failure is said and the model is typed instead; it never
   // blocks Save.
   async function listCopilotModels(plan: string) {
-    setBusy("Asking Copilot CLI which models your plan offers — a first list builds images and can take minutes…");
+    setBusy(LISTING_COPILOT);
     setError(null);
     setNotice(null);
     setCopilotListError(null);
@@ -244,7 +245,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // Save for a sign-in or a connected account: the CLI's own setup makes
   // what is kept the active choice, and refuses one nothing is signed in to.
   async function applySignIn(pullImages: boolean) {
-    setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
+    setBusy(pullImages ? PREPARING : "Writing policy…");
     setError(null);
     setNotice(null);
     if (pullImages) {
@@ -324,7 +325,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // opens a credits session with the SecureAgentry sign-in; the Go side
   // refuses it signed out.
   async function applyCredits(pullImages: boolean) {
-    setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
+    setBusy(pullImages ? PREPARING : "Writing policy…");
     setError(null);
     setNotice(null);
     if (pullImages) {
@@ -346,7 +347,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   }
 
   async function apply(pullImages: boolean) {
-    setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
+    setBusy(pullImages ? PREPARING : "Writing policy…");
     setError(null);
     setNotice(null);
     if (pullImages) {
@@ -680,7 +681,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           </div>
           </>
         )}
-        {busy && <Spinner label={busy} />}
+        {busy && <Spinner label={(busy === PREPARING || busy === LISTING_COPILOT ? setupStep(log) : null) ?? busy} />}
         {log.length > 0 && (
           <>
             {(() => { const p = bytesProgress(log); return p ? <BytesBar progress={p} label="Downloaded" /> : null; })()}
@@ -998,6 +999,11 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
     </Card>
   );
 }
+
+/** The spinner's labels while images are prepared or Copilot CLI lists a
+ * plan's models, until the setup log names the step it is on. */
+const PREPARING = "Preparing images — pulls and a local build can take minutes…";
+const LISTING_COPILOT = "Asking Copilot CLI which models your plan offers — a first list builds images and can take minutes…";
 
 /** The spinner's label while the engine is asked. */
 export const CHECKING_ENGINE = "Checking the container engine…";

@@ -4,6 +4,7 @@ import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop
 import { ClipboardSetText, EventsOn } from "../host";
 import { Button, ErrorBox, Notice, Spinner } from "../ui";
 import { keptFor, keptLine, removeLabel, type KeptSignIn, type Way } from "../modelSetup";
+import { signInWaiting } from "../setupSteps";
 
 /** The sign-in half of model setup: one way's sign-in or connect, made
  * through the CLI's own packages on the Go side, with nothing for the
@@ -25,6 +26,9 @@ export function SignInWay({ way, kept, disabled, onSignedIn, onRemoved }: {
   const [lines, setLines] = useState<string[]>([]);
   const [page, setPage] = useState<string | null>(null);
   const [code, setCode] = useState<{ page: string; code: string; copied: boolean } | null>(null);
+  // The step the sign-in says it is on (the Claude sign-in prepares Claude
+  // Code before any page opens); null until it says one.
+  const [step, setStep] = useState<string | null>(null);
   const k = keptFor(way, kept);
 
   useEffect(() => {
@@ -32,6 +36,9 @@ export function SignInWay({ way, kept, disabled, onSignedIn, onRemoved }: {
     const offs = [
       EventsOn("signin:say", (v: { vendor: string; line: string }) => {
         if (v.vendor === way.vendor) setLines((prev) => [...prev.slice(-5), v.line]);
+      }),
+      EventsOn("signin:step", (v: { vendor: string; step: string; line: string }) => {
+        if (v.vendor === way.vendor && v.line) setStep(v.line);
       }),
       EventsOn("signin:url", (v: { vendor: string; url: string }) => {
         if (v.vendor === way.vendor) setPage(v.url);
@@ -52,6 +59,7 @@ export function SignInWay({ way, kept, disabled, onSignedIn, onRemoved }: {
     setLines([]);
     setPage(null);
     setCode(null);
+    setStep(null);
     try {
       const v = way.id === "chatgpt" ? await RunAPI.SignInChatGPT(false)
         : way.id === "claude" ? await RunAPI.SignInClaude()
@@ -100,7 +108,7 @@ export function SignInWay({ way, kept, disabled, onSignedIn, onRemoved }: {
             </>
           ) : (
             <>
-              <Spinner label="Waiting for you in your browser…" />
+              <Spinner label={step ?? signInWaiting(way.id)} />
               <Button onClick={() => RunAPI.CancelSignIn()}>Cancel</Button>
             </>
           )}

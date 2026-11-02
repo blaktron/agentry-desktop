@@ -40,3 +40,7 @@ minisign's signed-comment field, in the update check :: trustedComment
 # not a property: the sentences around it name exactly what is sealed, what
 # is not, and that Agentry holds the keys.
 the Cloud page's sentence, an effort not a claim :: We do our best to keep your data safe and secure.
+
+# The first-run setup's opening line for the Runtime step, which names the
+# sandbox it is about to prepare.
+the first-run setup's Runtime step, naming the sandbox it prepares :: prepare the secure, sandboxed environment for your local agents

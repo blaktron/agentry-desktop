@@ -363,6 +363,10 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
           heading="Set up the runtime"
           intro={
             <>
+              <strong className="wizard-lead">
+                This process will prepare the secure, sandboxed environment for your local agents. It can take a few
+                minutes, so be patient.
+              </strong>
               QuickAgents run in isolated containers with tools served by a per-run Docker MCP
               Gateway. Choose the AI provider those runs use and how to pay for it: sign in with a
               plan you already have (ChatGPT, Claude, GitHub Copilot) or connect your account, or use
