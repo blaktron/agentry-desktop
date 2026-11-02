@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"runtime/debug"
@@ -663,4 +664,92 @@ func (r *RunhostsAPI) Remove(name string, admin RunhostAdmin, removeImages, remo
 // admin key, and returns the path ("" when cancelled).
 func (r *RunhostsAPI) ChooseAdminKeyFile(host string) (string, error) {
 	return r.run.ChooseHostKeyFile(host)
+}
+
+// Credits gives runhost name a token of its own on the person's account that
+// can only pay for model use with their Agentry credits, named "Runhost
+// <name> (credits only)": the registry's authorize page opens in the browser
+// to approve it, and the token goes over the run key to the runhost's store,
+// encrypted. This computer's own sign-in never reaches the server, and the
+// token is kept nowhere here. Running it again replaces the token, and the
+// runhost revokes the earlier one. It shares the app's one-consent lock.
+func (r *RunhostsAPI) Credits(name string) (*RunhostView, error) {
+	s, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	reg := settings.Normalize(s.DefaultRegistry)
+	owner := r.owner()
+	if owner.Kind != runhost.OwnerAccount {
+		return nil, errors.New("a runhost's credits token is made on your Agentry account: sign in first")
+	}
+	recs, rec, keys, home, err := r.record(name)
+	if err != nil {
+		return nil, err
+	}
+	if rec.Owner.Kind == runhost.OwnerAccount && (rec.Owner.Handle != owner.Handle || settings.Normalize(rec.Owner.Registry) != reg) {
+		return nil, fmt.Errorf("runhost %s belongs to %s, and this app is signed in as %s on %s", name, rec.Owner, owner.Handle, reg)
+	}
+	if err := r.app.askConsent("Give "+name+" your Agentry credits?",
+		fmt.Sprintf("A token on your account %s that can only pay for model use with your Agentry credits, named \"Runhost %s (credits only)\", is kept on %s, encrypted. Your browser opens to approve it.", owner.Handle, name, rec.Host)); err != nil {
+		return nil, err
+	}
+	if !consentNow.mu.TryLock() {
+		return nil, errors.New("a sign-in is already under way: finish it in the browser, or cancel it")
+	}
+	defer consentNow.mu.Unlock()
+	ctx, cancel := context.WithTimeout(r.ctx(), 10*time.Minute)
+	defer cancel()
+	setConsent(cancel, nil)
+	defer setConsent(nil, nil)
+	ui := r.run.signInUI("runhost:agentry")
+	pat, err := remote.MintCredits(ctx, reg, name, ui.Open, func() { ui.Say("Waiting for you to approve the token in your browser…") })
+	if err != nil {
+		return nil, err
+	}
+	hc := &http.Client{Timeout: 30 * time.Second}
+	c, err := runhost.DialRunhost(ctx, *rec, keys)
+	if err != nil {
+		return nil, errors.Join(err, remote.RevokeUnsent(r.ctx(), hc, reg, pat))
+	}
+	defer func() { _ = c.Close() }()
+	doc := remote.Credits{Registry: reg, TokenID: pat.ID, Name: pat.Name, Token: pat.Token, Device: rec.DeviceID}
+	if err := remote.PutCredits(ctx, c, doc, r.say(name)); err != nil {
+		return nil, errors.Join(err, remote.RevokeUnsent(r.ctx(), hc, reg, pat))
+	}
+	rec.Credits = &runhost.CreditsRecord{Registry: reg, TokenID: pat.ID, TokenName: pat.Name, AddedAt: time.Now().UTC().Format(time.RFC3339)}
+	if err := recs.Save(home); err != nil {
+		return nil, err
+	}
+	v := viewOf(*rec, s.RunWhere)
+	return &v, nil
+}
+
+// RemoveCredits has runhost name revoke its credits token and remove it.
+func (r *RunhostsAPI) RemoveCredits(name string) (*RunhostView, error) {
+	ctx, cancel := context.WithTimeout(r.ctx(), 2*time.Minute)
+	defer cancel()
+	recs, rec, keys, home, err := r.record(name)
+	if err != nil {
+		return nil, err
+	}
+	c, err := runhost.DialRunhost(ctx, *rec, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = c.Close() }()
+	out, err := remote.RemoveCredits(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if out.Credits != nil && !out.Revoked {
+		r.say(name)(fmt.Sprintf("warning: the token %q left the runhost, but its registry did not revoke it (%s): revoke it among your tokens", out.Credits.Name, out.RevokeError))
+	}
+	rec.Credits = nil
+	if err := recs.Save(home); err != nil {
+		return nil, err
+	}
+	s, _ := settings.Load()
+	v := viewOf(*rec, s.RunWhere)
+	return &v, nil
 }

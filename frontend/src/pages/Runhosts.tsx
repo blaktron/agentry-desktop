@@ -209,6 +209,45 @@ export function RunhostSignIns({ runhost, onChange }: { runhost: app.RunhostView
   );
 }
 
+/** A runhost's Agentry credits: a token of its own, on the person's account,
+ *  that can only pay for model use, approved in the browser and kept on the
+ *  runhost. A run there whose model is Agentry credits pays with it. */
+export function RunhostCredits({ runhost, onChange }: { runhost: app.RunhostView; onChange: (v: app.RunhostView) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function act(f: () => Promise<app.RunhostView | null>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const v = await f();
+      if (v) onChange(v);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="runhost-credits" data-runhost-credits={runhost.name}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <span>
+          <strong>Agentry credits</strong>{" "}
+          <span className="muted small">{runhost.credits
+            ? `paid with the token "${runhost.credits}", which can do nothing else`
+            : "a token that can only pay for model use with your credits, approved in your browser and kept on the runhost"}</span>
+        </span>
+        <span className="row nowrap">
+          <Button disabled={busy} busy={busy} busyLabel="Waiting for your browser…" onClick={() => act(() => RunhostsAPI.Credits(runhost.name))}>
+            {runhost.credits ? "Replace the token" : "Use my credits"}
+          </Button>
+          {runhost.credits && <Button variant="danger" disabled={busy} onClick={() => act(() => RunhostsAPI.RemoveCredits(runhost.name))}>Revoke</Button>}
+        </span>
+      </div>
+      <ErrorBox error={error} />
+    </div>
+  );
+}
+
 /** Settings → Runhosts. */
 export function RunhostsSettings() {
   const [list, setList] = useState<app.RunhostView[] | null>(null);
@@ -307,6 +346,7 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
         </p>
       )}
       <RunhostSignIns runhost={runhost} onChange={onChange} />
+      <RunhostCredits runhost={runhost} onChange={onChange} />
       {asking && (
         <Card>
           <p className="small">

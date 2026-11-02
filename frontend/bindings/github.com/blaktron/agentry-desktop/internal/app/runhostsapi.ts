@@ -44,6 +44,21 @@ export function ChooseAdminKeyFile(host: string): $CancellablePromise<string> {
 }
 
 /**
+ * Credits gives runhost name a token of its own on the person's account that
+ * can only pay for model use with their Agentry credits, named "Runhost
+ * <name> (credits only)": the registry's authorize page opens in the browser
+ * to approve it, and the token goes over the run key to the runhost's store,
+ * encrypted. This computer's own sign-in never reaches the server, and the
+ * token is kept nowhere here. Running it again replaces the token, and the
+ * runhost revokes the earlier one. It shares the app's one-consent lock.
+ */
+export function Credits(name: string): $CancellablePromise<$models.RunhostView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Credits", name).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
  * List is the runhosts this computer is paired with.
  */
 export function List(): $CancellablePromise<$models.RunhostView[]> {
@@ -60,6 +75,15 @@ export function List(): $CancellablePromise<$models.RunhostView[]> {
  */
 export function Remove(name: string, admin: $models.RunhostAdmin, removeImages: boolean, removeDocker: boolean): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Remove", name, admin, removeImages, removeDocker);
+}
+
+/**
+ * RemoveCredits has runhost name revoke its credits token and remove it.
+ */
+export function RemoveCredits(name: string): $CancellablePromise<$models.RunhostView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveCredits", name).then(($result: any) => {
+        return $$createType1($result)!;
+    });
 }
 
 /**
