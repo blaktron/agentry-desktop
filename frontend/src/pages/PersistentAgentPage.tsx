@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, termBlocks } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, subagentRunWords, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { AGENT_VIEWS, agentView, DEFAULT_AGENT_VIEW, usageLine, type AgentViewId } from "../agentView";
 import { Button, ErrorBox, Modal } from "../ui";
@@ -34,7 +34,7 @@ import { TasksView } from "./TasksView";
 // The header's usage line in Compact and Focus, which have no usage pane.
 const HEADER_USAGE = ["This segment", "Last turn", "Turns", "Tool calls", "Cost", "Running for"];
 
-export default function PersistentAgentPage({ name, registry }: { name: string; registry: string }) {
+export default function PersistentAgentPage({ name, registry, onOpenRun }: { name: string; registry: string; onOpenRun?: (runId: string) => void }) {
   const agents = useAgents();
   const agent = agents.find((a) => a.name === name) ?? null;
   const rec = useAgentChat(name);
@@ -226,6 +226,21 @@ export default function PersistentAgentPage({ name, registry }: { name: string; 
             ))}
             <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
           </dl>
+          {(agent.subagentRuns ?? []).length > 0 && (
+            <div data-subagent-runs>
+              <h2>Subagent runs</h2>
+              <ul className="agent-subagent-runs">
+                {agent.subagentRuns.map((r) => (
+                  <li key={r.id}>
+                    {r.runId && onOpenRun
+                      ? <Button variant="link" onClick={() => onOpenRun(r.runId!)}>{r.subagent}</Button>
+                      : <span className="mono">{r.subagent}</span>}
+                    <span className="small muted"> · {subagentRunWords(r)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
       )}
       {view.panes && (

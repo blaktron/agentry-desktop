@@ -150,6 +150,7 @@ export {
     PersistentRosterEntry,
     PersistentServerView,
     PersistentStatusView,
+    PersistentSubagentRunView,
     PersistentSuggestionView,
     PersistentSwitch,
     PersistentTaskView,

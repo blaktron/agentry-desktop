@@ -79,6 +79,8 @@ const stopWait = 60 * time.Second
 type PersistentAPI struct {
 	app *App
 	run *RunAPI
+	// installs lay a published agent's release down as any install does.
+	installs *InstallAPI
 
 	mu   sync.Mutex
 	sups map[string]agentSupervisor
@@ -185,6 +187,19 @@ func (p *PersistentAPI) stateChanged(name string) {
 // closed: Main lives in the window.
 var backgroundAgents = []string{"assistant", coderAgent}
 
+// backgroundNames are the agents that run in the background: the
+// built-ins of backgroundAgents, then every agent installed in the runner
+// home home.
+func (p *PersistentAPI) backgroundNames(home string) []string {
+	out := slices.Clone(backgroundAgents)
+	for _, a := range persistent.AgentsIn(home) {
+		if a.Published() {
+			out = append(out, a.Name)
+		}
+	}
+	return out
+}
+
 // keepsRunning reports whether an agent that runs in the background is
 // enabled, so closing the window hides it instead of quitting.
 func (p *PersistentAPI) keepsRunning() bool {
@@ -192,7 +207,7 @@ func (p *PersistentAPI) keepsRunning() bool {
 	if err != nil {
 		return false
 	}
-	for _, name := range backgroundAgents {
+	for _, name := range p.backgroundNames(home) {
 		if cfg, err := persistent.LoadConfig(home, name); err == nil && cfg.Enabled {
 			return true
 		}
@@ -234,8 +249,8 @@ func (p *PersistentAPI) startOnLaunch() {
 	if err != nil {
 		return
 	}
-	for _, name := range backgroundAgents {
-		a, err := persistent.Lookup(name)
+	for _, name := range p.backgroundNames(home) {
+		a, err := p.agent(name)
 		if err != nil {
 			continue
 		}
@@ -341,8 +356,23 @@ type PersistentAgentView struct {
 	// LastCompaction and LastConsolidation are the newest records of the
 	// memory's upkeep, for an agent that keeps a memory; none before the
 	// first.
-	LastCompaction    *PersistentUpkeepView `json:"lastCompaction,omitempty"`
-	LastConsolidation *PersistentUpkeepView `json:"lastConsolidation,omitempty"`
+	// Published says the agent is a release installed from the registry
+	// or a folder, not a built-in: Ref is its ns/name, Version the version
+	// it runs and Source where it came from (registry or local).
+	Published bool   `json:"published"`
+	Ref       string `json:"ref,omitempty"`
+	Version   string `json:"version,omitempty"`
+	Source    string `json:"source,omitempty"`
+	// Persona is the name of the persona its release ships, and
+	// PersonaLocked says its publisher locked the text.
+	Persona       string `json:"persona,omitempty"`
+	PersonaLocked bool   `json:"personaLocked,omitempty"`
+	// Subagents are the subagents its release declares, pinned at its
+	// install, and SubagentRuns the runs it started of them, newest first.
+	Subagents         []persistent.SubagentPin    `json:"subagents"`
+	SubagentRuns      []PersistentSubagentRunView `json:"subagentRuns"`
+	LastCompaction    *PersistentUpkeepView       `json:"lastCompaction,omitempty"`
+	LastConsolidation *PersistentUpkeepView       `json:"lastConsolidation,omitempty"`
 }
 
 // PersistentUpkeepView is one run of an agent's memory upkeep, a compaction
@@ -636,6 +666,14 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		p.mu.Lock()
 		_, v.Microsoft.Waiting = p.microsoftSignIns[a.Name]
 		p.mu.Unlock()
+	}
+	v.Subagents, v.SubagentRuns = []persistent.SubagentPin{}, subagentRunViews(home, a.Name)
+	if a.Published() {
+		v.Published, v.Ref, v.Version, v.Source = true, a.Ref, a.Version, a.Source
+		v.Subagents = append(v.Subagents, a.Subagents...)
+		if a.Persona != nil {
+			v.Persona, v.PersonaLocked = a.Persona.Name, !a.Persona.Editable
+		}
 	}
 	v.Google = googleView(a, cfg)
 	if v.Google != nil {
@@ -950,6 +988,39 @@ func (p *PersistentAPI) Start(name string) (*PersistentAgentView, error) {
 	return nil, err
 }
 
+// quietRunning is how many persistent agents may run at once before a
+// start warns: each one is a tree of containers of its own.
+const quietRunning = 3
+
+// othersRunning counts the persistent agents other than name that run or
+// start, in this app or in another client.
+func (p *PersistentAPI) othersRunning(name string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for other := range p.sups {
+		if other != name {
+			n++
+		}
+	}
+	for other := range p.starting {
+		if other != name && p.sups[other] == nil {
+			n++
+		}
+	}
+	for other, held := range p.elsewhere {
+		if held && other != name && p.sups[other] == nil && p.starting[other] == nil {
+			n++
+		}
+	}
+	return n
+}
+
+// runningCountText is the warning before a start beside n running agents.
+func runningCountText(n int, who string) string {
+	return fmt.Sprintf("%d persistent agents are running already. Each one runs its own containers, which take memory and processor time on this computer while it runs. Start %s too?", n, who)
+}
+
 // startError is a failure of the supervisor's start itself, as against a
 // refusal before it (not enabled, a No).
 type startError struct{ err error }
@@ -973,6 +1044,11 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 	}
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
+	}
+	if n := p.othersRunning(a.Name); n >= quietRunning {
+		if err := p.app.askConsent("Start another persistent agent?", runningCountText(n, called(a, cfg))); err != nil {
+			return nil, err
+		}
 	}
 	if pending := persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn()), cfg); len(pending) > 0 {
 		if err := p.app.askConsent("Start "+called(a, cfg)+"?", consentText(a.DisplayName(cfg), pending)); err != nil {

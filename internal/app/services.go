@@ -1129,6 +1129,9 @@ func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 // in the install's first native dialog, and in a dialog of its own when the
 // install owes none.
 func (i *InstallAPI) installRunner(reg, ref, who string) (*install.Result, error) {
+	if err := persistentAgentsRelease(ref); err != nil {
+		return nil, err
+	}
 	plan, err := i.engine.Prepare(i.app.ctx, reg, ref, installdir.Target, "")
 	if err != nil {
 		return nil, err
@@ -1286,37 +1289,8 @@ func contractConsentText(plan, export *install.Plan) string {
 	}
 	if plan.NeedsCapabilityConfirm || (export != nil && export.NeedsCapabilityConfirm) {
 		lines = append(lines, "Version "+plan.Version+" declares:")
-		c := plan.Capabilities
-		if len(c.EgressHosts) > 0 {
-			lines = append(lines, "  • network egress to "+strings.Join(c.EgressHosts, ", "))
-		}
-		if len(c.ExecCommands) > 0 {
-			lines = append(lines, "  • exec: "+strings.Join(c.ExecCommands, ", "))
-		}
-		if c.FSRead != "" {
-			lines = append(lines, "  • filesystem read: "+c.FSRead+pathsNote(c.FSReadPaths))
-		}
-		if c.FSWrite != "" {
-			lines = append(lines, "  • filesystem write: "+c.FSWrite+pathsNote(c.FSWritePaths))
-		}
-		if len(c.Secrets) > 0 {
-			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
-		}
-		// A target host and a browser, in the CLI's consent words: either
-		// one alone asks for this consent, so the dialog names it.
-		if len(c.TargetHosts) > 0 {
-			lines = append(lines, "  • target hosts: "+strings.Join(c.TargetHosts, ", ")+" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
-		}
-		if c.Browser != nil {
-			lines = append(lines, "  • browser: "+mcpview.BrowserLine(c.Browser))
-		}
-		// Each MCP server's own reach, which asks for this consent by itself
-		// whatever the release's own egress says.
-		for _, r := range plan.ServerReach {
-			lines = append(lines, "  • "+r)
-		}
-		if len(c.Knowledge) > 0 {
-			lines = append(lines, "  • knowledge: ships "+shippedKnowledgeText(plan))
+		for _, l := range declaredLines(plan) {
+			lines = append(lines, "  • "+l)
 		}
 	}
 	closing := "The runner is configured to enforce this contract."
@@ -1325,6 +1299,45 @@ func contractConsentText(plan, export *install.Plan) string {
 	}
 	lines = append(lines, "", closing+" Install?")
 	return strings.Join(lines, "\n")
+}
+
+// declaredLines are what a release's contract declares, a line each, as a
+// consent lists them: its egress and commands, its files, its keys, its
+// target hosts and browser, each MCP server's own reach and the knowledge
+// it ships.
+func declaredLines(plan *install.Plan) []string {
+	var lines []string
+	c := plan.Capabilities
+	if len(c.EgressHosts) > 0 {
+		lines = append(lines, "network egress to "+strings.Join(c.EgressHosts, ", "))
+	}
+	if len(c.ExecCommands) > 0 {
+		lines = append(lines, "exec: "+strings.Join(c.ExecCommands, ", "))
+	}
+	if c.FSRead != "" {
+		lines = append(lines, "filesystem read: "+c.FSRead+pathsNote(c.FSReadPaths))
+	}
+	if c.FSWrite != "" {
+		lines = append(lines, "filesystem write: "+c.FSWrite+pathsNote(c.FSWritePaths))
+	}
+	if len(c.Secrets) > 0 {
+		lines = append(lines, "secrets: "+strings.Join(c.Secrets, ", "))
+	}
+	// A target host and a browser, in the CLI's consent words: either
+	// one alone asks for this consent, so the dialog names it.
+	if len(c.TargetHosts) > 0 {
+		lines = append(lines, "target hosts: "+strings.Join(c.TargetHosts, ", ")+" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
+	}
+	if c.Browser != nil {
+		lines = append(lines, "browser: "+mcpview.BrowserLine(c.Browser))
+	}
+	// Each MCP server's own reach, which asks for this consent by itself
+	// whatever the release's own egress says.
+	lines = append(lines, plan.ServerReach...)
+	if len(c.Knowledge) > 0 {
+		lines = append(lines, "knowledge: ships "+shippedKnowledgeText(plan))
+	}
+	return lines
 }
 
 // shippedKnowledgeText names the knowledge packs a release ships with their
