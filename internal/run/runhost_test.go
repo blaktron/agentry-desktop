@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
@@ -56,5 +57,19 @@ func TestARunhostRunCarriesTheAnswersAndTheSecrets(t *testing.T) {
 	t.Setenv("OTHER_TOKEN", "")
 	if _, err := runhostCarry(home, sig, m, pol, RunhostRequest{Intake: map[string]string{"api_key": "sk"}}); err == nil || !strings.Contains(err.Error(), "OTHER_TOKEN") {
 		t.Fatalf("a missing secret: %v", err)
+	}
+}
+
+// A runhost run's result is its envelope's, with no plan of this computer's,
+// and says Unsafe Mode as the runhost's setting was.
+func TestARunhostRunsResultIsItsEnvelopes(t *testing.T) {
+	env := &receipt.Envelope{Status: "ok", RunID: "r1", Ref: "acme/demo@1.0.0", Runhost: &receipt.Runhost{Name: "lab", UnsafeMode: true}}
+	res := resultFromRunhost(env)
+	if res.Status != "ok" || res.RunID != "r1" || !res.Unsafe {
+		t.Fatalf("result %+v", res)
+	}
+	env.Runhost.UnsafeMode = false
+	if resultFromRunhost(env).Unsafe {
+		t.Fatal("Unsafe Mode off read as on")
 	}
 }
