@@ -26,7 +26,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -138,7 +137,7 @@ func (s *Services) startBackground(ctx context.Context) {
 			emitEvent(s.app, eventOpenMeetings)
 			return
 		}
-		if !slices.Contains(shownAgents, name) {
+		if !s.persistent.shows(name) {
 			return
 		}
 		windowShow(ctx)

@@ -57,7 +57,7 @@ func (p *PersistentAPI) calendarAgent(name string) (persistent.Agent, string, pe
 	if err != nil {
 		return persistent.Agent{}, "", persistent.Config{}, err
 	}
-	if !a.Builtin.ReadsCalendars() || !a.Builtin.KeepsSecrets() {
+	if !a.ReadsCalendars() || !a.KeepsSecrets() {
 		return persistent.Agent{}, "", persistent.Config{}, fmt.Errorf("the %s has no calendar feeds: the Assistant alone reads them", a.Title)
 	}
 	home, err := p.home()

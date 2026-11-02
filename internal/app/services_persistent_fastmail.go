@@ -28,7 +28,7 @@ type PersistentFastmailView struct {
 
 // hasFastmail says the agent offers Fastmail's server.
 func hasFastmail(a persistent.Agent) bool {
-	return slices.ContainsFunc(a.Builtin.OfferedServers(nil), func(o offer.Server) bool { return o.MailProvider == assistant.MailFastmail })
+	return slices.ContainsFunc(a.OfferedServers(nil), func(o offer.Server) bool { return o.MailProvider == assistant.MailFastmail })
 }
 
 // fastmailView is the agent's Fastmail set-up, nil for an agent with no
@@ -56,7 +56,7 @@ func (p *PersistentAPI) fastmailAgent(name string) (persistent.Agent, error) {
 	if err != nil {
 		return persistent.Agent{}, err
 	}
-	if !hasFastmail(a) || !a.Builtin.KeepsSecrets() {
+	if !hasFastmail(a) || !a.KeepsSecrets() {
 		return persistent.Agent{}, fmt.Errorf("the %s has no Fastmail", a.Title)
 	}
 	if _, running := p.running(a.Name); running {

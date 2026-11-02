@@ -27,7 +27,9 @@ import { FORK_STAYS_PRIVATE } from "../publisher";
 import { PinButton, useHomeLayout } from "./home/PinButton";
 import { instructionsNote } from "../instructions";
 import { RevealText } from "../reveal";
-import { PERSISTENT_ONLY_SENTENCE, persistentOnly } from "../persistentAgents";
+import { PERSISTENT_ONLY_SENTENCE, installsPersistent, persistentOnly } from "../persistentAgents";
+import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import { updateAgent, useAgents } from "../agents";
 import { useInstallStage } from "../installProgress";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
@@ -50,7 +52,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey, openRun = false, openSchedule = false, onFork, onOpenAgent,
+  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey, openRun = false, openSchedule = false, onFork, onOpenAgent, onOpenPersistentAgent,
 }: {
   registry: string;
   ns: string;
@@ -75,6 +77,8 @@ export default function AgentPage({
   onFork?: (namespace: string, name: string, sentence: string) => void;
   /** Another QuickAgent's page: a fork's origin, from its Fork of line. */
   onOpenAgent?: (ns: string, name: string) => void;
+  /** Opens a persistent agent's own page, by its name. */
+  onOpenPersistentAgent?: (name: string) => void;
 }) {
   const [detail, setDetail] = useState<app.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +106,9 @@ export default function AgentPage({
   }, []);
   const [installBusy, setInstallBusy] = useState(false);
   // What the install is doing, while it does: the button says it.
-  const installStage = useInstallStage(installBusy);
+  // An install as a persistent agent, under way.
+  const [agentBusy, setAgentBusy] = useState(false);
+  const installStage = useInstallStage(installBusy || agentBusy);
   const [installError, setInstallError] = useState<string | null>(null);
   // What a successful one-click install did not do (the coding-agent
   // export it could not write): a page with no result screen says it here.
@@ -113,9 +119,25 @@ export default function AgentPage({
   // The setup opened by Schedule a new run starts on Repeat; one opened by
   // Run later does not.
   const [asSchedule, setAsSchedule] = useState(false);
-  // A release that runs only persistent is a built-in's: it is shown for
-  // reading, and no run of it is offered.
+  // A release that runs only persistent is installed as a persistent
+  // agent, and no run of it is offered.
   const runnable = !!detail?.latest && !persistentOnly(detail?.agent?.modes);
+  // The persistent agent this release is installed as, if it is one.
+  const agents = useAgents();
+  const asAgent = agents.find((x) => x.published && x.ref === `${ns}/${name}`);
+  async function installAsAgent() {
+    setAgentBusy(true);
+    setInstallError(null);
+    try {
+      const v = await PersistentAPI.Install(registry, `${ns}/${name}`);
+      updateAgent(v);
+      onOpenPersistentAgent?.(v.name);
+    } catch (e) {
+      setInstallError(String(e));
+    } finally {
+      setAgentBusy(false);
+    }
+  }
   useEffect(() => {
     if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); setAsSchedule(openSchedule); }
   }, [openRun, runnable, ranOnOpen, openSchedule]);
@@ -297,13 +319,14 @@ export default function AgentPage({
           {detail.latest
             ? (
               <>
-                {runnable
-                  ? <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
-                  : <span className="small muted">{PERSISTENT_ONLY_SENTENCE}</span>}
+                {runnable && <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>}
+                {installsPersistent(a.modes) && (asAgent
+                  ? <Button variant={runnable ? "default" : "primary"} data-open-persistent={asAgent.name} onClick={() => onOpenPersistentAgent?.(asAgent.name)}>Open {asAgent.displayName}</Button>
+                  : <Button variant={runnable ? "default" : "primary"} data-install-persistent busy={agentBusy} busyLabel={installStage || "Installing…"} disabled={agentBusy} onClick={() => void installAsAgent()}>Install as a persistent agent</Button>)}
                 {runnable && <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
-                {installButton}
+                {runnable && installButton}
                 {onFork && forkable(a, !!detail.latest, true) && (
                   <Button onClick={() => setForkOpen(true)} title={`Make your own private copy of ${a.namespace}/${a.name}`}>Fork</Button>
                 )}
@@ -313,6 +336,7 @@ export default function AgentPage({
             : <span className="badge">no published version</span>}
         </>}
       />
+      {!runnable && !asAgent && detail.latest && <p className="small muted" data-persistent-only>{PERSISTENT_ONLY_SENTENCE}</p>}
       <div className="row" style={{ margin: "0 0 8px" }}>
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />

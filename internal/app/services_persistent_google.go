@@ -56,7 +56,7 @@ type PersistentGoogleView struct {
 // imageServerKey is the agent's Google Workspace server's key, "" for an
 // agent with none.
 func imageServerKey(a persistent.Agent) string {
-	for _, s := range a.Builtin.ImageServers(policy.Images{}) {
+	for _, s := range a.ImageServers(policy.Images{}) {
 		if s.Key == assistant.GogKey {
 			return s.Key
 		}

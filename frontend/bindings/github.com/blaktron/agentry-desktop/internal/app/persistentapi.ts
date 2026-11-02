@@ -205,6 +205,24 @@ export function GoogleSignIn(name: string, email: string): $CancellablePromise<$
 }
 
 /**
+ * Install installs the release ref (ns/name, or ns/name@version) from the
+ * registry reg as a persistent agent beside the built-ins. The release is
+ * resolved, downloaded and verified as any install is; then one native
+ * dialog states everything it is given: what it may do, its persona, the
+ * knowledge it ships and each subagent it declares, pinned to the newest
+ * version its constraint allows, with that version's own reach. A No
+ * installs nothing. A release that cannot be a persistent agent here is
+ * refused before the person is asked. The agent is enabled and left
+ * stopped; its conversation and files from an earlier install of the same
+ * reference are its again.
+ */
+export function Install(reg: string, ref: string): $CancellablePromise<$models.PersistentAgentView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Install", reg, ref).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
  * Interrupt stops the turn the agent is on, the person's or one it runs on
  * its own, and returns once the turn has ended; the agent keeps running.
  * With no turn in flight it does nothing. An agent another client runs is
@@ -583,6 +601,31 @@ export function Tasks(name: string): $CancellablePromise<$models.PersistentTaskV
 export function Transcript(name: string): $CancellablePromise<$models.SessionEventView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Transcript", name).then(($result: any) => {
         return $$createType9($result);
+    });
+}
+
+/**
+ * Uninstall uninstalls a published agent: it is no longer listed or
+ * started, and its release, its MCP servers' connections and the agreement
+ * to it are removed. Its conversation, its files and everything chosen for
+ * it are kept, so installing it again takes them up, unless removeData:
+ * then its volumes and its folder under the runner home go too. The files
+ * in its share folder are the person's and always stay. A native dialog
+ * asks first, saying which of the two it is. A running agent is refused.
+ */
+export function Uninstall(name: string, removeData: boolean): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Uninstall", name, removeData);
+}
+
+/**
+ * Update installs the newest version of a published agent from the
+ * registry it came from, asking again in the same dialog, which names what
+ * the new version adds. Its subagents are pinned afresh. A running agent is
+ * stopped first.
+ */
+export function Update(name: string): $CancellablePromise<$models.PersistentAgentView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Update", name).then(($result: any) => {
+        return $$createType1($result)!;
     });
 }
 

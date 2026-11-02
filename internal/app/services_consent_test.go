@@ -197,3 +197,27 @@ func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
 		t.Fatalf("a cancelled pick: %q %v", got, err)
 	}
 }
+
+// A subagent run's output folder is the one its supervisor made under the
+// agent's own folder in the runner home: the run gates admit it without a
+// pick, and an output folder outside that folder, or one that climbs out of
+// it, is still refused.
+func TestASubagentRunsOwnOutputFolderNeedsNoPick(t *testing.T) {
+	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}
+	home := t.TempDir()
+	r := &RunAPI{app: app, runnerHomeDir: home}
+	own := filepath.Join(home, "persistent")
+	h := runHooks{outDirIn: own}
+	run := func(out string) error {
+		_, err := r.runAgent(h, "http://127.0.0.1:9", "acme/x@1.0.0", "go", nil, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
+		return err
+	}
+	if err := run(filepath.Join(own, "acme.helper", "subagents", "sa-000000000001", "out")); err != nil && strings.Contains(err.Error(), "not chosen through the file dialog") {
+		t.Fatalf("a subagent run's own output folder: %v", err)
+	}
+	for _, out := range []string{filepath.Join(t.TempDir(), "elsewhere"), filepath.Join(own, "..", "escape"), own + "-sibling"} {
+		if err := run(out); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+			t.Errorf("output folder %s: err = %v, want the picker refusal", out, err)
+		}
+	}
+}

@@ -86,7 +86,7 @@ func (p *PersistentAPI) checkElsewhere() {
 	if err != nil {
 		return
 	}
-	for _, name := range shownAgents {
+	for _, name := range p.shownNames() {
 		p.mu.Lock()
 		_, ours := p.sups[name]
 		starting := p.starting[name] != nil
@@ -179,7 +179,7 @@ func (p *PersistentAPI) leaveViewer(name string) {
 
 // leaveViewers leaves every viewer, as the app quits.
 func (p *PersistentAPI) leaveViewers() {
-	for _, name := range shownAgents {
+	for _, name := range p.shownNames() {
 		p.leaveViewer(name)
 	}
 }

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import {
   cardIcon,
+  grantedWords,
   cardMenu,
   cardState,
   cardSwitches,
@@ -324,4 +325,15 @@ test("a calendar feed's name is 1 to 64 bytes with no control character", () => 
   assert.equal(calendarNameOK("  "), false);
   assert.equal(calendarNameOK("x".repeat(65)), false);
   assert.equal(calendarNameOK("Work\tHome"), false);
+});
+
+test("an entry says who granted it: the person, the publisher or Agentry", () => {
+  assert.equal(grantedWords({ grantedBy: "you" }), "Added by you");
+  assert.equal(grantedWords({ grantedBy: "release" }), "From the publisher");
+  assert.equal(grantedWords({ grantedBy: "built-in" }), "Built in");
+});
+
+test("a subagent's and the Writing Voice's cards have glyphs of their own", () => {
+  assert.deepEqual(cardIcon({ id: "subagent:acme/summarize", kind: "subagent", name: "acme/summarize@1.2.0", icon: "", iconKey: "" }), { kind: "glyph", key: "box" });
+  assert.deepEqual(cardIcon({ id: "voice", kind: "voice", name: "Writing Voice", icon: "", iconKey: "" }), { kind: "glyph", key: "person" });
 });
