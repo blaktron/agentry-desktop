@@ -384,3 +384,48 @@ func (l lineWriter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// CollectScheduledRun opens one run of a runhost schedule here: job's
+// sealed output and envelope collected from runhost name into its own
+// folder in outRoot ("" for the default output folder), as a run there
+// started from this computer is. code is the exit status the runhost
+// recorded for it.
+func CollectScheduledRun(ctx context.Context, name, jobID, ref string, code int, outRoot string, say func(string)) (*Result, error) {
+	if say == nil {
+		say = func(string) {}
+	}
+	home, err := Home()
+	if err != nil {
+		return nil, err
+	}
+	recs, err := runhost.LoadRecords(home)
+	if err != nil {
+		return nil, err
+	}
+	rec, ok := recs.Find(name)
+	if !ok {
+		return nil, fmt.Errorf("no runhost is named %q on this computer", name)
+	}
+	keys, err := runhost.LoadKeys(name)
+	if err != nil {
+		return nil, err
+	}
+	c, err := runhost.DialRunhost(ctx, *rec, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = c.Close() }()
+	release, version, _ := strings.Cut(ref, "@")
+	ns, nm, _ := strings.Cut(release, "/")
+	lj := remote.LocalJob{Job: jobID, Runhost: name, Ref: ref, Namespace: ns, Name: nm, Version: version}
+	env, err := remote.Finish(ctx, c, rec, keys, lj, code, remote.FinishOptions{
+		Home:        home,
+		OutDir:      func(runID string) (string, error) { return OutputDir(outRoot, ns, nm, runID) },
+		Warn:        say,
+		CollectHint: fmt.Sprintf(": agentry runhost collect %s %s", name, jobID),
+	})
+	if env == nil {
+		return nil, err
+	}
+	return resultFromRunhost(env), nil
+}

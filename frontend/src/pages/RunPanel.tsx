@@ -508,6 +508,7 @@ export default function RunPanel({
   // held until nothing a fire needs is missing.
   const whenBlocked = whenUnavailable({
     modes: profile?.modes ?? [], mode, inAgentry, local, availability, session: sessionInAgentry, hostedOffer: hosted?.schedule ?? null,
+    runhost: onRunhost,
   });
   const scheduling = when.choice !== "now" && !whenBlocked;
   const schedulingHere = scheduling && !inAgentry;
@@ -606,8 +607,8 @@ export default function RunPanel({
     blockers.push("Enter the secrets above, then Keep and schedule — or Cancel.");
   }
   if (schedulingHere) {
-    if (!outDir.trim()) blockers.push("Choose the output folder: each scheduled run gets its own folder in it.");
-    if (check.state === "checking" || (check.state === "idle" && !whenSays && outDir.trim())) blockers.push("Checking what a scheduled run needs.");
+    if (!onRunhost && !outDir.trim()) blockers.push("Choose the output folder: each scheduled run gets its own folder in it.");
+    if (check.state === "checking" || (check.state === "idle" && !whenSays && (onRunhost || outDir.trim()))) blockers.push("Checking what a scheduled run needs.");
     if (check.state === "error") blockers.push(`The check could not be made: ${check.error}`);
     if (check.state === "done" && !check.ready) blockers.push(...check.gaps.map((g) => `A scheduled run would not have it: ${g}`));
   }
@@ -816,12 +817,13 @@ export default function RunPanel({
       registry, ref: agentRef, outDir: outDir.trim(), task: task.trim(), files: inputs, knowledge: attached,
       intake: intakeAnswers(), voice: writeInVoice, timeoutSeconds: timeout, maxTurns: turns,
       allowUnsigned: unsigned && acceptUnsigned, allowUnscanned: unscanned && acceptUnscanned, allowVulnerableMcp: vuln.send,
-      signedOut: when.signedOut && !!availability?.signedOut.available, destinations: sendNames(), when: spec,
+      signedOut: !onRunhost && when.signedOut && !!availability?.signedOut.available, destinations: sendNames(), when: spec,
+      on: onRunhost || undefined,
     });
   }
   // The check runs again, after a pause in typing, whenever the schedule
   // the setup describes changes; a late answer for an older one is dropped.
-  const scheduleKey = schedulingHere && !whenSays && outDir.trim() ? JSON.stringify(scheduleRequest()) : "";
+  const scheduleKey = schedulingHere && !whenSays && (onRunhost || outDir.trim()) ? JSON.stringify(scheduleRequest()) : "";
   const checkedKey = useRef("");
   useEffect(() => {
     if (!scheduleKey) {

@@ -23,6 +23,12 @@ export class Check {
     "describe"?: string;
     "next"?: string;
 
+    /**
+     * Runhost is a schedule on a remote runhost's part of the check: the
+     * runhost, whether it takes schedules, and what its store would keep.
+     */
+    "runhost"?: RunhostCheck | null;
+
     /** Creates a new Check instance. */
     constructor($$source: Partial<Check> = {}) {
         if (!("ref" in $$source)) {
@@ -67,6 +73,7 @@ export class Check {
         const $$createField5_0 = $$createType0;
         const $$createField8_0 = $$createType2;
         const $$createField10_0 = $$createType3;
+        const $$createField13_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("modes" in $$parsedSource) {
             $$parsedSource["modes"] = $$createField3_0($$parsedSource["modes"]);
@@ -79,6 +86,9 @@ export class Check {
         }
         if ("signedOut" in $$parsedSource) {
             $$parsedSource["signedOut"] = $$createField10_0($$parsedSource["signedOut"]);
+        }
+        if ("runhost" in $$parsedSource) {
+            $$parsedSource["runhost"] = $$createField13_0($$parsedSource["runhost"]);
         }
         return new Check($$parsedSource as Partial<Check>);
     }
@@ -103,7 +113,7 @@ export class Edit {
      * Creates a new Edit instance from a string or object.
      */
     static createFrom($$source: any = {}): Edit {
-        const $$createField1_0 = $$createType5;
+        const $$createField1_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("when" in $$parsedSource) {
             $$parsedSource["when"] = $$createField1_0($$parsedSource["when"]);
@@ -233,8 +243,8 @@ export class Item {
      * Creates a new Item instance from a string or object.
      */
     static createFrom($$source: any = {}): Item {
-        const $$createField7_0 = $$createType4;
-        const $$createField15_0 = $$createType7;
+        const $$createField7_0 = $$createType6;
+        const $$createField15_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("when" in $$parsedSource) {
             $$parsedSource["when"] = $$createField7_0($$parsedSource["when"]);
@@ -325,6 +335,12 @@ export class Request {
     "destinations"?: string[];
     "when": When;
 
+    /**
+     * On is a remote runhost's name: the schedule runs there, with nobody
+     * present, and needs no output folder here (its runs are collected).
+     */
+    "on"?: string;
+
     /** Creates a new Request instance. */
     constructor($$source: Partial<Request> = {}) {
         if (!("registry" in $$source)) {
@@ -355,9 +371,9 @@ export class Request {
     static createFrom($$source: any = {}): Request {
         const $$createField5_0 = $$createType0;
         const $$createField6_0 = $$createType0;
-        const $$createField7_0 = $$createType8;
+        const $$createField7_0 = $$createType10;
         const $$createField16_0 = $$createType0;
-        const $$createField17_0 = $$createType4;
+        const $$createField17_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("files" in $$parsedSource) {
             $$parsedSource["files"] = $$createField5_0($$parsedSource["files"]);
@@ -375,6 +391,79 @@ export class Request {
             $$parsedSource["when"] = $$createField17_0($$parsedSource["when"]);
         }
         return new Request($$parsedSource as Partial<Request>);
+    }
+}
+
+/**
+ * RunhostCheck is the runhost a schedule with On would run on, and the
+ * entries its store would keep, by name.
+ */
+export class RunhostCheck {
+    "name": string;
+    "host": string;
+    "hostKeyFingerprint": string;
+    "takesSchedules": boolean;
+    "entries": RunhostEntry[];
+
+    /** Creates a new RunhostCheck instance. */
+    constructor($$source: Partial<RunhostCheck> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("host" in $$source)) {
+            this["host"] = "";
+        }
+        if (!("hostKeyFingerprint" in $$source)) {
+            this["hostKeyFingerprint"] = "";
+        }
+        if (!("takesSchedules" in $$source)) {
+            this["takesSchedules"] = false;
+        }
+        if (!("entries" in $$source)) {
+            this["entries"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RunhostCheck instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RunhostCheck {
+        const $$createField4_0 = $$createType12;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+        }
+        return new RunhostCheck($$parsedSource as Partial<RunhostCheck>);
+    }
+}
+
+/**
+ * RunhostEntry is one thing a runhost schedule keeps in the runhost's store.
+ */
+export class RunhostEntry {
+    "kind": string;
+    "name": string;
+
+    /** Creates a new RunhostEntry instance. */
+    constructor($$source: Partial<RunhostEntry> = {}) {
+        if (!("kind" in $$source)) {
+            this["kind"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RunhostEntry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RunhostEntry {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RunhostEntry($$parsedSource as Partial<RunhostEntry>);
     }
 }
 
@@ -471,8 +560,12 @@ const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = Refusal.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = SignedOut.createFrom;
-const $$createType4 = When.createFrom;
+const $$createType4 = RunhostCheck.createFrom;
 const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = Fire.createFrom;
+const $$createType6 = When.createFrom;
 const $$createType7 = $Create.Nullable($$createType6);
-const $$createType8 = $Create.Map($Create.Any, $Create.Any);
+const $$createType8 = Fire.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $Create.Map($Create.Any, $Create.Any);
+const $$createType11 = RunhostEntry.createFrom;
+const $$createType12 = $Create.Array($$createType11);
