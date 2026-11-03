@@ -11,6 +11,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/blaktron/agentry-cli/pkg/runhost"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -175,5 +176,114 @@ func TestLiveRunhostCreditsFromTheApp(t *testing.T) {
 	v, err = r.RemoveCredits("lab")
 	if err != nil || v.Credits != "" {
 		t.Fatalf("revoke: %+v %v", v, err)
+	}
+}
+
+// TestLiveRunhostPostUpdateFromTheApp is the app's side of an update: a
+// runhost the CLI set up at an older release (AGENTRY_LIVE_RUNHOST_NAME, in
+// the runner home AGENTRY_RUNNER_HOME, its keys in this computer's keychain)
+// is brought to the CLI this build carries by the post-update step, over its
+// run key. Then a second runner home pairs with it through the app, with the
+// admin sign-in, and unpairs again. Besides the variables above it takes
+// AGENTRY_LIVE_RUNHOST_HOST, _USER and _PASSWORD for the pairing, and
+// AGENTRY_LIVE_RUNHOST_REGISTRY and _TOKEN, the runhost owner's sign-in.
+// The runhost's keys are copied from this computer's keychain into the
+// in-memory one, which the rest of the test uses.
+func TestLiveRunhostPostUpdateFromTheApp(t *testing.T) {
+	name := os.Getenv("AGENTRY_LIVE_RUNHOST_NAME")
+	if name == "" {
+		t.Skip("updates a runhost the CLI set up and pairs a second home with it: set AGENTRY_LIVE_RUNHOST_NAME and the rest")
+	}
+	carried := carriedCLIVersion()
+	if carried == "" {
+		t.Fatal("this test binary carries no released CLI")
+	}
+	host, user, pw := os.Getenv("AGENTRY_LIVE_RUNHOST_HOST"), os.Getenv("AGENTRY_LIVE_RUNHOST_USER"), os.Getenv("AGENTRY_LIVE_RUNHOST_PASSWORD")
+	reg, token := os.Getenv("AGENTRY_LIVE_RUNHOST_REGISTRY"), os.Getenv("AGENTRY_LIVE_RUNHOST_TOKEN")
+	runner := os.Getenv("AGENTRY_RUNNER_HOME")
+	keys, err := runhost.LoadKeys(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyring.MockInit()
+	if err := runhost.SaveKeys(name, keys); err != nil {
+		t.Fatal(err)
+	}
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("HOME", cfg)
+	prevReg := settings.DefaultRegistryURL
+	settings.DefaultRegistryURL = reg
+	t.Cleanup(func() { settings.DefaultRegistryURL = prevReg })
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.DefaultRegistry = reg
+	st.Upsert(settings.Registry{URL: reg})
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := settings.StoreToken(reg, token); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	app := &App{ctx: ctx, confirm: func(_ context.Context, title, msg string) (bool, error) {
+		t.Logf("dialog %q: %s", title, firstLine(msg))
+		return true, nil
+	}}
+	oldPath := runhostUpdatesPath
+	dir := t.TempDir()
+	runhostUpdatesPath = func() (string, error) { return filepath.Join(dir, runhostUpdatesFile), nil }
+	t.Cleanup(func() { runhostUpdatesPath = oldPath })
+
+	r := &RunhostsAPI{app: app, run: &RunAPI{app: app, runnerHomeDir: runner}}
+	before, err := r.view(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s runs CLI %s; this build carries %s", name, before.CLIVersion, carried)
+	if before.CLIVersion == carried {
+		t.Fatalf("%s already runs the carried CLI: set it up with an older release", name)
+	}
+	got, err := r.PostUpdate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Update == nil {
+		t.Fatalf("the step returned %+v", got)
+	}
+	u := got[0].Update
+	t.Logf("post-update: %s from %s to %s, updated %v, attention %v, problem %q", got[0].Name, u.From, u.To, u.Updated, u.NeedsAttention, u.Problem)
+	if !u.Updated || u.To != carried || got[0].CLIVersion != carried || len(u.NeedsAttention) != 0 {
+		t.Fatalf("the runhost was not brought to %s: %+v", carried, u)
+	}
+	after, err := r.Status(name)
+	if err != nil || !after.Reachable || !after.SameVersion {
+		t.Fatalf("status after: %+v %v", after, err)
+	}
+	if again, err := r.PostUpdate(); err != nil || len(again) != 0 {
+		t.Fatalf("the step ran twice for one CLI: %+v %v", again, err)
+	}
+
+	second := t.TempDir()
+	p := &RunhostsAPI{app: app, run: &RunAPI{app: app, runnerHomeDir: second}}
+	pv, err := p.Pair(RunhostAddRequest{Name: name + "-pair", Host: host, Admin: RunhostAdmin{User: user, Password: pw}})
+	if err != nil {
+		t.Fatalf("pair: %v", err)
+	}
+	t.Logf("paired %s: CLI %s, owner %s", pv.Name, pv.CLIVersion, pv.Owner)
+	if ps, err := p.Status(pv.Name); err != nil || !ps.Reachable || !ps.SameVersion {
+		t.Fatalf("the paired home's status: %+v %v", ps, err)
+	}
+	if err := p.Unpair(pv.Name); err != nil {
+		t.Fatalf("unpair: %v", err)
+	}
+	if list, _ := p.List(); len(list) != 0 {
+		t.Fatalf("the paired home kept %+v", list)
+	}
+	if again, err := r.Status(name); err != nil || !again.Reachable {
+		t.Fatalf("the first home lost its runhost: %+v %v", again, err)
 	}
 }
