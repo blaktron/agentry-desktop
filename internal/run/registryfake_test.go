@@ -33,7 +33,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
-	runnerdecode "github.com/blaktron/agentry-cli/runnerimage/decode"
 	"github.com/blaktron/agentry-cli/runnerimage/probe"
 	"github.com/blaktron/agentry-cli/runnerimage/sockfilter"
 
@@ -350,32 +349,14 @@ func fakeProbe() *dockerx.FakeForeground {
 }
 
 // scriptDecode plays the decode container a run or a session's added file
-// goes through before the agent sees it: it states its scan record on
-// stdout, as the decoder does before any decoder reads a file, and writes a
-// report that decodes nothing, so the engine records each staged file as
-// unread and the run goes on. Call it after anything that replaces
-// f.Foreground wholesale.
+// goes through before the agent sees it, with the CLI's own fake of it: the
+// decode image present, the files image's package record answered, and a
+// container that states its scan record and decodes nothing, so the engine
+// records each staged file as unread and the run goes on. Call it after
+// anything that replaces f.Foreground wholesale.
 func scriptDecode(f *dockerx.Fake) {
-	if f.Foreground == nil {
-		f.Foreground = map[string]*dockerx.FakeForeground{}
-	}
-	ff := &dockerx.FakeForeground{}
-	ff.Before = func(r dockerx.RunSpec) {
-		checked := false
-		for _, m := range r.Mounts {
-			if m.Target == "/clamav" {
-				checked = true
-			}
-		}
-		ff.Stdout = string(runnerdecode.RecordOf(nil, checked)) + "\n"
-		for _, m := range r.Mounts {
-			if m.Target == "/out" {
-				report, _ := json.Marshal(map[string]any{"schema": runnerdecode.Schema, "files": []any{}})
-				_ = os.WriteFile(filepath.Join(m.Source, runnerdecode.ReportFile), report, 0o644)
-			}
-		}
-	}
-	f.Foreground["agentry-decode-"] = ff
+	pol := cataloguedPolicy()
+	decode.ScriptFake(f, runnerImageTag(pol), pol.Images.FilesImage())
 }
 
 // scriptHappyAgent scripts a clean run: probe passes, the agent makes two

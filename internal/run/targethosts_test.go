@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -48,7 +49,22 @@ const (
 type sshHost struct {
 	addr netip.Addr
 	port int
-	key  ssh.Signer
+	// mu guards key: a test swaps it while an earlier connection's
+	// handshake may still be reading it.
+	mu  sync.Mutex
+	key ssh.Signer
+}
+
+func (h *sshHost) signer() ssh.Signer {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.key
+}
+
+func (h *sshHost) setKey(k ssh.Signer) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.key = k
 }
 
 // nonLoopback is an IPv4 address of this machine that is not loopback or
@@ -107,7 +123,7 @@ func startSSHHost(t *testing.T) *sshHost {
 				cfg := &ssh.ServerConfig{PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) {
 					return nil, errors.New("no")
 				}}
-				cfg.AddHostKey(h.key)
+				cfg.AddHostKey(h.signer())
 				_, _, _, _ = ssh.NewServerConn(c, cfg)
 			}()
 		}
@@ -119,7 +135,7 @@ func (h *sshHost) answer() string {
 	return "admin@" + h.addr.String() + ":" + strconv.Itoa(h.port)
 }
 
-func (h *sshHost) fingerprint() string { return ssh.FingerprintSHA256(h.key.PublicKey()) }
+func (h *sshHost) fingerprint() string { return ssh.FingerprintSHA256(h.signer().PublicKey()) }
 
 // keyFile writes an ed25519 private key, locked with passphrase when it is
 // not "", and returns its path.
@@ -291,7 +307,7 @@ func TestAChangedHostKeyRefusesWithBothFingerprints(t *testing.T) {
 		t.Fatal(err)
 	}
 	was := h.fingerprint()
-	h.key = newSigner(t)
+	h.setKey(newSigner(t))
 	d := &dialog{answer: true}
 	_, _, err := readyOne(t, home, h.answer(), given, nil, d, false)
 	code, r := reasonOf(t, err)
