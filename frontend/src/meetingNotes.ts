@@ -73,13 +73,21 @@ export function recordingWhat(app: string, wholeDevice: boolean, inRoom = false)
 }
 
 /** What a meeting in the list says it recorded: the app, a meeting in the
- *  room (with how many speakers were told apart), or the whole device. */
+ *  room, or the whole device, with how many speakers were told apart. */
 export function meetingSource(m: { app: string; inRoom: boolean; wholeDevice: boolean; speakers?: number; diarization?: string }): string {
   if (m.inRoom) {
     if (m.diarization === "done" && m.speakers) return `In the room, ${m.speakers} ${m.speakers === 1 ? "speaker" : "speakers"}`;
     return "In the room";
   }
-  return m.app || (m.wholeDevice ? "Whole device" : "");
+  const what = m.app || (m.wholeDevice ? "Whole device" : "");
+  if (m.diarization === "done" && m.speakers) return `${what || "A call"}, ${m.speakers} other ${m.speakers === 1 ? "speaker" : "speakers"}`;
+  return what;
+}
+
+/** The Settings landing's line for Meeting notes. */
+export function meetingNotesStatus(v: { on: boolean; tellCallSpeakersApart: boolean; separatesSpeakers: boolean }): string {
+  if (!v.on) return "Off.";
+  return v.separatesSpeakers && v.tellCallSpeakersApart ? "On, telling speakers apart on calls." : "On.";
 }
 
 /**

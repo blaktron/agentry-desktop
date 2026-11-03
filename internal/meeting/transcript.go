@@ -53,6 +53,20 @@ func Merge(me, them []Segment) []Segment {
 	return joinTurns(all)
 }
 
+// MergeSpeakers is a call whose far side's voices were told apart: the
+// microphone's segments without the far side's echoes (them is the far
+// side as transcribed), and the far side's lines as each voice said them.
+func MergeSpeakers(me, them, speakers []Segment) []Segment {
+	var all []Segment
+	for _, s := range me {
+		if !echoOf(s, them) {
+			s.Label = Me
+			all = append(all, s)
+		}
+	}
+	return joinTurns(append(all, speakers...))
+}
+
 // MergeRoom is the one track of a meeting in the room as turns: its
 // segments labelled Room and consecutive lines joined.
 func MergeRoom(room []Segment) []Segment {
@@ -190,8 +204,9 @@ type TranscriptInfo struct {
 	// MicChanges are the microphone's changes during the recording, said
 	// one sentence each.
 	MicChanges []MicChangeRecord
-	// Diarization is how telling a room's speakers apart went (a
-	// Diarization constant, "" for a call), Speakers how many voices it
+	// Diarization is how telling the speakers apart went, of a room or of
+	// a call's far side (a Diarization constant, "" for a call whose
+	// switch was off), Speakers how many voices it
 	// told apart, People the count the person gave (0 when it was
 	// estimated), and DiarizationError why it failed or could not run.
 	Diarization      string
@@ -295,6 +310,15 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 				fm.SpeakerCount = "given"
 			}
 		}
+	} else if info.Diarization != "" {
+		fm.Diarization = info.Diarization
+		if info.Diarization == DiarizationDone {
+			fm.Speakers = fm.Speakers[:1]
+			for n := 1; n <= info.Speakers; n++ {
+				fm.Speakers = append(fm.Speakers, frontSpeaker{Label: string(SpeakerLabel(n)), Source: "system-audio", Note: speakerNote})
+			}
+			fm.SpeakerCount, fm.Diarizer = "estimated", DiarizerName
+		}
 	}
 	fm.Microphone = info.Microphone
 	if info.MicMissing {
@@ -332,8 +356,13 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 		if s := roomOnlySentence(info); s != "" {
 			b.WriteString("\n" + s + "\n")
 		}
+	case info.Diarization == DiarizationDone:
+		b.WriteString("Transcript produced automatically on this computer. \"Me\" is the person who owns this computer, on the microphone. " + callSpeakersSentence(info) + " Words may be wrong. Times are from the start of the recording.\n")
 	default:
 		b.WriteString("Transcript produced automatically on this computer. Speaker labels come from the audio source, not from voice recognition: \"Them\" may be several people. Words may be wrong. Times are from the start of the recording.\n")
+		if s := themOnlySentence(info); s != "" {
+			b.WriteString("\n" + s + "\n")
+		}
 	}
 	if info.MicMissing {
 		b.WriteString("\nThe microphone chosen in the settings was not found, so the default microphone was recorded.\n")
@@ -341,11 +370,15 @@ func Render(info TranscriptInfo, lines []Segment) ([]byte, error) {
 	if s := micChangeSentences(info.MicChanges); s != "" {
 		b.WriteString("\n" + s + "\n")
 	}
+	farLabel, farStart := "\"Them\" is", "\"Them\" is"
+	if !info.InRoom && info.Diarization == DiarizationDone {
+		farLabel, farStart = "the Speaker lines are", "The Speaker lines are"
+	}
 	switch info.FarSide {
 	case FarSideWholeDevice:
-		b.WriteString("\nNo meeting app was found to record on its own, so \"Them\" is everything the computer played, other sounds included.\n")
+		b.WriteString("\nNo meeting app was found to record on its own, so " + farLabel + " everything the computer played, other sounds included.\n")
 	case FarSideAppDevice:
-		b.WriteString("\n\"Them\" is everything played on the speakers or headset the meeting app used, so other sounds played there are in it too.\n")
+		b.WriteString("\n" + farStart + " everything played on the speakers or headset the meeting app used, so other sounds played there are in it too.\n")
 	}
 	b.WriteString("\n## Transcript\n\n")
 	if len(lines) == 0 {
@@ -375,6 +408,28 @@ func voicesWords(n int) string {
 		return "the one voice heard"
 	}
 	return fmt.Sprintf("the %d voices heard", n)
+}
+
+// callSpeakersSentence says what the Speaker labels of a call's far side
+// are.
+func callSpeakersSentence(info TranscriptInfo) string {
+	return fmt.Sprintf("Everyone else is told apart by clustering the voices the computer played: \"Speaker 1\", \"Speaker 2\" and so on are %s on the far side, numbered by who spoke first, the same number for the same voice within this transcript. They are not identities: two people may share a number, or one person appear under two. How many people were on the call was estimated, so one person may appear under several numbers.", voicesWords(info.Speakers))
+}
+
+// themOnlySentence says why a call's far side is all Them when telling its
+// voices apart was on, "" when it was not.
+func themOnlySentence(info TranscriptInfo) string {
+	if info.InRoom {
+		return ""
+	}
+	why := oneLine(info.DiarizationError)
+	switch info.Diarization {
+	case DiarizationUnavailable:
+		return "The far side's speakers could not be told apart (" + why + "), so every far-side line is Them."
+	case DiarizationFailed:
+		return "Telling the far side's speakers apart failed (" + why + "), so every far-side line is Them."
+	}
+	return ""
 }
 
 // roomOnlySentence says why a meeting in the room's lines are all Room,

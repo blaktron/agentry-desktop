@@ -8,18 +8,19 @@
 // a meeting by its id and never a path, and the output folder comes from
 // the native picker alone. Giving transcripts to the Assistant is turned on
 // in Go's native dialog too; the windows the Assistant armed are listed
-// with Cancel.
+// with Cancel. The settings sit above the list of meetings, and are also
+// Settings → Meeting notes (MeetingNotesSettings).
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { EventsOn } from "../host";
-import { Button, Card, ErrorBox, Field, Notice, PageHeader, Select, Spinner } from "../ui";
+import { Button, Card, ErrorBox, Field, Notice, PageHeader, Spinner } from "../ui";
 import { BytesBar } from "../progress";
 import {
-  AUTO_CHOICES, CHAT_LINE, DEFAULT_MIC, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuHint,
-  gpuOfferTitle, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, parsePeople, possessive, recordingWhat, windowStateWords,
-  windowWhen,
+  CHAT_LINE, canAskAssistant, canTranscribe, capitalised, deliveryWords, downloadWords, duration, elapsed, gpuOfferTitle, isNo, meetingSource,
+  meetingState, micLostText, offerTitle, parsePeople, recordingWhat, windowStateWords, windowWhen,
 } from "../meetingNotes";
+import { MeetingNotesSettingsCard } from "./MeetingNotesSettings";
 
 type View = app.MeetingNotesView;
 
@@ -372,6 +373,9 @@ export default function MeetingNotes() {
         )}
       </Card>
 
+      <h3>Settings</h3>
+      <MeetingNotesSettingsCard view={view} busy={busy} act={act} />
+
       <h3>Meetings</h3>
       {view.meetings.length === 0 ? (
         <p className="muted">No meetings recorded yet.</p>
@@ -415,150 +419,6 @@ export default function MeetingNotes() {
         </div>
       )}
 
-      <h3>Settings</h3>
-      <Card className="meeting-settings">
-        <Field label="Language" htmlFor="meeting-profile" hint="English is more accurate for English; Multilingual detects the language spoken.">
-          <Select id="meeting-profile" value={view.profile} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetProfile(e.target.value))}>
-            {view.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </Select>
-        </Field>
-        <Field label="Model" htmlFor="meeting-model" hint="Automatic measures this computer and picks the most accurate model that keeps up.">
-          <Select id="meeting-model" value={view.modelChoice} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetModel(e.target.value))}>
-            <option value="">Automatic ({view.modelName})</option>
-            {view.models.map((m) => <option key={m.id} value={m.id}>{m.name} ({Math.round((m.sizeBytes ?? 0) / 1_000_000)} MB)</option>)}
-          </Select>
-        </Field>
-        {view.checksGPU && (
-          <Field label="Transcribe on" htmlFor="meeting-backend" hint={view.gpu ? gpuHint(view.gpu) : undefined}>
-            {view.gpu ? (
-              <Select id="meeting-backend" data-meeting-backend value={view.gpu.on ? "gpu" : "cpu"} disabled={busy}
-                onChange={(e) => act(() => MeetingAPI.UseGPU(e.target.value === "gpu"))}>
-                <option value="cpu">The processor</option>
-                <option value="gpu">The graphics card ({view.gpu.name})</option>
-              </Select>
-            ) : (
-              <p className="small muted" data-meeting-backend-none>
-                {view.gpuChecked
-                  ? "The processor: no graphics card here ran a transcription when Agentry measured it."
-                  : "The processor. Agentry measures your graphics card once the speech model is ready."}
-              </p>
-            )}
-            {view.gpuChecked && (
-              <div className="row">
-                <Button variant="ghost" data-meeting-gpu-check disabled={busy || view.preparing} onClick={() => act(MeetingAPI.CheckGPU)}>
-                  Measure the graphics card again
-                </Button>
-              </div>
-            )}
-          </Field>
-        )}
-        {view.recordsRooms && (
-          <Field label="Microphone" htmlFor="meeting-mic"
-            hint={view.micHint}>
-            <Select id="meeting-mic" data-meeting-mic value={view.mic} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetMic(e.target.value))}>
-              <option value="">{DEFAULT_MIC}</option>
-              {view.mic && !view.microphones.some((m) => m.id === view.mic) && <option value={view.mic}>Not connected now</option>}
-              {view.microphones.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </Select>
-          </Field>
-        )}
-        <Field label="Transcripts folder">
-          <div className="row">
-            <code className="nowrap" title={view.outputDir}>{view.outputDir}</code>
-          </div>
-          <div className="row">
-            <Button variant="ghost" disabled={busy} onClick={() => act(MeetingAPI.ChooseOutputDir)}>Choose…</Button>
-            {view.outputDirChosen && <Button variant="ghost" disabled={busy} onClick={() => act(MeetingAPI.ResetOutputDir)}>Use the default</Button>}
-            <Button variant="ghost" onClick={() => act(MeetingAPI.OpenOutputFolder)}>Open folder</Button>
-          </div>
-        </Field>
-        {view.detects && (
-          <Field label="Meeting apps" hint="An app's calls are offered for recording unless you choose to record them automatically. A browser's calls come from any site.">
-            {view.apps.length === 0 ? (
-              <p className="small muted" data-meeting-apps-empty>Apps appear here once Agentry has noticed a call in them.</p>
-            ) : (
-              <div className="meeting-apps" data-meeting-apps>
-                {view.apps.map((a) => (
-                  <div className="row meeting-app" key={a.key}>
-                    <span>{a.name}</span>
-                    <Select
-                      aria-label={`${a.name}'s calls`}
-                      value={a.automatic ? "auto" : "ask"}
-                      disabled={busy}
-                      onChange={(e) => act(() => MeetingAPI.SetAutomatic(a.key, e.target.value === "auto"))}
-                    >
-                      {AUTO_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </Select>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Field>
-        )}
-        <Field label="Stop a recording after" htmlFor="meeting-max-hours" hint="A recording that runs this long is stopped and transcribed.">
-          <Select id="meeting-max-hours" value={String(view.maxHours)} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetMaxHours(Number(e.target.value)))}>
-            {view.maxHoursChoices.map((h) => <option key={h} value={String(h)}>{hoursLabel(h)}</option>)}
-          </Select>
-        </Field>
-        {view.detects && (
-          <label className="check-row">
-            <input
-              type="checkbox"
-              role="switch"
-              data-meeting-signin
-              checked={view.startsAtSignIn}
-              disabled={busy}
-              onChange={(e) => act(() => MeetingAPI.SetStartsAtSignIn(e.target.checked))}
-            />
-            Start Agentry when I sign in, so calls are noticed from then on
-          </label>
-        )}
-        {assistant.enabled && (
-          <div className="meeting-assistant" data-meeting-assistant>
-            <p className="meeting-assistant-title">{capitalised(assistant.name)}</p>
-            <label className="check-row">
-              <input type="checkbox" role="switch" data-meeting-send checked={assistant.sendToAssistant} disabled={busy}
-                onChange={(e) => act(() => MeetingAPI.SetSendToAssistant(e.target.checked))} />
-              Give my meeting transcripts to {assistant.name}
-            </label>
-            {assistant.sendToAssistant && (
-              <label className="check-row">
-                <input type="checkbox" role="switch" data-meeting-ask-first checked={assistant.askFirst} disabled={busy}
-                  onChange={(e) => act(() => MeetingAPI.SetAskFirst(e.target.checked))} />
-                Ask me first: each transcript waits in {possessive(assistant.name)} share folder until I ask {assistant.name} to summarise it
-              </label>
-            )}
-            <p className="small muted">
-              {capitalised(assistant.name)} summarises each transcript with its meeting-notes skill and files the meeting in its memory. It is
-              never started for this.
-            </p>
-          </div>
-        )}
-        {view.separatesSpeakers && (
-          <>
-            <label className="check-row">
-              <input type="checkbox" role="switch" data-meeting-speakers checked={view.tellSpeakersApart} disabled={busy}
-                onChange={(e) => act(() => MeetingAPI.SetTellSpeakersApart(e.target.checked))} />
-              Tell speakers apart in meetings in the room
-            </label>
-            <p className="small muted">
-              On, a meeting in the room's transcript says Speaker 1, Speaker 2 and so on, told apart by voice on this computer after the
-              transcription. The first time, Agentry downloads about 46 MB of models. Off, every line says Room.
-            </p>
-          </>
-        )}
-        <label className="check-row">
-          <input type="checkbox" role="switch" data-meeting-keep checked={view.keepAudio} disabled={busy} onChange={(e) => act(() => MeetingAPI.SetKeepAudio(e.target.checked))} />
-          Keep recordings for 7 days
-        </label>
-        <p className="small muted">
-          Off, each recording is deleted once its transcript is written. On, it stays in Agentry's own folder for seven days,
-          never in the transcripts folder.
-        </p>
-        <div className="row">
-          <Button variant="ghost" data-meeting-turn-off disabled={busy} onClick={() => act(MeetingAPI.TurnOff)}>Turn off Meeting notes</Button>
-        </div>
-      </Card>
     </div>
   );
 }

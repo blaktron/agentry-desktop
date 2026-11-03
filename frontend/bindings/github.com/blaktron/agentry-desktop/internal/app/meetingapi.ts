@@ -272,6 +272,17 @@ export function SetStartsAtSignIn(on: boolean): $CancellablePromise<$models.Meet
 }
 
 /**
+ * SetTellCallSpeakersApart turns telling the voices on a call's far side
+ * apart on or off; it is off by default. Turned on, its models are fetched
+ * now, as a meeting in the room's are when one starts.
+ */
+export function SetTellCallSpeakersApart(on: boolean): $CancellablePromise<$models.MeetingNotesView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.MeetingAPI.SetTellCallSpeakersApart", on).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
  * SetTellSpeakersApart turns telling the speakers of a meeting in the room
  * apart on or off; it is on by default.
  */

@@ -616,6 +616,7 @@ export default function App() {
                 part={route.part}
                 onOpen={(section, part) => nav({ page: "settings", section, part })}
                 onOpenAgent={(id) => nav({ page: "persistent", id })}
+                onOpenMeetings={() => nav({ page: "meetings" })}
               />
             )}
           </Recover>

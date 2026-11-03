@@ -1866,19 +1866,19 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .meeting-notes .meeting-state { margin: 4px 0; }
 .meeting-notes .meeting-state.tone-ok { color: var(--color-ok); }
 .meeting-notes .meeting-state.tone-warn { color: var(--color-sev-medium); }
-.meeting-notes .meeting-settings code { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.meeting-settings code { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .meeting-notes .meeting-offer { border-color: var(--color-accent); }
 .meeting-notes .meeting-offer h3 { margin-top: 0; }
 .meeting-notes .meeting-gpu-offer { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .meeting-notes .meeting-gpu-offer h3 { margin-top: 0; }
-.meeting-notes .meeting-apps { display: grid; gap: 6px; }
-.meeting-notes .meeting-app { justify-content: space-between; align-items: center; flex-wrap: nowrap; }
-.meeting-notes .meeting-app select { width: auto; min-width: 220px; }
+.meeting-settings .meeting-apps { display: grid; gap: 6px; }
+.meeting-settings .meeting-app { justify-content: space-between; align-items: center; flex-wrap: nowrap; }
+.meeting-settings .meeting-app select { width: auto; min-width: 220px; }
 .meeting-notes .meeting-windows h3 { margin-top: 0; }
 .meeting-notes .meeting-window-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .meeting-notes .meeting-window { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .meeting-notes .tone-warn { color: var(--color-sev-medium); }
-.meeting-notes .meeting-assistant-title { margin: 12px 0 4px; font-weight: 600; font-size: 0.85em; }
+.meeting-settings .meeting-assistant-title { margin: 12px 0 4px; font-weight: 600; font-size: 0.85em; }
 .home-meetings-title { margin: 10px 0 4px; font-weight: 600; }
 .config-card-note { margin: 6px 0 0; }
 

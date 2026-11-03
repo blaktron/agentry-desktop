@@ -26,6 +26,37 @@ const harnessHelper = new URLSearchParams(window.location.search).get("helper");
 // keeps it; a pick is kept here and recorded on the body.
 let harnessAgentView = new URLSearchParams(window.location.search).get("agentview") ?? "terminal";
 if (harnessTheme) document.documentElement.dataset.theme = harnessTheme;
+// ?meetings=on has Meeting notes on, with one call told apart in its list;
+// ?meetings=off has it available and off. Its switches change the view.
+const harnessMeetings = new URLSearchParams(window.location.search).get("meetings");
+let meetingView = {
+  available: true, on: harnessMeetings === "on", warnings: ["Recording others may need their consent."], preparing: false,
+  model: "small.en-q5_1", modelName: "Small (English)", modelReady: true, modelChoice: "",
+  models: [{ id: "small.en-q5_1", name: "Small (English)", sizeBytes: 190_098_681 }], profile: "english",
+  profiles: [{ id: "english", name: "English" }, { id: "multilingual", name: "Multilingual" }],
+  checksGPU: false, gpuChecked: false, outputDir: "/home/you/Documents/Agentry/Meeting notes", outputDirChosen: false, keepAudio: false,
+  tellSpeakersApart: true, tellCallSpeakersApart: false, separatesSpeakers: true, minPeople: 2, maxPeople: 20,
+  meetings: [
+    { id: "m2", title: "Meeting 2026-11-03 15:00", app: "Zoom", wholeDevice: false, inRoom: false, started: "2026-11-03T15:00:00Z", durationSeconds: 1800,
+      state: "done", progress: -1, transcriptName: "2026-11-03-1500-zoom.md", hasTranscript: true, hasAudio: false, fromCalendar: false, diarization: "done", speakers: 3 },
+    { id: "m1", title: "Meeting in the room 2026-11-02 10:00", app: "", wholeDevice: false, inRoom: true, started: "2026-11-02T10:00:00Z", durationSeconds: 2700,
+      state: "done", progress: -1, transcriptName: "2026-11-02-1000-meeting-in-the-room.md", hasTranscript: true, hasAudio: false, fromCalendar: false, diarization: "done", speakers: 2 },
+  ],
+  detects: true, apps: [{ key: "zoom", name: "Zoom", automatic: false }], maxHours: 4, maxHoursChoices: [1, 2, 3, 4, 6, 8], startsAtSignIn: true, windows: [],
+  assistant: { enabled: true, name: "the Assistant", running: true, sendToAssistant: false, askFirst: false },
+  recordsRooms: true, mic: "", microphones: [{ id: "usb", name: "USB Speakerphone" }],
+  micHint: "Used for meetings in the room, and for Record when no meeting app is found.",
+};
+const meetingChange = (change: Partial<typeof meetingView>) => async () => {
+  meetingView = { ...meetingView, ...change };
+  return meetingView;
+};
+const meetingAPI = {
+  Status: async () => meetingView,
+  SetTellCallSpeakersApart: async (on: boolean) => meetingChange({ tellCallSpeakersApart: on })(),
+  SetTellSpeakersApart: async (on: boolean) => meetingChange({ tellSpeakersApart: on })(),
+  SetKeepAudio: async (on: boolean) => meetingChange({ keepAudio: on })(),
+};
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -1157,8 +1188,10 @@ g.go = { app: {
     DescribeAgainText: async () => "What the person wants changed now:\n…",
   },
   ValidateAPI: { Run: async () => validateResult },
-  // Settings asks whether Meeting notes can run here: not on this preview.
-  MeetingAPI: { Status: async () => ({ available: false }) },
+  // Settings asks whether Meeting notes can run here: not on this preview,
+  // unless ?meetings=on (or off) draws it on (or off), with its page and
+  // Settings → Meeting notes.
+  MeetingAPI: harnessMeetings ? meetingAPI : { Status: async () => ({ available: false }) },
   // The person's packs, for Describe it's Knowledge pick: only where a
   // knowledge state asks for them, so no other preview gains a list.
   KnowledgeAPI: { List: async () => ({ packs: describePacks, registry: "https://dev.secureagentry.net", signedIn: true }) },
@@ -1495,6 +1528,7 @@ import Voice from "../src/pages/Voice";
 import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
+import MeetingNotes from "../src/pages/MeetingNotes";
 import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
 const settingsView = {
@@ -1579,11 +1613,12 @@ const profileView = () => {
 // section and onOpenSection: the Settings preview's own route, so the
 // sidebar lists Settings' sections and lights the one open.
 function Shell({ active, children, signedIn, section, onOpenSection }: { active: NavPage; children: React.ReactNode; signedIn?: boolean; section?: string; onOpenSection?: (id: string) => void }) {
+  const meetings = !!harnessMeetings;
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        <SidebarNav page={active} installedUpdates={installedUpdates} signedIn={signedIn} sections={SECTIONS} section={section} onOpenSection={onOpenSection} />
+        <SidebarNav page={active} installedUpdates={installedUpdates} signedIn={signedIn} meetings={meetings} sections={SECTIONS} section={section} onOpenSection={onOpenSection} />
         <div className="foot">{(unsafeOn || unsafeRunning) && <UnsafeBadge running={unsafeRunning} />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
@@ -1605,7 +1640,8 @@ function SettingsPreview() {
       {/* ?active=anon makes the anonymous registry the active one: the
           landing then has no Profile card. */}
       <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
-        onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })} />
+        onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })}
+        onOpenMeetings={() => { document.body.dataset.open = "meetings"; }} />
       <div className="harness-deeplinks muted small" style={{ marginTop: 24 }}>
         Deep links (harness only):{" "}
         {Object.entries(SETTINGS_FOR).map(([name, to]) => (
@@ -1672,6 +1708,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
     <div data-preview="settings"><SettingsPreview /></div>
+    {harnessMeetings && <div data-preview="meetings"><Shell active="meetings"><MeetingNotes /></Shell></div>}
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}
     <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
