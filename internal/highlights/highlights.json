@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.7",
+      "highlights": [
+        "Schedule a QuickAgent on your runhost: choose it and Later or Repeat in the run's setup; it runs with nobody here.",
+        "Settings → Runhosts lists each runhost's schedules and what they keep there, and removes them.",
+        "Runs of your runhost's schedules are collected when this app reaches it, and show on Home."
+      ]
+    },
+    {
       "version": "0.7.6",
       "highlights": [
         "After each update of the app, your runhosts are brought to its CLI; Settings → Runhosts shows how each went.",
