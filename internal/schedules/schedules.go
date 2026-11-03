@@ -42,6 +42,10 @@ var MinCLI = [3]int{0, 6, 86}
 // scheduled only through it.
 var MinTargetHostsCLI = [3]int{0, 6, 111}
 
+// MinRunhostScheduleCLI is the oldest agentry whose schedule add takes --on
+// and checks a runhost's schedule with --check.
+var MinRunhostScheduleCLI = [3]int{0, 7, 12}
+
 // MinDeliverCLI is the oldest agentry whose schedule add keeps where its fires
 // deliver (--deliver-to, --destination).
 var MinDeliverCLI = [3]int{0, 6, 139}
@@ -320,10 +324,16 @@ type Request struct {
 	DeliverTo    string   `json:"deliverTo,omitempty"`
 	Destinations []string `json:"destinations,omitempty"`
 	When         When     `json:"when"`
+	// On is a remote runhost's name: the schedule runs there, with nobody
+	// present, and needs no output folder here (its runs are collected).
+	On string `json:"on,omitempty"`
 }
 
 // refPattern is ns/name@version.
 var refPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*@[0-9A-Za-z.+\-]+$`)
+
+// runhostName is a runhost's name, the CLI's rule.
+var runhostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$`)
 
 // intakeID is an intake question's id.
 var intakeID = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
@@ -333,14 +343,29 @@ func (r Request) AddArgs() ([]string, error) {
 	if !refPattern.MatchString(r.Ref) {
 		return nil, fmt.Errorf("%q is not a QuickAgent version (ns/name@version)", r.Ref)
 	}
-	if r.OutDir == "" {
+	if r.On != "" {
+		switch {
+		case !runhostName.MatchString(r.On):
+			return nil, fmt.Errorf("%q is not a runhost's name", r.On)
+		case r.SignedOut:
+			return nil, errors.New("a runhost runs its schedules with nobody signed in: running while signed out is for this computer")
+		case r.DeliverTo != "":
+			return nil, errors.New("a runhost's schedule runs while this computer may be away: its runs are collected, not copied to a folder")
+		}
+	} else if r.OutDir == "" {
 		return nil, errors.New("a schedule needs an output folder: each scheduled run gets its own folder in it")
 	}
 	when, err := r.When.Args()
 	if err != nil {
 		return nil, err
 	}
-	args := append([]string{"schedule", "add", r.Ref, "--out", r.OutDir}, when...)
+	args := []string{"schedule", "add", r.Ref}
+	if r.On != "" {
+		args = append(args, "--on", r.On)
+	} else {
+		args = append(args, "--out", r.OutDir)
+	}
+	args = append(args, when...)
 	if r.Name != "" {
 		args = append(args, "--name", r.Name)
 	}
@@ -417,6 +442,43 @@ type Check struct {
 	SignedOut     SignedOut `json:"signedOut"`
 	Describe      string    `json:"describe,omitempty"`
 	Next          string    `json:"next,omitempty"`
+	// Runhost is a schedule on a remote runhost's part of the check: the
+	// runhost, whether it takes schedules, and what its store would keep.
+	Runhost *RunhostCheck `json:"runhost,omitempty"`
+}
+
+// RunhostCheck is the runhost a schedule with On would run on, and the
+// entries its store would keep, by name.
+type RunhostCheck struct {
+	Name           string         `json:"name"`
+	Host           string         `json:"host"`
+	Fingerprint    string         `json:"hostKeyFingerprint"`
+	TakesSchedules bool           `json:"takesSchedules"`
+	Entries        []RunhostEntry `json:"entries"`
+}
+
+// RunhostEntry is one thing a runhost schedule keeps in the runhost's store.
+type RunhostEntry struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// Said is the entries as the consent names them.
+func (c RunhostCheck) Said() string {
+	if len(c.Entries) == 0 {
+		return "nothing but the release"
+	}
+	words := map[string]string{"model-key": "the model key for", "secret": "the secret", "destination": "the credentials of the destination",
+		"target-host": "the sign-in to the server asked as", "source-token": "the token for", "connection": "the OAuth connection to"}
+	var out []string
+	for _, e := range c.Entries {
+		w := words[e.Kind]
+		if w == "" {
+			w = e.Kind
+		}
+		out = append(out, w+" "+e.Name)
+	}
+	return strings.Join(out, ", ")
 }
 
 // Refusal is one refusal a run would meet.

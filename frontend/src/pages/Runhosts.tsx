@@ -409,6 +409,7 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
       )}
       <RunhostSignIns runhost={runhost} onChange={onChange} />
       <RunhostCredits runhost={runhost} onChange={onChange} />
+      {status?.reachable && <RunhostSchedules name={runhost.name} />}
       {asking && (
         <Card>
           <p className="small">
@@ -431,3 +432,52 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
     </Card>
   );
 }
+
+/** The schedules a runhost runs with nobody present, from its store: each
+ *  one's next run and what it keeps there, never a value, and Remove, which
+ *  takes it off the runhost with everything it kept. */
+function RunhostSchedules({ name }: { name: string }) {
+  const [store, setStore] = useState<app.RunhostStoreView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    RunhostsAPI.Store(name).then(setStore).catch((e) => setError(String(e)));
+  }, [name]);
+  if (error) return <ErrorBox error={error} />;
+  if (!store) return null;
+  return (
+    <div className="small" data-runhost-schedules={name}>
+      <p style={{ marginBottom: 4 }}>
+        <strong>Schedules:</strong>{" "}
+        {!store.sealed
+          ? "this runhost takes none: its systemd is older than 256, which seals its store's key to the server."
+          : store.schedules.length === 0
+            ? "none. Choose this runhost and Later or Repeat in a run's setup to make one."
+            : `${store.schedules.length}, each run collected here when this computer reaches the runhost.`}
+      </p>
+      {store.schedules.map((sc) => (
+        <p key={sc.id} className="row" style={{ justifyContent: "space-between", margin: "2px 0" }} data-runhost-schedule={sc.id}>
+          <span className="selectable">
+            <span className="mono">{sc.name}</span> <span className="muted">{sc.ref}</span>{" "}
+            <span className="muted">
+              {sc.ended ? "ended" : sc.next ? `next ${new Date(sc.next).toLocaleString()}` : "no run left"} · keeps {sc.keeps}
+            </span>
+          </span>
+          <Button disabled={busy} onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const v = await RunhostsAPI.RemoveSchedule(name, sc.id);
+              if (v) setStore(v);
+            } catch (e) {
+              if (!/not confirmed/i.test(String(e))) setError(String(e));
+            } finally {
+              setBusy(false);
+            }
+          }}>Remove</Button>
+        </p>
+      ))}
+    </div>
+  );
+}
+

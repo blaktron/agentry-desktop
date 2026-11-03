@@ -8,6 +8,8 @@ export {
     Item,
     Refusal,
     Request,
+    RunhostCheck,
+    RunhostEntry,
     SignedOut,
     When
 } from "./models.js";

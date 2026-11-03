@@ -10,6 +10,8 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runhost"
 	"github.com/blaktron/agentry-cli/pkg/runhost/remote"
+
+	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
 // stubRunhostUpdates makes this app carry CLI ver, keeps the update record
@@ -149,5 +151,27 @@ func TestThePostUpdateStepWritesNothingWithoutARunhost(t *testing.T) {
 	p, _ := runhostUpdatesPath()
 	if _, err := os.Stat(p); !os.IsNotExist(err) {
 		t.Fatalf("the step wrote %s: %v", p, err)
+	}
+}
+
+// The runs of a runhost's schedules are collected once each, into the run
+// history; a runhost that takes no schedule is not asked.
+func TestRunhostScheduleRunsAreCollectedOnce(t *testing.T) {
+	r, home := newRunhostsAPI(t)
+	saveRecord(t, home, runhost.Record{Name: "lab", Host: "10.0.0.5", Port: 22, Capabilities: map[string]bool{"schedules": false}})
+	oldPath, oldCollect := runhostCollectedPath, runhostCollectScheduled
+	t.Cleanup(func() { runhostCollectedPath, runhostCollectScheduled = oldPath, oldCollect })
+	dir := t.TempDir()
+	runhostCollectedPath = func() (string, error) { return filepath.Join(dir, runhostCollectedFile), nil }
+	called := 0
+	runhostCollectScheduled = func(context.Context, string, string, string, int, string, func(string)) (*run.Result, error) {
+		called++
+		return &run.Result{}, nil
+	}
+	if n, err := r.CollectSchedules(); err != nil || n != 0 || called != 0 {
+		t.Fatalf("a runhost that takes no schedule was asked: %d %v %d", n, err, called)
+	}
+	if _, err := os.Stat(filepath.Join(dir, runhostCollectedFile)); !os.IsNotExist(err) {
+		t.Fatal("nothing collected, but the record was written")
 	}
 }

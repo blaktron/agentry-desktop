@@ -147,8 +147,12 @@ export function whenUnavailable(s: {
   /** The registry's offer of Later and Repeat In Agentry; null where it
    *  makes none. */
   hostedOffer?: { available: boolean; reason?: string; remedy?: string } | null;
+  /** A remote runhost the run goes to: its own schedules, which the check
+   *  holds to what the runhost can keep. */
+  runhost?: string;
 }): string | null {
   if (s.modes.length > 0 && !s.modes.includes("autonomous")) return "Needs you there to answer: this release runs interactive only, and a schedule runs with nobody there.";
+  if (s.runhost) return null;
   if (s.inAgentry) {
     if (s.session) return "A session needs you there to answer, and a schedule runs autonomous, with nobody there: choose a run In Agentry on Before you start.";
     if (!s.hostedOffer) return "This registry does not schedule runs In Agentry: choose to run it on this computer on Before you start to schedule it there.";

@@ -12,8 +12,10 @@ import (
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/runhost"
+	"github.com/blaktron/agentry-cli/pkg/runhost/remote"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
+	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -285,5 +287,115 @@ func TestLiveRunhostPostUpdateFromTheApp(t *testing.T) {
 	}
 	if again, err := r.Status(name); err != nil || !again.Reachable {
 		t.Fatalf("the first home lost its runhost: %+v %v", again, err)
+	}
+}
+
+// TestLiveRunhostScheduleFromTheApp makes a schedule on a runhost the CLI
+// set up (AGENTRY_LIVE_RUNHOST_NAME, in AGENTRY_RUNNER_HOME), through the
+// app's own calls and the CLI at AGENTRY_LIVE_CLI: the check names what the
+// runhost's store would keep, the consent says so, the schedule is made,
+// Settings lists it, a run of it is started there and collected into the run
+// history, and it is removed. AGENTRY_LIVE_RUNHOST_REF is a release with no
+// secrets, AGENTRY_LIVE_RUNHOST_REGISTRY its registry.
+func TestLiveRunhostScheduleFromTheApp(t *testing.T) {
+	name, cli := os.Getenv("AGENTRY_LIVE_RUNHOST_NAME"), os.Getenv("AGENTRY_LIVE_CLI")
+	if name == "" || cli == "" {
+		t.Skip("schedules a release on a runhost: set AGENTRY_LIVE_RUNHOST_NAME, AGENTRY_LIVE_CLI and the rest")
+	}
+	reg, ref := os.Getenv("AGENTRY_LIVE_RUNHOST_REGISTRY"), os.Getenv("AGENTRY_LIVE_RUNHOST_REF")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	var said []string
+	app := &App{ctx: ctx, confirm: func(_ context.Context, title, msg string) (bool, error) {
+		said = append(said, msg)
+		t.Logf("dialog %q: %s", title, msg)
+		return true, nil
+	}}
+	run := &RunAPI{app: app, runnerHomeDir: os.Getenv("AGENTRY_RUNNER_HOME")}
+	r := &RunhostsAPI{app: app, run: run}
+	s := &ScheduleAPI{app: app, findCLI: func(context.Context) (*schedules.CLI, error) { return schedules.New(cli), nil }}
+	oldPath := runhostCollectedPath
+	dir := t.TempDir()
+	runhostCollectedPath = func() (string, error) { return filepath.Join(dir, runhostCollectedFile), nil }
+	t.Cleanup(func() { runhostCollectedPath = oldPath })
+
+	req := schedules.Request{Registry: reg, Ref: ref, On: name, MaxTurns: -1, Task: "Write the report the release asks for.",
+		When: schedules.When{Kind: "daily", Time: "03:00", Zone: "UTC"}}
+	ck, err := s.Check(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ck.Runhost == nil || !ck.Runhost.TakesSchedules || !ck.Ready {
+		t.Fatalf("check %+v %+v", ck, ck.Runhost)
+	}
+	t.Logf("the store would keep %s", ck.Runhost.Said())
+	made, err := s.Add(req, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(said) == 0 || !strings.Contains(said[len(said)-1], "Its store keeps") || !strings.Contains(said[len(said)-1], name) {
+		t.Fatalf("the consent did not name what the runhost keeps: %q", said)
+	}
+	t.Logf("schedule %s made", made.ID)
+	defer func() {
+		if _, err := r.RemoveSchedule(name, made.ID); err != nil {
+			t.Errorf("remove: %v", err)
+		}
+		st, err := r.Store(name)
+		if err != nil || len(st.Schedules) != 0 {
+			t.Errorf("the store after removal: %+v %v", st, err)
+		}
+	}()
+	st, err := r.Store(name)
+	if err != nil || len(st.Schedules) != 1 || st.Schedules[0].ID != made.ID || !st.Sealed {
+		t.Fatalf("Settings' store: %+v %v", st, err)
+	}
+	t.Logf("Settings lists %s %q keeping %s, next %s", st.Schedules[0].ID, st.Schedules[0].Name, st.Schedules[0].Keeps, st.Schedules[0].Next)
+
+	// A run of it now, as an occurrence would start it, then the app
+	// collects it.
+	_, _, c, err := r.dial(ctx, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := remote.RunSchedule(ctx, c, made.ID)
+	_ = c.Close()
+	if err != nil || f.Job == "" {
+		t.Fatalf("run now: %+v %v", f, err)
+	}
+	deadline := time.Now().Add(15 * time.Minute)
+	for {
+		_, _, c, err := r.dial(ctx, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		list, err := remote.Schedules(ctx, c)
+		_ = c.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		finished := false
+		for _, sc := range list {
+			for _, fr := range sc.Fires {
+				if fr.Job == f.Job && fr.Outcome != "running" {
+					finished = true
+					t.Logf("run %s: %s, exit %d", fr.Job, fr.Outcome, fr.ExitCode)
+				}
+			}
+		}
+		if finished {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the run did not finish")
+		}
+		time.Sleep(10 * time.Second)
+	}
+	n, err := r.CollectSchedules()
+	if err != nil || n != 1 {
+		t.Fatalf("collected %d: %v", n, err)
+	}
+	if n, _ := r.CollectSchedules(); n != 0 {
+		t.Fatalf("a run was collected twice")
 	}
 }
