@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.8",
+      "highlights": [
+        "Meeting notes' settings are above your meetings on its page, and in Settings → Meeting notes too.",
+        "Turn on Tell speakers apart on calls, and a call's transcript says Speaker 1, 2 and so on for the others.",
+        "The voices on a call are told apart on this computer after transcription; you stay Me."
+      ]
+    },
+    {
       "version": "0.7.7",
       "highlights": [
         "Schedule a QuickAgent on your runhost: choose it and Later or Repeat in the run's setup; it runs with nobody here.",
