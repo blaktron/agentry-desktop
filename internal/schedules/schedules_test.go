@@ -427,3 +427,29 @@ func TestAddArgsCarryWhereFiresDeliver(t *testing.T) {
 		}
 	}
 }
+
+// A schedule on a runhost names it with --on and takes no output folder;
+// running while signed out and a delivery folder are this computer's alone.
+func TestAddArgsOnARunhost(t *testing.T) {
+	r := Request{Ref: "acme/digest@1.2.0", On: "lab", MaxTurns: -1, When: When{Kind: "daily", Time: "09:00"}}
+	got, err := r.AddArgs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(got, "--on") || got[slices.Index(got, "--on")+1] != "lab" || slices.Contains(got, "--out") {
+		t.Fatalf("args %q", got)
+	}
+	for _, bad := range []Request{
+		{Ref: "acme/digest@1.2.0", On: "Lab Server", When: When{Kind: "daily", Time: "09:00"}},
+		{Ref: "acme/digest@1.2.0", On: "lab", SignedOut: true, When: When{Kind: "daily", Time: "09:00"}},
+		{Ref: "acme/digest@1.2.0", On: "lab", DeliverTo: "/home/p/out", When: When{Kind: "daily", Time: "09:00"}},
+	} {
+		if _, err := bad.AddArgs(); err == nil {
+			t.Errorf("%+v was accepted", bad)
+		}
+	}
+	c := RunhostCheck{Entries: []RunhostEntry{{Kind: "model-key", Name: "anthropic"}, {Kind: "secret", Name: "API_TOKEN"}}}
+	if got := c.Said(); got != "the model key for anthropic, the secret API_TOKEN" {
+		t.Fatalf("said %q", got)
+	}
+}

@@ -441,7 +441,25 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 			return err
 		}
 	}
-	if err := s.app.requireOutputDir(req.OutDir); err != nil {
+	if req.On != "" {
+		// A runhost's schedule is collected into the output folder of a
+		// collection, never one the page names; it needs a CLI that knows
+		// how (MinRunhostScheduleCLI).
+		req.OutDir = ""
+		c, err := s.cli()
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+		line, err := c.Version(ctx)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("the agentry command did not answer: %w", err)
+		}
+		if why := schedules.OlderThan(line, schedules.MinRunhostScheduleCLI, "a schedule on a runhost"); why != "" {
+			return errors.New(why)
+		}
+	} else if err := s.app.requireOutputDir(req.OutDir); err != nil {
 		return err
 	}
 	if req.AllowVulnerableMCP && !unsafe {
@@ -478,6 +496,10 @@ func (s *ScheduleAPI) Check(req schedules.Request) (*schedules.Check, error) {
 // refuses.
 func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *schedules.Request) error {
 	req.DeliverTo = deliverFolder()
+	if req.On != "" {
+		// A runhost's runs are collected here, then delivered as a run's.
+		req.DeliverTo = ""
+	}
 	for _, n := range req.Destinations {
 		if !destinations.CanSend(n) {
 			return fmt.Errorf("the destination %q is not saved with its credentials: set it up in Settings → Destinations", n)
@@ -622,6 +644,15 @@ func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Ch
 		}
 		lines = append(lines, fmt.Sprintf("Its capabilities, as its page lists them (%s). Each scheduled run uses them with nobody there.", why))
 	}
+	if rh := ck.Runhost; req.On != "" && rh != nil {
+		lines = append(lines, fmt.Sprintf("Each run of it happens on your runhost %s (%s, host key %s), with nobody there. Its store keeps, encrypted under a key systemd seals to that server, for every run of this schedule: %s. This computer collects each run when it next reaches the runhost.", rh.Name, rh.Host, rh.Fingerprint, rh.Said()))
+		for _, e := range rh.Entries {
+			if e.Kind == "connection" {
+				lines = append(lines, "Each OAuth connection is handed to the runhost, which refreshes it itself: both it and this computer then hold the grant, and a vendor that rotates its refresh tokens leaves one of them to connect again.")
+				break
+			}
+		}
+	}
 	if len(req.Destinations) > 0 {
 		lines = append(lines, fmt.Sprintf("Each scheduled run sends its result and files to %s once it succeeds, with nobody there.", strings.Join(req.Destinations, ", ")))
 	}
@@ -651,7 +682,9 @@ func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Ch
 	if err := s.app.askConsent("Schedule "+req.Ref+"?", strings.Join(lines, "\n\n")+"\n\nSchedule it?"); err != nil {
 		return false, err
 	}
-	return ck.NeedsConsent || linger, nil
+	// A runhost's schedule takes the dialog's Yes as the consent to what its
+	// store keeps, which the command otherwise asks for itself.
+	return ck.NeedsConsent || linger || req.On != "", nil
 }
 
 // Edit changes a schedule's name, when it runs, or whether it also runs

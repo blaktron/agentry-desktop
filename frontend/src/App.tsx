@@ -302,6 +302,16 @@ export default function App() {
     RunhostsAPI.PostUpdate().catch(() => {});
   }, [refreshSettings]);
 
+  // A runhost's schedules run with nobody here: their runs are collected
+  // when this computer reaches the runhost, at start and every ten minutes,
+  // and land in the run history as any run.
+  useEffect(() => {
+    const collect = () => { RunhostsAPI.CollectSchedules().catch(() => {}); };
+    const first = setTimeout(collect, 20_000);
+    const every = setInterval(collect, 10 * 60_000);
+    return () => { clearTimeout(first); clearInterval(every); };
+  }, []);
+
   // The background check writes its result as it finishes, so the chrome asks
   // again on a slow cadence rather than once: a line that only ever appeared
   // on the next launch would be a line most people never saw.

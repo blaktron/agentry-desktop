@@ -44,6 +44,17 @@ export function ChooseAdminKeyFile(host: string): $CancellablePromise<string> {
 }
 
 /**
+ * CollectSchedules opens every finished run of a runhost schedule this app
+ * has not collected yet: each runhost that takes schedules is asked over its
+ * run key, and each run is collected into the output folder Settings names
+ * and recorded in the run history. A runhost that cannot be reached waits
+ * for the next call. It returns how many runs it opened.
+ */
+export function CollectSchedules(): $CancellablePromise<number> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.CollectSchedules");
+}
+
+/**
  * Credits gives runhost name a token of its own on the person's account that
  * can only pay for model use with their Agentry credits, named "Runhost
  * <name> (credits only)": the registry's authorize page opens in the browser
@@ -115,6 +126,16 @@ export function RemoveCredits(name: string): $CancellablePromise<$models.Runhost
 }
 
 /**
+ * RemoveSchedule takes schedule id off runhost name, with everything it
+ * kept in the store, after the native confirmation.
+ */
+export function RemoveSchedule(name: string, id: string): $CancellablePromise<$models.RunhostStoreView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveSchedule", name, id).then(($result: any) => {
+        return $$createType4($result)!;
+    });
+}
+
+/**
  * RemoveSignIn ends runhost name's sign-in to vendor there.
  */
 export function RemoveSignIn(name: string, vendor: string): $CancellablePromise<$models.RunhostView> {
@@ -157,6 +178,15 @@ export function SignIn(name: string, vendor: string): $CancellablePromise<$model
  */
 export function Status(name: string): $CancellablePromise<$models.RunhostStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Status", name).then(($result: any) => {
+        return $$createType6($result)!;
+    });
+}
+
+/**
+ * Store lists what runhost name's store keeps, over its run key.
+ */
+export function Store(name: string): $CancellablePromise<$models.RunhostStoreView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Store", name).then(($result: any) => {
         return $$createType4($result)!;
     });
 }
@@ -186,5 +216,7 @@ export function Update(name: string): $CancellablePromise<$models.RunhostView> {
 const $$createType0 = $models.RunhostView.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $Create.Array($$createType0);
-const $$createType3 = $models.RunhostStatusView.createFrom;
+const $$createType3 = $models.RunhostStoreView.createFrom;
 const $$createType4 = $Create.Nullable($$createType3);
+const $$createType5 = $models.RunhostStatusView.createFrom;
+const $$createType6 = $Create.Nullable($$createType5);
