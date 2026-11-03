@@ -16,8 +16,9 @@ import (
 	"time"
 )
 
-// Telling speakers apart: a meeting in the room is one microphone, so the
-// voices on it are told apart after transcription by clustering them, and
+// Telling speakers apart: a meeting in the room is one microphone, and a
+// call's far side one stream of everyone else, so the voices on it are
+// told apart after transcription by clustering them, and
 // each word takes the voice heard at its time. The rest of the feature
 // never names the engine that does it.
 
@@ -44,18 +45,19 @@ type Diarizer interface {
 	Diarize(ctx context.Context, req DiarizeRequest) ([]SpeakerSpan, error)
 }
 
-// How telling the speakers of a meeting in the room apart went, as the
-// meeting and its transcript say.
+// How telling the speakers of a meeting in the room, or of a call's far
+// side, apart went, as the meeting and its transcript say.
 const (
-	// DiarizationDone: each line is a Speaker n.
+	// DiarizationDone: each line is a Speaker n (on a call, each far-side
+	// line).
 	DiarizationDone = "done"
 	// DiarizationOff: the person turned it off; the lines are Room.
 	DiarizationOff = "off"
 	// DiarizationUnavailable: this copy carries no speaker separation, or
-	// its models could not be had; the lines are Room.
+	// its models could not be had; the lines are Room, or Them on a call.
 	DiarizationUnavailable = "unavailable"
 	// DiarizationFailed: it ran and failed, or timed out; the lines are
-	// Room.
+	// Room, or Them on a call.
 	DiarizationFailed = "failed"
 )
 
@@ -84,7 +86,7 @@ func CheckPeople(n int) error {
 const clusterThreshold = 0.9
 
 // DiarizeSidecar is sherpa-onnx's offline speaker diarization program, run
-// once per meeting in the room. It answers one line per stretch of speech,
+// once per track whose voices to tell apart. It answers one line per stretch of speech,
 // "start -- end speaker_NN", on its standard output, and its progress on
 // its standard error.
 type DiarizeSidecar struct {

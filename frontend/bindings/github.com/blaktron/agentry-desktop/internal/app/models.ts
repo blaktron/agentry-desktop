@@ -4465,6 +4465,12 @@ export class MeetingNotesView {
      * MaxPeople bound the count Record in the room takes.
      */
     "tellSpeakersApart": boolean;
+
+    /**
+     * TellCallSpeakersApart tells the voices on a call's far side apart,
+     * off by default.
+     */
+    "tellCallSpeakersApart": boolean;
     "separatesSpeakers": boolean;
     "minPeople": number;
     "maxPeople": number;
@@ -4575,6 +4581,9 @@ export class MeetingNotesView {
         if (!("tellSpeakersApart" in $$source)) {
             this["tellSpeakersApart"] = false;
         }
+        if (!("tellCallSpeakersApart" in $$source)) {
+            this["tellCallSpeakersApart"] = false;
+        }
         if (!("separatesSpeakers" in $$source)) {
             this["separatesSpeakers"] = false;
         }
@@ -4633,13 +4642,13 @@ export class MeetingNotesView {
         const $$createField14_0 = $$createType87;
         const $$createField16_0 = $$createType87;
         const $$createField19_0 = $$createType89;
-        const $$createField27_0 = $$createType91;
-        const $$createField29_0 = $$createType93;
-        const $$createField30_0 = $$createType95;
-        const $$createField32_0 = $$createType96;
-        const $$createField34_0 = $$createType98;
-        const $$createField35_0 = $$createType99;
-        const $$createField38_0 = $$createType87;
+        const $$createField28_0 = $$createType91;
+        const $$createField30_0 = $$createType93;
+        const $$createField31_0 = $$createType95;
+        const $$createField33_0 = $$createType96;
+        const $$createField35_0 = $$createType98;
+        const $$createField36_0 = $$createType99;
+        const $$createField39_0 = $$createType87;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("warnings" in $$parsedSource) {
             $$parsedSource["warnings"] = $$createField3_0($$parsedSource["warnings"]);
@@ -4657,25 +4666,25 @@ export class MeetingNotesView {
             $$parsedSource["gpu"] = $$createField19_0($$parsedSource["gpu"]);
         }
         if ("meetings" in $$parsedSource) {
-            $$parsedSource["meetings"] = $$createField27_0($$parsedSource["meetings"]);
+            $$parsedSource["meetings"] = $$createField28_0($$parsedSource["meetings"]);
         }
         if ("offer" in $$parsedSource) {
-            $$parsedSource["offer"] = $$createField29_0($$parsedSource["offer"]);
+            $$parsedSource["offer"] = $$createField30_0($$parsedSource["offer"]);
         }
         if ("apps" in $$parsedSource) {
-            $$parsedSource["apps"] = $$createField30_0($$parsedSource["apps"]);
+            $$parsedSource["apps"] = $$createField31_0($$parsedSource["apps"]);
         }
         if ("maxHoursChoices" in $$parsedSource) {
-            $$parsedSource["maxHoursChoices"] = $$createField32_0($$parsedSource["maxHoursChoices"]);
+            $$parsedSource["maxHoursChoices"] = $$createField33_0($$parsedSource["maxHoursChoices"]);
         }
         if ("windows" in $$parsedSource) {
-            $$parsedSource["windows"] = $$createField34_0($$parsedSource["windows"]);
+            $$parsedSource["windows"] = $$createField35_0($$parsedSource["windows"]);
         }
         if ("assistant" in $$parsedSource) {
-            $$parsedSource["assistant"] = $$createField35_0($$parsedSource["assistant"]);
+            $$parsedSource["assistant"] = $$createField36_0($$parsedSource["assistant"]);
         }
         if ("microphones" in $$parsedSource) {
-            $$parsedSource["microphones"] = $$createField38_0($$parsedSource["microphones"]);
+            $$parsedSource["microphones"] = $$createField39_0($$parsedSource["microphones"]);
         }
         return new MeetingNotesView($$parsedSource as Partial<MeetingNotesView>);
     }

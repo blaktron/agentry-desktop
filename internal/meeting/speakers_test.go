@@ -189,7 +189,7 @@ func TestACorruptedSpeakerModelIsRefusedAndTheLinesStayRoom(t *testing.T) {
 	}
 }
 
-func TestACallIsNeverToldApart(t *testing.T) {
+func TestACallIsNotToldApartWhileItsSwitchIsOff(t *testing.T) {
 	d := twoVoices()
 	h := newHarnessWith(t, func(m *Manager) { m.Diarizer = d })
 	h.rec.tracks = []fakeTrackSpec{{Me, "mic", speech(SampleRate)}}

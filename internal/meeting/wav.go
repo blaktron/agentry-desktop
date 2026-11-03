@@ -280,3 +280,73 @@ func repairWAV(path string) error {
 	_, err = f.WriteAt(wavHeader(samples), 0)
 	return err
 }
+
+// MixWAV writes to out the sum of tracks, 16-bit mono WAVs this package
+// wrote, each from the recording's start, clipped to the 16-bit range: the
+// far side's streams heard as one. It is as long as the longest track, and
+// is read a window at a time so a long recording is never held whole.
+func MixWAV(out string, tracks []string) error {
+	ins := make([]*bufio.Reader, 0, len(tracks))
+	for _, p := range tracks {
+		f, err := os.Open(p) //nolint:gosec // a track this package wrote
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		if _, err := f.Seek(wavHeaderSize, io.SeekStart); err != nil {
+			return err
+		}
+		ins = append(ins, bufio.NewReaderSize(f, 64<<10))
+	}
+	f, err := os.OpenFile(out, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // a file in the recording's own folder
+	if err != nil {
+		return err
+	}
+	w := bufio.NewWriterSize(f, 64<<10)
+	fail := func(err error) error {
+		_ = f.Close()
+		return err
+	}
+	if _, err := w.Write(make([]byte, wavHeaderSize)); err != nil {
+		return fail(err)
+	}
+	buf := make([]byte, SampleRate/10*2)
+	sum := make([]int32, len(buf)/2)
+	var samples int64
+	for len(ins) > 0 {
+		clear(sum)
+		longest := 0
+		live := ins[:0]
+		for _, r := range ins {
+			n, err := io.ReadFull(r, buf)
+			n -= n % 2
+			for i := 0; i < n/2; i++ {
+				sum[i] += int32(int16(binary.LittleEndian.Uint16(buf[2*i:])))
+			}
+			longest = max(longest, n/2)
+			switch {
+			case err == nil:
+				live = append(live, r)
+			case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+			default:
+				return fail(err)
+			}
+		}
+		ins = live
+		for i := 0; i < longest; i++ {
+			v := min(max(sum[i], math.MinInt16), math.MaxInt16)
+			binary.LittleEndian.PutUint16(buf[2*i:], uint16(int16(v)))
+		}
+		if _, err := w.Write(buf[:2*longest]); err != nil {
+			return fail(err)
+		}
+		samples += int64(longest)
+	}
+	if err := w.Flush(); err != nil {
+		return fail(err)
+	}
+	if _, err := f.WriteAt(wavHeader(samples), 0); err != nil {
+		return fail(err)
+	}
+	return f.Close()
+}

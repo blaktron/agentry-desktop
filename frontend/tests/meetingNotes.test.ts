@@ -3,8 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingSource, meetingState, micLostText, offerTitle, parsePeople,
-  recordingWhat,
+  canTranscribe, downloadWords, duration, elapsed, hoursLabel, isNo, meetingNotesStatus, meetingSource, meetingState, micLostText, offerTitle,
+  parsePeople, recordingWhat,
 } from "../src/meetingNotes.ts";
 
 test("durations read in seconds, minutes, then hours", () => {
@@ -119,4 +119,19 @@ test("a meeting in the room says how many speakers were told apart", () => {
   assert.equal(meetingSource({ ...room, diarization: "done", speakers: 3 }), "In the room, 3 speakers");
   assert.equal(meetingSource({ ...room, diarization: "done", speakers: 1 }), "In the room, 1 speaker");
   assert.equal(meetingSource({ ...room, diarization: "failed" }), "In the room");
+});
+
+test("a call whose far side was told apart says how many others spoke", () => {
+  const call = { app: "Zoom", inRoom: false, wholeDevice: false };
+  assert.equal(meetingSource({ ...call, diarization: "done", speakers: 3 }), "Zoom, 3 other speakers");
+  assert.equal(meetingSource({ ...call, diarization: "done", speakers: 1 }), "Zoom, 1 other speaker");
+  assert.equal(meetingSource({ ...call, diarization: "failed" }), "Zoom");
+  assert.equal(meetingSource({ app: "", inRoom: false, wholeDevice: true, diarization: "done", speakers: 2 }), "Whole device, 2 other speakers");
+});
+
+test("Settings' Meeting notes card says whether it is on and whether calls are told apart", () => {
+  assert.equal(meetingNotesStatus({ on: false, tellCallSpeakersApart: true, separatesSpeakers: true }), "Off.");
+  assert.equal(meetingNotesStatus({ on: true, tellCallSpeakersApart: false, separatesSpeakers: true }), "On.");
+  assert.equal(meetingNotesStatus({ on: true, tellCallSpeakersApart: true, separatesSpeakers: true }), "On, telling speakers apart on calls.");
+  assert.equal(meetingNotesStatus({ on: true, tellCallSpeakersApart: true, separatesSpeakers: false }), "On.");
 });
