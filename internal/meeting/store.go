@@ -72,8 +72,9 @@ type Meeting struct {
 	// People is how many people were in the room, as the person said when
 	// recording a meeting in the room; 0 when they left it to be estimated.
 	People int `json:"people,omitempty"`
-	// Diarization is how telling the room's speakers apart went (one of
-	// the Diarization constants), Speakers how many voices it told apart,
+	// Diarization is how telling the speakers apart went, of a room or of
+	// a call's far side (one of the Diarization constants, "" for a call
+	// whose switch was off), Speakers how many voices it told apart,
 	// and DiarizationError why it failed or could not run.
 	Diarization      string `json:"diarization,omitempty"`
 	Speakers         int    `json:"speakers,omitempty"`

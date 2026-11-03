@@ -7,6 +7,7 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as HomeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
 import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 import { EventsOn } from "../host";
@@ -41,6 +42,8 @@ import { RunhostsSettings } from "./Runhosts";
 import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { LicencesSettings } from "./SettingsLicences";
 import PersistentAgentsSettings from "./SettingsPersistentAgents";
+import { MeetingNotesSettings } from "./MeetingNotesSettings";
+import { meetingNotesStatus } from "../meetingNotes";
 import { persistentAgentsStatus } from "../persistentAgents";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
@@ -56,8 +59,10 @@ import { rejectedLine } from "../signInState";
 // computer, with Disconnect, and the person's own OAuth clients.
 //
 // Report design comes second, after Profile, as on the site: the account's
-// report design and its editor.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "run-defaults" | "runhosts" | "provider" | "connections" | "destinations" | "home" | "licences";
+// report design and its editor. Meeting notes follows Persistent Agents,
+// as in the sidebar, and is offered only where this copy records meetings:
+// the same settings as the Meeting notes page's.
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "meeting-notes" | "run-defaults" | "runhosts" | "provider" | "connections" | "destinations" | "home" | "licences";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -73,8 +78,9 @@ type Part = { id: SettingsPart; label: string };
 // SECTIONS is the landing's order and each section's parts. A part's id is
 // the anchor its section page scrolls to when the landing's link names it.
 // needsSignIn: the landing offers the card, and the sidebar the row, only
-// while the active registry is signed in.
-export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[]; needsSignIn?: boolean }[] = [
+// while the active registry is signed in; needsMeetings, only where this
+// copy records meetings.
+export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[]; needsSignIn?: boolean; needsMeetings?: boolean }[] = [
   {
     id: "profile", title: "Profile", needsSignIn: true,
     sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
@@ -103,6 +109,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   {
     id: "persistent-agents", title: "Persistent Agents",
     sentence: "The agents that keep their conversation and their own files between the times you talk to them: turn them on, start and stop them, and configure what each is given.",
+    parts: [],
+  },
+  {
+    id: "meeting-notes", title: "Meeting notes", needsMeetings: true,
+    sentence: "How meetings are recorded and transcribed on this computer: the language and model, telling speakers apart in the room and on calls, the transcripts folder, the meeting apps, and giving transcripts to the Assistant.",
     parts: [],
   },
   {
@@ -188,7 +199,7 @@ export const SETTINGS_FOR = {
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
 
 export default function Settings({
-  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen, onOpenAgent,
+  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen, onOpenAgent, onOpenMeetings,
 }: {
   settings: app.SettingsView | null;
   activeRegistry: string;
@@ -205,6 +216,8 @@ export default function Settings({
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
   // Opens a persistent agent's page.
   onOpenAgent?: (name: string) => void;
+  // Opens the Meeting notes page.
+  onOpenMeetings?: () => void;
 }) {
   // A part named by a link is scrolled to once its section has rendered, and
   // followed while the section's own reads fill it in;
@@ -260,6 +273,7 @@ export default function Settings({
       )}
       {section === "coding-agents" && <CodingAgentsCard />}
       {section === "persistent-agents" && <PersistentAgentsSettings registry={activeRegistry} onOpenAgent={(name) => onOpenAgent?.(name)} />}
+      {section === "meeting-notes" && <MeetingNotesSettings onOpenPage={onOpenMeetings} />}
       {section === "run-defaults" && (
         <>
           <RunDefaultsSettings onChanged={onChanged} />
@@ -311,6 +325,7 @@ type Statuses = {
   destinations?: destinations.Status | null;
   agents?: app.PersistentAgentView[] | null;
   runhosts?: app.RunhostView[] | null;
+  meetings?: app.MeetingNotesView | null;
 };
 
 // runhostsStatus is the Runhosts card's line: how many, and the default.
@@ -342,6 +357,8 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     Promise.resolve().then(() => DestinationsAPI.List()).then(put("destinations")).catch(() => put("destinations")(null));
     Promise.resolve().then(() => PersistentAPI.List()).then(put("agents")).catch(() => put("agents")(null));
     Promise.resolve().then(() => RunhostsAPI.List()).then(put("runhosts")).catch(() => put("runhosts")(null));
+    // Whether this copy records meetings, which offers the Meeting notes card.
+    Promise.resolve().then(() => MeetingAPI.Status()).then(put("meetings")).catch(() => put("meetings")(null));
     return () => { live = false; };
   }, []);
 
@@ -352,6 +369,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     updates: st.update ? updateStatus(st.update) : null,
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
     "persistent-agents": st.agents ? persistentAgentsStatus(st.agents) : null,
+    "meeting-notes": st.meetings?.available ? meetingNotesStatus(st.meetings) : null,
     "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
     connections: st.connections ? connectionsStatus(st.connections) : null,
@@ -369,7 +387,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
       <div className="settings-cards">
-        {SECTIONS.filter((s) => !s.needsSignIn || signedInTo(settings, activeRegistry)).map((s) => (
+        {SECTIONS.filter((s) => (!s.needsSignIn || signedInTo(settings, activeRegistry)) && (!s.needsMeetings || !!st.meetings?.available)).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}

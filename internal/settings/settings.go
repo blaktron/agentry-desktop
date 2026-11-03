@@ -234,6 +234,9 @@ type MeetingNotes struct {
 	// SpeakersOff turns off telling the speakers of a meeting in the room
 	// apart, which is on by default.
 	SpeakersOff bool `yaml:"speakersOff,omitempty"`
+	// CallSpeakers tells the voices on a call's far side apart, off by
+	// default: its lines are then Them.
+	CallSpeakers bool `yaml:"callSpeakers,omitempty"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer

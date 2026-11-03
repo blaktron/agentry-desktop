@@ -224,7 +224,7 @@ func meetingSettings() meeting.Settings {
 	return meeting.Settings{
 		On: mn.On, Profile: mn.Profile, Model: mn.Model, Hardware: meeting.Hardware(mn.Hardware), OutputDir: out, KeepAudio: mn.KeepAudio,
 		Automatic: mn.Automatic, MaxLength: time.Duration(maxHours(mn.MaxHours)) * time.Hour, Mic: mn.Mic,
-		SpeakersOff: mn.SpeakersOff,
+		SpeakersOff: mn.SpeakersOff, CallSpeakers: mn.CallSpeakers,
 	}
 }
 
@@ -558,11 +558,14 @@ type MeetingNotesView struct {
 	// TellSpeakersApart is the setting, on by default; SeparatesSpeakers
 	// that this copy carries the speaker separation. MinPeople and
 	// MaxPeople bound the count Record in the room takes.
-	TellSpeakersApart bool          `json:"tellSpeakersApart"`
-	SeparatesSpeakers bool          `json:"separatesSpeakers"`
-	MinPeople         int           `json:"minPeople"`
-	MaxPeople         int           `json:"maxPeople"`
-	Meetings          []MeetingView `json:"meetings"`
+	TellSpeakersApart bool `json:"tellSpeakersApart"`
+	// TellCallSpeakersApart tells the voices on a call's far side apart,
+	// off by default.
+	TellCallSpeakersApart bool          `json:"tellCallSpeakersApart"`
+	SeparatesSpeakers     bool          `json:"separatesSpeakers"`
+	MinPeople             int           `json:"minPeople"`
+	MaxPeople             int           `json:"maxPeople"`
+	Meetings              []MeetingView `json:"meetings"`
 	// Detects: calls are noticed and offered here.
 	Detects bool              `json:"detects"`
 	Offer   *MeetingOfferView `json:"offer,omitempty"`
@@ -599,7 +602,7 @@ func (m *MeetingAPI) Status() (*MeetingNotesView, error) {
 	mn := st.MeetingNotes
 	v := &MeetingNotesView{
 		On: mn.On, Warnings: meetingWarnings, ModelChoice: mn.Model, KeepAudio: mn.KeepAudio,
-		TellSpeakersApart: !mn.SpeakersOff, MinPeople: meeting.MinPeople, MaxPeople: meeting.MaxPeople,
+		TellSpeakersApart: !mn.SpeakersOff, TellCallSpeakersApart: mn.CallSpeakers, MinPeople: meeting.MinPeople, MaxPeople: meeting.MaxPeople,
 		OutputDirChosen: mn.OutputDir != "", Models: []MeetingChoice{}, Profiles: []MeetingChoice{}, Meetings: []MeetingView{},
 		Apps: []MeetingAppView{}, MaxHours: maxHours(mn.MaxHours), MaxHoursChoices: meetingMaxHours,
 		Windows: []MeetingWindowView{}, Mic: mn.Mic, Microphones: []MeetingChoice{}, MicHint: micHint(runtime.GOOS),
@@ -1204,6 +1207,19 @@ func (m *MeetingAPI) CheckGPU() (*MeetingNotesView, error) {
 func (m *MeetingAPI) SetTellSpeakersApart(on bool) (*MeetingNotesView, error) {
 	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.SpeakersOff = !on; return nil }); err != nil {
 		return nil, err
+	}
+	return m.Status()
+}
+
+// SetTellCallSpeakersApart turns telling the voices on a call's far side
+// apart on or off; it is off by default. Turned on, its models are fetched
+// now, as a meeting in the room's are when one starts.
+func (m *MeetingAPI) SetTellCallSpeakersApart(on bool) (*MeetingNotesView, error) {
+	if err := saveMeetingNotes(func(mn *settings.MeetingNotes) error { mn.CallSpeakers = on; return nil }); err != nil {
+		return nil, err
+	}
+	if mgr := m.manager(); mgr != nil && on {
+		mgr.PrepareCallSpeakers()
 	}
 	return m.Status()
 }

@@ -113,6 +113,14 @@ test("a section that needs a sign-in is listed only while signed in, as the land
   assert.deepEqual(labels(inn), ["Home", "Library", "Schedule", "Build", "Settings", "Profile", "Home"]);
 });
 
+test("Settings' Meeting notes is listed only where this copy records meetings, as the sidebar's own row is", () => {
+  const sections = [{ id: "meeting-notes", title: "Meeting notes", needsMeetings: true }, { id: "home", title: "Home" }];
+  const out = navRows({ page: "settings", buildOpen: false, sections });
+  assert.deepEqual(labels(out), ["Home", "Library", "Schedule", "Build", "Settings", "Home"]);
+  const inn = navRows({ page: "settings", buildOpen: false, sections, meetings: true });
+  assert.deepEqual(labels(inn), ["Home", "Meeting notes", "Library", "Schedule", "Build", "Settings", "Meeting notes", "Home"]);
+});
+
 test("the Notifications page lights no row: the bell above the rows is its", () => {
   assert.deepEqual(lit(rows({ page: "notifications" })), []);
   assert.deepEqual(current(rows({ page: "notifications" })), []);
