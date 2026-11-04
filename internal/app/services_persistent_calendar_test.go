@@ -234,10 +234,10 @@ func TestACalendarFeedIsRenamedAndRemoved(t *testing.T) {
 	}
 }
 
-// TestCalendarFeedsWaitForTheAgentToStop: while another client runs the
-// Assistant, adding, renaming and removing a feed are refused and change
-// nothing.
-func TestCalendarFeedsWaitForTheAgentToStop(t *testing.T) {
+// TestCalendarFeedsChangeWhileTheAgentRunsElsewhere: while another client
+// runs the Assistant, adding, renaming and removing a feed each reach it,
+// as a change it takes at its next turn.
+func TestCalendarFeedsChangeWhileTheAgentRunsElsewhere(t *testing.T) {
 	rig := newElsewhereRig(t)
 	keys := &memSecrets{}
 	rig.p.secrets = keys
@@ -247,28 +247,33 @@ func TestCalendarFeedsWaitForTheAgentToStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	rig.hold(t, rig.home, true)
-	for what, f := range map[string]func() (*PersistentAgentView, error){
-		"add":    func() (*PersistentAgentView, error) { return rig.p.AddCalendarFeed("assistant", "Family", plantedFeed) },
-		"rename": func() (*PersistentAgentView, error) { return rig.p.RenameCalendarFeed("assistant", "Work", "Office") },
-		"remove": func() (*PersistentAgentView, error) { return rig.p.RemoveCalendarFeed("assistant", "Work") },
-	} {
-		if _, err := f(); err == nil || !strings.Contains(err.Error(), "stop it first") {
-			t.Errorf("%s while it runs elsewhere: %v", what, err)
-		}
+	if _, err := rig.p.AddCalendarFeed("assistant", "Family", plantedFeed); err != nil {
+		t.Fatalf("add while it runs elsewhere: %v", err)
 	}
-	if fetched != 1 {
-		t.Errorf("a feed was fetched while the agent ran: %d", fetched)
+	if _, err := rig.p.RenameCalendarFeed("assistant", "Work", "Office"); err != nil {
+		t.Fatalf("rename while it runs elsewhere: %v", err)
+	}
+	if _, err := rig.p.RemoveCalendarFeed("assistant", "Family"); err != nil {
+		t.Fatalf("remove while it runs elsewhere: %v", err)
+	}
+	if fetched != 2 {
+		t.Errorf("the feeds read: %d, want 2", fetched)
 	}
 	rig.hold(t, rig.home, false)
 	v, err := rig.p.Get("assistant")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(v.CalendarFeeds) != 1 || v.CalendarFeeds[0].Name != "Work" {
-		t.Fatalf("the feeds after the refusals: %+v", v.CalendarFeeds)
+	if len(v.CalendarFeeds) != 1 || v.CalendarFeeds[0].Name != "Office" {
+		t.Fatalf("the feeds after the changes: %+v", v.CalendarFeeds)
 	}
-	if _, err := keys.Get(persistent.CalendarKeychainAccount("assistant", "Work")); err != nil {
-		t.Fatal("a refused removal took the address")
+	if _, err := keys.Get(persistent.CalendarKeychainAccount("assistant", "Office")); err != nil {
+		t.Fatal("the renamed feed's address is not under its new name")
+	}
+	for _, gone := range []string{"Work", "Family"} {
+		if _, err := keys.Get(persistent.CalendarKeychainAccount("assistant", gone)); err == nil {
+			t.Errorf("%s's address stayed in the keychain", gone)
+		}
 	}
 }
 

@@ -17,9 +17,8 @@ import (
 // before anything is kept, as the CLI's --calendar-feed does. The address
 // goes into the system keychain under the feed's name and is never sent
 // back to the page, which sees the feed's name, its host and service, and
-// when its address was last checked. Adding, renaming and removing a feed
-// are refused while the agent runs, here or in another client, as the CLI
-// refuses them.
+// when its address was last checked. A running agent, here or in another
+// client, takes a feed added, renamed or removed at its next turn.
 
 // PersistentCalendarFeedView is one calendar feed as the app shows it:
 // never its address. Set is when the address was last fetched and read
@@ -50,8 +49,8 @@ func calendarFeedViews(a persistent.Agent, cfg persistent.Config) []PersistentCa
 	return out
 }
 
-// calendarAgent is the agent named, if it reads calendars and is stopped:
-// not running here, not starting, and not run by another client.
+// calendarAgent is the agent named, if it reads calendars, once a start of
+// it under way has ended.
 func (p *PersistentAPI) calendarAgent(name string) (persistent.Agent, string, persistent.Config, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -64,13 +63,10 @@ func (p *PersistentAPI) calendarAgent(name string) (persistent.Agent, string, pe
 	if err != nil {
 		return persistent.Agent{}, "", persistent.Config{}, err
 	}
-	p.mu.Lock()
-	_, starting := p.starting[a.Name]
-	p.mu.Unlock()
-	_, running := p.running(a.Name)
-	held, _ := p.heldElsewhere(home, a.Name)
-	if running || starting || held {
-		return persistent.Agent{}, "", persistent.Config{}, fmt.Errorf("the %s is running: stop it first, then change its calendar feeds", a.Title)
+	// A running agent takes a feed at its next turn; one still starting is
+	// waited for, since it has no socket to take it yet.
+	if err := p.waitStart(a.Name); err != nil {
+		return persistent.Agent{}, "", persistent.Config{}, err
 	}
 	cfg, err := persistent.LoadConfig(home, a.Name)
 	if err != nil {

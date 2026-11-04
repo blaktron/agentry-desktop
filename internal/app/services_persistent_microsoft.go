@@ -24,8 +24,8 @@ import (
 // offers one, and the sign-in by a device code, whose code and page the page shows while
 // the CLI waits for Microsoft. Only Microsoft's own device-login page is
 // opened. The sign-in reads as done only once the server lists the account.
-// Neither runs while the agent does, since its server holds the volume they
-// write.
+// On a running agent, the CLI holds it between turns while they write its
+// server's volume, and it takes the sign-in at its next turn.
 
 // eventMicrosoftSignIn tells the page a waiting sign-in's code and page.
 const eventMicrosoftSignIn = "persistent:microsoft-sign-in"
@@ -155,8 +155,8 @@ func (p *PersistentAPI) microsoft(ctx context.Context, a persistent.Agent) (pers
 	return m, nil
 }
 
-// microsoftAgent is the agent named, if it has a Microsoft 365 server and
-// does not run here.
+// microsoftAgent is the agent named, if it has a Microsoft 365 server, once
+// a start of it under way has ended.
 func (p *PersistentAPI) microsoftAgent(name string) (persistent.Agent, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -165,8 +165,8 @@ func (p *PersistentAPI) microsoftAgent(name string) (persistent.Agent, error) {
 	if !hasImageServer(a, assistant.MS365Key) {
 		return persistent.Agent{}, fmt.Errorf("the %s has no Microsoft 365", a.Title)
 	}
-	if _, running := p.running(a.Name); running {
-		return persistent.Agent{}, fmt.Errorf("stop the %s first: its Microsoft 365 server holds what the set-up writes", a.Title)
+	if err := p.waitStart(a.Name); err != nil {
+		return persistent.Agent{}, err
 	}
 	return a, nil
 }

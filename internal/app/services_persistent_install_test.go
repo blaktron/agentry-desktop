@@ -270,7 +270,7 @@ func TestAPlainInstallOfAPersistentAgentsReleaseIsRefused(t *testing.T) {
 	if err := os.MkdirAll(persistent.Dir(home, "acme.helper"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	rec := "ref: acme/helper\nversion: 1.0.0\ndigest: sha256:00\nsource: registry\ninstalledAt: 2026-11-02T09:00:00Z\n"
+	rec := "ref: acme/helper\nversion: 1.0.0\ndigest: sha256:" + strings.Repeat("0", 64) + "\nsource: registry\ninstalledAt: 2026-11-02T09:00:00Z\n"
 	if err := os.WriteFile(filepath.Join(persistent.Dir(home, "acme.helper"), "release.yaml"), []byte(rec), 0o600); err != nil {
 		t.Fatal(err)
 	}

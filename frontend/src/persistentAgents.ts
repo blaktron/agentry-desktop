@@ -397,6 +397,13 @@ export function showsStop(agent: Pick<app.PersistentAgentView, "state">, answeri
   return answering && !starting && isLive(agent);
 }
 
+/** notAppliedWords tells the person that the running agent could not start
+ *  its next turn with their last change, and went on without what it added. */
+export function notAppliedWords(n: Pick<app.PersistentNotAppliedView, "reason" | "entries">): string {
+  const what = n.entries.length ? n.entries.join(", ") : "your last change";
+  return `Your last change could not be applied, so the agent goes on without ${what}, now switched off: ${n.reason}`;
+}
+
 /** Whether a roster change is waiting for the agent's next turn. */
 export function pendingChange(a: Pick<app.PersistentAgentView, "roster" | "status">): boolean {
   return !!a.status?.pending || a.roster.some((e) => e.state === "pending");

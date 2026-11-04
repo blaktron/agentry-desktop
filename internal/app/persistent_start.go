@@ -24,6 +24,29 @@ type startingAgent struct {
 	stopped bool
 }
 
+// startWait bounds how long a change waits for the agent's start to end:
+// a start that pulls its images takes minutes.
+const startWait = 15 * time.Minute
+
+// waitStart waits for a start of the agent under way to end, so that a
+// change made while it starts reaches the supervisor once its socket is up,
+// or the agent's files once the start has failed. It returns at once for an
+// agent not starting.
+func (p *PersistentAPI) waitStart(name string) error {
+	p.mu.Lock()
+	st := p.starting[name]
+	p.mu.Unlock()
+	if st == nil {
+		return nil
+	}
+	select {
+	case <-st.done:
+		return nil
+	case <-time.After(startWait):
+		return fmt.Errorf("%s is still starting after %s: make the change again once it has started", name, startWait)
+	}
+}
+
 // PersistentFailureView is how the agent's last start failed: the error,
 // the step it stopped in (in the words the start showed), the reason in the
 // runner's fixed words when the step named one, and the log that has the

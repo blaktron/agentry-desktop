@@ -18,8 +18,8 @@ import (
 // read here and handed to gog on stdin, never to the page; the sign-in's
 // address is opened in the person's browser and its redirect caught on this
 // computer's 127.0.0.1; the sign-in reads as done only once gog names the
-// account. Neither runs while the agent does, since its server holds the
-// volume they write.
+// account. On a running agent, the CLI holds it between turns while they
+// write its server's volume, and it takes the sign-in at its next turn.
 
 // maxGoogleClientFile bounds the client file read: Google's are under 1 KiB,
 // and persistent.CheckGoogleClient refuses one past its own bound.
@@ -96,8 +96,8 @@ func (p *PersistentAPI) google(ctx context.Context, a persistent.Agent) (persist
 	return persistent.Google{Docker: d, Home: home, Agent: a, Policy: pol, RunnerImage: tag, Keys: p.secretStore(), Client: persistent.ClientDesktop}, nil
 }
 
-// googleAgent is the agent named, if it has a Google Workspace server and
-// does not run here.
+// googleAgent is the agent named, if it has a Google Workspace server, once
+// a start of it under way has ended.
 func (p *PersistentAPI) googleAgent(name string) (persistent.Agent, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -106,8 +106,8 @@ func (p *PersistentAPI) googleAgent(name string) (persistent.Agent, error) {
 	if imageServerKey(a) == "" {
 		return persistent.Agent{}, fmt.Errorf("the %s has no Google Workspace", a.Title)
 	}
-	if _, running := p.running(a.Name); running {
-		return persistent.Agent{}, fmt.Errorf("stop the %s first: its Google Workspace server holds what the set-up writes", a.Title)
+	if err := p.waitStart(a.Name); err != nil {
+		return persistent.Agent{}, err
 	}
 	return a, nil
 }
