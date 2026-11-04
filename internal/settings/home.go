@@ -44,14 +44,107 @@ const (
 	// HomeMain is Main's card: a chat with Agentry's own persistent agent,
 	// first on Home. It starts nothing until the person sends a message.
 	HomeMain = "main"
+	// HomeGetStarted is a checklist of what this computer's setup still
+	// lacks for the place runs go, and the first things to try.
+	HomeGetStarted = "get-started"
+	// HomeRunhost is the runhost runs go to: whether it answers, its model
+	// sign-ins, and Settings → Runhosts.
+	HomeRunhost = "runhost"
+	// HomeKnowledge lists the knowledge packs on this computer and In
+	// Agentry, with Create.
+	HomeKnowledge = "knowledge"
+	// HomeLearn is a short list of docs pages for someone new.
+	HomeLearn = "learn"
 )
 
-// homeDefaults are the default cards, in their order: Main's card first, the
-// place to ask Agentry for something, then the Deliverables card, because
-// the files a run was for are what a person comes back to.
-// Each is one card of its kind, shown or hidden by kind. The page's list is
-// HOME_DEFAULTS in frontend/src/homeCards.ts: the two change together.
-var homeDefaults = []string{HomeMain, HomeDeliverables, HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults}
+// The shortcut cards: one cell each, a figure and a title that opens the
+// page where the thing is done. Each is shown or hidden by kind.
+const (
+	HomeGoRun       = "shortcut-run"
+	HomeGoDraft     = "shortcut-draft"
+	HomeGoKnowledge = "shortcut-knowledge"
+	HomeGoMeetings  = "shortcut-meetings"
+	HomeGoVoice     = "shortcut-voice"
+	HomeGoAgent     = "shortcut-agent"
+	HomeGoSetup     = "shortcut-setup"
+)
+
+// The three starting Homes, one per place runs go: this computer, a
+// runhost, or In Agentry. A Home never arranged is the start for the
+// current Where to run (RunWhere), and so is a Home after Reset Home.
+const (
+	HomeStartLocal  = "local"
+	HomeStartRemote = "remote"
+	HomeStartCloud  = "cloud"
+)
+
+// HomeStartFor is the starting Home for a Where to run: a runhost's is
+// Remote, In Agentry's is Cloud, and this computer's, or none, is Local.
+func HomeStartFor(runWhere string) string {
+	switch {
+	case strings.HasPrefix(runWhere, RunWhereRunhostPrefix):
+		return HomeStartRemote
+	case runWhere == RunWhereAgentry:
+		return HomeStartCloud
+	}
+	return HomeStartLocal
+}
+
+// homeSwitches are the kinds Settings → Home shows or hides by kind: every
+// card but a Pinned one, which goes by its pins. The page's list is
+// HOME_SWITCHES in frontend/src/homeCards.ts: the two change together.
+var homeSwitches = []string{
+	HomeGetStarted, HomeMain, HomeDeliverables, HomeRecentRuns, HomeInstalled, HomeProfile, HomeRunDefaults,
+	HomeRunhost, HomeKnowledge, HomeLearn, HomeScheduled, HomeMeetings,
+	HomeGoRun, HomeGoDraft, HomeGoKnowledge, HomeGoMeetings, HomeGoVoice, HomeGoAgent, HomeGoSetup,
+}
+
+// homeKindSize is the size a card of kind takes when it is added to a
+// stored layout: a shortcut one cell, the Learn card one column by two
+// rows, every other card the page's default (0 by 0, two by two).
+func homeKindSize(kind string) (cols, rows int) {
+	switch {
+	case strings.HasPrefix(kind, "shortcut-"):
+		return 1, 1
+	case kind == HomeLearn:
+		return 1, 2
+	}
+	return 0, 0
+}
+
+// card is a card of kind at its kind's size.
+func card(kind string) HomeCard {
+	c := HomeCard{Kind: kind}
+	c.Cols, c.Rows = homeKindSize(kind)
+	return c
+}
+
+// homeStarts are the starting Homes' cards, in their order. Each opens on
+// Get started and the shortcuts that place needs, then the cards that fill
+// once something has run. The grid packs smaller cards into the gaps, so a
+// card that is not drawn (the agent card while no agent is on, Meeting notes
+// where this copy does not record) leaves no hole. The Profile card, which
+// holds the credits, is in Cloud's; the Runhost card in Remote's; Meeting
+// notes and the persistent agent, which run on this computer, in Local's.
+// Every Home holds the agent card, so the one a person turns on is drawn
+// without arranging anything.
+var homeStarts = map[string][]string{
+	HomeStartLocal: {
+		HomeGetStarted, HomeGoRun, HomeGoDraft, HomeGoKnowledge, HomeGoSetup,
+		HomeMain, HomeRecentRuns, HomeDeliverables, HomeLearn, HomeKnowledge,
+		HomeGoMeetings, HomeGoVoice, HomeGoAgent,
+	},
+	HomeStartRemote: {
+		HomeGetStarted, HomeGoRun, HomeGoDraft, HomeGoKnowledge, HomeGoSetup,
+		HomeRunhost, HomeMain, HomeRecentRuns, HomeDeliverables, HomeLearn, HomeKnowledge,
+		HomeGoVoice,
+	},
+	HomeStartCloud: {
+		HomeGetStarted, HomeGoRun, HomeGoDraft, HomeGoKnowledge, HomeGoSetup,
+		HomeProfile, HomeMain, HomeRecentRuns, HomeDeliverables, HomeLearn, HomeKnowledge,
+		HomeGoVoice,
+	},
+}
 
 // HomeLayout is the stored layout. Rest keeps the keys this app does not
 // know.
@@ -133,24 +226,27 @@ var (
 	errUnreadableHome = errors.New("the settings file's Home arrangement cannot be read by this Agentry Desktop, so it is left as it is; Reset Home starts again from the defaults")
 )
 
-func defaultHome() HomeLayout {
-	cards := make([]HomeCard, 0, len(homeDefaults))
-	for _, k := range homeDefaults {
-		cards = append(cards, HomeCard{Kind: k})
+// defaultHome is the starting Home for a Where to run.
+func defaultHome(runWhere string) HomeLayout {
+	kinds := homeStarts[HomeStartFor(runWhere)]
+	cards := make([]HomeCard, 0, len(kinds))
+	for _, k := range kinds {
+		cards = append(cards, card(k))
 	}
 	return HomeLayout{Version: HomeVersion, Cards: cards}
 }
 
-// homeOf is the layout s holds, or the defaults when it holds none or one
-// this app keeps rather than uses (the state says which).
+// homeOf is the layout s holds, or the starting Home for its Where to run
+// when it holds none or one this app keeps rather than uses (the state says
+// which).
 func homeOf(s Settings) (HomeLayout, homeState) {
 	switch {
 	case s.Home == nil:
-		return defaultHome(), homeOK
+		return defaultHome(s.RunWhere), homeOK
 	case s.Home.raw != nil:
-		return defaultHome(), homeUnreadable
+		return defaultHome(s.RunWhere), homeUnreadable
 	case s.Home.Version > HomeVersion:
-		return defaultHome(), homeNewer
+		return defaultHome(s.RunWhere), homeNewer
 	}
 	l := *s.Home
 	l.Version = HomeVersion
@@ -204,13 +300,23 @@ func HomeLayoutNow() (layout HomeLayout, newer, unreadable bool, err error) {
 	return l, st == homeNewer, st == homeUnreadable, err
 }
 
-// SetHomeCardShown shows or hides the default card of kind, the Scheduled
-// card or the Meeting notes card, keeping its place in the order. One the
-// stored layout lacks is added at the end when it is shown (the Scheduled
-// and Meeting notes cards Large). Any other kind is refused, and so is a
-// change to a newer layout.
+// HomeStartNow is the starting Home for the stored Where to run: the one a
+// Home never arranged draws, and Reset Home goes back to.
+func HomeStartNow() (string, error) {
+	s, err := Load()
+	if err != nil {
+		return "", err
+	}
+	return HomeStartFor(s.RunWhere), nil
+}
+
+// SetHomeCardShown shows or hides the card of kind, keeping its place in
+// the order. One the layout lacks is added at the end when it is shown, at
+// its kind's size (the Scheduled and Meeting notes cards Large). A Pinned
+// card or a kind this app does not know is refused, and so is a change to a
+// newer layout.
 func SetHomeCardShown(kind string, shown bool) error {
-	if !slices.Contains(homeDefaults, kind) && kind != HomeScheduled && kind != HomeMeetings {
+	if !slices.Contains(homeSwitches, kind) {
 		return fmt.Errorf("%q is not a Home card that can be shown or hidden", kind)
 	}
 	s, l, err := usableHome()
@@ -225,11 +331,12 @@ func SetHomeCardShown(kind string, shown bool) error {
 		}
 	}
 	if !found {
-		c := HomeCard{Kind: kind, Hidden: !shown}
+		if !shown {
+			// A card the layout lacks is already not drawn.
+			return nil
+		}
+		c := card(kind)
 		if kind == HomeScheduled || kind == HomeMeetings {
-			if !shown {
-				return nil
-			}
 			c.Size = HomeLarge
 		}
 		l.Cards = append(l.Cards, c)
@@ -405,7 +512,7 @@ func SetHomeAgent(name string) error {
 }
 
 // ResetHome removes the stored layout and the agent card's agent, so Home
-// is the defaults again. It is the one change a newer layout takes, because
+// is the starting Home for the Where to run again. It is the one change a newer layout takes, because
 // the person asked for it.
 func ResetHome() error {
 	s, err := Load()

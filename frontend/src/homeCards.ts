@@ -5,7 +5,12 @@
 // of the layout's cards the page draws. A new kind is one entry here and
 // one renderer beside the page (pages/home/).
 
-export type HomeCardKind = "main" | "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled" | "meetings";
+// The shortcut cards: one cell each, a figure and a title that opens the
+// page where the thing is done.
+export type ShortcutKind = "shortcut-run" | "shortcut-draft" | "shortcut-knowledge" | "shortcut-meetings" | "shortcut-voice" | "shortcut-agent" | "shortcut-setup";
+
+export type HomeCardKind = "main" | "deliverables" | "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled" | "meetings"
+  | "get-started" | "runhost" | "knowledge" | "learn" | ShortcutKind;
 
 export type HomeCardDescriptor = {
   kind: HomeCardKind;
@@ -15,6 +20,10 @@ export type HomeCardDescriptor = {
   // One card of the kind, or several (a Pinned card holds four pins).
   multiple: boolean;
 };
+
+// The three starting Homes, one per place runs go: Go picks one from
+// Settings → Run defaults → Where to run (HomeAPI's start).
+export type HomeStart = "local" | "remote" | "cloud";
 
 export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // The agent card: a chat with a persistent agent, the one the person
@@ -41,7 +50,55 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // default: Reset Home removes it.
   meetings: { kind: "meetings", title: "Meeting notes", multiple: false,
     line: "Record, the recording under way, the meetings your Assistant set up to record, and the last meetings, with Ask to summarise." },
+  "get-started": { kind: "get-started", title: "Get started", multiple: false,
+    line: "What your setup still needs for where your runs go, and the first things to try, each with the button that does it." },
+  runhost: { kind: "runhost", title: "Runhost", multiple: false,
+    line: "The runhost your runs go to: whether it answers, its model sign-ins, and its settings." },
+  knowledge: { kind: "knowledge", title: "Knowledge packs", multiple: false,
+    line: "Your knowledge packs on this computer and In Agentry, with Create." },
+  learn: { kind: "learn", title: "Learn", multiple: false,
+    line: "A few pages of the docs for someone new: QuickAgents, running one, drafting one, knowledge." },
+  "shortcut-run": { kind: "shortcut-run", title: "Run a QuickAgent", multiple: false, line: "Opens your Library, or Browse while nothing is installed." },
+  "shortcut-draft": { kind: "shortcut-draft", title: "Draft a QuickAgent", multiple: false, line: "Opens Build's Describe it, where the Drafter writes one from what you tell it." },
+  "shortcut-knowledge": { kind: "shortcut-knowledge", title: "Create knowledge", multiple: false, line: "Starts a knowledge pack from your documents." },
+  "shortcut-meetings": { kind: "shortcut-meetings", title: "Meeting notes", multiple: false, line: "Opens Meeting notes, to record a meeting and transcribe it here." },
+  "shortcut-voice": { kind: "shortcut-voice", title: "Writing Voice", multiple: false, line: "Opens Writing Voice, so what your runs write sounds like you." },
+  "shortcut-agent": { kind: "shortcut-agent", title: "Persistent agent", multiple: false, line: "Opens Settings → Persistent Agents, to turn on the Assistant." },
+  "shortcut-setup": { kind: "shortcut-setup", title: "Setup", multiple: false, line: "Opens the setup you saw on the first start, to change where runs go or what they use." },
 };
+
+export const isShortcut = (k: string): k is ShortcutKind => k.startsWith("shortcut-") && Object.prototype.hasOwnProperty.call(HOME_CARDS, k);
+
+/** The starting Homes' cards, in their order and at their sizes: Go's
+ * homeStarts and homeKindSize in internal/settings/home.go, which the page
+ * draws only when Home's layout cannot be read at all. The two change
+ * together. */
+export const HOME_STARTS: Record<HomeStart, HomeCardKind[]> = {
+  local: ["get-started", "shortcut-run", "shortcut-draft", "shortcut-knowledge", "shortcut-setup",
+    "main", "recent-runs", "deliverables", "learn", "knowledge", "shortcut-meetings", "shortcut-voice", "shortcut-agent"],
+  remote: ["get-started", "shortcut-run", "shortcut-draft", "shortcut-knowledge", "shortcut-setup",
+    "runhost", "main", "recent-runs", "deliverables", "learn", "knowledge", "shortcut-voice"],
+  cloud: ["get-started", "shortcut-run", "shortcut-draft", "shortcut-knowledge", "shortcut-setup",
+    "profile", "main", "recent-runs", "deliverables", "learn", "knowledge", "shortcut-voice"],
+};
+
+/** A kind's size on the grid until the person sizes it: a shortcut one
+ * cell, Learn one column by two rows, every other card the grid's default. */
+export function kindSize(kind: string): { cols?: number; rows?: number } {
+  if (kind.startsWith("shortcut-")) return { cols: 1, rows: 1 };
+  if (kind === "learn") return { cols: 1, rows: 2 };
+  return {};
+}
+
+/** The starting Home's layout, as Go would answer it. */
+export function startLayout(start: HomeStart): LayoutCard[] {
+  return HOME_STARTS[start].map((kind) => ({ kind, ...kindSize(kind) }));
+}
+
+/** The start's name as Settings → Home says it. */
+export const START_NAME: Record<HomeStart, string> = { local: "this computer", remote: "a runhost", cloud: "In Agentry" };
+
+export const asStart = (s: string | undefined): HomeStart => (s === "remote" || s === "cloud" ? s : "local");
 
 import type * as settings from "../bindings/github.com/blaktron/agentry-desktop/internal/settings/models";
 
@@ -88,20 +145,20 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
   return out;
 }
 
-// Settings → Home: a switch per default card, the pins, Reset Home. The
-// order and the sizes are set on Home itself, by dragging.
+// Settings → Home: a switch per card, the pins, Reset Home. The order and
+// the sizes are set on Home itself, by dragging.
 
-/** The default cards, in their default order: Settings → Home's switches.
- * Go shows or hides these by kind (HomeAPI.SetShown); a Pinned card goes
- * by its pins. Go's list is settings.homeDefaults: the two change
- * together. */
-export const HOME_DEFAULTS: HomeCardKind[] = ["main", "deliverables", "recent-runs", "installed", "profile", "run-defaults"];
+/** Settings → Home's switches: every card but a Pinned one, which goes by
+ * its pins; the cards first, then the shortcuts. Go shows or hides these by
+ * kind (HomeAPI.SetShown). Go's list is settings.homeSwitches: the two
+ * change together. */
+export const HOME_SWITCHES: HomeCardKind[] = [
+  "get-started", "main", "deliverables", "recent-runs", "installed", "profile", "run-defaults",
+  "runhost", "knowledge", "learn", "scheduled", "meetings",
+  "shortcut-run", "shortcut-draft", "shortcut-knowledge", "shortcut-meetings", "shortcut-voice", "shortcut-agent", "shortcut-setup",
+];
 
-/** Settings → Home's switches: the default cards, then the Scheduled card
- * and the Meeting notes card, which Go shows or hides by kind like them. */
-export const HOME_SWITCHES: HomeCardKind[] = [...HOME_DEFAULTS, "scheduled", "meetings"];
-
-export type CardSwitch = { kind: HomeCardKind; title: string; line: string; shown: boolean };
+export type CardSwitch = { kind: HomeCardKind; title: string; line: string; shown: boolean; shortcut: boolean };
 
 /** Whether Home draws the Scheduled card: one is in the layout and not
  * hidden. The Scheduled page's options menu offers Unpin then, else Pin. */
@@ -109,31 +166,32 @@ export function scheduledOnHome(cards: Pick<LayoutCard, "kind" | "hidden">[]): b
   return cards.some((c) => c.kind === "scheduled" && !c.hidden);
 }
 
-/** Each switch's card and whether Home draws it, in the default order,
- * the Scheduled and Meeting notes cards last; the Meeting notes card only
- * where this copy records meetings. A card the stored layout lacks is not
- * drawn, so it reads as off; Go adds it at the end when it is turned on. */
+/** Each switch's card and whether Home draws it, the cards first and the
+ * shortcuts after; the Meeting notes card and its shortcut only where this
+ * copy records meetings. A card the stored layout lacks is not drawn, so it
+ * reads as off; Go adds it at the end when it is turned on. */
 export function cardSwitches(cards: Pick<LayoutCard, "kind" | "hidden">[], meetings = false): CardSwitch[] {
-  return HOME_SWITCHES.filter((kind) => kind !== "meetings" || meetings).map((kind) => ({
-    kind, title: HOME_CARDS[kind].title, line: HOME_CARDS[kind].line, shown: cards.some((c) => c.kind === kind && !c.hidden),
+  return HOME_SWITCHES.filter((kind) => (kind !== "meetings" && kind !== "shortcut-meetings") || meetings).map((kind) => ({
+    kind, title: HOME_CARDS[kind].title, line: HOME_CARDS[kind].line, shown: cards.some((c) => c.kind === kind && !c.hidden), shortcut: isShortcut(kind),
   }));
 }
 
 type StatusView = { cards: Pick<LayoutCard, "kind" | "hidden" | "pins">[]; newer: boolean; unreadable: boolean };
 
-/** The Settings landing's line for the Home card: the cards shown (the
- * defaults, and the Scheduled card while the layout holds it) and the
- * QuickAgents pinned, or why the stored layout is not the one drawn. It
- * reads desktop.yaml only, through HomeAPI.Layout. */
+/** The Settings landing's line for the Home card: the cards the layout
+ * holds and how many of them are shown, and the QuickAgents pinned, or why
+ * the stored layout is not the one drawn. It reads desktop.yaml only,
+ * through HomeAPI.Layout. */
 export function homeStatus(v: StatusView): string {
-  if (v.newer) return "Arranged by a newer Agentry Desktop; the default cards are shown.";
-  if (v.unreadable) return "The arrangement cannot be read; the default cards are shown.";
-  const total = HOME_DEFAULTS.length + (v.cards.some((c) => c.kind === "scheduled") ? 1 : 0);
-  const shown = cardSwitches(v.cards).filter((s) => s.shown).length;
+  if (v.newer) return "Arranged by a newer Agentry Desktop; the starting cards are shown.";
+  if (v.unreadable) return "The arrangement cannot be read; the starting cards are shown.";
+  const held = v.cards.filter((c) => c.kind !== "pinned" && Object.prototype.hasOwnProperty.call(HOME_CARDS, c.kind));
+  const total = new Set(held.map((c) => c.kind)).size;
+  const shown = new Set(held.filter((c) => !c.hidden).map((c) => c.kind)).size;
   // pins.ts's pinsOf, counted here: node's tests load these modules
   // without a bundler, which resolves no extensionless import.
   const pins = v.cards.filter((c) => c.kind === "pinned").reduce((n, c) => n + (c.pins?.length ?? 0), 0);
-  const cards = shown === total ? `All ${total} cards shown` : shown === 0 ? "No card shown" : `${shown} of ${total} cards shown`;
+  const cards = shown === 0 ? "No card shown" : shown === total ? `All ${total} cards shown` : `${shown} of ${total} cards shown`;
   const pinned = pins === 0 ? "nothing pinned" : `${pins} QuickAgent${pins === 1 ? "" : "s"} pinned`;
   return `${cards}, ${pinned}.`;
 }
