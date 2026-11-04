@@ -81,16 +81,35 @@ func (p *PersistentAPI) installRelease(reg, ref string) (*PersistentAgentView, e
 		engine.Cancel(plan.ID)
 		return nil, err
 	}
+	key := persistent.Key(plan.Namespace, plan.Name)
+	running, _ := persistent.Held(home, key)
+	if running {
+		// The running segment still reads its release: its supervisor
+		// removes the older ones once a segment has started from this one.
+		engine.KeepOtherVersions(plan.ID)
+	}
 	if _, err := engine.Confirm(plan.ID, plan.Unsigned, true, plan.Unscanned); err != nil {
 		return nil, err
 	}
 	p.installs.refreshRow(installdir.ConsentKey(home, plan.Namespace, plan.Name))
+	prev, prevErr := persistent.LoadRelease(home, key)
 	a, err := persistent.SaveRelease(home, persistent.Release{
 		Ref: plan.Namespace + "/" + plan.Name, Version: plan.Version, Digest: plan.Digest,
 		Source: persistent.SourceRegistry, Registry: plan.Registry, Subagents: pins, InstalledAt: time.Now().UTC(),
 	})
 	if err != nil {
 		return nil, err
+	}
+	// A running agent takes the release at its next turn, asked first about
+	// what it turns on that was not agreed to; declined, the record names
+	// the release the agent runs again.
+	if running {
+		if err := p.configure(a, persistent.Change{Release: true}); err != nil {
+			if prevErr == nil {
+				_, _ = persistent.SaveRelease(home, prev)
+			}
+			return nil, err
+		}
 	}
 	p.stateChanged(a.Name)
 	return p.Get(a.Name)
@@ -101,8 +120,8 @@ func (p *PersistentAPI) installRelease(reg, ref string) (*PersistentAgentView, e
 // persistent mode, a built-in's reference, a runner policy that allows no
 // persistent release, a release that declares files or a target host
 // (which a persistent agent is never given) or names an image server or a
-// mail provider this build does not carry, and one that runs, here or in
-// another client: a new version is installed while it is stopped.
+// mail provider this build does not carry. A running agent takes a new
+// version at its next turn; one still starting is waited for.
 func (p *PersistentAPI) persistentInstallable(home string, m *manifest.Manifest) error {
 	ref := m.Namespace + "/" + m.Name
 	if !m.IsPersistent() {
@@ -123,18 +142,9 @@ func (p *PersistentAPI) persistentInstallable(home string, m *manifest.Manifest)
 	if err := localrun.CheckPersistentNames(m.Capabilities.Persistent); err != nil {
 		return fmt.Errorf("%s cannot run on this version of Agentry: %w", ref, err)
 	}
-	key := persistent.Key(m.Namespace, m.Name)
-	p.mu.Lock()
-	_, running := p.sups[key]
-	starting := p.starting[key] != nil
-	p.mu.Unlock()
-	if running || starting {
-		return fmt.Errorf("%s is running: stop it first, then install again", ref)
-	}
-	if held, h := p.heldElsewhere(home, key); held {
-		return fmt.Errorf("%s is running in %s: stop it there first, then install again", ref, holderWords(h))
-	}
-	return nil
+	// A running agent takes the new release at its next turn; one still
+	// starting is waited for, since it has no socket to take it yet.
+	return p.waitStart(persistent.Key(m.Namespace, m.Name))
 }
 
 // persistentReleasesAllowed reads the runner policy the app starts its
@@ -247,21 +257,26 @@ func (p *PersistentAPI) Uninstall(name string, removeData bool) error {
 	if err != nil {
 		return err
 	}
+	if err := p.waitStart(a.Name); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	_, running := p.sups[a.Name]
-	starting := p.starting[a.Name] != nil
 	p.mu.Unlock()
-	if running || starting {
-		return fmt.Errorf("%s is running: stop it first", a.Ref)
-	}
-	if held, h := p.heldElsewhere(home, a.Name); held {
-		return fmt.Errorf("%s is running in %s: stop it there first", a.Ref, holderWords(h))
-	}
 	title, body := "Uninstall "+a.Ref+"?", "Its conversation, its files and everything you chose for it are kept: installing it again takes them up. The files in its share folder are yours and stay."
 	if removeData {
 		title, body = "Uninstall "+a.Ref+" and remove its data?", "This removes its conversation, its files and everything you chose for it, and cannot be undone. The files in its share folder are yours and stay."
 	}
 	if err := p.app.askConsent(title, body); err != nil {
+		return err
+	}
+	// A running agent is stopped first: one this app runs by its own Stop,
+	// one another client runs through its supervisor.
+	if running {
+		if _, err := p.Stop(a.Name); err != nil {
+			return fmt.Errorf("stopping %s to uninstall it: %w", a.Ref, err)
+		}
+	} else if _, err := persistent.StopForRemoval(p.app.ctx, home, a, persistent.ClientDesktop); err != nil {
 		return err
 	}
 	if err := persistent.Uninstall(p.app.ctx, home, a.Name, p.dockerClient(), removeData); err != nil {

@@ -5,7 +5,7 @@
 // their tests share it. Every name and line is data the runner, the agent
 // or the person wrote, drawn as text.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { AGENT_STATES } from "./persistentAgents.ts";
+import { AGENT_STATES, agentCalled } from "./persistentAgents.ts";
 
 /** The grids, in their order. Mail and calendar is the Assistant's alone:
  *  its enabled mail providers' servers and their switches, and its
@@ -127,7 +127,8 @@ export function monogram(name: string): string {
 
 /** How a card's state reads: on (full colour), off (greyed), busy (an
  *  install or a change waiting for the next turn), attention (it needs a
- *  sign-in or a set-up) or failed. */
+ *  sign-in or a set-up, or the running agent could not start with it and
+ *  went on without it) or failed. */
 export type Tone = "on" | "off" | "busy" | "attention" | "failed";
 
 export type CardState = { words: string; tone: Tone; retry: boolean; reason?: string };
@@ -146,6 +147,8 @@ export function cardState(agent: Pick<app.PersistentAgentView, "state">, e: Pick
       return { words: "Needs a sign-in", tone: "attention", retry: false, reason: e.reason || undefined };
     case "needs-set-up":
       return { words: "Needs setting up", tone: "attention", retry: false, reason: e.reason || undefined };
+    case "not-applied":
+      return { words: "Not applied", tone: "attention", retry: false, reason: e.reason || undefined };
     case "pending":
       return e.on
         ? { words: e.kind === "server" && live ? "Ready, joins at your next message" : "On at the next turn", tone: "busy", retry: false }
@@ -407,4 +410,23 @@ export function calendarNameOK(name: string): boolean {
   const n = new TextEncoder().encode(name.trim()).length;
   // eslint-disable-next-line no-control-regex
   return n >= 1 && n <= 64 && !/[\u0000-\u001f\u007f]/.test(name);
+}
+
+/** nextTurnWords says when a change made on a card reaches the agent: at
+ *  its next turn while it runs here or in another client, once it has
+ *  started while it starts, and null while it is stopped. A set-up holds a
+ *  running agent between turns while it writes the server's sign-in. */
+export function nextTurnWords(agent: Pick<app.PersistentAgentView, "state" | "displayName" | "title">, setUp = false): string | null {
+  const who = agentCalled(agent, true);
+  switch (agent.state) {
+    case AGENT_STATES.running:
+    case AGENT_STATES.elsewhere:
+      return setUp
+        ? `${who} is running: it waits between turns while the set-up writes its sign-in, and takes it at its next turn.`
+        : `${who} is running: it takes this at its next turn.`;
+    case AGENT_STATES.starting:
+      return `${who} is starting: this waits until it has started, then reaches it at its next turn.`;
+    default:
+      return null;
+  }
 }

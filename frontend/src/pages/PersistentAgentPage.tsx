@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, pendingChange, runningInBackground, showsStop, subagentRunWords, termBlocks } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, notAppliedWords, pendingChange, runningInBackground, showsStop, subagentRunWords, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { AGENT_VIEWS, agentView, DEFAULT_AGENT_VIEW, usageLine, type AgentViewId } from "../agentView";
 import { Button, ErrorBox, Modal } from "../ui";
@@ -183,6 +183,8 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
           {answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
         {pendingChange(agent) && running && <p className="agent-term-pending">Applying your change at the next turn.</p>}
+        {agent.status?.held && <p className="agent-term-pending">Waiting between turns while {agent.status.held} is set up.</p>}
+        {agent.notApplied && running && <p className="agent-term-pending">{notAppliedWords(agent.notApplied)}</p>}
         {(rec.error || error) && <ErrorBox error={rec.error || error} />}
         {note && <p className="small muted">{note}</p>}
         <form

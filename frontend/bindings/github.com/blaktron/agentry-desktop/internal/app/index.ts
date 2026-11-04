@@ -146,6 +146,7 @@ export {
     PersistentGoogleView,
     PersistentMailProviderView,
     PersistentMicrosoftView,
+    PersistentNotAppliedView,
     PersistentPort,
     PersistentReasonView,
     PersistentResetView,

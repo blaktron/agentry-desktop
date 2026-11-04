@@ -773,7 +773,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 QuickAgent runs commands. A QuickAgent that runs none, such as one that reviews a codebase, is given the
                 flagged file unopened, and the receipt names it. Runs In Agentry are always checked. This is the runner
                 policy&apos;s, so the <span className="mono">agentry</span> CLI checks the same way, and it applies from
-                the next run.
+                the next run, and to a running persistent agent at its next turn.
               </p>
             </Card>
           </PartSection>

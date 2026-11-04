@@ -28,6 +28,7 @@ import {
   microsoftWords,
   microsoftAdminWords,
   microsoftScopeWords,
+  nextTurnWords,
   fastmailWords,
   calendarFeedOf,
   calendarFeedLine,
@@ -109,6 +110,7 @@ test("a card's state: off greyed, on in colour, an install busy, a sign-in or se
   assert.deepEqual(cardState(stopped, entry({ state: "failed", reason: "npm answered 404" })), { words: "Failed", tone: "failed", retry: true, reason: "npm answered 404" });
   assert.equal(cardState(stopped, entry({ state: "needs-sign-in" })).tone, "attention");
   assert.equal(cardState(stopped, entry({ state: "needs-set-up", reason: "it needs an account on github.com" })).words, "Needs setting up");
+  assert.deepEqual(cardState(running, entry({ state: "not-applied", on: false, reason: "the gateway did not start" })), { words: "Not applied", tone: "attention", retry: false, reason: "the gateway did not start" });
   assert.equal(cardState(running, entry({ state: "pending", on: true })).words, "Ready, joins at your next message");
   assert.equal(cardState(running, entry({ kind: "skill", state: "pending", on: false })).words, "Off at the next turn");
 });
@@ -336,4 +338,15 @@ test("an entry says who granted it: the person, the publisher or Agentry", () =>
 test("a subagent's and the Writing Voice's cards have glyphs of their own", () => {
   assert.deepEqual(cardIcon({ id: "subagent:acme/summarize", kind: "subagent", name: "acme/summarize@1.2.0", icon: "", iconKey: "" }), { kind: "glyph", key: "box" });
   assert.deepEqual(cardIcon({ id: "voice", kind: "voice", name: "Writing Voice", icon: "", iconKey: "" }), { kind: "glyph", key: "person" });
+});
+
+test("a change on a card reaches a running or starting agent at its next turn, and is never refused for it", () => {
+  const who = { displayName: "Assistant", title: "Assistant" };
+  assert.equal(nextTurnWords({ ...who, state: "stopped" }), null);
+  assert.equal(nextTurnWords({ ...who, state: "disabled" }), null);
+  assert.equal(nextTurnWords({ ...who, state: "running" }), "The Assistant is running: it takes this at its next turn.");
+  assert.equal(nextTurnWords({ ...who, state: "elsewhere" }), "The Assistant is running: it takes this at its next turn.");
+  assert.match(nextTurnWords({ ...who, state: "starting" }) ?? "", /waits until it has started/);
+  assert.match(nextTurnWords({ ...who, state: "running" }, true) ?? "", /waits between turns while the set-up writes its sign-in/);
+  assert.match(nextTurnWords({ displayName: "Robin", title: "Assistant", state: "running" }) ?? "", /^Robin is running/);
 });

@@ -26,6 +26,7 @@ import {
   chatFromTranscript,
   newAgentChat,
   pendingChange,
+  notAppliedWords,
   persistentAgentsStatus,
   coderRunning,
   enableOutcome,
@@ -484,4 +485,10 @@ test("a subagent run reads running until it ends, then how it ended", () => {
   assert.match(subagentRunWords({ started, ended: "", outcome: "", error: "" }), /^running since /);
   assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "ok", error: "" }), /^finished /);
   assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "error", error: "x" }), /^did not run /);
+});
+
+test("a change the running agent could not start with is named with why", () => {
+  assert.equal(notAppliedWords({ reason: "the image did not pull", entries: ["server:github"] }),
+    "Your last change could not be applied, so the agent goes on without server:github, now switched off: the image did not pull");
+  assert.match(notAppliedWords({ reason: "x", entries: [] }), /without your last change/);
 });
