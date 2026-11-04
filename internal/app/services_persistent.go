@@ -351,8 +351,11 @@ type PersistentAgentView struct {
 	ReadsCalendars bool                         `json:"readsCalendars"`
 	CalendarFeeds  []PersistentCalendarFeedView `json:"calendarFeeds"`
 	Status         *PersistentStatusView        `json:"status,omitempty"`
-	Lifetime       PersistentUsageView          `json:"lifetime"`
-	Volumes        PersistentVolumesView        `json:"volumes"`
+	// NotApplied is the last change the running agent could not start
+	// with, which it went on without: why, and the entries it switched off.
+	NotApplied *PersistentNotAppliedView `json:"notApplied,omitempty"`
+	Lifetime   PersistentUsageView       `json:"lifetime"`
+	Volumes    PersistentVolumesView     `json:"volumes"`
 	// LastCompaction and LastConsolidation are the newest records of the
 	// memory's upkeep, for an agent that keeps a memory; none before the
 	// first.
@@ -465,6 +468,9 @@ type PersistentStatusView struct {
 	ResumeReason string `json:"resumeReason,omitempty"`
 	Busy         bool   `json:"busy"`
 	Pending      bool   `json:"pending"`
+	// Held names what a client is setting up while it holds the agent
+	// between turns.
+	Held string `json:"held,omitempty"`
 	// The segment's usage so far, as its envelope will sum it.
 	InputTokens  int64   `json:"inputTokens"`
 	OutputTokens int64   `json:"outputTokens"`
@@ -472,6 +478,14 @@ type PersistentStatusView struct {
 	CostUSD      float64 `json:"costUsd"`
 	UserTurns    int     `json:"userTurns"`
 	ToolCalls    int     `json:"toolCalls"`
+}
+
+// PersistentNotAppliedView is a change the running agent took back because
+// its next segment could not start with it.
+type PersistentNotAppliedView struct {
+	At      string   `json:"at"`
+	Reason  string   `json:"reason"`
+	Entries []string `json:"entries"`
 }
 
 // PersistentUsageView is the agent's lifetime usage, summed over its
@@ -647,6 +661,17 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		}
 	}
 	v.Roster = rosterView(roster, cfg.Servers, factsOf(a, cfg))
+	if n := cfg.NotApplied; n != nil {
+		v.NotApplied = &PersistentNotAppliedView{At: n.At.Format(time.RFC3339), Reason: n.Reason, Entries: append([]string{}, n.Entries...)}
+		for i, e := range v.Roster {
+			if !e.On && slices.Contains(n.Entries, e.ID) {
+				v.Roster[i].State = persistent.StateNotApplied
+				if v.Roster[i].Reason == "" {
+					v.Roster[i].Reason = n.Reason
+				}
+			}
+		}
+	}
 	serverIcons(cfg, v.Roster)
 	v.Suggested = suggestionsView(a, cfg)
 	v.KeepsSecrets, v.TakesSkills = a.KeepsSecrets(), !a.DesktopOnly
@@ -692,7 +717,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 func statusView(st persistent.Status) *PersistentStatusView {
 	return &PersistentStatusView{
 		Since: st.Since.Format(time.RFC3339), Segment: st.Segment, Run: st.Run, Adapter: st.Adapter, Model: st.Model,
-		Resumed: st.Resumed, ResumeReason: st.ResumeReason, Busy: st.Busy, Pending: st.Pending,
+		Resumed: st.Resumed, ResumeReason: st.ResumeReason, Busy: st.Busy, Pending: st.Pending, Held: st.Held,
 		InputTokens: st.Usage.InputTokens, OutputTokens: st.Usage.OutputTokens, TotalTokens: st.Usage.TotalTokens,
 		CostUSD: st.Usage.CostUSD, UserTurns: st.Usage.UserTurns, ToolCalls: st.Usage.Turns,
 	}
@@ -741,8 +766,9 @@ func malwareCheckOn() bool {
 	return err == nil && pol.MalwareCheckOn()
 }
 
-// SetEnabled enables or disables an agent. A running agent is not
-// disabled: it is stopped first. Enabling the Coding agent asks first, in a
+// SetEnabled enables or disables an agent. A running agent is stopped
+// first, then disabled: one this app runs by its own Stop, one another
+// client runs through its supervisor's socket. Enabling the Coding agent asks first, in a
 // native dialog that says what it may do; a No changes nothing and answers
 // the agent as it was. The Assistant supersedes Agentry Helper, whose tools
 // it lists: enabling the Assistant stops and disables the Helper, and the
@@ -756,9 +782,13 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 	if err != nil {
 		return nil, err
 	}
-	_, here := p.running(a.Name)
-	if held, _ := persistent.Held(home, a.Name); (held || here) && !on {
-		return nil, fmt.Errorf("the %s is running: stop it first", a.Title)
+	p.mu.Lock()
+	starting := p.starting[a.Name] != nil
+	p.mu.Unlock()
+	if _, here := p.running(a.Name); (here || starting) && !on {
+		if _, err := p.Stop(a.Name); err != nil {
+			return nil, fmt.Errorf("stopping the %s to disable it: %w", a.Title, err)
+		}
 	}
 	if on && a.Name == mainAgent {
 		if err := helperRefused(home); err != nil {
@@ -782,17 +812,9 @@ func (p *PersistentAPI) SetEnabled(name string, on bool) (*PersistentAgentView, 
 			}
 		}
 	}
-	owner, err := persistent.Acquire(home, a.Name, persistent.ClientDesktop)
-	if err != nil {
-		return nil, err
-	}
-	cfg, err := persistent.LoadConfig(home, a.Name)
-	if err == nil {
-		cfg.Enabled = on
-		err = persistent.SaveConfig(home, a.Name, cfg)
-	}
-	owner.Release()
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := persistent.SetEnabled(ctx, home, a, persistent.ClientDesktop, on); err != nil {
 		return nil, err
 	}
 	p.stateChanged(a.Name)
@@ -1112,9 +1134,10 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 	}
 	return persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
-		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
+		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol), CreditsFor: run.CreditsClient,
 		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
-		Helper: p.helper(), Subagents: p.subagents(),
+		Contents: persistent.Contents{Pack: p.packDigest},
+		Helper:   p.helper(), Subagents: p.subagents(),
 	}, nil
 }
 
@@ -1137,6 +1160,20 @@ func (p *PersistentAPI) packs(ctx context.Context, names []string) ([]engine.Att
 		reg = s.DefaultRegistry
 	}
 	return p.run.knowledge().Attach(ctx, reg, names)
+}
+
+// packDigest is a pack's digest in the local store, which a running agent
+// follows so that a pack built again reaches it at its next turn.
+func (p *PersistentAPI) packDigest(_ context.Context, name string) (string, error) {
+	reg := ""
+	if s, err := settings.Load(); err == nil {
+		reg = s.DefaultRegistry
+	}
+	en, err := p.run.knowledge().Find(reg, name)
+	if err != nil {
+		return "", err
+	}
+	return en.Manifest.SHA256, nil
 }
 
 func (p *PersistentAPI) dockerClient() dockerx.Client {
@@ -1446,6 +1483,9 @@ func (p *PersistentAPI) configure(a persistent.Agent, c persistent.Change) error
 	if err != nil {
 		return err
 	}
+	if err := p.waitStart(a.Name); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	_, _, err = persistent.Configure(ctx, home, a, persistent.ClientDesktop, c)
@@ -1570,8 +1610,8 @@ func resetViews(a persistent.Agent) []PersistentResetView {
 
 // Reset puts an agent back to its defaults after a native confirmation:
 // its conversation, its files and everything the person chose for it. One
-// running here is stopped first; one another client runs is refused. Its
-// share folder's files and its receipts stay.
+// running, here or in another client, is stopped first, and one starting is
+// waited for. Its share folder's files and its receipts stay.
 func (p *PersistentAPI) Reset(name string) (*PersistentAgentView, error) {
 	return p.reset(name, resetAll)
 }
@@ -1606,20 +1646,15 @@ func (p *PersistentAPI) reset(name, kind string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.mu.Lock()
-	starting := p.starting[a.Name] != nil
-	p.mu.Unlock()
-	if starting {
-		return nil, fmt.Errorf("the %s is starting: wait for it, then reset it", a.Title)
+	if err := p.waitStart(a.Name); err != nil {
+		return nil, err
 	}
 	_, here := p.running(a.Name)
-	if held, _ := persistent.Held(home, a.Name); held && !here {
-		return nil, fmt.Errorf("the %s is running in another client: stop it there first", a.Title)
-	}
+	elsewhere, _ := persistent.Held(home, a.Name)
 	cfg, _ := persistent.LoadConfig(home, a.Name)
 	who := called(a, cfg)
 	body := choice.Body
-	if here {
+	if here || elsewhere {
 		body += " It is running: it is stopped first."
 	}
 	question := "Reset " + who + "?"
@@ -1636,6 +1671,8 @@ func (p *PersistentAPI) reset(name, kind string) (*PersistentAgentView, error) {
 		if _, err := p.Stop(a.Name); err != nil {
 			return nil, err
 		}
+	} else if _, err := persistent.StopForRemoval(p.app.ctx, home, a, persistent.ClientDesktop); err != nil {
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

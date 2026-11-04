@@ -351,8 +351,8 @@ export function RenameCalendarFeed(name: string, feed: string, to: string): $Can
 /**
  * Reset puts an agent back to its defaults after a native confirmation:
  * its conversation, its files and everything the person chose for it. One
- * running here is stopped first; one another client runs is refused. Its
- * share folder's files and its receipts stay.
+ * running, here or in another client, is stopped first, and one starting is
+ * waited for. Its share folder's files and its receipts stay.
  */
 export function Reset(name: string): $CancellablePromise<$models.PersistentAgentView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Reset", name).then(($result: any) => {
@@ -408,8 +408,9 @@ export function SetDevHost(name: string, answer: string, sign: run$0.HostSignIn)
 }
 
 /**
- * SetEnabled enables or disables an agent. A running agent is not
- * disabled: it is stopped first. Enabling the Coding agent asks first, in a
+ * SetEnabled enables or disables an agent. A running agent is stopped
+ * first, then disabled: one this app runs by its own Stop, one another
+ * client runs through its supervisor's socket. Enabling the Coding agent asks first, in a
  * native dialog that says what it may do; a No changes nothing and answers
  * the agent as it was. The Assistant supersedes Agentry Helper, whose tools
  * it lists: enabling the Assistant stops and disables the Helper, and the
@@ -450,8 +451,7 @@ export function SetGoogleClient(name: string): $CancellablePromise<$models.Persi
  * SetMailProvider enables or disables one of the agent's mail providers.
  * Disabling takes its cards off the Configuration and its servers out of
  * the agent's next start, and keeps its sign-in, keychain entry and volume.
- * It is refused while the agent runs, here or elsewhere, since its servers
- * hold their sign-ins.
+ * A running agent, here or in another client, takes it at its next turn.
  */
 export function SetMailProvider(name: string, key: string, on: boolean): $CancellablePromise<$models.PersistentAgentView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.SetMailProvider", name, key, on).then(($result: any) => {

@@ -376,3 +376,30 @@ func TestStopDuringTheStartsDialogAgreesToNothing(t *testing.T) {
 		t.Fatal("a Yes after the Stop was recorded as an agreement")
 	}
 }
+
+// A change made while the agent starts waits for the start to end, and one
+// made while it is not starting goes at once.
+func TestAChangeWaitsForTheStartUnderWay(t *testing.T) {
+	p := &PersistentAPI{}
+	if err := p.waitStart("assistant"); err != nil {
+		t.Fatalf("no start under way: %v", err)
+	}
+	st := &startingAgent{done: make(chan struct{})}
+	p.starting = map[string]*startingAgent{"assistant": st}
+	waited := make(chan error, 1)
+	go func() { waited <- p.waitStart("assistant") }()
+	select {
+	case err := <-waited:
+		t.Fatalf("the change went before the start ended: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(st.done)
+	select {
+	case err := <-waited:
+		if err != nil {
+			t.Fatalf("the change after the start: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the change did not go once the start ended")
+	}
+}

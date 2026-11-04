@@ -16,10 +16,10 @@ import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-deskt
 import { EventsOn } from "../host";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
-import { addFormOf, calendarFeedLine, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, calendarFeedLine, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
-import { AGENT_STATES, SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
+import { SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
 import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
 
 export type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
@@ -212,37 +212,32 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
 }
 
 /** Disable a mail provider, confirmed on its card: its cards leave the
- *  Configuration and its servers the agent's next start; its sign-in stays. */
+ *  Configuration and its servers leave the agent at its next turn; its
+ *  sign-in stays. */
 function DisableProvider({ agent, provider, busy, act, onCancel }: { agent: app.PersistentAgentView; provider: app.PersistentMailProviderView; busy: boolean; act: Act; onCancel: () => void }) {
-  const running = runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="config-card-confirm small" role="group" aria-label={`Disable ${provider.name}`}>
       <span>
-        {running ? `Stop ${agentCalled(agent)} first: its mail servers hold their sign-ins while it runs.`
-          : `Disable ${provider.name}? Its cards leave Mail and calendar and ${agentCalled(agent)} no longer reaches it; its sign-in is kept.`}
+        {`Disable ${provider.name}? Its cards leave Mail and calendar and ${agentCalled(agent)} no longer reaches it; its sign-in is kept.`}
+        {later && ` ${later}`}
       </span>
-      <Button className="small" disabled={busy || running} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, provider.key, false), `${provider.name} disabled`).then((ok) => ok && onCancel())}>Disable</Button>
+      <Button className="small" disabled={busy} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, provider.key, false), `${provider.name} disabled`).then((ok) => ok && onCancel())}>Disable</Button>
       <Button variant="ghost" className="small" onClick={onCancel}>Cancel</Button>
     </div>
   );
 }
 
-/** runsSomewhere says the agent runs or starts, here or in another client:
- *  its mail providers change only while it is stopped. */
-function runsSomewhere(agent: Pick<app.PersistentAgentView, "state">): boolean {
-  return agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
-}
-
 /** Add a provider: each disabled mail provider, enabled with one click;
  *  its cards then join Mail and calendar. */
 function AddProvider({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
-  const running = runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="stack">
-      {running && <Notice>Stop {agentCalled(agent)} first: its mail servers hold their sign-ins while it runs.</Notice>}
+      {later && <p className="small muted">{later}</p>}
       {disabledProviders(agent).map((p) => (
         <div key={p.key} className="row">
-          <Button disabled={busy || running} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, p.key, true), `${p.name} added`).then((ok) => ok && onDone())}>
+          <Button disabled={busy} onClick={() => void act(() => PersistentAPI.SetMailProvider(agent.name, p.key, true), `${p.name} added`).then((ok) => ok && onDone())}>
             Add {p.name}
           </Button>
           <span className="small muted">{providerWords(p)}</span>
@@ -269,18 +264,17 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
         return act(() => PersistentAPI.RemoveCalendarFeed(agent.name, action.name), `${action.what}'s removal`);
     }
   };
-  // A calendar feed changes only while the agent is stopped.
-  const waits = action.kind === "calendar" && runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="config-card-confirm small" role="group" aria-label="Remove">
       <span>
-        {waits ? `Stop ${agentCalled(agent)} first, then remove the feed.`
-          : action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?`
+        {action.kind === "secret" ? `Remove ${action.what.toLowerCase()} and its value from your keychain?`
             : action.kind === "account" ? `Remove ${action.what.toLowerCase()} and its token from your keychain?`
               : action.kind === "calendar" ? `Remove the calendar feed ${action.name} and its address from your keychain? The address still works until you reset it in your calendar's settings.`
                 : `Remove ${action.what.toLowerCase()}?`}
+        {later && ` ${later}`}
       </span>
-      <Button variant="danger" className="small" disabled={busy || waits} onClick={() => void run()}>Remove</Button>
+      <Button variant="danger" className="small" disabled={busy} onClick={() => void run()}>Remove</Button>
       <Button variant="ghost" className="small" onClick={onCancel}>Cancel</Button>
     </div>
   );
@@ -480,7 +474,7 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   const [started, setStarted] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const waiting = started || !!g?.waiting;
-  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting;
+  const later = nextTurnWords(agent, true);
   const emailOK = /^[^@\s-][^@\s]*@[^@\s]+\.[a-z]{2,}$/i.test(email.trim());
   // Go tells the page a waiting sign-in's address, Google's own, to show
   // as text for when the browser did not open.
@@ -503,7 +497,7 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   return (
     <div className="config-google-form">
       <p className="small">{googleWords(g)}</p>
-      {running && <Notice>Stop {agentCalled(agent)} first: its Google Workspace server holds what the set-up writes.</Notice>}
+      {later && <p className="small muted">{later}</p>}
       <p className="small muted">
         Google Workspace signs in with a Google Cloud client of your own: a Desktop app client you download from Google&apos;s
         console. The google-workspace-setup skill walks you through making one: ask {agentCalled(agent)} to help you set up
@@ -511,7 +505,7 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         secret in its own encrypted keyring.
       </p>
       <div className="row gap">
-        <Button disabled={busy || waiting || running} onClick={() => void act(() => PersistentAPI.SetGoogleClient(agent.name), "Google Workspace's client")}>
+        <Button disabled={busy || waiting} onClick={() => void act(() => PersistentAPI.SetGoogleClient(agent.name), "Google Workspace's client")}>
           {g?.client ? "Choose another client file…" : "Choose the client file…"}
         </Button>
       </div>
@@ -520,7 +514,7 @@ function GoogleSetUp({ agent, busy, act, onError, onChanged, onDone }: {
       </Field>
       <p className="small muted">{googleScopeWords(agent.roster)}</p>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || waiting || running || !g?.client || !emailOK} onClick={() => void signIn()}>
+        <Button variant="primary" disabled={busy || waiting || !g?.client || !emailOK} onClick={() => void signIn()}>
           {g?.account ? "Sign in again" : "Sign in with Google"}
         </Button>
         {waiting && <Button onClick={() => void PersistentAPI.CancelGoogleSignIn(agent.name)}>Cancel</Button>}
@@ -568,7 +562,7 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   }, [agent.name, m?.clientID]);
   const canSignIn = microsoftCanSignIn(m, agentryApp);
   const waiting = started || !!m?.waiting;
-  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
+  const later = nextTurnWords(agent, true);
   const clientOK = ENTRA_ID.test(clientID.trim());
   const tenantValue = tenant === "org" ? tenantID.trim() : tenant;
   const tenantOK = tenant !== "org" || ENTRA_ID.test(tenantID.trim());
@@ -594,7 +588,7 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
   return (
     <div className="config-google-form">
       <p className="small">{microsoftWords(m, agentryApp)}</p>
-      {running && <Notice>Stop {agentCalled(agent)} first: its Microsoft 365 server holds what the set-up writes.</Notice>}
+      {later && <p className="small muted">{later}</p>}
       {agentryApp && !m?.clientID ? (
         <p className="small muted">
           Microsoft 365 can sign in with Agentry&apos;s own Microsoft app, so you need no app of your own: enter your account
@@ -625,7 +619,7 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         </Field>
       )}
       <div className="row gap">
-        <Button disabled={busy || waiting || running || !clientOK || !tenantOK}
+        <Button disabled={busy || waiting || !clientOK || !tenantOK}
           onClick={() => void act(() => PersistentAPI.SetMicrosoftClient(agent.name, clientID.trim(), tenantValue), "Microsoft 365's app")}>
           {m?.clientID ? "Keep this app" : "Keep the app"}
         </Button>
@@ -635,7 +629,7 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
       </Field>
       <p className="small muted">{microsoftScopeWords(agent.roster)}</p>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || waiting || running || !canSignIn || !emailOK} onClick={() => void signIn()}>
+        <Button variant="primary" disabled={busy || waiting || !canSignIn || !emailOK} onClick={() => void signIn()}>
           {m?.account ? "Sign in again" : "Sign in with Microsoft"}
         </Button>
         {waiting && <Button onClick={() => void PersistentAPI.CancelMicrosoftSignIn(agent.name)}>Cancel</Button>}
@@ -658,7 +652,7 @@ function MicrosoftSetUp({ agent, busy, act, onError, onChanged, onDone }: {
         <Input value={signoff} maxLength={200} disabled={waiting} onChange={(e) => setSignoff(e.target.value)} />
       </Field>
       <div className="row gap">
-        <Button disabled={busy || waiting || running || signoff.trim() === (m?.signoff ?? "")}
+        <Button disabled={busy || waiting || signoff.trim() === (m?.signoff ?? "")}
           onClick={() => void act(() => PersistentAPI.SetMicrosoftSignoff(agent.name, signoff.trim()), "the signoff")}>
           Save the signoff
         </Button>
@@ -676,14 +670,14 @@ function FastmailSetUp({ agent, busy, act, onDone }: {
   const f = agent.fastmail;
   const [token, setToken] = useState("");
   const [removing, setRemoving] = useState(false);
-  const running = agent.state === AGENT_STATES.running || agent.state === AGENT_STATES.starting || agent.state === AGENT_STATES.elsewhere;
+  const later = nextTurnWords(agent);
   const keep = async () => {
     if (await act(() => PersistentAPI.SetFastmailToken(agent.name, token.trim()), "the Fastmail token")) setToken("");
   };
   return (
     <div className="config-google-form">
       <p className="small">{fastmailWords(f)}</p>
-      {running && <Notice>Stop {agentCalled(agent)} first.</Notice>}
+      {later && <p className="small muted">{later}</p>}
       <p className="small muted">
         Fastmail&apos;s own server reaches your mail, contacts and calendars with an API token you make in Fastmail, under
         Settings, Privacy &amp; Security: choose the MCP type, and Read only unless you want {agentCalled(agent)} to change or
@@ -694,10 +688,10 @@ function FastmailSetUp({ agent, busy, act, onDone }: {
         <Input type="password" value={token} autoComplete="off" spellCheck={false} onChange={(e) => setToken(e.target.value)} />
       </Field>
       <div className="row gap">
-        <Button variant="primary" disabled={busy || running || !secretValueOK(token.trim())} onClick={() => void keep()}>
+        <Button variant="primary" disabled={busy || !secretValueOK(token.trim())} onClick={() => void keep()}>
           {f?.token ? "Replace the token" : "Keep the token"}
         </Button>
-        {f?.token && !removing && <Button disabled={busy || running} onClick={() => setRemoving(true)}>Remove the token</Button>}
+        {f?.token && !removing && <Button disabled={busy} onClick={() => setRemoving(true)}>Remove the token</Button>}
         <Button variant="ghost" onClick={onDone}>Close</Button>
       </div>
       {removing && (
@@ -720,10 +714,10 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [signingIn, setSigningIn] = useState(false);
-  const running = runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="stack">
-      {running && <Notice>Stop {agentCalled(agent)} first: its calendar feeds change only while it is stopped.</Notice>}
+      {later && <p className="small muted">{later}</p>}
       <p className="small muted">
         A calendar feed is read only: {agentCalled(agent)} reads the calendar and never changes it. Google Calendar gives the
         address as Secret address in iCal format, in the calendar&apos;s settings under Integrate calendar; Outlook as the ICS
@@ -746,14 +740,14 @@ function AddCalendarFeed({ agent, busy, act, onDone }: { agent: app.PersistentAg
           <Input type="password" value={address} autoComplete="off" spellCheck={false} onChange={(e) => setAddress(e.target.value)} />
         </Field>
         <div className="row gap">
-          <Button disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
+          <Button disabled={busy || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
             const a = address;
             setAddress("");
             void act(() => PersistentAPI.AddCalendarFeed(agent.name, name.trim(), a), `The calendar feed ${name.trim()}`).then((ok) => ok && onDone());
           }}>
             Read and keep the feed
           </Button>
-          <Button variant="ghost" disabled={busy || running || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
+          <Button variant="ghost" disabled={busy || !calendarNameOK(name) || address.trim() === ""} onClick={() => {
             const a = address;
             setAddress("");
             setSigningIn(true);
@@ -792,13 +786,13 @@ function SignInWaiting({ agent }: { agent: app.PersistentAgentView }) {
  *  feed's own address, and the new sign-in replaces any kept. */
 function SignInCalendarFeed({ agent, feed, again, busy, act, onDone }: { agent: app.PersistentAgentView; feed: string; again: boolean; busy: boolean; act: Act; onDone: () => void }) {
   const [waiting, setWaiting] = useState(false);
-  const running = runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="config-card-confirm small" role="group" aria-label={`Sign in to ${feed} again`}>
       {waiting ? <SignInWaiting agent={agent} /> : (
         <>
-          <span>{running ? `Stop ${agentCalled(agent)} first, then sign in again.` : `Open a browser window at ${feed}'s address and sign in${again ? " again" : ""}?`}</span>
-          <Button className="small" disabled={busy || running} onClick={() => {
+          <span>{`Open a browser window at ${feed}'s address and sign in${again ? " again" : ""}?`}{later && ` ${later}`}</span>
+          <Button className="small" disabled={busy} onClick={() => {
             setWaiting(true);
             void act(() => PersistentAPI.SignInCalendarFeed(agent.name, feed, ""), `The calendar feed ${feed}`).finally(() => {
               setWaiting(false);
@@ -818,13 +812,12 @@ function SignInCalendarFeed({ agent, feed, again, busy, act, onDone }: { agent: 
  *  the keychain, and a feed that is on asks again under its new name. */
 function RenameCalendarFeed({ agent, feed, busy, act, onDone }: { agent: app.PersistentAgentView; feed: string; busy: boolean; act: Act; onDone: () => void }) {
   const [to, setTo] = useState(feed);
-  const running = runsSomewhere(agent);
+  const later = nextTurnWords(agent);
   return (
     <div className="config-card-confirm small" role="group" aria-label={`Rename ${feed}`}>
-      {running ? <span>Stop {agentCalled(agent)} first, then rename the feed.</span> : (
-        <Input type="text" aria-label="New name" value={to} maxLength={64} autoComplete="off" onChange={(e) => setTo(e.target.value)} />
-      )}
-      <Button className="small" disabled={busy || running || !calendarNameOK(to) || to.trim() === feed}
+      <Input type="text" aria-label="New name" value={to} maxLength={64} autoComplete="off" onChange={(e) => setTo(e.target.value)} />
+      {later && <span>{later}</span>}
+      <Button className="small" disabled={busy || !calendarNameOK(to) || to.trim() === feed}
         onClick={() => void act(() => PersistentAPI.RenameCalendarFeed(agent.name, feed, to.trim()), `The calendar feed ${to.trim()}`).then((ok) => ok && onDone())}>
         Rename
       </Button>

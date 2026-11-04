@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
 )
 
@@ -46,21 +44,15 @@ func nonNil(l []string) []string {
 // SetMailProvider enables or disables one of the agent's mail providers.
 // Disabling takes its cards off the Configuration and its servers out of
 // the agent's next start, and keeps its sign-in, keychain entry and volume.
-// It is refused while the agent runs, here or elsewhere, since its servers
-// hold their sign-ins.
+// A running agent, here or in another client, takes it at its next turn.
 func (p *PersistentAPI) SetMailProvider(name, key string, on bool) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
 		return nil, err
 	}
-	home, err := p.home()
-	if err != nil {
-		return nil, err
-	}
-	if _, here := p.running(a.Name); here {
-		return nil, fmt.Errorf("stop the %s first: its mail servers hold their sign-ins while it runs", a.Title)
-	}
-	if err := persistent.SetMailProvider(home, a, persistent.ClientDesktop, key, on); err != nil {
+	// What a provider's servers would turn on that is not agreed to is asked
+	// about first.
+	if err := p.configure(a, persistent.Change{MailProvider: &persistent.MailProviderSwitch{Key: key, On: on}}); err != nil {
 		return nil, err
 	}
 	return p.Get(name)

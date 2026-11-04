@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.11",
+      "highlights": [
+        "You never stop a persistent agent to change it: its mail, calendar and other settings reach it at its next turn.",
+        "Update installs a running agent's new version beside it, and it moves to it at its next turn.",
+        "Disable, Uninstall and Reset stop the agent themselves, even when another app runs it.",
+        "A change the agent could not start with shows on its card as Not applied, with why."
+      ]
+    },
+    {
       "version": "0.7.10",
       "highlights": [
         "Home starts from where your runs go: this computer, your runhost or Agentry, with the cards that place needs.",

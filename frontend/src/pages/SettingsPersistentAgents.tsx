@@ -92,6 +92,10 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         A persistent agent keeps its conversation and its own files between the times you talk to it, and shares one folder
         with you. It runs on this computer with your model, in its own containers, beside your QuickAgents.
       </p>
+      <p className="small" data-next-turn>
+        You never have to stop a running agent to change it. What you change in its Configuration, an update, and a change
+        to your model, the malware check or anything else of the runner policy reach it at its next turn.
+      </p>
       <p className="small" data-personal-agents>
         The Assistant is your personal assistant. Agentry Helper is a lite version of it that works only with Agentry. The
         Assistant does everything the Helper does, so turning the Assistant on turns the Helper off.
@@ -119,7 +123,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                   role="switch"
                   data-persistent-enable={a.name}
                   checked={enabled}
-                  disabled={busy !== null || running || a.state === AGENT_STATES.elsewhere || superseded}
+                  disabled={busy !== null || superseded}
                   onChange={(e) => {
                     const on = e.target.checked;
                     void act(a.name, () => setAgentEnabled(a.name, on), on && isCoder);
@@ -161,13 +165,13 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
               {enabled && !isMain && <Button variant="ghost" onClick={() => onOpenAgent(a.name)}>Open</Button>}
               {!isMain && <Button variant="ghost" onClick={() => setConfiguring(a.name)}>Configure</Button>}
               {a.published && a.source === "registry" && (
-                <Button variant="ghost" data-persistent-update={a.name} disabled={busy !== null || a.state !== AGENT_STATES.stopped && a.state !== AGENT_STATES.disabled} title={running ? "Stop it first" : `Install the newest version of ${a.ref}`} onClick={() => void act(a.name, () => PersistentAPI.Update(a.name), true)}>Update</Button>
+                <Button variant="ghost" data-persistent-update={a.name} disabled={busy !== null} title={running ? `Install the newest version of ${a.ref}: it takes it at its next turn` : `Install the newest version of ${a.ref}`} onClick={() => void act(a.name, () => PersistentAPI.Update(a.name), true)}>Update</Button>
               )}
               {a.published && (
-                <Button variant="ghost" data-persistent-uninstall={a.name} disabled={busy !== null || a.state !== AGENT_STATES.stopped && a.state !== AGENT_STATES.disabled} title={running ? "Stop it first" : undefined} onClick={() => { setRemoveData(false); setUninstalling(a); }}>Uninstall…</Button>
+                <Button variant="ghost" data-persistent-uninstall={a.name} disabled={busy !== null} title={running ? "Uninstalling stops it first" : undefined} onClick={() => { setRemoveData(false); setUninstalling(a); }}>Uninstall…</Button>
               )}
               {(a.resets ?? []).map((r) => (
-                <Button key={r.kind} variant="ghost" data-persistent-reset={a.name} data-reset-kind={r.kind} disabled={busy !== null || a.state === AGENT_STATES.starting || a.state === AGENT_STATES.elsewhere} onClick={() => { setResetKind(r.kind); setResetting(a); }}>{r.title}…</Button>
+                <Button key={r.kind} variant="ghost" data-persistent-reset={a.name} data-reset-kind={r.kind} disabled={busy !== null} onClick={() => { setResetKind(r.kind); setResetting(a); }}>{r.title}…</Button>
               ))}
             </div>
           </Card>
@@ -270,7 +274,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         return (
         <Modal title={`${choice?.title ?? "Reset"} for ${resetting.displayName === resetting.title ? `the ${resetting.title}` : resetting.displayName}`} onClose={close}>
           {choice && <p data-reset-body={choice.kind}>{choice.body}</p>}
-          {resetting.state === AGENT_STATES.running && <p>It is running: Reset stops it first.</p>}
+          {(resetting.state === AGENT_STATES.running || resetting.state === AGENT_STATES.elsewhere) && <p>It is running: Reset stops it first.</p>}
           {resetting.keepsMemory && (
             <div className="row gap">
               <p className="small">Its memory goes with its files. Export it first to keep a copy.</p>

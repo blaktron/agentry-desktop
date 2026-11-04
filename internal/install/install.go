@@ -314,6 +314,18 @@ type pending struct {
 	plan     Plan
 	archive  []byte
 	manifest *manifest.Manifest
+	// keepOthers leaves the older releases in place, for a running
+	// persistent agent whose segment still reads its own.
+	keepOthers bool
+}
+
+// KeepOtherVersions has the install of plan id leave the older releases in
+// place: a running persistent agent's segment still reads its own, and its
+// supervisor removes the older ones once a segment has started from the new.
+func (e *Engine) KeepOtherVersions(id string) {
+	if p, ok := e.pending[id]; ok {
+		p.keepOthers = true
+	}
 }
 
 // Engine holds pending installs. One Engine lives for the app's lifetime.
@@ -709,7 +721,9 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 		if res.Warning != "" {
 			res.Message += " — warning: " + res.Warning
 		}
-		after = func() error { return installdir.RemoveOtherVersions(plan.Paths.Dest, plan.Paths.ReleaseDir) }
+		if !p.keepOthers {
+			after = func() error { return installdir.RemoveOtherVersions(plan.Paths.Dest, plan.Paths.ReleaseDir) }
+		}
 	case manifest.InterfaceClaudeSkill:
 		err = exportClaudeSkill(staging, plan.Paths, m)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as Claude skill: %s", plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest)

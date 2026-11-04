@@ -16,8 +16,8 @@ import (
 // in a password field and handed to Go, which asks Fastmail whether it
 // accepts it (persistent.FastmailTokenAccepted) before anything is kept. An
 // accepted token goes into the system keychain as the stored secret the
-// server declares, and is never sent back to the page. Neither the token nor
-// its removal is taken while the agent runs, as the CLI does.
+// server declares, and is never sent back to the page. A running agent takes
+// the token, or its removal, at its next turn.
 
 // PersistentFastmailView is an agent's Fastmail set-up, as far as the app
 // shows it: whether a token is kept, and when it was given. Never the token.
@@ -49,8 +49,8 @@ func fastmailView(a persistent.Agent, cfg persistent.Config) *PersistentFastmail
 	return v
 }
 
-// fastmailAgent is the agent named, if it has Fastmail and does not run
-// here.
+// fastmailAgent is the agent named, if it has Fastmail, once a start of it
+// under way has ended.
 func (p *PersistentAPI) fastmailAgent(name string) (persistent.Agent, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -59,8 +59,8 @@ func (p *PersistentAPI) fastmailAgent(name string) (persistent.Agent, error) {
 	if !hasFastmail(a) || !a.KeepsSecrets() {
 		return persistent.Agent{}, fmt.Errorf("the %s has no Fastmail", a.Title)
 	}
-	if _, running := p.running(a.Name); running {
-		return persistent.Agent{}, fmt.Errorf("stop the %s first", a.Title)
+	if err := p.waitStart(a.Name); err != nil {
+		return persistent.Agent{}, err
 	}
 	return a, nil
 }
@@ -114,25 +114,23 @@ func (p *PersistentAPI) SetFastmailToken(name, token string) (*PersistentAgentVi
 	if err := p.fastmailAccepted(ctx, token); err != nil {
 		return nil, err
 	}
-	wasOn := slices.Contains(cfg.MailProviders, assistant.MailFastmail)
-	if err := persistent.SetMailProvider(home, a, persistent.ClientDesktop, assistant.MailFastmail, true); err != nil {
-		return nil, err
-	}
 	undo := func() {
 		if previous != "" {
 			_ = keys.Set(account, previous)
 		} else {
 			_ = keys.Delete(account)
 		}
-		if !wasOn {
-			_ = persistent.SetMailProvider(home, a, persistent.ClientDesktop, assistant.MailFastmail, false)
-		}
 	}
 	if err := keys.Set(account, token); err != nil {
 		undo()
 		return nil, err
 	}
-	if err := p.configure(a, persistent.Change{SetSecret: &persistent.StoredSecret{Name: assistant.FastmailToken, Set: time.Now().UTC()}}); err != nil {
+	// The token and its provider are one change: a running agent takes both
+	// at its next turn, and a refusal leaves neither.
+	if err := p.configure(a, persistent.Change{
+		SetSecret:    &persistent.StoredSecret{Name: assistant.FastmailToken, Set: time.Now().UTC()},
+		MailProvider: &persistent.MailProviderSwitch{Key: assistant.MailFastmail, On: true},
+	}); err != nil {
 		undo()
 		return nil, err
 	}
