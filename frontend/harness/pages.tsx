@@ -10,7 +10,7 @@ import "../src/themes.css";
 import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
-import { HOME_DEFAULTS } from "../src/homeCards";
+import { kindSize, startLayout, type HomeStart } from "../src/homeCards";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
@@ -574,14 +574,28 @@ function engineFound(state: string) {
   return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] as string[] };
 }
 
-let homeCards: any[] = [{ kind: "main", hidden: allHidden }, { kind: "deliverables", hidden: allHidden }, { kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
+// The starting Homes, as Go draws a Home never arranged for each place runs
+// go: #home-start-local (a new person: nothing set up, nothing run),
+// #home-start-local-ready (a model, Docker, the key, runs and packs),
+// #home-start-remote (a runhost that answers, signed in to Claude),
+// #home-start-remote-down (one that does not answer, signed in to nothing),
+// #home-start-remote-none (Where to run names a runhost this computer lacks),
+// #home-start-cloud (signed in, with credits) and #home-start-cloud-empty (no
+// credits left). Every other Home state is an arranged Home of the six cards
+// Home had before the starting Homes.
+const homeStart: HomeStart | null = homeHash.startsWith("#home-start-remote") ? "remote" : homeHash.startsWith("#home-start-cloud") ? "cloud"
+  : homeHash.startsWith("#home-start-local") || homeHash === "#home-strict-start" ? "local" : null;
+const homeStartReady = homeHash === "#home-start-local-ready";
+let homeCards: any[] = homeStart ? startLayout(homeStart) : [{ kind: "main", hidden: allHidden }, { kind: "deliverables", hidden: allHidden }, { kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
 // one after it, an emptied one removed.
 // Reset replaces a kept (newer or unreadable) layout too.
 let homeReset = false;
-const homeView = () => ({ cards: homeCards, newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4, maxCols: 4, maxRows: 3 });
+// A fresh copy each time: the bindings convert what they are given in
+// place, and a second read of converted cards would fail.
+const homeView = () => ({ cards: homeCards.map((c) => ({ ...c, ...(c.pins ? { pins: c.pins.map((p: any) => ({ ...p })) } : {}) })), newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4, maxCols: 4, maxRows: 3, start: homeStart ?? "local" });
 function harnessPin(ref: string, registry: string) {
   const pin = { ref, registry };
   const room = homeCards.find((c) => c.kind === "pinned" && c.pins.length < 4);
@@ -590,12 +604,13 @@ function harnessPin(ref: string, registry: string) {
   homeCards = [...homeCards];
   return homeView();
 }
-// Settings → Home as Go does it: a switch flips its
-// card's hidden in place, and Reset is the four defaults, no pins.
+// Settings → Home as Go does it: a switch flips its card's hidden in place
+// or adds it at the end at its kind's size, and Reset is the starting Home
+// for where runs go, no pins.
 function harnessSetShown(kind: string, shown: boolean) {
   homeCards = homeCards.some((c) => c.kind === kind)
     ? homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c))
-    : [...homeCards, { kind, hidden: !shown, ...(kind === "scheduled" ? { size: "large" } : {}) }];
+    : shown ? [...homeCards, { kind, ...kindSize(kind), ...(kind === "scheduled" || kind === "meetings" ? { size: "large" } : {}) }] : homeCards;
   return homeView();
 }
 // Home's grid: a move and a resize, checked as Go checks them. Each is
@@ -619,7 +634,7 @@ function harnessResize(index: number, kind: string, cols: number, rows: number) 
 const harnessUnpinScheduled = () => { homeCards = homeCards.filter((c) => c.kind !== "scheduled"); return homeView(); };
 function harnessReset() {
   homeReset = true;
-  homeCards = HOME_DEFAULTS.map((kind) => ({ kind }));
+  homeCards = startLayout(homeStart ?? "local");
   return homeView();
 }
 function harnessUnpin(ref: string, registry: string) {
@@ -1506,6 +1521,36 @@ if (window.location.hash === "#status-refused") {
   g.go.app.HomeAPI.Layout = refuse;
   g.go.app.RunAPI.Connections = refuse;
 }
+// The starting Homes' reads (see homeStart above).
+if (homeStart) {
+  const app = g.go.app;
+  const ready = homeStartReady;
+  const setup = app.RunAPI.SetupStatus;
+  app.RunAPI.SetupStatus = async () => ({ ...(await setup()), dockerOk: true, providerSetUp: ready });
+  app.RunAPI.JevKeyStatus = async () => ({ envSet: false, envName: "AGENTRY_JEV_KEY", stored: ready, source: ready ? "keyring" : "" });
+  app.KnowledgeAPI.List = async () => ({ packs: ready ? [
+    { name: "handbook", pages: 42, bytes: 220000, scan: "", scanState: "clean", local: true, inAgentry: true, agentryReady: true, changed: false, where: "", opensOffline: true, shared: false, exportable: true, orgAdmin: false, canExport: true, updated: "2026-10-20T09:00:00Z" },
+    { name: "contracts-2026", pages: 18, bytes: 90000, scan: "", scanState: "clean", local: true, inAgentry: false, agentryReady: false, changed: false, where: "", opensOffline: true, shared: false, exportable: true, orgAdmin: false, canExport: true, updated: "2026-10-12T09:00:00Z" },
+  ] : [], registry: "https://secureagentry.net", signedIn: true });
+  if (!ready) app.RunAPI.RecentRuns = async () => ({ runs: [], remember: true, signedIn: true });
+  const where = homeStart === "remote" ? "runhost:box" : homeStart === "cloud" ? "agentry" : "here";
+  app.SettingsAPI.RunDefaults = async () => ({ ...runDefaultsView, where });
+  const down = homeHash === "#home-start-remote-down";
+  app.RunhostsAPI = {
+    List: async () => (homeHash === "#home-start-remote-none" ? [] : [{
+      name: "box", host: "203.0.113.10", port: 22, fingerprint: "SHA256:harness", owner: "chris", cliVersion: "0.7.14", os: "linux", arch: "amd64",
+      addedAt: "2026-11-01T09:00:00Z", signIns: down ? [] : [{ vendor: "Claude" }], default: true,
+    }]),
+    Status: async () => (down
+      ? { reachable: false, problem: "dial tcp 203.0.113.10:22: connect: connection timed out", sameVersion: false, unsafeMode: false, running: 0, waiting: 0 }
+      : { reachable: true, cliVersion: "0.7.14", sameVersion: true, unsafeMode: false, running: 1, waiting: 0 }),
+  };
+  if (homeStart === "cloud") {
+    const profile = app.SettingsAPI.Profile;
+    const empty = homeHash === "#home-start-cloud-empty";
+    app.SettingsAPI.Profile = async (reg: string) => ({ ...(await profile(reg)), subscription: { tier: "pro", balance: empty ? 0 : 120, allowance: 1000, submissionCost: 1, periodEnd: "2026-12-01T00:00:00Z", privateAgents: { max: 0, used: 0, enabled: true }, knowledge: { enabled: true, bytes: 0, max: 5368709120 }, upgrade: { available: false, manage: true, url: "https://secureagentry.net/settings/subscription" } } });
+  }
+}
 // The generated runtime's EventsOn goes through EventsOnMultiple.
 const subscribePage = (name: string, cb: (v: any) => void) => {
   (pageListeners[name] ??= []).push(cb);
@@ -1667,6 +1712,8 @@ function HomePreview() {
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
         runHistory: mark("run-history"), deliverables: mark("deliverables"), settings: mark("home-settings"), scheduled: mark("scheduled"), meetings: mark("meetings"),
         persistentAgents: mark("persistent-agents"), provider: mark("provider"),
+        draft: mark("draft"), createKnowledge: (place) => { document.body.dataset.open = `create-knowledge:${place}`; }, knowledge: mark("knowledge"),
+        voice: mark("voice"), setup: mark("setup"), runhosts: mark("runhosts"), reviewKey: mark("review-key"),
         persistentAgent: (name) => { document.body.dataset.open = `persistent:${name}`; },
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
@@ -1722,15 +1769,23 @@ const render = () => createRoot(document.getElementById("root")!).render(
 if (landedDraft) {
   startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
   setTimeout(render, 100);
-} else if (homeHash === "#home-strict" || homeHash === "#home-strict-scheduled") {
+} else if (homeHash === "#home-strict" || homeHash === "#home-strict-scheduled" || homeHash === "#home-strict-start") {
   // Home starts nothing on load: only Home is drawn, and every binding but the reads Home
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
   // The Scheduled card reads the CLI's store and runs nothing.
-  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", "RecentDeliverables", ...(homeScheduled ? ["HomeCard"] : [])]);
-  for (const api of Object.values(g.go.app) as Record<string, unknown>[]) {
+  // The starting Home's cards add their own reads, each named with its
+  // binding: the runner policy and Docker, the AI Review key's source, the
+  // knowledge packs and whether this copy records meetings.
+  const startReads = homeHash === "#home-strict-start" ? ["RunAPI.JevKeyStatus", "KnowledgeAPI.List"] : [];
+  // The agent card reads the persistent agents, the one it shows, its
+  // transcript and whether a model is set up (Get started reads that too),
+  // and Home reads whether this copy records meetings.
+  const agentReads = ["PersistentAPI.List", "PersistentAPI.Transcript", "HomeAPI.Agent", "RunAPI.SetupStatus", "MeetingAPI.Status"];
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", "RecentDeliverables", ...(homeScheduled ? ["HomeCard"] : []), ...agentReads, ...startReads]);
+  for (const [name, api] of Object.entries(g.go.app) as [string, Record<string, unknown>][]) {
     for (const k of Object.keys(api)) {
-      if (reads.has(k)) continue;
+      if (reads.has(k) || reads.has(`${name}.${k}`)) continue;
       api[k] = async () => {
         document.body.dataset.unexpected = `${document.body.dataset.unexpected ?? ""}${k} `;
         throw new Error(`Home called ${k}`);

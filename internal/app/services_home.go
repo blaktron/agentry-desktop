@@ -33,6 +33,10 @@ type HomeLayoutView struct {
 	// MaxCols and MaxRows are the grid's bounds a card is sized within.
 	MaxCols int `json:"maxCols"`
 	MaxRows int `json:"maxRows"`
+	// Start is the starting Home for the Where to run (local, remote or
+	// cloud): the one a Home never arranged draws and Reset Home goes back
+	// to, and the checklist Get started shows.
+	Start string `json:"start"`
 }
 
 func homeView() (*HomeLayoutView, error) {
@@ -40,7 +44,11 @@ func homeView() (*HomeLayoutView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins, PinsPerCard: settings.PinsPerCard, MaxCols: settings.HomeMaxCols, MaxRows: settings.HomeMaxRows}, nil
+	start, err := settings.HomeStartNow()
+	if err != nil {
+		return nil, err
+	}
+	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins, PinsPerCard: settings.PinsPerCard, MaxCols: settings.HomeMaxCols, MaxRows: settings.HomeMaxRows, Start: start}, nil
 }
 
 // Layout reads the layout; it never writes.

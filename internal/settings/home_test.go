@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,6 +21,17 @@ func kinds(l HomeLayout) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// localStart is the starting Home for runs on this computer, in its order.
+const localStart = "get-started,shortcut-run,shortcut-draft,shortcut-knowledge,shortcut-setup,main,recent-runs,deliverables,learn,knowledge,shortcut-meetings,shortcut-voice,shortcut-agent"
+
+// arranged stores the six cards Home started with before the starting Homes
+// existed, as a Home a person has arranged: what the tests of moves, sizes,
+// switches and pins work on.
+func arranged(t *testing.T) {
+	t.Helper()
+	writeRaw(t, "home:\n  version: 1\n  cards:\n    - kind: main\n    - kind: deliverables\n    - kind: recent-runs\n    - kind: installed\n    - kind: profile\n    - kind: run-defaults\n")
 }
 
 func writeRaw(t *testing.T, raw string) {
@@ -60,7 +72,7 @@ func TestHomeAbsentIsTheDefaults(t *testing.T) {
 	if state != homeOK {
 		t.Fatalf("an absent layout reads as %q", state)
 	}
-	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), localStart; got != want {
 		t.Fatalf("defaults = %s, want %s", got, want)
 	}
 	if l.Version != HomeVersion {
@@ -75,7 +87,15 @@ func TestHomeAbsentIsTheDefaults(t *testing.T) {
 // where it was; every other setting in the file is left as it was.
 func TestHomeSetShownKeepsThePlace(t *testing.T) {
 	isolate(t)
-	writeRaw(t, "defaultRegistry: https://dev.example\nonboarded: true\n")
+	arranged(t)
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.DefaultRegistry, s.Onboarded = "https://dev.example", true
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
 	if err := SetHomeCardShown(HomeInstalled, false); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +110,7 @@ func TestHomeSetShownKeepsThePlace(t *testing.T) {
 	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
 		t.Fatalf("after showing = %s, want %s", got, want)
 	}
-	s, err := Load()
+	s, err = Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +209,7 @@ func TestHomeNewerVersionIsKept(t *testing.T) {
 	if state != homeNewer {
 		t.Fatalf("a version 2 layout reads as %q, not newer", state)
 	}
-	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), localStart; got != want {
 		t.Fatalf("a newer layout reads as %s, want the defaults %s", got, want)
 	}
 	if err := SetHomeCardShown(HomeInstalled, false); err == nil {
@@ -209,8 +229,8 @@ func TestHomeNewerVersionIsKept(t *testing.T) {
 	}
 }
 
-// Reset removes the layout, so Home is the defaults again, and touches no
-// other setting.
+// Reset removes the layout, so Home is the starting Home again, and touches
+// no other setting.
 func TestHomeReset(t *testing.T) {
 	isolate(t)
 	writeRaw(t, "onboarded: true\nhome:\n  version: 2\n  cards:\n    - kind: installed\n")
@@ -221,7 +241,7 @@ func TestHomeReset(t *testing.T) {
 		t.Fatalf("Reset left a layout:\n%s", readRaw(t))
 	}
 	l, state, _ := homeLayoutState()
-	if state != homeOK || len(l.Cards) != 6 {
+	if state != homeOK || strings.Join(kinds(l), ",") != localStart {
 		t.Fatalf("after Reset: state=%q cards=%v", state, kinds(l))
 	}
 	if s, _ := Load(); !s.Onboarded {
@@ -264,7 +284,7 @@ func TestHomeUnreadableNeverBreaksTheFile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state != homeUnreadable || len(l.Cards) != 6 {
+			if state != homeUnreadable || len(l.Cards) != len(homeStarts[HomeStartLocal]) {
 				t.Fatalf("state=%q cards=%v, want unreadable and the defaults", state, kinds(l))
 			}
 			s.DefaultRegistry = "https://dev.example"
@@ -306,6 +326,7 @@ func equalYAML(t *testing.T, a, b any) bool {
 // after every other card, and never one of the 16 QuickAgent pins.
 func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	if scheduledShown(t) {
 		t.Fatal("the defaults hold a Scheduled card")
 	}
@@ -337,6 +358,7 @@ func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 // page shows a hidden one again, and Unpin removes it.
 func TestScheduledCardShownHiddenAndUnpinned(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	if err := PinScheduledToHome(); err != nil {
 		t.Fatal(err)
 	}
@@ -438,15 +460,15 @@ func scheduledShown(t *testing.T) bool {
 	return false
 }
 
-// A Home with no stored layout has the Deliverables card after Main's. One
-// arranged before the card existed has it appended after every card, once:
+// Every starting Home holds the Deliverables card. One arranged before the card existed has it appended after every card, once:
 // the order the person made never moves, hiding the card keeps its entry,
 // and a save by anything else writes it down so it is not added again.
-func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testing.T) {
+func TestDeliverablesCardIsInEveryStartAndAppendedToAStoredLayout(t *testing.T) {
 	isolate(t)
-	l, _, _ := homeLayoutState()
-	if l.Cards[1].Kind != HomeDeliverables {
-		t.Fatalf("the defaults' second card is %s, want the Deliverables card", l.Cards[1].Kind)
+	for start, ks := range homeStarts {
+		if !slices.Contains(ks, HomeDeliverables) {
+			t.Fatalf("the %s start has no Deliverables card", start)
+		}
 	}
 
 	writeRaw(t, "home:\n  version: 1\n  cards:\n    - kind: profile\n    - kind: pinned\n      size: large\n      pins:\n        - ref: acme/a\n    - kind: installed\n      hidden: true\n")
@@ -489,17 +511,18 @@ func TestDeliverablesCardIsFirstInTheDefaultsAndAppendedToAStoredLayout(t *testi
 	}
 }
 
-// Main's card is first in a Home with no stored layout, and put first, once,
-// in one arranged before the card existed: hiding it keeps its entry, so it
+// Every starting Home holds Main's card, and one arranged before the card
+// existed has it put first, once: hiding it keeps its entry, so it
 // is never put back, and showing it again leaves it where it is.
-func TestMainCardIsFirstAndPrependedOnce(t *testing.T) {
+func TestMainCardIsInEveryStartAndPrependedOnce(t *testing.T) {
 	isolate(t)
-	l, _, _ := homeLayoutState()
-	if l.Cards[0].Kind != HomeMain {
-		t.Fatalf("the defaults start with %s, want Main's card", l.Cards[0].Kind)
+	for start, ks := range homeStarts {
+		if !slices.Contains(ks, HomeMain) {
+			t.Fatalf("the %s start has no agent card", start)
+		}
 	}
 	writeRaw(t, "home:\n  version: 1\n  cards:\n    - kind: installed\n    - kind: deliverables\n")
-	l, _, _ = homeLayoutState()
+	l, _, _ := homeLayoutState()
 	if got, want := strings.Join(kinds(l), ","), "main,installed,deliverables"; got != want {
 		t.Fatalf("an arranged Home reads as %s, want %s", got, want)
 	}
@@ -566,6 +589,7 @@ func sizes(l HomeLayout) []string {
 // cards included; a pinned card moves with its pins.
 func TestHomeMoveKeepsTheOthersInOrder(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	if err := SetHomeCardShown(HomeInstalled, false); err != nil {
 		t.Fatal(err)
 	}
@@ -596,6 +620,8 @@ func TestHomeMoveKeepsTheOthersInOrder(t *testing.T) {
 // place, or a place Home does not have, is refused and nothing is written.
 func TestHomeMoveAndSizeRefuseAStaleOrMissingCard(t *testing.T) {
 	isolate(t)
+	arranged(t)
+	before := readRaw(t)
 	if err := MoveHomeCard(0, HomeProfile, 3); err == nil {
 		t.Fatal("a move naming the wrong kind was accepted")
 	}
@@ -608,7 +634,7 @@ func TestHomeMoveAndSizeRefuseAStaleOrMissingCard(t *testing.T) {
 	if err := SizeHomeCard(9, HomeMain, 2, 2); err == nil {
 		t.Fatal("a size of a card Home lacks was accepted")
 	}
-	if path, _ := Path(); fileExists(path) {
+	if readRaw(t) != before {
 		t.Fatal("a refused change wrote the settings file")
 	}
 }
@@ -617,6 +643,7 @@ func TestHomeMoveAndSizeRefuseAStaleOrMissingCard(t *testing.T) {
 // through a move, and Reset puts the default sizes back.
 func TestHomeSizeIsBoundedKeptAndReset(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	for _, bad := range [][2]int{{0, 1}, {5, 1}, {1, 0}, {1, 4}} {
 		if err := SizeHomeCard(0, HomeMain, bad[0], bad[1]); err == nil {
 			t.Fatalf("a %dx%d card was accepted", bad[0], bad[1])
@@ -640,7 +667,7 @@ func TestHomeSizeIsBoundedKeptAndReset(t *testing.T) {
 	}
 	l, _, _ = homeLayoutState()
 	for _, c := range l.Cards {
-		if c.Cols != 0 || c.Rows != 0 {
+		if cols, rows := homeKindSize(c.Kind); c.Cols != cols || c.Rows != rows {
 			t.Fatalf("Reset kept a size: %+v", c)
 		}
 	}
@@ -666,6 +693,7 @@ func TestHomeMoveAndSizeLeaveANewerLayoutAlone(t *testing.T) {
 // order is the list's, and the unknown keys are what an older app keeps.
 func TestHomeSizeIsPlainKeysAnOlderAppKeeps(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	if err := SizeHomeCard(0, HomeMain, 3, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -756,6 +784,7 @@ func TestTheHomeAgentIsKeptAndResetHomeClearsIt(t *testing.T) {
 // card; one the person hid stays hidden when it is turned on again.
 func TestMeetingsCardAddedOnceAndHiddenStaysHidden(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	for range 2 {
 		if err := AddMeetingsToHome(); err != nil {
 			t.Fatal(err)
@@ -777,5 +806,113 @@ func TestMeetingsCardAddedOnceAndHiddenStaysHidden(t *testing.T) {
 	l, _, _ = homeLayoutState()
 	if c := l.Cards[6]; c.Kind != HomeMeetings || !c.Hidden {
 		t.Fatalf("after hiding and turning on again: %+v, want it still hidden", c)
+	}
+}
+
+// Where runs go picks the starting Home: a runhost's is Remote, In
+// Agentry's is Cloud, this computer's or none is Local.
+func TestHomeStartFollowsWhereRunsGo(t *testing.T) {
+	for runWhere, want := range map[string]string{
+		"": HomeStartLocal, RunWhereHere: HomeStartLocal, RunWhereAgentry: HomeStartCloud,
+		RunWhereRunhostPrefix + "box": HomeStartRemote, "somewhere-newer": HomeStartLocal,
+	} {
+		if got := HomeStartFor(runWhere); got != want {
+			t.Fatalf("HomeStartFor(%q) = %s, want %s", runWhere, got, want)
+		}
+	}
+}
+
+// A Home never arranged draws the start for the stored Where to run, and
+// changes with it; reading it writes nothing. Each start opens on Get
+// started and the shortcuts, at one cell each; Remote's holds the Runhost
+// card, Cloud's the Profile card (the credits), and only Local's holds the
+// Meeting notes and persistent agent shortcuts, which run on this computer.
+func TestANeverArrangedHomeIsTheStartForWhereRunsGo(t *testing.T) {
+	isolate(t)
+	for _, tc := range []struct{ runWhere, start, has, lacks string }{
+		{RunWhereHere, HomeStartLocal, HomeGoMeetings, HomeRunhost},
+		{RunWhereRunhostPrefix + "box", HomeStartRemote, HomeRunhost, HomeGoMeetings},
+		{RunWhereAgentry, HomeStartCloud, HomeProfile, HomeGoAgent},
+	} {
+		writeRaw(t, "runWhere: "+tc.runWhere+"\n")
+		before := readRaw(t)
+		l, state, err := homeLayoutState()
+		if err != nil || state != homeOK {
+			t.Fatalf("%s: state=%q err=%v", tc.start, state, err)
+		}
+		if start, _ := HomeStartNow(); start != tc.start {
+			t.Fatalf("HomeStartNow = %s, want %s", start, tc.start)
+		}
+		got := kinds(l)
+		if strings.Join(got, ",") != strings.Join(homeStarts[tc.start], ",") {
+			t.Fatalf("%s: cards = %v", tc.start, got)
+		}
+		if got[0] != HomeGetStarted || !slices.Contains(got, tc.has) || slices.Contains(got, tc.lacks) {
+			t.Fatalf("%s: cards = %v, want Get started first, %s and no %s", tc.start, got, tc.has, tc.lacks)
+		}
+		for _, c := range l.Cards {
+			if strings.HasPrefix(c.Kind, "shortcut-") && (c.Cols != 1 || c.Rows != 1) {
+				t.Fatalf("%s: shortcut %s is %dx%d, want one cell", tc.start, c.Kind, c.Cols, c.Rows)
+			}
+		}
+		if readRaw(t) != before {
+			t.Fatal("reading the starting Home wrote the settings file")
+		}
+	}
+}
+
+// A Home the person arranged is theirs: a new Where to run leaves it as it
+// is, and only Reset Home goes to the start for the new one.
+func TestAnArrangedHomeIsKeptWhenWhereRunsGoChanges(t *testing.T) {
+	isolate(t)
+	arranged(t)
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.RunWhere = RunWhereAgentry
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ := homeLayoutState()
+	if got := strings.Join(kinds(l), ","); got != "main,deliverables,recent-runs,installed,profile,run-defaults" {
+		t.Fatalf("a new Where to run moved an arranged Home: %s", got)
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if got := strings.Join(kinds(l), ","); got != strings.Join(homeStarts[HomeStartCloud], ",") {
+		t.Fatalf("Reset Home = %s, want the Cloud start", got)
+	}
+}
+
+// The new cards are switches like the others: shown on an arranged Home
+// that lacks one, it is added at the end at its kind's size (a shortcut one
+// cell, Learn one column by two rows); hidden when the layout lacks it,
+// nothing is written.
+func TestTheNewCardsAreSwitchesAddedAtTheirSize(t *testing.T) {
+	isolate(t)
+	arranged(t)
+	before := readRaw(t)
+	if err := SetHomeCardShown(HomeGoDraft, false); err != nil {
+		t.Fatal(err)
+	}
+	if readRaw(t) != before {
+		t.Fatal("hiding a card the layout lacks wrote the settings file")
+	}
+	for _, k := range []string{HomeGoDraft, HomeLearn, HomeGetStarted} {
+		if err := SetHomeCardShown(k, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, _, _ := homeLayoutState()
+	if got, want := strings.Join(sizes(l)[6:], ","), "shortcut-draft:1x1,learn:1x2,get-started:0x0"; got != want {
+		t.Fatalf("added = %s, want %s", got, want)
+	}
+	for _, k := range homeSwitches {
+		if err := SetHomeCardShown(k, true); err != nil {
+			t.Fatalf("switch %s: %v", k, err)
+		}
 	}
 }

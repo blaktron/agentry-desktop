@@ -79,7 +79,8 @@ export type Route =
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
-  | { page: "build" }
+  // view: the start page, or Describe it (Home's Draft a QuickAgent).
+  | { page: "build"; view?: "describe" }
   // The QuickAgents the signed-in person publishes.
   // follow: a fork just made from an agent page, which the section opens on
   // and follows.
@@ -341,6 +342,8 @@ export default function App() {
     await refreshSettings().catch(() => {});
     setShowWizard(false);
     setSetupMissing(outcome.kind === "later" ? outcome.missing : null);
+    // Every ending lands on Home, whose cards the place runs go now picks.
+    setRoute({ page: "home" });
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
@@ -492,6 +495,17 @@ export default function App() {
                   persistentAgents: () => nav({ page: "settings", ...SETTINGS_FOR.homeMain }),
                   persistentAgent: (id) => nav({ page: "persistent", id }),
                   provider: () => nav({ page: "settings", ...SETTINGS_FOR.mainModel }),
+                  draft: () => nav({ page: "build", view: "describe" }),
+                  createKnowledge: (place) => {
+                    nav({ page: "knowledge" });
+                    if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, place });
+                    setFlowMinimized(false);
+                  },
+                  knowledge: () => nav({ page: "knowledge" }),
+                  voice: () => nav({ page: "voice" }),
+                  setup: () => setShowWizard(true),
+                  runhosts: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunhosts }),
+                  reviewKey: () => nav({ page: "settings", ...SETTINGS_FOR.reviewKey }),
                 }}
               />
             )}
@@ -602,7 +616,7 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenLibrary={() => nav({ page: "library" })} onOpenPersistentAgent={(id) => nav({ page: "persistent", id })} />
+              <Build key={route.view ?? "start"} initialView={route.view ?? "start"} registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenLibrary={() => nav({ page: "library" })} onOpenPersistentAgent={(id) => nav({ page: "persistent", id })} />
             )}
             {route.page === "validate" && <Validate registry={registry} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} />}
             {route.page === "settings" && (
