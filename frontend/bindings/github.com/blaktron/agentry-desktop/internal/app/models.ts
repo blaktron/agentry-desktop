@@ -9142,6 +9142,39 @@ export class RunhostAdmin {
 }
 
 /**
+ * RunhostAgentView is one persistent agent on a runhost.
+ */
+export class RunhostAgentView {
+    "name": string;
+    "title": string;
+    "state": string;
+    "desktopOnly"?: boolean;
+
+    /** Creates a new RunhostAgentView instance. */
+    constructor($$source: Partial<RunhostAgentView> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("title" in $$source)) {
+            this["title"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RunhostAgentView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RunhostAgentView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RunhostAgentView($$parsedSource as Partial<RunhostAgentView>);
+    }
+}
+
+/**
  * RunhostScheduleView is one schedule a runhost runs, as Settings lists it.
  */
 export class RunhostScheduleView {

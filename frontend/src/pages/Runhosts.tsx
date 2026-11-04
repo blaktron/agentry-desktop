@@ -410,6 +410,7 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
       <RunhostSignIns runhost={runhost} onChange={onChange} />
       <RunhostCredits runhost={runhost} onChange={onChange} />
       {status?.reachable && <RunhostSchedules name={runhost.name} />}
+      {status?.reachable && <RunhostAgents name={runhost.name} />}
       {asking && (
         <Card>
           <p className="small">
@@ -477,6 +478,88 @@ function RunhostSchedules({ name }: { name: string }) {
           }}>Remove</Button>
         </p>
       ))}
+    </div>
+  );
+}
+
+/** The persistent agents on a runhost: each one runs there under the
+ *  runhost's service, on the runhost's own model, and is started, stopped
+ *  and talked to from here through the runhost's run key. What one would be
+ *  given for the first time there is asked in a native dialog. Agentry Helper
+ *  stays on this computer. */
+function RunhostAgents({ name }: { name: string }) {
+  const [agents, setAgents] = useState<app.RunhostAgentView[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [talkTo, setTalkTo] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [reply, setReply] = useState<string | null>(null);
+  useEffect(() => {
+    RunhostsAPI.Agents(name).then(setAgents).catch((e) => setError(String(e)));
+  }, [name]);
+  const act = async (agent: string, f: () => Promise<app.RunhostAgentView[] | null>) => {
+    setBusy(agent);
+    setError(null);
+    try {
+      const v = await f();
+      if (v) setAgents(v);
+    } catch (e) {
+      if (!/not confirmed|refusing/i.test(String(e))) setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const send = async (agent: string) => {
+    setBusy(agent);
+    setError(null);
+    setReply(null);
+    try {
+      setReply(await RunhostsAPI.SendAgent(name, agent, text));
+      setText("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (error && !agents) return <ErrorBox error={error} />;
+  if (!agents) return null;
+  return (
+    <div className="small" data-runhost-agents={name}>
+      <p style={{ marginBottom: 4 }}>
+        <strong>Persistent agents:</strong> they run on {name}, on the model it keeps, and keep their conversation there.
+      </p>
+      {agents.map((a) => (
+        <div key={a.name} data-runhost-agent={a.name}>
+          <p className="row" style={{ justifyContent: "space-between", margin: "2px 0" }}>
+            <span className="selectable">
+              {a.title || a.name} <span className="muted">{a.desktopOnly ? "runs on this computer only" : a.state}</span>
+            </span>
+            {!a.desktopOnly && (
+              <span className="row">
+                {a.state === "running" ? (
+                  <>
+                    <Button disabled={busy !== null} onClick={() => { setTalkTo(talkTo === a.name ? null : a.name); setReply(null); }}>Talk</Button>
+                    <Button disabled={busy !== null} busy={busy === a.name} onClick={() => act(a.name, () => RunhostsAPI.StopAgent(name, a.name))}>Stop</Button>
+                  </>
+                ) : (
+                  <Button disabled={busy !== null} busy={busy === a.name} busyLabel="Starting…" onClick={() => act(a.name, () => RunhostsAPI.StartAgent(name, a.name))}>Start</Button>
+                )}
+              </span>
+            )}
+          </p>
+          {talkTo === a.name && a.state === "running" && (
+            <div style={{ margin: "4px 0 8px" }}>
+              <p className="row">
+                <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`A message to ${a.title || a.name} on ${name}`} disabled={busy !== null} />
+                <Button disabled={busy !== null || text.trim() === ""} busy={busy === a.name} busyLabel="Waiting for its answer…" onClick={() => send(a.name)}>Send</Button>
+              </p>
+              {reply !== null && <p className="selectable" data-runhost-agent-reply={a.name} style={{ whiteSpace: "pre-wrap" }}>{reply}</p>}
+            </div>
+          )}
+        </div>
+      ))}
+      <ErrorBox error={error} />
     </div>
   );
 }

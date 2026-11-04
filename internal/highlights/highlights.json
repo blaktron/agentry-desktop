@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.9",
+      "highlights": [
+        "Settings → Runhosts lists each runhost's persistent agents, with Start and Stop.",
+        "Talk to an agent on your runhost from its card: it answers there, on the runhost's own model."
+      ]
+    },
+    {
       "version": "0.7.8",
       "highlights": [
         "Meeting notes' settings are above your meetings on its page, and in Settings → Meeting notes too.",
