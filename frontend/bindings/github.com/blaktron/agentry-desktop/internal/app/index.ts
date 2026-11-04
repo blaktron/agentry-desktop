@@ -200,6 +200,7 @@ export {
     RunResultView,
     RunhostAddRequest,
     RunhostAdmin,
+    RunhostAgentView,
     RunhostScheduleView,
     RunhostSignInView,
     RunhostStatusView,

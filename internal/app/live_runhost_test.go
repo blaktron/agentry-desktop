@@ -399,3 +399,61 @@ func TestLiveRunhostScheduleFromTheApp(t *testing.T) {
 		t.Fatalf("a run was collected twice")
 	}
 }
+
+// TestLiveRunhostAgentFromTheApp starts the Assistant on a runhost the CLI
+// set up (AGENTRY_LIVE_RUNHOST_NAME, in AGENTRY_RUNNER_HOME, with its own
+// model), through the app's own calls: the list names it, a first start puts
+// what it would be given there to the person in the native dialog, a message
+// is answered through the relayed owner socket and leaves it running, and it
+// stops.
+func TestLiveRunhostAgentFromTheApp(t *testing.T) {
+	name := os.Getenv("AGENTRY_LIVE_RUNHOST_NAME")
+	if name == "" || os.Getenv("AGENTRY_LIVE_RUNHOST_AGENT") == "" {
+		t.Skip("starts and talks to the Assistant on a runhost: set AGENTRY_LIVE_RUNHOST_NAME and AGENTRY_LIVE_RUNHOST_AGENT=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	app := &App{ctx: ctx, confirm: func(_ context.Context, title, msg string) (bool, error) {
+		t.Logf("dialog %q: %s", title, msg)
+		return true, nil
+	}}
+	r := &RunhostsAPI{app: app, run: &RunAPI{app: app, runnerHomeDir: os.Getenv("AGENTRY_RUNNER_HOME")}}
+	state := func(list []RunhostAgentView) string {
+		for _, a := range list {
+			if a.Name == "assistant" {
+				return a.State
+			}
+		}
+		return "missing"
+	}
+	list, err := r.Agents(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("agents on %s: %+v", name, list)
+	if state(list) == "running" {
+		if _, err := r.StopAgent(name, "assistant"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if list, err = r.StartAgent(name, "assistant"); err != nil {
+		t.Fatal(err)
+	}
+	if state(list) != "running" {
+		t.Fatalf("after Start: %+v", list)
+	}
+	reply, err := r.SendAgent(name, "assistant", "Reply with exactly the word pong and nothing else.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("reply: %q", reply)
+	if !strings.Contains(strings.ToLower(reply), "pong") {
+		t.Fatalf("reply %q", reply)
+	}
+	if list, err = r.Agents(name); err != nil || state(list) != "running" {
+		t.Fatalf("after the message the agent is %s (%v)", state(list), err)
+	}
+	if list, err = r.StopAgent(name, "assistant"); err != nil || state(list) == "running" {
+		t.Fatalf("after Stop: %+v %v", list, err)
+	}
+}
