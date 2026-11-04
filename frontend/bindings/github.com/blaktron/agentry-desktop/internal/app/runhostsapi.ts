@@ -29,6 +29,15 @@ export function Add(req: $models.RunhostAddRequest): $CancellablePromise<$models
 }
 
 /**
+ * Agents lists the persistent agents on runhost name.
+ */
+export function Agents(name: string): $CancellablePromise<$models.RunhostAgentView[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Agents", name).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * Cancel stops the setup, change or removal under way.
  */
 export function Cancel(): $CancellablePromise<void> {
@@ -74,7 +83,7 @@ export function Credits(name: string): $CancellablePromise<$models.RunhostView> 
  */
 export function List(): $CancellablePromise<$models.RunhostView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.List").then(($result: any) => {
-        return $$createType2($result);
+        return $$createType4($result);
     });
 }
 
@@ -102,7 +111,7 @@ export function Pair(req: $models.RunhostAddRequest): $CancellablePromise<$model
  */
 export function PostUpdate(): $CancellablePromise<$models.RunhostView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.PostUpdate").then(($result: any) => {
-        return $$createType2($result);
+        return $$createType4($result);
     });
 }
 
@@ -131,7 +140,7 @@ export function RemoveCredits(name: string): $CancellablePromise<$models.Runhost
  */
 export function RemoveSchedule(name: string, id: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveSchedule", name, id).then(($result: any) => {
-        return $$createType4($result)!;
+        return $$createType6($result)!;
     });
 }
 
@@ -142,6 +151,15 @@ export function RemoveSignIn(name: string, vendor: string): $CancellablePromise<
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveSignIn", name, vendor).then(($result: any) => {
         return $$createType1($result)!;
     });
+}
+
+/**
+ * SendAgent sends text to agent on runhost name as one turn, through the
+ * agent's owner socket relayed here, and answers with its reply. Leaving
+ * leaves the agent running there.
+ */
+export function SendAgent(name: string, agent: string, text: string): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.SendAgent", name, agent, text);
 }
 
 /**
@@ -173,12 +191,33 @@ export function SignIn(name: string, vendor: string): $CancellablePromise<$model
 }
 
 /**
+ * StartAgent starts agent on runhost name, enabling it first when it is
+ * not. What it would be given for the first time there is put to the
+ * person in a native dialog; it starts only once they agree.
+ */
+export function StartAgent(name: string, agent: string): $CancellablePromise<$models.RunhostAgentView[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.StartAgent", name, agent).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * Status asks runhost name how it is, over the run key. A runhost that
  * cannot be reached is a status, not an error.
  */
 export function Status(name: string): $CancellablePromise<$models.RunhostStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Status", name).then(($result: any) => {
-        return $$createType6($result)!;
+        return $$createType8($result)!;
+    });
+}
+
+/**
+ * StopAgent stops agent on runhost name; its conversation and files stay
+ * there for its next start.
+ */
+export function StopAgent(name: string, agent: string): $CancellablePromise<$models.RunhostAgentView[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.StopAgent", name, agent).then(($result: any) => {
+        return $$createType3($result);
     });
 }
 
@@ -187,7 +226,7 @@ export function Status(name: string): $CancellablePromise<$models.RunhostStatusV
  */
 export function Store(name: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Store", name).then(($result: any) => {
-        return $$createType4($result)!;
+        return $$createType6($result)!;
     });
 }
 
@@ -215,8 +254,10 @@ export function Update(name: string): $CancellablePromise<$models.RunhostView> {
 // Private type creation functions
 const $$createType0 = $models.RunhostView.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $Create.Array($$createType0);
-const $$createType3 = $models.RunhostStoreView.createFrom;
-const $$createType4 = $Create.Nullable($$createType3);
-const $$createType5 = $models.RunhostStatusView.createFrom;
+const $$createType2 = $models.RunhostAgentView.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Array($$createType0);
+const $$createType5 = $models.RunhostStoreView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
+const $$createType7 = $models.RunhostStatusView.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
