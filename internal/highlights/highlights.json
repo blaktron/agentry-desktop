@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.10",
+      "highlights": [
+        "Home starts from where your runs go: this computer, your runhost or Agentry, with the cards that place needs.",
+        "Get started on Home lists what your setup still needs, each with the button that does it.",
+        "Shortcuts on Home open Run, Draft, Create knowledge, Meeting notes, Writing Voice, Persistent agent and Setup.",
+        "Finishing setup now lands you on Home, ready to start."
+      ]
+    },
+    {
       "version": "0.7.9",
       "highlights": [
         "Settings → Runhosts lists each runhost's persistent agents, with Start and Stop.",

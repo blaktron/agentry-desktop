@@ -49,7 +49,7 @@ func TestAFirstPinOpensAPinnedCardAfterTheDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(kinds(l), ","); got != "main,deliverables,recent-runs,installed,profile,run-defaults,pinned" {
+	if got := strings.Join(kinds(l), ","); got != localStart+",pinned" {
 		t.Fatalf("cards = %s", got)
 	}
 	last := l.Cards[len(l.Cards)-1]
@@ -209,6 +209,7 @@ func TestPinsKeepWhatTheyDoNotKnowAndANewerLayoutTakesNone(t *testing.T) {
 // A card hidden before a pin opened a Pinned card stays ahead of it.
 func TestHidingACardKeepsItsPlaceAmongThePinnedCards(t *testing.T) {
 	isolate(t)
+	arranged(t)
 	if err := SetHomeCardShown(HomeProfile, false); err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestResetDropsEveryPin(t *testing.T) {
 	if err != nil || newer || unreadable {
 		t.Fatalf("after Reset: err=%v newer=%v unreadable=%v", err, newer, unreadable)
 	}
-	if got, want := strings.Join(kinds(l), ","), "main,deliverables,recent-runs,installed,profile,run-defaults"; got != want {
+	if got, want := strings.Join(kinds(l), ","), localStart; got != want {
 		t.Fatalf("after Reset = %s, want %s", got, want)
 	}
 	if got := pinCards(t); got != "" || IsPinned("acme/a", pinReg) {

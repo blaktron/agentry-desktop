@@ -1947,6 +1947,13 @@ export class HomeLayoutView {
     "maxCols": number;
     "maxRows": number;
 
+    /**
+     * Start is the starting Home for the Where to run (local, remote or
+     * cloud): the one a Home never arranged draws and Reset Home goes back
+     * to, and the checklist Get started shows.
+     */
+    "start": string;
+
     /** Creates a new HomeLayoutView instance. */
     constructor($$source: Partial<HomeLayoutView> = {}) {
         if (!("cards" in $$source)) {
@@ -1969,6 +1976,9 @@ export class HomeLayoutView {
         }
         if (!("maxRows" in $$source)) {
             this["maxRows"] = 0;
+        }
+        if (!("start" in $$source)) {
+            this["start"] = "";
         }
 
         Object.assign(this, $$source);

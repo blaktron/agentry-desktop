@@ -5,7 +5,7 @@ import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/
 import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
-import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
+import { asStart, cardSwitches, HOME_STARTS, START_NAME } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
 import { applyTheme, THEMES, themeOn, type ThemeId } from "../theme";
 import { pickHomeAgent, rereadHomeAgent, useAgents, useHomeAgent } from "../agents";
@@ -103,19 +103,23 @@ export function HomeSettings() {
   const pins = kept ? [] : pinsOf(view.cards);
   // The Scheduled card is no default, so Reset removes it.
   const hasScheduled = !kept && view.cards.some((c) => c.kind === "scheduled");
+  // Reset goes to the starting Home for where runs go now.
+  const start = asStart(view.start);
+  const startCards = HOME_STARTS[start].length;
+  const startLine = <>the {startCards} starting cards for runs on {START_NAME[start]}</>;
 
   return (
     <>
       {view.newer && (
         <Notice tone="info">
-          Home was arranged by a newer Agentry Desktop. This one shows the default cards, leaves that arrangement as it
-          is, and changes nothing in it. Reset Home starts again from the defaults.
+          Home was arranged by a newer Agentry Desktop. This one shows the starting cards, leaves that arrangement as it
+          is, and changes nothing in it. Reset Home starts again from the starting cards.
         </Notice>
       )}
       {view.unreadable && (
         <Notice tone="warn">
-          The settings file&apos;s Home arrangement cannot be read by this Agentry Desktop, so the default cards are shown
-          and the file is left as it is. Reset Home starts again from the defaults.
+          The settings file&apos;s Home arrangement cannot be read by this Agentry Desktop, so the starting cards are shown
+          and the file is left as it is. Reset Home starts again from the starting cards.
         </Notice>
       )}
 
@@ -168,16 +172,22 @@ export function HomeSettings() {
         <Card>
           <p className="muted small" style={{ marginTop: 0 }}>
             A hidden card keeps its place on Home, and shows there again when you turn it back on. A card that is not on Home
-            is added at the end. On Home, drag a card to move it and drag its corner to resize it.
+            is added at the end. On Home, drag a card to move it and drag its corner to resize it. A shortcut is one small card
+            that opens the page where you do the thing.
           </p>
-          {switches.map((s) => (
-            <div key={s.kind} className="home-card-switch" data-home-switch={s.kind}>
-              <label className="check-row" style={{ margin: 0 }}>
-                <input type="checkbox" role="switch" checked={s.shown} disabled={busy || kept}
-                  onChange={(e) => void act("cards", () => HomeAPI.SetShown(s.kind, e.target.checked))} />
-                <span><strong>{s.title}</strong></span>
-              </label>
-              <p className="muted small">{s.line}</p>
+          {[false, true].map((shortcut) => (
+            <div key={String(shortcut)} data-home-switches={shortcut ? "shortcuts" : "cards"}>
+              {shortcut && <h3 className="home-switch-group">Shortcuts</h3>}
+              {switches.filter((s) => s.shortcut === shortcut).map((s) => (
+                <div key={s.kind} className="home-card-switch" data-home-switch={s.kind}>
+                  <label className="check-row" style={{ margin: 0 }}>
+                    <input type="checkbox" role="switch" checked={s.shown} disabled={busy || kept}
+                      onChange={(e) => void act("cards", () => HomeAPI.SetShown(s.kind, e.target.checked))} />
+                    <span><strong>{s.title}</strong></span>
+                  </label>
+                  <p className="muted small">{s.line}</p>
+                </div>
+              ))}
             </div>
           ))}
           <Said said={said} part="cards" />
@@ -235,7 +245,7 @@ export function HomeSettings() {
         <h2>Reset Home</h2>
         <Card>
           <p className="small" style={{ marginTop: 0 }}>
-            Shows the {HOME_DEFAULTS.length} default cards again in their first order and sizes
+            Shows {startLine} again, in their first order and sizes
             {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}
             {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}, and gives the agent card back
             to whichever of the Assistant and Agentry Helper is on. It uninstalls nothing and turns no agent off.
@@ -248,7 +258,7 @@ export function HomeSettings() {
       {confirmReset && (
         <Modal title="Reset Home?" onClose={() => setConfirmReset(false)}>
           <p>
-            Home shows the {HOME_DEFAULTS.length} default cards again, in their first order and sizes
+            Home shows {startLine} again, in their first order and sizes
             {pins.length > 0
               ? <>, and <strong>every pin is removed</strong>: {pins.length === 1
                 ? "the QuickAgent pinned there stays installed, and Pin to Home puts it back"

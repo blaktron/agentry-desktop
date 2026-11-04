@@ -34,13 +34,14 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "main,deliverables,recent-runs,installed,profile,run-defaults" || v.Newer {
+	const local = "get-started,shortcut-run,shortcut-draft,shortcut-knowledge,shortcut-setup,main,recent-runs,deliverables,learn,knowledge,shortcut-meetings,shortcut-voice,shortcut-agent"
+	if got := order(v); got != local || v.Newer {
 		t.Fatalf("Layout() = %s newer=%v", got, v.Newer)
 	}
-	if v, err = h.SetShown("profile", false); err != nil {
+	if v, err = h.SetShown("learn", false); err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "main,deliverables,recent-runs,installed,profile(hidden),run-defaults" {
+	if got := order(v); got != strings.Replace(local, "learn", "learn(hidden)", 1) {
 		t.Fatalf("SetShown answered %s", got)
 	}
 	if _, err := h.SetShown("pinned", false); err == nil {
@@ -49,7 +50,7 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	if v, err = h.Reset(); err != nil {
 		t.Fatal(err)
 	}
-	if got := order(v); got != "main,deliverables,recent-runs,installed,profile,run-defaults" {
+	if got := order(v); got != local {
 		t.Fatalf("Reset answered %s", got)
 	}
 }
@@ -181,15 +182,20 @@ func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
 func TestHomeBindingPinsTheScheduledCard(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	h := &HomeAPI{}
+	start, err := h.Layout()
+	if err != nil || start.Start != settings.HomeStartLocal {
+		t.Fatalf("Layout() = %+v, %v", start, err)
+	}
+	n := len(start.Cards)
 	v, err := h.PinScheduled()
 	if err != nil {
 		t.Fatal(err)
 	}
 	last := v.Cards[len(v.Cards)-1]
-	if len(v.Cards) != 7 || last.Kind != settings.HomeScheduled || last.Size != settings.HomeLarge || v.MaxPins != settings.MaxPins {
+	if len(v.Cards) != n+1 || last.Kind != settings.HomeScheduled || last.Size != settings.HomeLarge || v.MaxPins != settings.MaxPins {
 		t.Fatalf("PinScheduled() = %+v", v)
 	}
-	if v, err = h.UnpinScheduled(); err != nil || len(v.Cards) != 6 {
+	if v, err = h.UnpinScheduled(); err != nil || len(v.Cards) != n {
 		t.Fatalf("UnpinScheduled() = %+v, %v", v, err)
 	}
 }

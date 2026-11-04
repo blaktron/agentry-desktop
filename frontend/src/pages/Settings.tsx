@@ -193,6 +193,8 @@ export const SETTINGS_FOR = {
   unsafeMode: { section: "run-defaults", part: "unsafe" },
   // Home's Main card's title, and its "Set up a model" link
   homeMain: { section: "persistent-agents" },
+  // Home's Runhost card, and Get started's runhost rows
+  homeRunhosts: { section: "runhosts" },
   mainModel: { section: "provider", part: "provider" },
 } satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
