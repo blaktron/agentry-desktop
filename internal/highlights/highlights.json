@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.14",
+      "highlights": [
+        "Render in Settings → Report design now draws your design's own cover page, the cover a run's PDF opens with.",
+        "A cover of your own that cannot be drawn still falls back to the built-in band cover, and Render says so."
+      ]
+    },
+    {
       "version": "0.7.13",
       "highlights": [
         "Render in Settings → Report design lays a sample report out in your design on this computer and shows the real pages.",
