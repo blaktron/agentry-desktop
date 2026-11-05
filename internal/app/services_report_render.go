@@ -107,7 +107,7 @@ func renderReportDesign(ctx context.Context, url, token, id string, d reportdesi
 	}
 	renders.mu.Lock()
 	defer renders.mu.Unlock()
-	if renders.done != done {
+	if renders.done != done || ctx.Err() != nil {
 		return nil, errors.New("the render was stopped")
 	}
 	renders.token, renders.pdf = t, r.PDF

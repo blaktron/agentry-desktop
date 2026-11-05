@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -254,6 +255,20 @@ func TestARenderShowsOnlyTheLedgersCheckedPDF(t *testing.T) {
 				}
 			}
 		},
+		"a link as the ledger": func(fg *dockerx.FakeForeground) {
+			*fg = *exportPlayed(t, fakePDF, goodEntry(fakePDF))
+			before := fg.Before
+			fg.Before = func(r dockerx.RunSpec) {
+				before(r)
+				out := outSource(t, r)
+				ledger := filepath.Join(out, "receipts", "pdfs.ndjson")
+				elsewhere := filepath.Join(filepath.Dir(out), "ledger.ndjson")
+				_ = os.Rename(ledger, elsewhere)
+				if err := os.Symlink(elsewhere, ledger); err != nil {
+					t.Error(err)
+				}
+			}
+		},
 		"a link as reports/": func(fg *dockerx.FakeForeground) {
 			*fg = *exportPlayed(t, fakePDF, goodEntry(fakePDF))
 			before := fg.Before
@@ -344,6 +359,33 @@ func TestARenderRunsUnderThePolicysRuntime(t *testing.T) {
 	}
 	if seen.Runtime != "runsc" {
 		t.Fatalf("runtime %q", seen.Runtime)
+	}
+}
+
+// TestARenderSweepsWhatAStoppedAppLeft: a render folder an hour old is
+// removed at the next render; a newer one, another app's render in
+// progress, is left.
+func TestARenderSweepsWhatAStoppedAppLeft(t *testing.T) {
+	rs := renderSetup(t)
+	old, fresh := filepath.Join(rs.root, "render-old"), filepath.Join(rs.root, "render-fresh")
+	for _, d := range []string{old, fresh} {
+		if err := os.MkdirAll(filepath.Join(d, "out"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	fake := &dockerx.Fake{Foreground: map[string]*dockerx.FakeForeground{"report-render": exportPlayed(t, fakePDF, goodEntry(fakePDF))}}
+	if _, err := renderReportSample(context.Background(), fake, rs, stamped(t, "plain")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("the stale folder was left: %v", err)
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Errorf("a fresh folder was removed: %v", err)
 	}
 }
 

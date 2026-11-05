@@ -211,3 +211,23 @@ func TestANewRenderStopsTheOneRunning(t *testing.T) {
 		t.Fatal("a closed render was still read")
 	}
 }
+
+// TestACancelAfterTheRenderFinishedKeepsNothing: a render whose modal closed
+// while its PDF was being read back is not kept, so no token reads it.
+func TestACancelAfterTheRenderFinishedKeepsNothing(t *testing.T) {
+	f := newFakeLibrary(t, true)
+	id := f.add(builtin(t, "classic"), false)
+	standInRender(t, nil, nil)
+	renderSample = func(context.Context, []byte, io.Writer) (*run.ReportRender, error) {
+		cancelRender()
+		return &run.ReportRender{PDF: renderedBytes, SHA256: sha256Hex(renderedBytes)}, nil
+	}
+	if v, err := renderReportDesign(context.Background(), f.srv.URL, "agy_test", id, builtin(t, "classic")); err == nil {
+		t.Fatalf("kept after its cancel: %+v", v)
+	}
+	renders.mu.Lock()
+	defer renders.mu.Unlock()
+	if renders.pdf != nil || renders.token != "" || renders.done != nil {
+		t.Fatal("a cancelled render left its state")
+	}
+}

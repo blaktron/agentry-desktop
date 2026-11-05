@@ -31,16 +31,20 @@ import (
 // the runner image's own export_pdf, on this computer, as a run's PDF is.
 //
 // The runner image's tools server runs alone in one container, configured by
-// a tools spec that grants export_pdf and nothing else, with the design
-// stamped into it as the engine stamps a run's. The container is held as a
-// run's tools server is held by the run's docker filter: no network at all,
-// every capability dropped and only the tools server's own given back, no
-// new privileges, a read-only root, /tmp and the scratch folder each a tmpfs
-// of the run's bound, the policy's memory, CPU and process limits, and the
-// policy's runtime. Typst then runs inside it under export_pdf's own
-// confinement, time limit and memory limit. The sample is a file the app
-// writes; the container gets an empty, read-only workspace and an output
-// folder of its own, made fresh for each render and removed after it.
+// a tools spec that grants export_pdf and the scratch folder, with the
+// design stamped into it as the engine stamps a run's. The container takes
+// the flags the run's docker filter gives a run's tools server: no network
+// at all, every capability dropped and only the tools server's own given
+// back, no new privileges, a read-only root, /tmp and the scratch folder
+// each a tmpfs of the run's bound, the policy's memory, CPU and process
+// limits, and the policy's runtime, read back from the engine before it
+// starts. One bound differs: the filter also holds a tools server's swap to
+// its memory, which a container started here cannot be given, so swap is
+// the engine's default. Typst then runs inside it under export_pdf's own
+// confinement and its own time and address-space limits. The sample is a
+// file the app writes; the container gets an empty, read-only workspace and
+// an output folder of its own, made fresh for each render and removed after
+// it, and a folder an earlier app left behind is swept at the next render.
 //
 // What comes back is held to the checks the run viewer applies to a run's
 // export: the PDF the ledger names, under reports/, read with no link at any
@@ -133,6 +137,7 @@ func renderReportSample(ctx context.Context, d dockerx.Client, rs reportRenderSe
 	if err := os.MkdirAll(rs.root, 0o700); err != nil {
 		return nil, fmt.Errorf("make the render's folder: %w", err)
 	}
+	sweepRenderFolders(rs.root, time.Now().Add(-staleRender))
 	dir, err := os.MkdirTemp(rs.root, "render-")
 	if err != nil {
 		return nil, fmt.Errorf("make the render's folder: %w", err)
@@ -295,20 +300,54 @@ func exportAnswer(out []byte) (text string, isErr, found bool) {
 	return "", false, false
 }
 
-// readRender reads the render back from its output folder: the one PDF the
-// ledger names at the sample's path, held to the run viewer's checks.
-func readRender(outDir string) (*ReportRender, error) {
-	entries, err := engine.ReadPDFLedger(filepath.Join(outDir, filepath.FromSlash(reportRenderLedger)))
+// staleRender is how old a render folder must be for the sweep to take it:
+// older than any render runs, so another app's render in progress is left.
+const staleRender = time.Hour
+
+// sweepRenderFolders removes render folders under root last changed before
+// cutoff: what an app that was stopped mid-render left.
+func sweepRenderFolders(root string, cutoff time.Time) {
+	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("the render's record could not be read: %w", err)
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "render-") {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.ModTime().Before(cutoff) {
+			_ = os.RemoveAll(filepath.Join(root, e.Name()))
+		}
+	}
+}
+
+// maxRenderLedger bounds the ledger's read: one line is all a render writes.
+const maxRenderLedger = 64 << 10
+
+// readRender reads the render back from its output folder: the one PDF the
+// ledger names at the sample's path, under reports/, held to the run
+// viewer's checks. The container could write either file, so both are read
+// with no link at any part of their paths.
+func readRender(outDir string) (*ReportRender, error) {
+	raw, ok := runfile.Read(outDir, reportRenderLedger, maxRenderLedger)
+	if !ok {
+		return nil, errors.New("the render's record could not be read: it is missing, not a regular file, reached through a link, or too large")
+	}
+	var entries []toolsrv.PDFEntry
+	for _, line := range bytes.Split(raw, []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var e toolsrv.PDFEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			return nil, fmt.Errorf("the render's record could not be read: %w", err)
+		}
+		entries = append(entries, e)
 	}
 	if len(entries) != 1 || entries[0].Path != reportSamplePDF {
 		return nil, errors.New("the render's record does not name the sample's PDF alone, so nothing is shown")
 	}
 	e := entries[0]
-	if !strings.HasPrefix(e.Path, "reports/") {
-		return nil, errors.New("the render's PDF is not under reports/, so it is not shown")
-	}
 	b, ok := runfile.Read(outDir, e.Path, toolsrv.MaxPDFBytes)
 	if !ok {
 		return nil, errors.New("the render's PDF could not be read: it is gone, not a regular file, reached through a link, or too large")
