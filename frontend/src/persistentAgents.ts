@@ -70,10 +70,12 @@ export function chatFromTranscript(events: SessionEvent[], now: number): AgentCh
  *  turn's tool calls fold into one line naming them. What the agent does
  *  on its own (a task its heartbeat sent, a compaction, a memory tidy)
  *  folds into one line per run, and runs in a row into one line that
- *  counts them; each opens on everything it did. */
+ *  counts them; each opens on everything it did. What a task's run tells
+ *  the person (a reminder) is the agent's message, drawn whole after the
+ *  folded line, never inside it. */
 export type TermBlock =
   | { kind: "person"; text: string }
-  | { kind: "agent"; text: string }
+  | { kind: "agent"; text: string; told?: boolean }
   | { kind: "tools"; names: string[] }
   | { kind: "note"; text: string }
   | { kind: "warn"; text: string }
@@ -122,8 +124,9 @@ function upkeepRun(text: string): BackgroundRun {
 }
 
 /** termBlocks is the chat as its page draws it. A run on the agent's own
- *  holds everything up to the next turn sent to the agent; while the chat
- *  is busy, the last run with no answer yet is running. */
+ *  holds everything up to the next turn sent to the agent, but for what it
+ *  told the person, which follows its folded line as the agent's message;
+ *  while the chat is busy, the last run with no answer yet is running. */
 export function termBlocks(c: Pick<Chat, "lines" | "busy">): TermBlock[] {
   const blocks: TermBlock[] = [];
   let run: BackgroundRun | null = null;
@@ -139,6 +142,10 @@ export function termBlocks(c: Pick<Chat, "lines" | "busy">): TermBlock[] {
       const last = blocks[blocks.length - 1];
       if (last?.kind === "background") last.runs.push(run);
       else blocks.push({ kind: "background", runs: [run] });
+      continue;
+    }
+    if (l.kind === "told") {
+      blocks.push({ kind: "agent", text: l.text, told: true });
       continue;
     }
     let b: TermBlock;
@@ -166,7 +173,10 @@ export function termBlocks(c: Pick<Chat, "lines" | "busy">): TermBlock[] {
  *  answering is its own: its reply is not streamed into the chat, whose
  *  folded line says what it is doing. */
 export function runningInBackground(blocks: TermBlock[]): BackgroundRun | null {
-  const last = blocks[blocks.length - 1];
+  // What the run told the person so far follows its folded line.
+  let at = blocks.length - 1;
+  while (at >= 0 && blocks[at].kind === "agent" && (blocks[at] as { told?: boolean }).told) at--;
+  const last = blocks[at];
   if (last?.kind !== "background") return null;
   const run = last.runs[last.runs.length - 1];
   return run.running ? run : null;

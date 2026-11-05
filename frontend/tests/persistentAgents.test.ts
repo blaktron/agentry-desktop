@@ -149,6 +149,51 @@ test("an upkeep turn is the runner's, never the person's: one folded line saying
   assert.equal(runSummary((tidy[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Tidied its memory");
 });
 
+test("what a task's run tells the person is the agent's message after the folded line, its work still folded, live and from the transcript", () => {
+  const events = [
+    { kind: "user_turn", time: t, text: "What's on today?" },
+    { kind: "assistant_turn", time: t, text: "Two meetings." },
+    taskEv, { kind: "tool_call", time: t, text: "gmail_search" }, { kind: "assistant_turn", time: t, text: "No new mail." },
+    taskEv,
+    { kind: "tool_call", time: t, text: "calendar_events" },
+    { kind: "tool_call", time: t, text: "tell_person" },
+    { kind: "tell", time: t, text: "  Time to stand up and stretch. Your next meeting is at 10.  ", task: "t1" },
+    { kind: "assistant_turn", time: t, text: "Reminded them to stand up." },
+    taskEv, { kind: "assistant_turn", time: t, text: "No new mail." },
+  ];
+  let live = newAgentChat();
+  for (const ev of events) live = applyAgentEvent(live, ev, now);
+  for (const c of [live, chatFromTranscript(events, now)]) {
+    const blocks = termBlocks(c);
+    assert.deepEqual(blocks.map((b) => b.kind), ["person", "agent", "background", "agent", "background"]);
+    assert.deepEqual(blocks[3], { kind: "agent", text: "Time to stand up and stretch. Your next meeting is at 10.", told: true });
+    const runs = (blocks[2] as { runs: Parameters<typeof runSummary>[0][] }).runs;
+    assert.equal(runs.length, 2, "the run that told and the one before it fold together");
+    assert.deepEqual(runs[1].blocks, [
+      { kind: "tools", names: ["calendar_events", "tell_person"] },
+      { kind: "agent", text: "Reminded them to stand up." },
+    ]);
+    assert.equal(runs[1].answer, "Reminded them to stand up.");
+    assert.equal((blocks[4] as { runs: unknown[] }).runs.length, 1, "the run after the message folds apart");
+  }
+  assert.equal(live.turns, 1, "only the person's turn counts");
+  // A tell with no text draws nothing.
+  const empty = applyAgentEvent(applyAgentEvent(newAgentChat(), taskEv, now), { kind: "tell", time: t, text: " ", task: "t1" }, now);
+  assert.deepEqual(termBlocks(empty).map((b) => b.kind), ["background"]);
+});
+
+test("a run that has told the person is still running in the background until it answers", () => {
+  let c = applyAgentEvent(newAgentChat(), taskEv, now);
+  c = applyAgentEvent(c, { kind: "tool_call", time: t, text: "tell_person" }, now);
+  c = applyAgentEvent(c, { kind: "tell", time: t, text: "Time to stand up.", task: "t1" }, now);
+  c = applyAgentEvent(c, { kind: "assistant_text", time: t, text: "Remind" }, now);
+  const run = runningInBackground(termBlocks(c));
+  assert.ok(run, "the task's run is not running");
+  assert.equal(runSummary(run), "Task “Stand up” is running…");
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "Reminded them." }, now);
+  assert.equal(runningInBackground(termBlocks(c)), null);
+});
+
 test("runs in a row fold into one line that counts them, and the person's next turn starts the conversation again", () => {
   const events = [
     { kind: "user_turn", time: t, text: "What's on today?" },
