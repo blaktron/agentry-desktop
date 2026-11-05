@@ -387,6 +387,27 @@ export function savedSentence(label: string, isDefault: boolean): string {
     : `Saved. Pick ${label} in a run's setup, or make it the default.`;
 }
 
+/** What Render's view says of a render: its pages and the cover drawn. */
+export type RenderFacts = { pages: number; cover: string; logo: boolean; fallback: boolean };
+
+/** A cover style's short name, lower-case, as a sentence names it. */
+export function coverStyleName(style: string): string {
+  return (COVER_STYLE_LABELS[style] ?? style).split(":")[0].toLowerCase();
+}
+
+/** Render's line: how many pages, who laid them out, and the cover. */
+export function renderSentence(r: RenderFacts): string {
+  const pages = r.pages === 1 ? "One page" : `${r.pages} pages`;
+  const cover = r.cover ? `, with a ${coverStyleName(r.cover)} cover page` : ", with no cover page";
+  return `${pages} of the sample report, laid out by the runner's Typst on this computer as a run's PDF is${cover}${r.logo ? " and your logo" : ""}.`;
+}
+
+/** Render's notice when the design's own cover was not drawn, "" when it was. */
+export function fallbackSentence(r: RenderFacts): string {
+  if (!r.fallback) return "";
+  return `Your custom cover was not drawn: this render uses the ${coverStyleName(r.cover)} cover in its place, as a run's PDF would. The cover's code is kept with the design.`;
+}
+
 /** The line under the library: what runs from this app draw now. */
 export function librarySentence(count: number, defaultName: string | null, max: number): string {
   if (count === 0) return "You have no report design yet: runs from this app use Plain. Start one from a kit.";

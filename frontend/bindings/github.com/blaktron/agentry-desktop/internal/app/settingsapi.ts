@@ -38,6 +38,14 @@ export function CancelBrowserSignIn(): $CancellablePromise<boolean> {
 }
 
 /**
+ * CancelReportRender stops the render that is running, if one is, and
+ * lets go of the last render's PDF.
+ */
+export function CancelReportRender(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.CancelReportRender");
+}
+
+/**
  * CheckReportDesign is the core's verdict on the design the editor holds.
  * It reads nothing but the design.
  */
@@ -280,6 +288,16 @@ export function RemoveReportLogo(url: string, id: string): $CancellablePromise<$
 }
 
 /**
+ * RenderReportDesign lays the sample report out in the design the editor
+ * holds for the library's design id, with that design's stored images.
+ */
+export function RenderReportDesign(url: string, id: string, d: reportdesign$0.Design): $CancellablePromise<$models.ReportRenderView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RenderReportDesign", url, id, d).then(($result: any) => {
+        return $$createType16($result)!;
+    });
+}
+
+/**
  * ReportBug files text as a bug report from this app with the registry at
  * url, the active one, with its stored credential. An error is only an
  * address Settings' rule refuses; every answer of the registry is a result.
@@ -289,7 +307,7 @@ export function RemoveReportLogo(url: string, id: string): $CancellablePromise<$
  */
 export function ReportBug(url: string, text: string): $CancellablePromise<$models.BugReportResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportBug", url, text).then(($result: any) => {
-        return $$createType16($result)!;
+        return $$createType18($result)!;
     });
 }
 
@@ -308,8 +326,17 @@ export function ReportDesignLibrary(url: string): $CancellablePromise<$models.Re
  */
 export function ReportDesignOptions(): $CancellablePromise<$models.ReportDesignOptions> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesignOptions").then(($result: any) => {
-        return $$createType17($result);
+        return $$createType19($result);
     });
+}
+
+/**
+ * ReportRenderPDF is the last render's PDF, base64, for the app's viewer:
+ * only the bytes that passed the render's checks, and only by the token its
+ * view named.
+ */
+export function ReportRenderPDF(token: string): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportRenderPDF", token);
 }
 
 /**
@@ -394,7 +421,7 @@ export function SetDeliverables(on: boolean): $CancellablePromise<$models.RunDef
  */
 export function SetDisplayName(url: string, name: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetDisplayName", url, name).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType21($result)!;
     });
 }
 
@@ -457,7 +484,7 @@ export function SetRunWhere(where: string): $CancellablePromise<$models.RunDefau
  */
 export function SignIn(url: string, token: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignIn", url, token).then(($result: any) => {
-        return $$createType21($result)!;
+        return $$createType23($result)!;
     });
 }
 
@@ -467,7 +494,7 @@ export function SignIn(url: string, token: string): $CancellablePromise<$models.
  */
 export function SignInViaBrowser(url: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignInViaBrowser", url).then(($result: any) => {
-        return $$createType21($result)!;
+        return $$createType23($result)!;
     });
 }
 
@@ -487,7 +514,7 @@ export function SignOut(url: string): $CancellablePromise<$models.SettingsView> 
  */
 export function SuggestReportColours(url: string, id: string): $CancellablePromise<$models.ReportColourSuggestion> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SuggestReportColours", url, id).then(($result: any) => {
-        return $$createType23($result)!;
+        return $$createType25($result)!;
     });
 }
 
@@ -506,7 +533,7 @@ export function UseDefaultDeliverablesDir(): $CancellablePromise<$models.RunDefa
  */
 export function Whoami(url: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.Whoami", url).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType21($result)!;
     });
 }
 
@@ -526,12 +553,14 @@ const $$createType11 = $models.ProfileView.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
 const $$createType13 = $models.MetaView.createFrom;
 const $$createType14 = $Create.Nullable($$createType13);
-const $$createType15 = $models.BugReportResult.createFrom;
+const $$createType15 = $models.ReportRenderView.createFrom;
 const $$createType16 = $Create.Nullable($$createType15);
-const $$createType17 = $models.ReportDesignOptions.createFrom;
-const $$createType18 = $models.UserView.createFrom;
-const $$createType19 = $Create.Nullable($$createType18);
-const $$createType20 = $models.SignInResult.createFrom;
+const $$createType17 = $models.BugReportResult.createFrom;
+const $$createType18 = $Create.Nullable($$createType17);
+const $$createType19 = $models.ReportDesignOptions.createFrom;
+const $$createType20 = $models.UserView.createFrom;
 const $$createType21 = $Create.Nullable($$createType20);
-const $$createType22 = $models.ReportColourSuggestion.createFrom;
+const $$createType22 = $models.SignInResult.createFrom;
 const $$createType23 = $Create.Nullable($$createType22);
+const $$createType24 = $models.ReportColourSuggestion.createFrom;
+const $$createType25 = $Create.Nullable($$createType24);
