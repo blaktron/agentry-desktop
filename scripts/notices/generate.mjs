@@ -65,19 +65,27 @@ const KEPT_NPM_LICENCES = { "@wailsio/runtime": "wailsio-runtime.LICENSE" };
 // is not named here, or a name here without a file, stops the run: a font
 // added or dropped is a decision about its notice.
 const REPORT_FONT_LICENCES = {
+  "crimsonpro.OFL.txt": "Crimson Pro",
+  "dmsans.OFL.txt": "DM Sans",
   "ebgaramond.OFL.txt": "EB Garamond",
+  "firacode.OFL.txt": "Fira Code",
+  "fraunces.OFL.txt": "Fraunces",
   "ibmplexmono.OFL.txt": "IBM Plex Mono",
   "ibmplexsans.OFL.txt": "IBM Plex Sans",
   "ibmplexserif.OFL.txt": "IBM Plex Serif",
   "inter.OFL.txt": "Inter",
   "jetbrainsmono.OFL.txt": "JetBrains Mono",
+  "librebaskerville.OFL.txt": "Libre Baskerville",
   "lora.OFL.txt": "Lora",
   "merriweather.OFL.txt": "Merriweather",
   "montserrat.OFL.txt": "Montserrat",
+  "nunitosans.OFL.txt": "Nunito Sans",
   "playfairdisplay.OFL.txt": "Playfair Display",
+  "raleway.OFL.txt": "Raleway",
   "sourcecodepro.OFL.txt": "Source Code Pro",
   "sourcesans3.OFL.txt": "Source Sans 3",
   "sourceserif4.OFL.txt": "Source Serif 4",
+  "spacegrotesk.OFL.txt": "Space Grotesk",
   "worksans.OFL.txt": "Work Sans",
 };
 

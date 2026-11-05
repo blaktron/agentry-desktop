@@ -15,7 +15,8 @@
 //   - a font file under frontend (.ttf .otf .woff .woff2) is not recorded,
 //   - a recorded file is missing,
 //   - a recorded source is not under the pinned commit of the recorded
-//     repository, or an entry lacks a field,
+//     repository (an entry may carry its own "commit", which then replaces
+//     the directory's for that file), or an entry lacks a field,
 //   - the directory's stylesheet names a file that is not recorded, or a
 //     recorded file no @font-face uses.
 // With --upstream the sources are downloaded as well and must hash to the
@@ -63,7 +64,7 @@ for (const set of SETS) {
   }
   if (!/^[0-9a-f]{40}$/.test(prov.commit ?? "")) bad(`${label}/PROVENANCE.json: commit is not a 40-character commit id`);
   if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(prov.repository ?? "")) bad(`${label}/PROVENANCE.json: repository is not a GitHub repository URL`);
-  const rawPrefix = `${(prov.repository ?? "").replace("https://github.com/", "https://raw.githubusercontent.com/")}/${prov.commit}/`;
+  const rawBase = (prov.repository ?? "").replace("https://github.com/", "https://raw.githubusercontent.com/");
   for (const f of prov.files ?? []) {
     const where = `${label}/${f.file}`;
     for (const k of ["family", "file", "version", "source", "sha256"]) {
@@ -71,6 +72,8 @@ for (const set of SETS) {
     }
     if (typeof f.file !== "string" || typeof f.sha256 !== "string") continue;
     if (!/^[0-9a-f]{64}$/.test(f.sha256)) bad(`${where}: sha256 is not 64 hex digits`);
+    if (f.commit !== undefined && !/^[0-9a-f]{40}$/.test(f.commit)) bad(`${where}: commit is not a 40-character commit id`);
+    const rawPrefix = `${rawBase}/${f.commit ?? prov.commit}/`;
     if (typeof f.source === "string" && !f.source.startsWith(rawPrefix)) bad(`${where}: source is not under ${rawPrefix}`);
     const abs = path.join(dir, f.file);
     recorded.set(abs, { ...f, set, label });
