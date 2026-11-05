@@ -6,10 +6,11 @@ import { Button, Card, ErrorBox, Modal, Notice, Select, Textarea } from "../ui";
 import {
   canonical, COVER_FACT_LABELS, COVER_STYLE_LABELS, COVER_WHEN_LABELS, cssColour, edit, fieldLabel, fontsFor, HEADER_STYLE_LABELS,
   HEADING_LABELS, HEADING_SCALE_LABELS, insertToken, isImageSrc, isLogoSrc, KIT_LOOKS, labelOf, librarySentence, MARGIN_LABELS,
-  newFromKit, PAGE_NUMBER_LABELS, PAPER_LABELS, QUOTE_LABELS, ratioText, sameDesign, savedSentence, showFact, SLOT_NAMES,
+  fallbackSentence, newFromKit, PAGE_NUMBER_LABELS, renderSentence, PAPER_LABELS, QUOTE_LABELS, ratioText, sameDesign, savedSentence, showFact, SLOT_NAMES,
   startFrom, TITLE_BLOCK_LABELS, toDocument, TOKEN_LABELS, tokenText, type FontRole, type ReportDesign,
 } from "../reportDesign";
 import { ReportDesignPreview } from "./ReportDesignPreview";
+import { PdfViewer } from "../PdfViewer";
 
 // Settings → Report design: the account's library of report designs and the
 // editor for one of them, the same library the site edits. The library is
@@ -31,6 +32,13 @@ import { ReportDesignPreview } from "./ReportDesignPreview";
 // Brand from logo asks the core to read the logo's two colours and offers
 // them; nothing applies them until the person takes them. Design with AI
 // has its place and is not built yet.
+//
+// Render lays the sample report out in the design the editor holds, unsaved
+// changes included, through the runner's own PDF export on this computer,
+// and shows the real pages in the app's PDF viewer. Go keeps the PDF once it
+// passes the checks a run's PDF passes and hands the viewer its bytes by the
+// render's token; the page never chooses them. A design whose own cover was
+// not drawn says so, with the style drawn in its place.
 /** What the page is doing against the registry, one thing at a time. */
 type Busy = "" | "save" | "default" | "delete" | "duplicate" | "create" | "logo" | "unlogo" | "cover" | "uncover" | "uncustom" | "suggest" | "open";
 
@@ -329,6 +337,7 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
   onSaved: (v: app.ReportDesignView) => void;
   act: <T>(kind: Busy, run: () => Promise<T>, then: (v: T) => void) => Promise<void>;
 }) {
+  const [rendering, setRendering] = useState(false);
   const back = (
     <div className="row report-design-back">
       <Button onClick={onClose} disabled={!!busy}>Back to the library</Button>
@@ -563,9 +572,17 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
               <ReportDesignPreview design={d} check={c ?? check?.c ?? null} families={opts.families} coverStyles={opts.coverStyles}
                 logo={view.logo ?? ""} coverImage={view.coverImage ?? ""} customCover={view.customCover?.thumbnail ?? ""} />
             </div>
+            <div className="row report-design-render">
+              <Button variant="primary" disabled={!!busy || !c || !!c.problem} onClick={() => setRendering(true)}>Render the sample…</Button>
+            </div>
+            <p className="muted small">
+              Render lays a sample report out in this design on this computer, with the renderer, the confinement and the limits a run's PDF
+              gets, and shows the real pages. Unsaved changes are included; nothing is saved.
+            </p>
           </Card>
         </section>
       </div>
+      {rendering && <RenderModal registry={registry} id={id} design={d} onClose={() => setRendering(false)} />}
 
       <section id="settings-part-design-images" className="settings-part">
         <h2>Images</h2>
@@ -640,6 +657,52 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
     </>
   );
 }
+
+// RenderModal is one render of the sample in the design: it starts when the
+// modal opens and stops when the modal closes; the PDF is drawn by the app's
+// viewer from the bytes Go kept.
+function RenderModal({ registry, id, design, onClose }: { registry: string; id: string; design: ReportDesign; onClose: () => void }) {
+  const [rendered, setRendered] = useState<app.ReportRenderView | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [doc] = useState(() => toDocument(design));
+  useEffect(() => {
+    let live = true;
+    SettingsAPI.RenderReportDesign(registry, id, reportdesign.Design.createFrom(doc))
+      .then((v) => { if (live) setRendered(v); })
+      .catch((e) => { if (live) setErr(String(e)); });
+    return () => {
+      live = false;
+      void SettingsAPI.CancelReportRender();
+    };
+  }, [registry, id, doc]);
+  return (
+    <Modal title={`Render: ${design.name}`} wide onClose={onClose}>
+      {!rendered && !err && (
+        <p className="muted" data-rendering>
+          Laying the sample report out in {design.name} on this computer… The first render can take a few minutes while the runner's image is
+          prepared.
+        </p>
+      )}
+      <ErrorBox error={err ? `The sample could not be rendered: ${err}` : null} />
+      {rendered && (
+        <>
+          <p className="muted small" data-rendered>{renderSentence(rendered)}</p>
+          {rendered.fallback && <Notice tone="warn">{fallbackSentence(rendered)}</Notice>}
+          <div className="report-render-viewer">
+            <PdfViewer runId="report-render" path={rendered.token} name={`${design.name}, the sample report`} load={renderedPDF} />
+          </div>
+        </>
+      )}
+      <div className="row">
+        <Button onClick={onClose}>Close</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// renderedPDF is the viewer's source for a render: the bytes Go kept, by
+// the render's token.
+const renderedPDF = (_runId: string, token: string) => SettingsAPI.ReportRenderPDF(token);
 
 // ColourLine is the contrast guard for one colour: its ratio on white and
 // what it needs, or the core's refusal with the nearest shade that passes.

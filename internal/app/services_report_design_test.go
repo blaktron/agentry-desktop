@@ -897,6 +897,7 @@ func TestReportDesignBindingsHoldTheAddressToSettingsRule(t *testing.T) {
 		"RemoveReportLogo":        func() error { _, err := s.RemoveReportLogo(bad, id); return err },
 		"RemoveReportCoverImage":  func() error { _, err := s.RemoveReportCoverImage(bad, id); return err },
 		"RemoveReportCustomCover": func() error { _, err := s.RemoveReportCustomCover(bad, id); return err },
+		"RenderReportDesign":      func() error { _, err := s.RenderReportDesign(bad, id, builtin(t, "plain")); return err },
 	}
 	for name, call := range calls {
 		if err := call(); err == nil || !strings.Contains(err.Error(), "https") {

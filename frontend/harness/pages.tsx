@@ -11,6 +11,8 @@ import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 import { kindSize, startLayout, type HomeStart } from "../src/homeCards";
+import renderPlainPdf from "./fixtures/render-plain.pdf?url";
+import renderHouseCustomPdf from "./fixtures/render-house-custom.pdf?url";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
@@ -743,6 +745,10 @@ const hostedOffer = () => (window.location.hash === "#scheduled-hosted-signedout
 // for the core's: #report-pale refuses the accent with the nearest shade,
 // anything else passes. #report-empty is a library with no design;
 // otherwise three designs, one the default, one with every image.
+// #report-custom-cover sets House's cover style to its custom cover. Render
+// answers what the runner drew for the design: the real PDFs of Plain and
+// of House with its custom cover, each rendered by the pinned runner image,
+// which drew House's cover in the band style.
 const rd = reportDesigns as { ids: string[]; kits: Record<string, string>; families: { name: string; kind: string; headingsOnly?: boolean }[];
   headingFonts: string[]; bodyFonts: string[]; codeFonts: string[]; papers: string[]; titleBlocks: string[]; headingStyles: string[];
   headingScales: string[]; margins: string[]; quoteStyles: string[]; pageNumbers: string[]; headerStyles: string[];
@@ -756,7 +762,9 @@ type RdDesign = Record<string, unknown> & { name: string; basedOn: string; versi
 const rdKit = (id: string) => JSON.parse(rd.kits[id]) as RdDesign;
 // A 1 by 1 PNG stands in for the images.
 const rdPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGf4DwADgQGAiPkb6AAAAABJRU5ErkJggg==";
-const rdHouse: RdDesign = { ...rdKit("boardroom"), name: "House", accent: "#1b2a4a", brand: { name: "Acme Ltd", strapline: "Reviews that hold", contact: ["1 Main Street", "review@acme.example"], website: "acme.example", confidentiality: "Internal" },
+const rdHouseKit = rdKit("boardroom");
+const rdHouse: RdDesign = { ...rdHouseKit, name: "House", accent: "#1b2a4a",
+  ...(window.location.hash === "#report-custom-cover" ? { cover: { ...rdHouseKit.cover, style: "custom" } } : {}), brand: { name: "Acme Ltd", strapline: "Reviews that hold", contact: ["1 Main Street", "review@acme.example"], website: "acme.example", confidentiality: "Internal" },
   footer: { pageNumbers: "nOfN", slots: ["{brand}", "{confidentiality}", "{date}"] } };
 let rdLibrary: { id: string; d: RdDesign; def: boolean; logo: string; cover: string; custom: boolean }[] = window.location.hash === "#report-empty" ? [] : [
   { id: "0f1e2d3c-4b5a-4968-8776-655443322110", d: rdHouse, def: true, logo: rdPng, cover: rdPng, custom: true },
@@ -819,6 +827,20 @@ const rdBindings = {
   RemoveReportLogo: async (_reg: string, id: string) => { const x = rdFind(id); x.logo = ""; return rdView(x); },
   RemoveReportCoverImage: async (_reg: string, id: string) => { const x = rdFind(id); x.cover = ""; return rdView(x); },
   RemoveReportCustomCover: async (_reg: string, id: string) => { const x = rdFind(id); x.custom = false; return rdView(x); },
+  // The fixtures were drawn without a logo, so the render says none.
+  RenderReportDesign: async (_reg: string, _id: string, d: RdDesign) => {
+    const custom = d.cover.style === "custom";
+    await new Promise((r) => setTimeout(r, 300));
+    return { token: custom ? "house-custom" : "plain", name: d.name, pages: 5, bytes: custom ? 78136 : 60301, sha256: "",
+      cover: custom ? "band" : d.cover.when === "never" ? "" : d.cover.style, coverStyle: d.cover.style, fallback: custom, logo: false };
+  },
+  ReportRenderPDF: async (token: string) => {
+    const bytes = new Uint8Array(await (await fetch(token === "house-custom" ? renderHouseCustomPdf : renderPlainPdf)).arrayBuffer());
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  },
+  CancelReportRender: async () => {},
 };
 
 // A kept server icon: a 1 by 1 PNG, as the Configuration is given one.
