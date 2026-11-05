@@ -8211,8 +8211,8 @@ export class ReportDesignKit {
 
 /**
  * ReportDesignLibrary is the account's library as the page lists it.
- * Available is false on a registry from before the library, where the page
- * says so.
+ * Available is false on a registry that has no report design library, where
+ * the page says so.
  */
 export class ReportDesignLibrary {
     "available": boolean;
