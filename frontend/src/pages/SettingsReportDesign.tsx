@@ -576,8 +576,8 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
               <Button variant="primary" disabled={!!busy || !c || !!c.problem} onClick={() => setRendering(true)}>Render the sample…</Button>
             </div>
             <p className="muted small">
-              Render lays a sample report out in this design on this computer, with the renderer, the confinement and the limits a run's PDF
-              gets, and shows the real pages. Unsaved changes are included; nothing is saved.
+              Render lays a sample report out in this design on this computer, through the same export a run's PDF goes through, and shows
+              the real pages. Unsaved changes are included; nothing is saved.
             </p>
           </Card>
         </section>
