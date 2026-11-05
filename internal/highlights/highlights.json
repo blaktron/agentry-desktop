@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.13",
+      "highlights": [
+        "Render in Settings → Report design lays a sample report out in your design on this computer and shows the real pages.",
+        "It goes through the same export a run's PDF goes through, works offline, and includes changes you have not saved.",
+        "A design whose own cover cannot be drawn says so, and shows the built-in cover a run's PDF would use in its place."
+      ]
+    },
+    {
       "version": "0.7.12",
       "highlights": [
         "Settings → Report design is a library of up to ten designs, each a brand with a header, a footer and a cover page.",

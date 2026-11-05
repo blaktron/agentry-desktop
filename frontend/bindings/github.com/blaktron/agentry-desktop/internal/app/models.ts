@@ -8529,6 +8529,75 @@ export class ReportDesignView {
 }
 
 /**
+ * ReportRenderView is a render as the page shows it.
+ */
+export class ReportRenderView {
+    /**
+     * Token names the render's PDF for ReportRenderPDF.
+     */
+    "token": string;
+    "name": string;
+    "pages": number;
+    "bytes": number;
+    "sha256": string;
+
+    /**
+     * Cover is the cover style drawn before the report, "" for none, and
+     * CoverStyle the one the design asks for.
+     */
+    "cover": string;
+    "coverStyle": string;
+
+    /**
+     * Fallback says the design's own cover was asked for and the built-in
+     * Cover was drawn in its place.
+     */
+    "fallback": boolean;
+    "logo": boolean;
+
+    /** Creates a new ReportRenderView instance. */
+    constructor($$source: Partial<ReportRenderView> = {}) {
+        if (!("token" in $$source)) {
+            this["token"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("pages" in $$source)) {
+            this["pages"] = 0;
+        }
+        if (!("bytes" in $$source)) {
+            this["bytes"] = 0;
+        }
+        if (!("sha256" in $$source)) {
+            this["sha256"] = "";
+        }
+        if (!("cover" in $$source)) {
+            this["cover"] = "";
+        }
+        if (!("coverStyle" in $$source)) {
+            this["coverStyle"] = "";
+        }
+        if (!("fallback" in $$source)) {
+            this["fallback"] = false;
+        }
+        if (!("logo" in $$source)) {
+            this["logo"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ReportRenderView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ReportRenderView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ReportRenderView($$parsedSource as Partial<ReportRenderView>);
+    }
+}
+
+/**
  * ReportView is the security report card: findings by severity, ruleset
  * version, scan date — never a "safe" claim.
  */

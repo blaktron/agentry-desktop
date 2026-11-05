@@ -189,6 +189,7 @@ export {
     ReportDesignOptions,
     ReportDesignProblem,
     ReportDesignView,
+    ReportRenderView,
     ReportView,
     ReviewAIReviewView,
     ReviewFileView,
