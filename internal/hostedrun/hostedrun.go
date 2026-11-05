@@ -377,6 +377,9 @@ type CreateRequest struct {
 	// Mode is ModeInteractive for a hosted session of Ref's release; empty is
 	// a run.
 	Mode string `json:"mode,omitempty"`
+	// ReportDesign is the id of the design of the runner's library a run's
+	// PDFs take; empty leaves the registry to the runner's default.
+	ReportDesign string `json:"reportDesign,omitempty"`
 	// Voice asks a run or a session to write in the runner's live Writing
 	// Voice; Op, Brief and Note are a Voice Writer run's (KindVoiceBuild:
 	// create, improve or edit).

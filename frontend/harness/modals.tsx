@@ -53,6 +53,8 @@
 //                           declared MCP server and the unsaved key
 //   #runpanel-step-details  Details: the intake question, then the task
 //   #runpanel-step-review   Review and start: the recap, output, consents
+//   #runpanel-design        Review and start with two report designs on the
+//                           account: the picker, the default preselected
 //   #runpanel-voice         Review and start with this computer's voice on:
 //                           Write in my voice, ticked
 //   #runpanel-chat-review   Review and start for a chat on this computer:
@@ -550,6 +552,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-host-review": "review",
   "runpanel-step-review": "review",
   "runpanel-voice": "review",
+  "runpanel-design": "review",
   "runpanel-step-review-long": "review",
   "runpanel-schedule": "review",
   "runpanel-schedule-gaps": "review",
@@ -590,7 +593,17 @@ const STEP_OF: Record<string, StepKey> = {
 
 const g = window as any;
 g.go = { app: {
-  SettingsAPI: { RunDefaults: async () => runDefaults },
+  SettingsAPI: {
+    RunDefaults: async () => runDefaults,
+    // The account's report designs, for the picker on Review and start:
+    // two on #runpanel-design, House the default; none elsewhere.
+    ReportDesignLibrary: async () => ({ available: true, max: 10,
+      default: window.location.hash === "#runpanel-design" ? "0f1e2d3c-4b5a-4968-8776-655443322110" : "",
+      designs: window.location.hash === "#runpanel-design" ? [
+        { id: "0f1e2d3c-4b5a-4968-8776-655443322110", name: "House", basedOn: "boardroom", version: 3, default: true, hasLogo: true, hasCoverImage: false, hasCustomCover: false, updatedAt: "2026-11-04T12:00:00Z" },
+        { id: "1f1e2d3c-4b5a-4968-8776-655443322111", name: "Field notes", basedOn: "field", version: 1, default: false, hasLogo: false, hasCoverImage: true, hasCustomCover: false, updatedAt: "2026-11-04T12:00:00Z" },
+      ] : [] }),
+  },
   // No saved destinations: the run panel reads them when it opens.
   DestinationsAPI: { List: async () => ({ destinations: [], keychainOff: false }), DefaultFor: async () => [] },
   // Schedules on this computer: this computer can
@@ -894,12 +907,12 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
           mode: "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: { server: view === "runpanel-host-key" ? "deploy@203.0.113.10:2222" : "admin@web-01.example.net" },
           attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
-          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false, reportDesign: "",
         } : siteAnswer ? {
           mode: "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: { site: siteAnswer },
           attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
-          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false, reportDesign: "",
         } : sourceAnswered ? {
           mode: view === "runpanel-source-hosted" ? "hosted" : "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: {
@@ -907,7 +920,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
             ...(view === "runpanel-source-review" ? { advisory: "https://advisories.example.com/GHSA-2026-0042.pdf?sig=8f2c" } : {}),
           },
           attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
-          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false, reportDesign: "",
         } : undefined}
       />
     </>,

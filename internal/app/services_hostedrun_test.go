@@ -819,7 +819,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	outDir := t.TempDir()
 	r.app.markPicked(inputDir, outDir) // what the native pickers record
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil, false, false, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil, false, false, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -918,7 +918,7 @@ func TestAPushedRunWithNoReceiptListsNone(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -941,7 +941,7 @@ func TestHostedRunWithALostOutputListsNothing(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -970,7 +970,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 
 	out1 := t.TempDir()
 	r.app.markPicked(out1)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil, nil, false, false, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil, nil, false, false, nil, "")
 	if err != nil {
 		t.Fatalf("a refusal is a result, not an error: %v", err)
 	}
@@ -994,7 +994,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	f.mu.Unlock()
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false, false, nil)
+	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false, false, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1039,7 +1039,7 @@ func TestAttachAndCancel(t *testing.T) {
 		t.Fatalf("attach = %+v", att)
 	}
 	// A second start is refused while one is being followed.
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil); err == nil ||
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil, ""); err == nil ||
 		!strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("a second start: %v", err)
 	}
@@ -1145,7 +1145,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	}
 
 	for name, want := range map[string]string{"elsewhere": "not kept in Agentry", "rescanned": "not ready in Agentry"} {
-		_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{name}, false, false, nil)
+		_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{name}, false, false, nil, "")
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("attaching %s: %v, want %q", name, err, want)
 		}
@@ -1157,7 +1157,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 		t.Fatalf("a refused pack still created a run: %+v", created)
 	}
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{"runbook", "runbook"}, false, false, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{"runbook", "runbook"}, false, false, nil, "")
 	if err != nil || start.Refusal != "" {
 		t.Fatalf("start: %+v %v", start, err)
 	}
@@ -1184,7 +1184,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	events.mu.Lock()
 	events.runs = nil
 	events.mu.Unlock()
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -1246,18 +1246,18 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 	const saved = "ghp-saved-on-this-computer-3c9e"
 
 	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false,
-		map[string]string{"codebase": typed}); err != nil {
+		map[string]string{"codebase": typed}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := run.SaveSourceKey("repository", "https://github.com/acme/app", saved); err != nil {
 		t.Fatal(err)
 	}
 	r, out = fresh()
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	r, out = fresh()
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://gitlab.com/acme/public"}, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://gitlab.com/acme/public"}, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -1287,7 +1287,7 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 	// A token for a question that is no answered source is refused before
 	// anything is sent.
 	r, out = fresh()
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": " "}, nil, false, false, map[string]string{"codebase": typed}); err == nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": " "}, nil, false, false, map[string]string{"codebase": typed}, ""); err == nil {
 		t.Fatal("a token for an unanswered source was sent")
 	}
 
@@ -1297,7 +1297,7 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 		hostedJSON(w, http.StatusUnprocessableEntity, map[string]any{"type": "https://agentry.dev/problems/validation", "title": "Validation failed", "detail": "bad token " + typed})
 	}
 	f.mu.Unlock()
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false, map[string]string{"codebase": typed})
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false, map[string]string{"codebase": typed}, "")
 	if err != nil || start == nil {
 		t.Fatalf("the refusal: %+v %v", start, err)
 	}
@@ -1334,7 +1334,7 @@ func TestABrowserReleaseIsOfferedAndStartedInAgentry(t *testing.T) {
 		r, _ := newRunAPI(t)
 		out := t.TempDir()
 		r.app.markPicked(out)
-		if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "test it", nil, out, map[string]string{"site": site}, nil, false, false, nil); err != nil {
+		if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "test it", nil, out, map[string]string{"site": site}, nil, false, false, nil, ""); err != nil {
 			t.Fatalf("start with %s: %v", site, err)
 		}
 	}
@@ -1381,7 +1381,7 @@ func TestATargetHostReleaseIsNeitherOfferedNorStartedInAgentry(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(filepath.Dir(input), out)
-	_, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{input}, out, map[string]string{"server": "admin@203.0.113.4"}, nil, false, false, nil)
+	_, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{input}, out, map[string]string{"server": "admin@203.0.113.4"}, nil, false, false, nil, "")
 	if err == nil || !strings.Contains(err.Error(), "only a run on this computer") {
 		t.Fatalf("start: %v", err)
 	}
@@ -1432,10 +1432,10 @@ func TestAHostedRunSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	if v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0"); err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("the availability over plain http: %+v %v", v, err)
 	}
-	if v, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "https") {
+	if v, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil, ""); err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("a run started over plain http: %+v %v", v, err)
 	}
-	if v, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "https") {
+	if v, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil, ""); err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("a session started over plain http: %+v %v", v, err)
 	}
 	if v, err := r.AttachHostedRun(reg, dir); err != nil || v.Run != nil {
@@ -1469,12 +1469,12 @@ func TestARunInAgentrySendsNoSecretAnswer(t *testing.T) {
 	// Each start is its own app's: a start waits for none in progress.
 	r, _ := newRunAPI(t)
 	r.app.markPicked(out)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	r, _ = newRunAPI(t)
 	r.app.markPicked(out)
-	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil); err != nil {
+	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -1502,7 +1502,7 @@ func TestARunInAgentrySendsNoSecretAnswer(t *testing.T) {
 	// questions are not known.
 	r, _ = newRunAPI(t)
 	r.app.markPicked(out)
-	if _, err := r.StartHostedRun(reg, "acme/missing@1.0.0", "go", nil, out, answers, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "answers were not sent") || strings.Contains(err.Error(), secret) {
+	if _, err := r.StartHostedRun(reg, "acme/missing@1.0.0", "go", nil, out, answers, nil, false, false, nil, ""); err == nil || !strings.Contains(err.Error(), "answers were not sent") || strings.Contains(err.Error(), secret) {
 		t.Fatalf("an unreadable release: %v", err)
 	}
 	f.mu.Lock()
@@ -1520,7 +1520,7 @@ func TestARunInAgentrySendsNoSecretAnswer(t *testing.T) {
 	f.mu.Unlock()
 	r, _ = newRunAPI(t)
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"topic": "llamas"}, nil, false, false, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"topic": "llamas"}, nil, false, false, nil, "")
 	if err != nil || start == nil || start.Refusal != "validation" || start.Question != "api_token" {
 		t.Fatalf("the refusal: %+v %v", start, err)
 	}

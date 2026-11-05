@@ -80,7 +80,7 @@ func TestLiveBucket(t *testing.T) {
 
 	r := &RunAPI{app: app}
 	run := func() *RunResultView {
-		res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, []string{"minio"})
+		res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, []string{"minio"}, "")
 		if err != nil {
 			t.Fatalf("RunAgent: %v", err)
 		}

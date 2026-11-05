@@ -85,13 +85,24 @@ export function ChooseDeliverablesDir(): $CancellablePromise<$models.RunDefaults
 }
 
 /**
- * ChooseReportLogo asks for a PNG or JPEG with the system's file picker and
- * uploads it as the logo of the account's design. A cancelled pick changes
- * nothing and answers no view. The path never comes from the page: the
- * picker is opened here.
+ * ChooseReportCoverImage asks for a PNG or JPEG with the system's file
+ * picker and uploads it as the design's cover image, as ChooseReportLogo
+ * does for the logo.
  */
-export function ChooseReportLogo(url: string): $CancellablePromise<$models.ReportDesignView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ChooseReportLogo", url).then(($result: any) => {
+export function ChooseReportCoverImage(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ChooseReportCoverImage", url, id).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
+ * ChooseReportLogo asks for a PNG or JPEG with the system's file picker and
+ * uploads it as the logo of the design. A cancelled pick changes nothing
+ * and answers no view. The path never comes from the page: the picker is
+ * opened here.
+ */
+export function ChooseReportLogo(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ChooseReportLogo", url, id).then(($result: any) => {
         return $$createType8($result)!;
     });
 }
@@ -125,6 +136,36 @@ export function CodingAgents(): $CancellablePromise<$models.CodingAgentsView> {
 }
 
 /**
+ * CreateReportDesign holds a design to the core's rules and adds it to the
+ * library, as the default when asked.
+ */
+export function CreateReportDesign(url: string, d: reportdesign$0.Design, makeDefault: boolean): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.CreateReportDesign", url, d, makeDefault).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
+ * DeleteReportDesign removes a design, its images included, and lists the
+ * library as it is then.
+ */
+export function DeleteReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignLibrary> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.DeleteReportDesign", url, id).then(($result: any) => {
+        return $$createType10($result)!;
+    });
+}
+
+/**
+ * DuplicateReportDesign adds a copy of a design, its images included,
+ * named after it, and opens the copy.
+ */
+export function DuplicateReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.DuplicateReportDesign", url, id).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
  * Get returns the current settings.
  */
 export function Get(): $CancellablePromise<$models.SettingsView> {
@@ -141,6 +182,16 @@ export function Get(): $CancellablePromise<$models.SettingsView> {
 export function MarkOnboarded(): $CancellablePromise<$models.SettingsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.MarkOnboarded").then(($result: any) => {
         return $$createType1($result)!;
+    });
+}
+
+/**
+ * OpenReportDesign reads one design of the library with its images, as the
+ * editor holds it.
+ */
+export function OpenReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.OpenReportDesign", url, id).then(($result: any) => {
+        return $$createType8($result)!;
     });
 }
 
@@ -177,7 +228,7 @@ export function OpenUpgrade(url: string): $CancellablePromise<void> {
  */
 export function Profile(url: string): $CancellablePromise<$models.ProfileView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.Profile", url).then(($result: any) => {
-        return $$createType10($result)!;
+        return $$createType12($result)!;
     });
 }
 
@@ -186,7 +237,7 @@ export function Profile(url: string): $CancellablePromise<$models.ProfileView> {
  */
 export function RegistryMeta(url: string): $CancellablePromise<$models.MetaView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RegistryMeta", url).then(($result: any) => {
-        return $$createType12($result)!;
+        return $$createType14($result)!;
     });
 }
 
@@ -200,11 +251,30 @@ export function RemoveRegistry(url: string): $CancellablePromise<$models.Setting
 }
 
 /**
- * RemoveReportLogo takes the logo off the account's design and keeps the
+ * RemoveReportCoverImage takes the cover image off a design and keeps the
  * design.
  */
-export function RemoveReportLogo(url: string): $CancellablePromise<$models.ReportDesignView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RemoveReportLogo", url).then(($result: any) => {
+export function RemoveReportCoverImage(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RemoveReportCoverImage", url, id).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
+ * RemoveReportCustomCover takes the person's own cover off a design: its
+ * code, its images and its thumbnail. The design's cover style then draws.
+ */
+export function RemoveReportCustomCover(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RemoveReportCustomCover", url, id).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
+ * RemoveReportLogo takes the logo off a design and keeps the design.
+ */
+export function RemoveReportLogo(url: string, id: string): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RemoveReportLogo", url, id).then(($result: any) => {
         return $$createType8($result)!;
     });
 }
@@ -219,16 +289,16 @@ export function RemoveReportLogo(url: string): $CancellablePromise<$models.Repor
  */
 export function ReportBug(url: string, text: string): $CancellablePromise<$models.BugReportResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportBug", url, text).then(($result: any) => {
-        return $$createType14($result)!;
+        return $$createType16($result)!;
     });
 }
 
 /**
- * ReportDesign reads the account's report design at the registry.
+ * ReportDesignLibrary lists the account's report designs at the registry.
  */
-export function ReportDesign(url: string): $CancellablePromise<$models.ReportDesignView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesign", url).then(($result: any) => {
-        return $$createType8($result)!;
+export function ReportDesignLibrary(url: string): $CancellablePromise<$models.ReportDesignLibrary> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesignLibrary", url).then(($result: any) => {
+        return $$createType10($result)!;
     });
 }
 
@@ -238,17 +308,7 @@ export function ReportDesign(url: string): $CancellablePromise<$models.ReportDes
  */
 export function ReportDesignOptions(): $CancellablePromise<$models.ReportDesignOptions> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesignOptions").then(($result: any) => {
-        return $$createType15($result);
-    });
-}
-
-/**
- * ResetReportDesign clears the account's report design: never chosen
- * again, which runs from this app draw as Plain.
- */
-export function ResetReportDesign(url: string): $CancellablePromise<$models.ReportDesignView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ResetReportDesign", url).then(($result: any) => {
-        return $$createType8($result)!;
+        return $$createType17($result);
     });
 }
 
@@ -263,11 +323,11 @@ export function RunDefaults(): $CancellablePromise<$models.RunDefaultsView> {
 }
 
 /**
- * SaveReportDesign holds a design to the core's rules and saves it as the
- * account's, whole.
+ * SaveReportDesign holds a design to the core's rules and saves it over
+ * the design id of the library, whole; the stored images stay.
  */
-export function SaveReportDesign(url: string, d: reportdesign$0.Design): $CancellablePromise<$models.ReportDesignView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SaveReportDesign", url, d).then(($result: any) => {
+export function SaveReportDesign(url: string, id: string, d: reportdesign$0.Design): $CancellablePromise<$models.ReportDesignView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SaveReportDesign", url, id, d).then(($result: any) => {
         return $$createType8($result)!;
     });
 }
@@ -308,6 +368,16 @@ export function SetDefault(url: string): $CancellablePromise<$models.SettingsVie
 }
 
 /**
+ * SetDefaultReportDesign makes a design the default a run takes when the
+ * person picks none, or with "" makes none the default.
+ */
+export function SetDefaultReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignLibrary> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetDefaultReportDesign", url, id).then(($result: any) => {
+        return $$createType10($result)!;
+    });
+}
+
+/**
  * SetDeliverables turns the Deliverables switch on or off. Off, no run copies
  * its files out and the Home card says so; a run's own folder is unchanged
  * either way. It applies from the next run.
@@ -324,7 +394,7 @@ export function SetDeliverables(on: boolean): $CancellablePromise<$models.RunDef
  */
 export function SetDisplayName(url: string, name: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetDisplayName", url, name).then(($result: any) => {
-        return $$createType17($result)!;
+        return $$createType19($result)!;
     });
 }
 
@@ -387,7 +457,7 @@ export function SetRunWhere(where: string): $CancellablePromise<$models.RunDefau
  */
 export function SignIn(url: string, token: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignIn", url, token).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType21($result)!;
     });
 }
 
@@ -397,7 +467,7 @@ export function SignIn(url: string, token: string): $CancellablePromise<$models.
  */
 export function SignInViaBrowser(url: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignInViaBrowser", url).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType21($result)!;
     });
 }
 
@@ -407,6 +477,17 @@ export function SignInViaBrowser(url: string): $CancellablePromise<$models.SignI
 export function SignOut(url: string): $CancellablePromise<$models.SettingsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignOut", url).then(($result: any) => {
         return $$createType1($result)!;
+    });
+}
+
+/**
+ * SuggestReportColours reads a design's logo for the two colours Brand
+ * from logo offers. A design without a logo, or a logo with no colour to
+ * read, is an error in the core's words.
+ */
+export function SuggestReportColours(url: string, id: string): $CancellablePromise<$models.ReportColourSuggestion> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SuggestReportColours", url, id).then(($result: any) => {
+        return $$createType23($result)!;
     });
 }
 
@@ -425,7 +506,7 @@ export function UseDefaultDeliverablesDir(): $CancellablePromise<$models.RunDefa
  */
 export function Whoami(url: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.Whoami", url).then(($result: any) => {
-        return $$createType17($result)!;
+        return $$createType19($result)!;
     });
 }
 
@@ -439,14 +520,18 @@ const $$createType5 = $models.RunDefaultsView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
 const $$createType7 = $models.ReportDesignView.createFrom;
 const $$createType8 = $Create.Nullable($$createType7);
-const $$createType9 = $models.ProfileView.createFrom;
+const $$createType9 = $models.ReportDesignLibrary.createFrom;
 const $$createType10 = $Create.Nullable($$createType9);
-const $$createType11 = $models.MetaView.createFrom;
+const $$createType11 = $models.ProfileView.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = $models.BugReportResult.createFrom;
+const $$createType13 = $models.MetaView.createFrom;
 const $$createType14 = $Create.Nullable($$createType13);
-const $$createType15 = $models.ReportDesignOptions.createFrom;
-const $$createType16 = $models.UserView.createFrom;
-const $$createType17 = $Create.Nullable($$createType16);
-const $$createType18 = $models.SignInResult.createFrom;
+const $$createType15 = $models.BugReportResult.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
+const $$createType17 = $models.ReportDesignOptions.createFrom;
+const $$createType18 = $models.UserView.createFrom;
 const $$createType19 = $Create.Nullable($$createType18);
+const $$createType20 = $models.SignInResult.createFrom;
+const $$createType21 = $Create.Nullable($$createType20);
+const $$createType22 = $models.ReportColourSuggestion.createFrom;
+const $$createType23 = $Create.Nullable($$createType22);
