@@ -93,7 +93,7 @@ func TestLiveHostedRunAndScheduleWithASource(t *testing.T) {
 	r, _ := newRunAPI(t)
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, ref, "Read the repository and summarise what it is for in three sentences.", nil, out, intake, nil, false, false, map[string]string{"repo": key})
+	start, err := r.StartHostedRun(reg, ref, "Read the repository and summarise what it is for in three sentences.", nil, out, intake, nil, false, false, map[string]string{"repo": key}, "")
 	if err != nil || start.Run == nil {
 		t.Fatalf("the typed-token start: %+v, %v", start, err)
 	}
@@ -106,7 +106,7 @@ func TestLiveHostedRunAndScheduleWithASource(t *testing.T) {
 	r, _ = newRunAPI(t)
 	out = t.TempDir()
 	r.app.markPicked(out)
-	start, err = r.StartHostedRun(reg, ref, "Read the repository and summarise what it is for in three sentences.", nil, out, intake, nil, false, false, nil)
+	start, err = r.StartHostedRun(reg, ref, "Read the repository and summarise what it is for in three sentences.", nil, out, intake, nil, false, false, nil, "")
 	if err != nil || start.Run == nil {
 		t.Fatalf("the saved-key start: %+v, %v", start, err)
 	}

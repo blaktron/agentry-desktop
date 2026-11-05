@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.12",
+      "highlights": [
+        "Settings → Report design is a library of up to ten designs, each a brand with a header, a footer and a cover page.",
+        "Start a design from one of ten kits, then set its brand, two colours, fonts, header and footer slots and cover style.",
+        "Brand from logo offers your logo's two colours as the accent and the secondary; a cover image fills a plate cover.",
+        "Pick the design a run's PDFs take in the run's setup, here or In Agentry; your default is preselected."
+      ]
+    },
+    {
       "version": "0.7.11",
       "highlights": [
         "You never stop a persistent agent to change it: its mail, calendar and other settings reach it at its next turn.",

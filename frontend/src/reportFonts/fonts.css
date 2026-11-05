@@ -1,4 +1,4 @@
-/* The report designs' fourteen families as web fonts, for the Report design
+/* The report designs' twenty-two families as web fonts, for the Report design
    page's preview. The files are the unmodified TrueType files the Google
    Fonts repository publishes, the same ones the report engine renders with;
    each one's source and SHA-256 are in PROVENANCE.json, and
@@ -227,5 +227,103 @@
   src: url("./sourcecodepro-italic-variable.ttf") format("truetype");
   font-weight: 200 900;
   font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report DM Sans";
+  src: url("./dmsans-variable.ttf") format("truetype");
+  font-weight: 100 1000;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report DM Sans";
+  src: url("./dmsans-italic-variable.ttf") format("truetype");
+  font-weight: 100 1000;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Nunito Sans";
+  src: url("./nunitosans-variable.ttf") format("truetype");
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Nunito Sans";
+  src: url("./nunitosans-italic-variable.ttf") format("truetype");
+  font-weight: 200 1000;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Raleway";
+  src: url("./raleway-variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Raleway";
+  src: url("./raleway-italic-variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Space Grotesk";
+  src: url("./spacegrotesk-variable.ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Libre Baskerville";
+  src: url("./librebaskerville-variable.ttf") format("truetype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Libre Baskerville";
+  src: url("./librebaskerville-italic-variable.ttf") format("truetype");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Crimson Pro";
+  src: url("./crimsonpro-variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Crimson Pro";
+  src: url("./crimsonpro-italic-variable.ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Fraunces";
+  src: url("./fraunces-variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Fraunces";
+  src: url("./fraunces-italic-variable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Report Fira Code";
+  src: url("./firacode-variable.ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
   font-display: swap;
 }

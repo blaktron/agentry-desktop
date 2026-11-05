@@ -84,7 +84,7 @@ func TestLiveDestinations(t *testing.T) {
 	status("500")
 	before := len(lines())
 	r := &RunAPI{app: app}
-	res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, []string{"lan"})
+	res, err := r.RunAgent(reg, ref, "Write this week's digest.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, []string{"lan"}, "")
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)
 	}

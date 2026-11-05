@@ -1223,7 +1223,7 @@ func (o appMainOps) run(reg, ref, task string, inputs []string, intake map[strin
 	if home, err := o.runner.runnerHome(); err == nil {
 		h.outDirIn = filepath.Join(home, "persistent")
 	}
-	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, intake, false, false, nil, false, nil, nil, nil)
+	return o.runner.runAgent(h, reg, ref, task, inputs, outDir, nil, 0, -1, false, intake, false, false, nil, false, nil, nil, nil, "")
 }
 
 func (o appMainOps) recorded(runID string) (*RecordedRunView, error) {

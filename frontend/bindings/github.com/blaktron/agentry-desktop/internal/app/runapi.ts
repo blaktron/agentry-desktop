@@ -901,8 +901,8 @@ export function RetryDelivery(runID: string, destination: string): $CancellableP
  * id: each reaches that source's fetch step alone, and a source given none
  * uses the key saved for its host (services_sources.go).
  */
-export function RunAgent(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, timeoutSec: number, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[]): $CancellablePromise<$models.RunResultView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunAgent", reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations).then(($result: any) => {
+export function RunAgent(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, timeoutSec: number, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[], reportDesign: string): $CancellablePromise<$models.RunResultView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunAgent", reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign).then(($result: any) => {
         return $$createType26($result)!;
     });
 }
@@ -1212,8 +1212,8 @@ export function StarQuickAgent(reg: string, name: string): $CancellablePromise<v
  * sourceTokens, which the registry holds for this run alone
  * (HostedSourceTokens).
  */
-export function StartHostedRun(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, intakeAnswers: { [_ in string]?: string }, packs: string[], writeInVoice: boolean, askOptional: boolean, sourceTokens: { [_ in string]?: string }): $CancellablePromise<$models.HostedStartView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartHostedRun", reg, ref, task, inputPaths, outDir, intakeAnswers, packs, writeInVoice, askOptional, sourceTokens).then(($result: any) => {
+export function StartHostedRun(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, intakeAnswers: { [_ in string]?: string }, packs: string[], writeInVoice: boolean, askOptional: boolean, sourceTokens: { [_ in string]?: string }, reportDesign: string): $CancellablePromise<$models.HostedStartView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartHostedRun", reg, ref, task, inputPaths, outDir, intakeAnswers, packs, writeInVoice, askOptional, sourceTokens, reportDesign).then(($result: any) => {
         return $$createType7($result)!;
     });
 }
@@ -1226,8 +1226,8 @@ export function StartHostedRun(reg: string, ref: string, task: string, inputPath
  * when it ends its sealed output comes down into the folder picked, with
  * transcript.md among the receipts.
  */
-export function StartHostedSession(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, intakeAnswers: { [_ in string]?: string }, packs: string[], writeInVoice: boolean, askOptional: boolean, sourceTokens: { [_ in string]?: string }): $CancellablePromise<$models.HostedStartView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartHostedSession", reg, ref, task, inputPaths, outDir, intakeAnswers, packs, writeInVoice, askOptional, sourceTokens).then(($result: any) => {
+export function StartHostedSession(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, intakeAnswers: { [_ in string]?: string }, packs: string[], writeInVoice: boolean, askOptional: boolean, sourceTokens: { [_ in string]?: string }, reportDesign: string): $CancellablePromise<$models.HostedStartView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartHostedSession", reg, ref, task, inputPaths, outDir, intakeAnswers, packs, writeInVoice, askOptional, sourceTokens, reportDesign).then(($result: any) => {
         return $$createType7($result)!;
     });
 }
@@ -1253,8 +1253,8 @@ export function StartManagedEngine(): $CancellablePromise<$models.PrereqView> {
  * timeout, none by default, which Go reads here from desktop.yaml. maxTurns
  * is the tool-call budget, as a run's: -1 keeps the policy's, 0 lifts it.
  */
-export function StartSession(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[]): $CancellablePromise<$models.SessionView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartSession", reg, ref, task, inputPaths, outDir, keepProfile, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations).then(($result: any) => {
+export function StartSession(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[], reportDesign: string): $CancellablePromise<$models.SessionView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartSession", reg, ref, task, inputPaths, outDir, keepProfile, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign).then(($result: any) => {
         return $$createType80($result)!;
     });
 }

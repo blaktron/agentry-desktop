@@ -31,13 +31,14 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import * as schedules from "../../bindings/github.com/blaktron/agentry-desktop/internal/schedules/models";
 import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
-import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
+import { Button, Card, DeclaredServersTable, ErrorBox, Notice, Select, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { askedHere, intakeToSend, secretAnswerRefusal, secretQuestionLine, type IntakeQuestion } from "../secretIntake";
 import { HostedConnectAsk, HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedSignIns, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
+import { designChoices } from "../reportDesign";
 import { GuideText, connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
@@ -471,6 +472,20 @@ export default function RunPanel({
   const [voiceSet, setVoiceSet] = useState<boolean | null>(null);
   useEffect(() => setVoiceSet(null), [inAgentry]);
   const writeInVoice = voice.offered && (voiceSet ?? voice.ticked);
+  // The report design the run's PDFs take: the library's designs with the
+  // account's default preselected, on this computer and In Agentry (a run
+  // on a runhost takes the account's default). A read that did not answer,
+  // or a library with no design, draws no picker, and the run takes the
+  // default, which with no design is Plain.
+  const [library, setLibrary] = useState<app.ReportDesignLibrary | null>(null);
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => SettingsAPI.ReportDesignLibrary(registry))
+      .then((l) => setLibrary(l.available ? l : null))
+      .catch(() => setLibrary(null));
+  }, [registry]);
+  const picker = designChoices(library);
+  const [reportDesign, setReportDesign] = useState(f0?.reportDesign ?? "");
   // Where to run's default, applied once the offer is known and before the
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
@@ -769,7 +784,7 @@ export default function RunPanel({
   function currentForm(): RunForm {
     return {
       mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
-      acceptUnsigned, acceptUnscanned, allowVulnerableMCP,
+      acceptUnsigned, acceptUnscanned, allowVulnerableMCP, reportDesign,
     };
   }
 
@@ -926,7 +941,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames()),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign),
       );
       onClose();
     } catch (e) {
@@ -948,8 +963,8 @@ export default function RunPanel({
     setHostedRefusal(null);
     try {
       const call = sessionInAgentry
-        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed))
-        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed));
+        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed), reportDesign)
+        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed), reportDesign);
       const started = await startedInAgentry(call);
       // A server Agentry keeps no connection to for this version: Connect
       // tools opens in the browser now, at Start, and the start
@@ -1080,7 +1095,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames()),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign),
       );
       onClose();
     } catch (e) {
@@ -1781,6 +1796,21 @@ export default function RunPanel({
                   <p className="muted small" style={{ margin: "2px 0 8px" }}>
                     {WRITE_IN_MY_VOICE_HINT} {inAgentry ? "In Agentry it is your account's live voice." : "Here it is this computer's voice."}
                   </p>
+                </div>
+              )}
+              {picker.choices.length > 0 && !onRunhost && (
+                <div className="run-report-design">
+                  <label className="field">
+                    <span className="field-label">Report design</span>
+                    <Select value={reportDesign} onChange={(e) => setReportDesign(e.target.value)} aria-label="Report design" data-report-design>
+                      <option value="">{picker.none}</option>
+                      {picker.choices.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </Select>
+                    <span className="muted small">
+                      How a PDF this run exports looks: one of your account's report designs. {inAgentry ? "The run In Agentry draws it with its images." : "The run takes it whole, its images included."}
+                      {" "}A scheduled run takes your default.
+                    </span>
+                  </label>
                 </div>
               )}
               <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running}

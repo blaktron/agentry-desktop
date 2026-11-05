@@ -6,7 +6,179 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * Design is a report design: the theme document, version 2. Field order is
+ * Brand is the brand block: who the report is from. Every line is optional
+ * ("" or no contact lines for none) and is drawn where a header, a footer or
+ * a cover asks for it, as text.
+ */
+export class Brand {
+    /**
+     * Name is the brand's name, at most MaxNameRunes; the {brand} token.
+     */
+    "name": string;
+
+    /**
+     * Strapline is one line under the name, at most MaxLineRunes.
+     */
+    "strapline": string;
+
+    /**
+     * Contact is up to MaxContactLines lines (an address, a telephone, an
+     * email), each at most MaxLineRunes and none empty.
+     */
+    "contact": string[];
+
+    /**
+     * Website is a host name or an https address, at most MaxLineRunes,
+     * drawn as text and never made a link by the template.
+     */
+    "website": string;
+
+    /**
+     * Confidentiality is a line such as "Confidential", at most
+     * MaxLineRunes; the {confidentiality} token.
+     */
+    "confidentiality": string;
+
+    /** Creates a new Brand instance. */
+    constructor($$source: Partial<Brand> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("strapline" in $$source)) {
+            this["strapline"] = "";
+        }
+        if (!("contact" in $$source)) {
+            this["contact"] = [];
+        }
+        if (!("website" in $$source)) {
+            this["website"] = "";
+        }
+        if (!("confidentiality" in $$source)) {
+            this["confidentiality"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Brand instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Brand {
+        const $$createField2_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("contact" in $$parsedSource) {
+            $$parsedSource["contact"] = $$createField2_0($$parsedSource["contact"]);
+        }
+        return new Brand($$parsedSource as Partial<Brand>);
+    }
+}
+
+/**
+ * Cover is the cover page.
+ */
+export class Cover {
+    /**
+     * Style is a CoverStyles value: a built-in layout, or "custom" for the
+     * design's custom cover (which falls back to "band" when it cannot be
+     * drawn).
+     */
+    "style": string;
+
+    /**
+     * Shows are the facts the cover carries, each a CoverFacts value, no
+     * value twice, in the order given.
+     */
+    "shows": string[];
+
+    /**
+     * When is a CoverWhens value: "long" draws the cover for a titled
+     * report past the template's length threshold, "always" for every
+     * titled report, "never" for none.
+     */
+    "when": string;
+
+    /** Creates a new Cover instance. */
+    constructor($$source: Partial<Cover> = {}) {
+        if (!("style" in $$source)) {
+            this["style"] = "";
+        }
+        if (!("shows" in $$source)) {
+            this["shows"] = [];
+        }
+        if (!("when" in $$source)) {
+            this["when"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Cover instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Cover {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("shows" in $$parsedSource) {
+            $$parsedSource["shows"] = $$createField1_0($$parsedSource["shows"]);
+        }
+        return new Cover($$parsedSource as Partial<Cover>);
+    }
+}
+
+/**
+ * CustomCover is a design's custom cover. The zero CustomCover is none, and
+ * a design without one has no "customCover" key.
+ */
+export class CustomCover {
+    /**
+     * Source is the Typst source, at most MaxCoverSourceBytes.
+     */
+    "source": string;
+
+    /**
+     * Images are the images the source may draw, each a PNG or a JPEG the
+     * core encoded again, in the order the renderer names them; at most
+     * MaxCoverImages, and MaxCoverImagesBytes in all.
+     */
+    "images": Image[];
+
+    /**
+     * Thumbnail is a PNG of the cover's last render, at most
+     * MaxThumbnailBytes; the zero Image is none, and is not written.
+     */
+    "thumbnail"?: Image;
+
+    /** Creates a new CustomCover instance. */
+    constructor($$source: Partial<CustomCover> = {}) {
+        if (!("source" in $$source)) {
+            this["source"] = "";
+        }
+        if (!("images" in $$source)) {
+            this["images"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CustomCover instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CustomCover {
+        const $$createField1_0 = $$createType2;
+        const $$createField2_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("images" in $$parsedSource) {
+            $$parsedSource["images"] = $$createField1_0($$parsedSource["images"]);
+        }
+        if ("thumbnail" in $$parsedSource) {
+            $$parsedSource["thumbnail"] = $$createField2_0($$parsedSource["thumbnail"]);
+        }
+        return new CustomCover($$parsedSource as Partial<CustomCover>);
+    }
+}
+
+/**
+ * Design is a report design: the theme document, version 3. Field order is
  * the canonical JSON's key order.
  */
 export class Design {
@@ -39,10 +211,16 @@ export class Design {
     "fonts": Fonts;
 
     /**
-     * Accent is the one colour, #rrggbb in lower case. Its tint is
+     * Accent is the first colour, #rrggbb in lower case. Its tint is
      * derived (Tint), never stored.
      */
     "accent": string;
+
+    /**
+     * Secondary is the second colour, #rrggbb in lower case, or "" for
+     * none. Its tint is derived as the accent's is.
+     */
+    "secondary": string;
 
     /**
      * TitleBlock is a TitleBlocks value, the title's treatment on page 1.
@@ -53,19 +231,47 @@ export class Design {
      * Headings is a HeadingStyles value, the treatment of level 1 and 2.
      */
     "headings": string;
+
+    /**
+     * HeadingScale is a HeadingScales value, how much larger than the
+     * body each heading level is set.
+     */
+    "headingScale": string;
+
+    /**
+     * Margins is a MarginPresets value, the page's margins.
+     */
+    "margins": string;
     "tables": Tables;
 
     /**
      * Quotes is a QuoteStyles value.
      */
     "quotes": string;
+    "brand": Brand;
+    "header": Header;
     "footer": Footer;
+    "cover": Cover;
 
     /**
-     * Logo is the person's logo, drawn only in the title block; the zero
-     * Logo is none, and is not written.
+     * Logo is the person's logo, drawn in the title block, on the cover
+     * where its facts include it and in a logoLeft header; the zero Logo
+     * is none, and is not written.
      */
     "logo"?: Logo;
+
+    /**
+     * CoverImage is the design's cover image, drawn by the plate cover
+     * style and offered to a custom cover; the zero Image is none, and is
+     * not written.
+     */
+    "coverImage"?: Image;
+
+    /**
+     * CustomCover is the design's custom cover, drawn when the cover style
+     * is "custom"; the zero CustomCover is none, and is not written.
+     */
+    "customCover"?: CustomCover;
 
     /** Creates a new Design instance. */
     constructor($$source: Partial<Design> = {}) {
@@ -90,11 +296,20 @@ export class Design {
         if (!("accent" in $$source)) {
             this["accent"] = "";
         }
+        if (!("secondary" in $$source)) {
+            this["secondary"] = "";
+        }
         if (!("titleBlock" in $$source)) {
             this["titleBlock"] = "";
         }
         if (!("headings" in $$source)) {
             this["headings"] = "";
+        }
+        if (!("headingScale" in $$source)) {
+            this["headingScale"] = "";
+        }
+        if (!("margins" in $$source)) {
+            this["margins"] = "";
         }
         if (!("tables" in $$source)) {
             this["tables"] = (new Tables());
@@ -102,8 +317,17 @@ export class Design {
         if (!("quotes" in $$source)) {
             this["quotes"] = "";
         }
+        if (!("brand" in $$source)) {
+            this["brand"] = (new Brand());
+        }
+        if (!("header" in $$source)) {
+            this["header"] = (new Header());
+        }
         if (!("footer" in $$source)) {
             this["footer"] = (new Footer());
+        }
+        if (!("cover" in $$source)) {
+            this["cover"] = (new Cover());
         }
 
         Object.assign(this, $$source);
@@ -113,22 +337,42 @@ export class Design {
      * Creates a new Design instance from a string or object.
      */
     static createFrom($$source: any = {}): Design {
-        const $$createField5_0 = $$createType0;
-        const $$createField9_0 = $$createType1;
-        const $$createField11_0 = $$createType2;
-        const $$createField12_0 = $$createType3;
+        const $$createField5_0 = $$createType3;
+        const $$createField12_0 = $$createType4;
+        const $$createField14_0 = $$createType5;
+        const $$createField15_0 = $$createType6;
+        const $$createField16_0 = $$createType7;
+        const $$createField17_0 = $$createType8;
+        const $$createField18_0 = $$createType9;
+        const $$createField19_0 = $$createType1;
+        const $$createField20_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fonts" in $$parsedSource) {
             $$parsedSource["fonts"] = $$createField5_0($$parsedSource["fonts"]);
         }
         if ("tables" in $$parsedSource) {
-            $$parsedSource["tables"] = $$createField9_0($$parsedSource["tables"]);
+            $$parsedSource["tables"] = $$createField12_0($$parsedSource["tables"]);
+        }
+        if ("brand" in $$parsedSource) {
+            $$parsedSource["brand"] = $$createField14_0($$parsedSource["brand"]);
+        }
+        if ("header" in $$parsedSource) {
+            $$parsedSource["header"] = $$createField15_0($$parsedSource["header"]);
         }
         if ("footer" in $$parsedSource) {
-            $$parsedSource["footer"] = $$createField11_0($$parsedSource["footer"]);
+            $$parsedSource["footer"] = $$createField16_0($$parsedSource["footer"]);
+        }
+        if ("cover" in $$parsedSource) {
+            $$parsedSource["cover"] = $$createField17_0($$parsedSource["cover"]);
         }
         if ("logo" in $$parsedSource) {
-            $$parsedSource["logo"] = $$createField12_0($$parsedSource["logo"]);
+            $$parsedSource["logo"] = $$createField18_0($$parsedSource["logo"]);
+        }
+        if ("coverImage" in $$parsedSource) {
+            $$parsedSource["coverImage"] = $$createField19_0($$parsedSource["coverImage"]);
+        }
+        if ("customCover" in $$parsedSource) {
+            $$parsedSource["customCover"] = $$createField20_0($$parsedSource["customCover"]);
         }
         return new Design($$parsedSource as Partial<Design>);
     }
@@ -187,18 +431,17 @@ export class Footer {
     "pageNumbers": string;
 
     /**
-     * Text is one line of plain text, at most MaxFooterTextRunes, set as
-     * content; "" for none.
+     * Slots are the left, centre and right texts, as the header's.
      */
-    "text": string;
+    "slots": string[];
 
     /** Creates a new Footer instance. */
     constructor($$source: Partial<Footer> = {}) {
         if (!("pageNumbers" in $$source)) {
             this["pageNumbers"] = "";
         }
-        if (!("text" in $$source)) {
-            this["text"] = "";
+        if (!("slots" in $$source)) {
+            this["slots"] = Array.from({ length: 3 }, () => "");
         }
 
         Object.assign(this, $$source);
@@ -214,9 +457,76 @@ export class Footer {
 }
 
 /**
+ * Header is the running header, drawn from page 2 on a report, on every
+ * page of a memo and never on a letter.
+ */
+export class Header {
+    /**
+     * Style is a HeaderStyles value.
+     */
+    "style": string;
+
+    /**
+     * Slots are the left, centre and right texts, each a template of
+     * literal text and tokens (Tokens) of at most MaxLineRunes; "" for an
+     * empty slot.
+     */
+    "slots": string[];
+
+    /** Creates a new Header instance. */
+    constructor($$source: Partial<Header> = {}) {
+        if (!("style" in $$source)) {
+            this["style"] = "";
+        }
+        if (!("slots" in $$source)) {
+            this["slots"] = Array.from({ length: 3 }, () => "");
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Header instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Header {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Header($$parsedSource as Partial<Header>);
+    }
+}
+
+/**
+ * Image is a design's image in one of the two formats, standard base64 with
+ * padding, exactly one of the two set. The zero Image is none.
+ */
+export class Image {
+    /**
+     * PNG is the image as a PNG.
+     */
+    "png"?: string;
+
+    /**
+     * JPEG is the image as a JPEG.
+     */
+    "jpeg"?: string;
+
+    /** Creates a new Image instance. */
+    constructor($$source: Partial<Image> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Image instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Image {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Image($$parsedSource as Partial<Image>);
+    }
+}
+
+/**
  * Logo is a design's logo. The zero Logo is none, and a design without one
- * has no "logo" key, so every design saved before logos existed keeps its
- * canonical form and its SHA-256.
+ * has no "logo" key.
  */
 export class Logo {
     /**
@@ -272,7 +582,14 @@ export class Tables {
 }
 
 // Private type creation functions
-const $$createType0 = Fonts.createFrom;
-const $$createType1 = Tables.createFrom;
-const $$createType2 = Footer.createFrom;
-const $$createType3 = Logo.createFrom;
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = Image.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = Fonts.createFrom;
+const $$createType4 = Tables.createFrom;
+const $$createType5 = Brand.createFrom;
+const $$createType6 = Header.createFrom;
+const $$createType7 = Footer.createFrom;
+const $$createType8 = Cover.createFrom;
+const $$createType9 = Logo.createFrom;
+const $$createType10 = CustomCover.createFrom;

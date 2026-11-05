@@ -4,17 +4,76 @@
     "IBM Plex Sans",
     "Source Sans 3",
     "Work Sans",
+    "DM Sans",
+    "Nunito Sans",
+    "Raleway",
+    "Space Grotesk",
     "Source Serif 4",
     "Lora",
     "Merriweather",
     "IBM Plex Serif",
-    "EB Garamond"
+    "EB Garamond",
+    "Libre Baskerville",
+    "Crimson Pro"
   ],
   "codeFonts": [
     "IBM Plex Mono",
     "JetBrains Mono",
-    "Source Code Pro"
+    "Source Code Pro",
+    "Fira Code"
   ],
+  "coverFacts": [
+    "title",
+    "subtitle",
+    "author",
+    "date",
+    "brand",
+    "logo",
+    "confidentiality"
+  ],
+  "coverStyles": [
+    {
+      "name": "band",
+      "accentOnText": true,
+      "secondaryOnText": false
+    },
+    {
+      "name": "split",
+      "accentOnText": false,
+      "secondaryOnText": true
+    },
+    {
+      "name": "geometric",
+      "accentOnText": false,
+      "secondaryOnText": false
+    },
+    {
+      "name": "largeType",
+      "accentOnText": true,
+      "secondaryOnText": false
+    },
+    {
+      "name": "framed",
+      "accentOnText": false,
+      "secondaryOnText": false
+    },
+    {
+      "name": "plate",
+      "accentOnText": true,
+      "secondaryOnText": false
+    },
+    {
+      "name": "custom",
+      "accentOnText": true,
+      "secondaryOnText": false
+    }
+  ],
+  "coverWhens": [
+    "long",
+    "always",
+    "never"
+  ],
+  "defaultKitId": "plain",
   "families": [
     {
       "name": "Inter",
@@ -30,6 +89,22 @@
     },
     {
       "name": "Work Sans",
+      "kind": "sans"
+    },
+    {
+      "name": "DM Sans",
+      "kind": "sans"
+    },
+    {
+      "name": "Nunito Sans",
+      "kind": "sans"
+    },
+    {
+      "name": "Raleway",
+      "kind": "sans"
+    },
+    {
+      "name": "Space Grotesk",
       "kind": "sans"
     },
     {
@@ -58,7 +133,20 @@
       "kind": "serif"
     },
     {
+      "name": "Libre Baskerville",
+      "kind": "serif"
+    },
+    {
+      "name": "Crimson Pro",
+      "kind": "serif"
+    },
+    {
       "name": "Playfair Display",
+      "kind": "serif",
+      "headingsOnly": true
+    },
+    {
+      "name": "Fraunces",
       "kind": "serif",
       "headingsOnly": true
     },
@@ -73,23 +161,47 @@
     {
       "name": "Source Code Pro",
       "kind": "mono"
+    },
+    {
+      "name": "Fira Code",
+      "kind": "mono"
     }
+  ],
+  "headerStyles": [
+    "none",
+    "rule",
+    "brandLine",
+    "titleAndPage",
+    "logoLeft"
   ],
   "headingFonts": [
     "Inter",
     "IBM Plex Sans",
     "Source Sans 3",
     "Work Sans",
+    "DM Sans",
+    "Nunito Sans",
+    "Raleway",
+    "Space Grotesk",
     "Montserrat",
     "Source Serif 4",
     "Lora",
     "Merriweather",
     "IBM Plex Serif",
     "EB Garamond",
+    "Libre Baskerville",
+    "Crimson Pro",
     "Playfair Display",
+    "Fraunces",
     "IBM Plex Mono",
     "JetBrains Mono",
-    "Source Code Pro"
+    "Source Code Pro",
+    "Fira Code"
+  ],
+  "headingScales": [
+    "compact",
+    "regular",
+    "generous"
   ],
   "headingStyles": [
     "rule",
@@ -103,8 +215,34 @@
     "classic",
     "modern",
     "editorial",
-    "technical"
+    "technical",
+    "boardroom",
+    "studio",
+    "field",
+    "civic",
+    "lumen"
   ],
+  "kits": {
+    "boardroom": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Boardroom\",\n  \"basedOn\": \"boardroom\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Libre Baskerville\",\n    \"body\": \"Source Serif 4\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#1b2a4a\",\n  \"secondary\": \"#8a6a00\",\n  \"titleBlock\": \"band\",\n  \"headings\": \"rule\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"wide\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"brandLine\",\n    \"slots\": [\n      \"{brand}\",\n      \"\",\n      \"{date}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"{brand}\",\n      \"{confidentiality}\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"split\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\",\n      \"brand\",\n      \"logo\",\n      \"confidentiality\"\n    ],\n    \"when\": \"always\"\n  }\n}\n",
+    "civic": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Civic\",\n  \"basedOn\": \"civic\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Crimson Pro\",\n    \"body\": \"Crimson Pro\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#6e1d2e\",\n  \"secondary\": \"#6d675f\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"numbered\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"wide\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"brandLine\",\n    \"slots\": [\n      \"{brand}\",\n      \"\",\n      \"{date}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"{brand}\",\n      \"{confidentiality}\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"framed\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\",\n      \"brand\",\n      \"confidentiality\"\n    ],\n    \"when\": \"always\"\n  }\n}\n",
+    "classic": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Classic\",\n  \"basedOn\": \"classic\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Source Serif 4\",\n    \"body\": \"Source Serif 4\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#1f3a5f\",\n  \"secondary\": \"\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"smallcaps\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"rule\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"framed\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\"\n    ],\n    \"when\": \"long\"\n  }\n}\n",
+    "editorial": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Editorial\",\n  \"basedOn\": \"editorial\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Playfair Display\",\n    \"body\": \"Source Sans 3\",\n    \"code\": \"Source Code Pro\"\n  },\n  \"accent\": \"#b3261e\",\n  \"secondary\": \"\",\n  \"titleBlock\": \"bar\",\n  \"headings\": \"rule\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"brandLine\",\n    \"slots\": [\n      \"{brand}\",\n      \"\",\n      \"{date}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"largeType\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\"\n    ],\n    \"when\": \"long\"\n  }\n}\n",
+    "field": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Field\",\n  \"basedOn\": \"field\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Fraunces\",\n    \"body\": \"Nunito Sans\",\n    \"code\": \"Source Code Pro\"\n  },\n  \"accent\": \"#2f5d2a\",\n  \"secondary\": \"#8c7a4f\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"rule\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"rule\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"{brand}\",\n      \"{confidentiality}\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"plate\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\",\n      \"brand\"\n    ],\n    \"when\": \"always\"\n  }\n}\n",
+    "lumen": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Lumen\",\n  \"basedOn\": \"lumen\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Raleway\",\n    \"body\": \"Raleway\",\n    \"code\": \"JetBrains Mono\"\n  },\n  \"accent\": \"#5b3fa6\",\n  \"secondary\": \"#2d8a6a\",\n  \"titleBlock\": \"band\",\n  \"headings\": \"plain\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"titleAndPage\",\n    \"slots\": [\n      \"{title}\",\n      \"\",\n      \"{page} of {pages}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"{brand}\",\n      \"{confidentiality}\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"geometric\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\",\n      \"logo\"\n    ],\n    \"when\": \"always\"\n  }\n}\n",
+    "modern": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Modern\",\n  \"basedOn\": \"modern\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"JetBrains Mono\"\n  },\n  \"accent\": \"#1f6feb\",\n  \"secondary\": \"\",\n  \"titleBlock\": \"band\",\n  \"headings\": \"bar\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"titleAndPage\",\n    \"slots\": [\n      \"{title}\",\n      \"\",\n      \"{page} of {pages}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"band\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\"\n    ],\n    \"when\": \"long\"\n  }\n}\n",
+    "plain": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Plain\",\n  \"basedOn\": \"plain\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#2b2f36\",\n  \"secondary\": \"\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"plain\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"plain\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"none\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"framed\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\"\n    ],\n    \"when\": \"long\"\n  }\n}\n",
+    "studio": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Studio\",\n  \"basedOn\": \"studio\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Space Grotesk\",\n    \"body\": \"DM Sans\",\n    \"code\": \"Fira Code\"\n  },\n  \"accent\": \"#111111\",\n  \"secondary\": \"#a07800\",\n  \"titleBlock\": \"bar\",\n  \"headings\": \"bar\",\n  \"headingScale\": \"generous\",\n  \"margins\": \"narrow\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"plain\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"logoLeft\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"{title}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"slots\": [\n      \"{brand}\",\n      \"{confidentiality}\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"largeType\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"brand\",\n      \"logo\"\n    ],\n    \"when\": \"always\"\n  }\n}\n",
+    "technical": "{\n  \"agentryTheme\": 3,\n  \"name\": \"Technical\",\n  \"basedOn\": \"technical\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"IBM Plex Sans\",\n    \"body\": \"IBM Plex Sans\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#0f766e\",\n  \"secondary\": \"\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"numbered\",\n  \"headingScale\": \"regular\",\n  \"margins\": \"regular\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"brand\": {\n    \"name\": \"\",\n    \"strapline\": \"\",\n    \"contact\": [],\n    \"website\": \"\",\n    \"confidentiality\": \"\"\n  },\n  \"header\": {\n    \"style\": \"titleAndPage\",\n    \"slots\": [\n      \"{title}\",\n      \"\",\n      \"{page} of {pages}\"\n    ]\n  },\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"slots\": [\n      \"\",\n      \"\",\n      \"\"\n    ]\n  },\n  \"cover\": {\n    \"style\": \"geometric\",\n    \"shows\": [\n      \"title\",\n      \"subtitle\",\n      \"author\",\n      \"date\"\n    ],\n    \"when\": \"long\"\n  }\n}\n"
+  },
+  "margins": [
+    "narrow",
+    "regular",
+    "wide"
+  ],
+  "maxContactLines": 4,
+  "maxLibrary": 10,
+  "maxLine": 120,
+  "maxName": 60,
   "pageNumbers": [
     "none",
     "n",
@@ -118,17 +256,21 @@
     "callout",
     "plain"
   ],
-  "themes": {
-    "classic": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Classic\",\n  \"basedOn\": \"classic\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Source Serif 4\",\n    \"body\": \"Source Serif 4\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#1f3a5f\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"smallcaps\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"text\": \"\"\n  }\n}\n",
-    "editorial": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Editorial\",\n  \"basedOn\": \"editorial\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Playfair Display\",\n    \"body\": \"Source Sans 3\",\n    \"code\": \"Source Code Pro\"\n  },\n  \"accent\": \"#b3261e\",\n  \"titleBlock\": \"bar\",\n  \"headings\": \"rule\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"text\": \"\"\n  }\n}\n",
-    "modern": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Modern\",\n  \"basedOn\": \"modern\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"JetBrains Mono\"\n  },\n  \"accent\": \"#1f6feb\",\n  \"titleBlock\": \"band\",\n  \"headings\": \"bar\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n",
-    "plain": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Plain\",\n  \"basedOn\": \"plain\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#2b2f36\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"plain\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"plain\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n",
-    "technical": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Technical\",\n  \"basedOn\": \"technical\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"IBM Plex Sans\",\n    \"body\": \"IBM Plex Sans\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#0f766e\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"numbered\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n"
-  },
+  "slotCount": 3,
   "titleBlocks": [
     "band",
     "bar",
     "ruled",
     "none"
+  ],
+  "tokens": [
+    "title",
+    "author",
+    "date",
+    "page",
+    "pages",
+    "brand",
+    "section",
+    "confidentiality"
   ]
 }

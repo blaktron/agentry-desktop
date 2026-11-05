@@ -70,7 +70,7 @@ func TestLiveHostedRunWithABrowser(t *testing.T) {
 	const task = "Check that the account can sign in."
 	private := t.TempDir()
 	r.app.markPicked(private)
-	start, err := r.StartHostedRun(reg, ref, task, nil, private, map[string]string{"site": "http://192.168.1.20/"}, nil, false, false, nil)
+	start, err := r.StartHostedRun(reg, ref, task, nil, private, map[string]string{"site": "http://192.168.1.20/"}, nil, false, false, nil, "")
 	t.Logf("a private site: %+v, %v", start, err)
 	if err == nil && (start == nil || start.Run != nil) {
 		t.Fatalf("a private site was not refused: %+v", start)
@@ -86,7 +86,7 @@ func TestLiveHostedRunWithABrowser(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err = r.StartHostedRun(reg, ref, task, nil, out, map[string]string{"site": site}, nil, false, false, nil)
+	start, err = r.StartHostedRun(reg, ref, task, nil, out, map[string]string{"site": site}, nil, false, false, nil, "")
 	if err != nil || start.Run == nil {
 		t.Fatalf("the start: %+v, %v", start, err)
 	}
