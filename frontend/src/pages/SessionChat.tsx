@@ -102,7 +102,7 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
           if (l.kind === "user") return (
             <div key={i} className="chat-msg user"><div className="chat-bubble"><div className="chat-who">{l.synthetic ? "Runner" : "You"}</div>{l.text}</div></div>
           );
-          if (l.kind === "assistant") return (
+          if (l.kind === "assistant" || l.kind === "told") return (
             <div key={i} className="chat-msg assistant"><div className="chat-bubble"><div className="chat-who">Agent</div>{l.text}</div></div>
           );
           if (l.kind === "end") return <div key={i} className="chat-note warn">{endText(l.reason, outOfCredits)}</div>;

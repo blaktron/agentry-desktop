@@ -135,6 +135,11 @@ type PersistentAPI struct {
 	// puts its own here.
 	showNotice func(notify.Notice) error
 	minimised  func() bool
+	// tasking is, by agent, the task whose run its events are on (its
+	// name, from the task's turn), and told whether that run told the
+	// person something, which raised the run's notification already.
+	tasking map[string]string
+	told    map[string]bool
 	// googleSignIns cancel the Google sign-ins waiting for the browser, by
 	// agent. googleSetUp, pickFile and browse stand in for the CLI's
 	// sign-in with its engine, the native file picker and the browser in a

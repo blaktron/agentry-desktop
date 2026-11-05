@@ -13,9 +13,11 @@ import (
 // A task's turn ends with the runner's notice on the agent's event stream,
 // `Task "<name>" ran: <the answer's first line>`, and the app raises a desktop
 // notification from it for an agent it runs: the agent's name and the task's
-// as the title, the line as the body, a click opening the agent's page. None
-// is raised while the window is in front showing that agent, or while the
-// person has switched them off.
+// as the title, the line as the body, a click opening the agent's page. When
+// the run told the person something (a reminder, as a `tell` event), that
+// message raises the run's notification instead, as it comes, and the run's
+// notice raises none. None is raised while the window is in front showing
+// that agent, or while the person has switched them off.
 
 // emptyAnswer is the body of a notification for a task whose answer had no
 // text.
@@ -43,34 +45,94 @@ func taskNotice(text string) (task, line string, ok bool) {
 	return task, line, true
 }
 
-// noticeTask raises the notification for ev when it is a task's notice of
-// the agent named, on its own goroutine: a platform may be slow to answer,
-// and the agent's events must keep flowing to its page.
+// noticeTask raises the notification for ev when it is a task's message to
+// the person or its notice, for the agent named, and keeps which run the
+// agent's events are on.
 func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervisorLog) {
-	if ev.Kind != session.KindNotice {
-		return
+	switch ev.Kind {
+	case session.KindUserTurn:
+		// A run begins: a task's, named by its turn, or anything else.
+		task := ""
+		if ev.Task != "" && !ev.Synthetic {
+			task = taskName(ev.Text)
+		}
+		p.mu.Lock()
+		if p.tasking == nil {
+			p.tasking, p.told = map[string]string{}, map[string]bool{}
+		}
+		p.tasking[name], p.told[name] = task, false
+		p.mu.Unlock()
+	case session.KindTell:
+		message := strings.TrimSpace(ev.Text)
+		p.mu.Lock()
+		task, inTask := p.tasking[name]
+		if inTask && task != "" && message != "" {
+			p.told[name] = true
+		}
+		p.mu.Unlock()
+		if !inTask || task == "" || message == "" {
+			return
+		}
+		p.raiseTask(name, task, message, logw)
+	case session.KindNotice:
+		task, line, ok := taskNotice(ev.Text)
+		if !ok {
+			return
+		}
+		p.mu.Lock()
+		told := p.told[name]
+		delete(p.told, name)
+		delete(p.tasking, name)
+		p.mu.Unlock()
+		// The Notifications page lists every answer, whether or not a
+		// notification is raised for it.
+		title, ok := p.taskTitle(name, task)
+		if !ok {
+			return
+		}
+		p.app.noticed(taskEntry(name, title), false)
+		if told {
+			return
+		}
+		if strings.TrimSpace(line) == "" {
+			line = emptyAnswer
+		}
+		p.raiseTask(name, task, line, logw)
 	}
-	task, line, ok := taskNotice(ev.Text)
-	if !ok {
-		return
+}
+
+// taskName is a task's name, from its turn's "Task: <name>" line; "" when
+// the turn names none.
+func taskName(text string) string {
+	for _, l := range strings.Split(text, "\n") {
+		if n, ok := strings.CutPrefix(l, "Task: "); ok && strings.TrimSpace(n) != "" {
+			return strings.TrimSpace(n)
+		}
 	}
-	// Only an agent that keeps tasks has a page a click can open for them.
+	return ""
+}
+
+// taskTitle is a task's notification title, the agent's name and the
+// task's; false for an agent that keeps no tasks, which has no page a click
+// can open for them.
+func (p *PersistentAPI) taskTitle(name, task string) (string, bool) {
 	a, err := p.agent(name)
 	if err != nil || !a.KeepsTime() {
-		return
+		return "", false
 	}
-	title := task
 	if home, err := p.home(); err == nil {
 		cfg, _ := persistent.LoadConfig(home, a.Name)
-		title = a.DisplayName(cfg) + ": " + task
+		return a.DisplayName(cfg) + ": " + task, true
 	}
-	if strings.TrimSpace(line) == "" {
-		line = emptyAnswer
-	}
-	// The Notifications page lists every answer, whether or not a
-	// notification is raised for it.
-	p.app.noticed(taskEntry(name, title), false)
-	if !taskNotificationsOn() || p.isViewing(name) {
+	return task, true
+}
+
+// raiseTask raises a task's notification with body, on its own goroutine:
+// a platform may be slow to answer, and the agent's events must keep
+// flowing to its page.
+func (p *PersistentAPI) raiseTask(name, task, body string, logw *supervisorLog) {
+	title, ok := p.taskTitle(name, task)
+	if !ok || !taskNotificationsOn() || p.isViewing(name) {
 		return
 	}
 	show := p.showNotice
@@ -78,7 +140,7 @@ func (p *PersistentAPI) noticeTask(name string, ev session.Event, logw *supervis
 		show = notify.Show
 	}
 	go func() {
-		if err := show(notify.Notice{Title: title, Body: line, Key: name}); err != nil && logw != nil {
+		if err := show(notify.Notice{Title: title, Body: body, Key: name}); err != nil && logw != nil {
 			logw.note("desktop notification for task " + strconv.Quote(task) + " not raised: " + err.Error())
 		}
 	}()

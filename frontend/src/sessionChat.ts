@@ -41,6 +41,7 @@ export interface SessionEvent {
 export type Line =
   | { kind: "user"; text: string; synthetic: boolean; task?: string; upkeep?: boolean }
   | { kind: "assistant"; text: string }
+  | { kind: "told"; text: string; task?: string }
   | { kind: "note"; text: string }
   | { kind: "warn"; text: string }
   | { kind: "end"; reason: string };
@@ -153,6 +154,10 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     }
     case "stream_lost":
       return { ...next, lines: [...c.lines, { kind: "warn", text }] };
+    // A persistent agent's message to the person from a turn of its own
+    // (a task's reminder): the agent's word to them, apart from the turn.
+    case "tell":
+      return text.trim() ? { ...next, lines: [...c.lines, { kind: "told", text: text.trim(), ...(ev.task ? { task: ev.task } : {}) }] } : next;
     // The runner's own word in the chat: a persistent agent applying a
     // change at its next turn.
     case "notice":

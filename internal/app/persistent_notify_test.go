@@ -145,3 +145,74 @@ func TestATasksAnswerRaisesADesktopNotification(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+// What a task's run tells the person raises the run's notification, with
+// the message as its body, and the run's notice then raises none; a run
+// that told nothing is notified from its notice as before, and a message
+// outside a task's run raises nothing.
+func TestATasksMessageRaisesItsNotification(t *testing.T) {
+	rig := newPersistentRig(t)
+	got := make(chan notify.Notice, 8)
+	rig.p.showNotice = func(n notify.Notice) error { got <- n; return nil }
+	rig.p.minimised = func() bool { return false }
+	if _, err := rig.p.SetEnabled("assistant", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rig.p.Start("assistant"); err != nil {
+		t.Fatal(err)
+	}
+	a, err := persistent.Lookup("assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := persistent.LoadConfig(rig.home, "assistant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := a.DisplayName(cfg) + ": Stand up"
+	push := func(ev session.Event) {
+		ev.Time = time.Now()
+		rig.agent.events <- ev
+	}
+	next := func() notify.Notice {
+		t.Helper()
+		select {
+		case n := <-got:
+			return n
+		case <-time.After(5 * time.Second):
+			t.Fatal("no notification")
+		}
+		return notify.Notice{}
+	}
+	none := func(what string) {
+		t.Helper()
+		select {
+		case n := <-got:
+			t.Errorf("%s raised %+v", what, n)
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+
+	push(session.Event{Kind: session.KindUserTurn, Task: "t1", Text: "Task: Stand up\n\nRemind the person to stand up."})
+	push(session.Event{Kind: session.KindToolCall, Text: "tell_person"})
+	push(session.Event{Kind: session.KindTell, Task: "t1", Text: " Time to stand up and stretch. "})
+	if n := next(); n.Title != title || n.Body != "Time to stand up and stretch." || n.Key != "assistant" {
+		t.Errorf("the message's notification: %+v", n)
+	}
+	push(session.Event{Kind: session.KindAssistantTurn, Text: "Reminded them."})
+	push(session.Event{Kind: session.KindNotice, Text: `Task "Stand up" ran: Reminded them.`})
+	none("the notice of a run that told the person")
+
+	// A run that tells nothing is notified from its notice.
+	push(session.Event{Kind: session.KindUserTurn, Task: "t2", Text: "Task: Mail\n\nCheck the mail."})
+	push(session.Event{Kind: session.KindAssistantTurn, Text: "No new mail."})
+	push(session.Event{Kind: session.KindNotice, Text: `Task "Mail" ran: No new mail.`})
+	if n := next(); n.Title != a.DisplayName(cfg)+": Mail" || n.Body != "No new mail." {
+		t.Errorf("the notice's notification: %+v", n)
+	}
+
+	// The person's own turn is no task's run.
+	push(session.Event{Kind: session.KindUserTurn, Text: "Hi"})
+	push(session.Event{Kind: session.KindTell, Text: "Not a task's."})
+	none("a message outside a task's run")
+}
