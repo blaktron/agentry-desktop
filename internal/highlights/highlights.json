@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.15",
+      "highlights": [
+        "A reminder from one of the Assistant's tasks is now a message from it in the chat, not hidden in the task's folded line.",
+        "The task's notification shows that reminder as it comes."
+      ]
+    },
+    {
       "version": "0.7.14",
       "highlights": [
         "Render in Settings → Report design now draws your design's own cover page, the cover a run's PDF opens with.",
