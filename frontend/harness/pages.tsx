@@ -737,36 +737,88 @@ const hostedOffer = () => (window.location.hash === "#scheduled-hosted-signedout
     reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." }
   : { offered: true, available: true });
 
-// Settings → Report design: the core's five themes
-// from the frontend tests' fixture (held to the pinned core by a Go test),
-// without thumbnails, which only Go carries. The check stands in for the
-// core's: #report-pale refuses the accent with the nearest shade, anything
-// else passes. #report-saved opens on a saved design of the person's own.
-const rd = reportDesigns as { ids: string[]; themes: Record<string, string>; families: { name: string; kind: string; headingsOnly?: boolean }[];
+// Settings → Report design: the core's ten kits from the frontend tests'
+// fixture (held to the pinned core by a Go test), without thumbnails, which
+// only Go carries, and a library of the person's own. The check stands in
+// for the core's: #report-pale refuses the accent with the nearest shade,
+// anything else passes. #report-empty is a library with no design;
+// otherwise three designs, one the default, one with every image.
+const rd = reportDesigns as { ids: string[]; kits: Record<string, string>; families: { name: string; kind: string; headingsOnly?: boolean }[];
   headingFonts: string[]; bodyFonts: string[]; codeFonts: string[]; papers: string[]; titleBlocks: string[]; headingStyles: string[];
-  quoteStyles: string[]; pageNumbers: string[] };
+  headingScales: string[]; margins: string[]; quoteStyles: string[]; pageNumbers: string[]; headerStyles: string[];
+  coverStyles: { name: string; accentOnText: boolean; secondaryOnText: boolean }[]; coverFacts: string[]; coverWhens: string[]; tokens: string[];
+  maxName: number; maxLine: number; maxContactLines: number; slotCount: number; maxLibrary: number; defaultKitId: string };
 const rdOptions = {
-  themes: rd.ids.map((id) => ({ id, design: JSON.parse(rd.themes[id]), thumbnail: "" })),
-  families: rd.families, headingFonts: rd.headingFonts, bodyFonts: rd.bodyFonts, codeFonts: rd.codeFonts, papers: rd.papers,
-  titleBlocks: rd.titleBlocks, headingStyles: rd.headingStyles, quoteStyles: rd.quoteStyles, pageNumbers: rd.pageNumbers,
-  maxName: 60, maxFooterText: 120, defaultThemeId: "plain",
+  ...rd,
+  kits: rd.ids.map((id) => ({ id, design: JSON.parse(rd.kits[id]), cover: "", page: "" })),
 };
-let rdSaved: Record<string, unknown> | null = window.location.hash === "#report-saved"
-  ? { ...JSON.parse(rd.themes.modern), name: "House", accent: "#0f766e", paper: "letter", footer: { pageNumbers: "nOfN", text: "Acme Ltd · internal" } }
-  : null;
-const rdView = () => ({ available: true, design: rdSaved ?? undefined, label: rdSaved ? `${rdSaved.name} (from Modern)` : undefined });
-const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock: string; headings: string }) => {
-  const onText = d.titleBlock === "band" || d.headings === "smallcaps" || d.headings === "numbered";
+type RdDesign = Record<string, unknown> & { name: string; basedOn: string; version: number; accent: string; secondary: string; titleBlock: string; headings: string; cover: { style: string; when: string } };
+const rdKit = (id: string) => JSON.parse(rd.kits[id]) as RdDesign;
+// A 1 by 1 PNG stands in for the images.
+const rdPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGf4DwADgQGAiPkb6AAAAABJRU5ErkJggg==";
+const rdHouse: RdDesign = { ...rdKit("boardroom"), name: "House", accent: "#1b2a4a", brand: { name: "Acme Ltd", strapline: "Reviews that hold", contact: ["1 Main Street", "review@acme.example"], website: "acme.example", confidentiality: "Internal" },
+  footer: { pageNumbers: "nOfN", slots: ["{brand}", "{confidentiality}", "{date}"] } };
+let rdLibrary: { id: string; d: RdDesign; def: boolean; logo: string; cover: string; custom: boolean }[] = window.location.hash === "#report-empty" ? [] : [
+  { id: "0f1e2d3c-4b5a-4968-8776-655443322110", d: rdHouse, def: true, logo: rdPng, cover: rdPng, custom: true },
+  { id: "1f1e2d3c-4b5a-4968-8776-655443322111", d: { ...rdKit("field"), name: "Field notes" }, def: false, logo: "", cover: "", custom: false },
+  { id: "2f1e2d3c-4b5a-4968-8776-655443322112", d: rdKit("plain"), def: false, logo: "", cover: "", custom: false },
+];
+const rdCards = () => ({ available: true, max: 10, default: rdLibrary.find((x) => x.def)?.id ?? "",
+  designs: rdLibrary.map((x) => ({ id: x.id, name: x.d.name, basedOn: x.d.basedOn, version: x.d.version, default: x.def, hasLogo: !!x.logo, hasCoverImage: !!x.cover, hasCustomCover: x.custom, updatedAt: "2026-11-04T12:00:00Z" })) });
+// A key the Go side leaves out is left out here too: the generated
+// bindings turn a key set to undefined into an empty object.
+const rdView = (x: (typeof rdLibrary)[number]) => ({ id: x.id, default: x.def, design: x.d, label: x.d.name === rdKit(x.d.basedOn).name ? x.d.name : `${x.d.name} (from ${rdKit(x.d.basedOn).name})`,
+  logo: x.logo, coverImage: x.cover, ...(x.custom ? { customCover: { thumbnail: rdPng, sourceBytes: 1840, images: 2 } } : {}) });
+const rdFind = (id: string) => { const x = rdLibrary.find((y) => y.id === id); if (!x) throw new Error("no such design"); return x; };
+const rdCheck = (d: RdDesign) => {
+  const coverDrawn = d.cover.when !== "never";
+  const style = rd.coverStyles.find((c) => c.name === d.cover.style);
+  const onText = d.titleBlock === "band" || d.headings === "smallcaps" || d.headings === "numbered" || (coverDrawn && (!!style?.accentOnText || (!!style?.secondaryOnText && !d.secondary)));
   const pale = window.location.hash === "#report-pale";
   const valid = /^#[0-9a-f]{6}$/.test(d.accent);
+  const secondaryOn = coverDrawn && !!style?.secondaryOnText && !!d.secondary;
+  const facts: Record<string, string> = { title: "Quarterly review", author: "The review team", date: "4 November 2026", page: "2", pages: "4", section: "Summary",
+    brand: String((d.brand as { name: string }).name), confidentiality: String((d.brand as { confidentiality: string }).confidentiality) };
+  const expand = (slot: string) => slot.replace(/\{(title|author|date|page|pages|brand|section|confidentiality)\}/g, (_m, t: string) => facts[t]);
+  const problem = !valid ? { field: "accent", message: "must be a colour #rrggbb in lower-case hex" }
+    : pale ? { field: "accent", message: `${d.accent} reaches 2.41:1 on white, and an accent that colours text needs 4.5:1; the nearest shade that does is #3a6aa6` } : null;
   return {
-    problem: !valid ? { field: "accent", message: "must be a colour #rrggbb in lower-case hex" }
-      : pale ? { field: "accent", message: `${d.accent} reaches 2.41:1 on white` } : undefined,
-    accent: { valid, ok: valid && !pale, ratio: pale ? 2.41 : 7.21, need: onText ? 4.5 : 3, onText, nearest: pale ? "#3a6aa6" : d.accent },
-    tint: "#e7eef7",
-    unedited: JSON.stringify(d) === JSON.stringify(JSON.parse(rd.themes[d.basedOn] ?? "{}")),
+    ...(problem ? { problem } : {}),
+    accent: { set: true, valid, ok: valid && !pale, ratio: pale ? 2.41 : 7.21, need: onText ? 4.5 : 3, onText, nearest: pale ? "#3a6aa6" : d.accent },
+    secondary: d.secondary ? { set: true, valid: true, ok: true, ratio: 6.1, need: secondaryOn ? 4.5 : 3, onText: secondaryOn, nearest: d.secondary } : { set: false, valid: false, ok: false, ratio: 0, need: 0, onText: false, nearest: "" },
+    tint: "#e7eef7", secondaryTint: d.secondary ? "#f6f1e1" : "",
+    unedited: JSON.stringify(d) === JSON.stringify(rdKit(d.basedOn)),
     label: d.name,
+    header: (d.header as { slots: string[] }).slots.map(expand),
+    footer: (d.footer as { slots: string[] }).slots.map(expand),
   };
+};
+const rdBindings = {
+  ReportDesignOptions: async () => rdOptions,
+  ReportDesignLibrary: async () => rdCards(),
+  OpenReportDesign: async (_reg: string, id: string) => rdView(rdFind(id)),
+  CheckReportDesign: async (d: RdDesign) => rdCheck(d),
+  CreateReportDesign: async (_reg: string, d: RdDesign, makeDefault: boolean) => {
+    const x = { id: `${rdLibrary.length}f1e2d3c-4b5a-4968-8776-65544332211${rdLibrary.length}`, d, def: makeDefault, logo: "", cover: "", custom: false };
+    if (makeDefault) rdLibrary.forEach((y) => { y.def = false; });
+    rdLibrary.push(x);
+    return rdView(x);
+  },
+  SaveReportDesign: async (_reg: string, id: string, d: RdDesign) => { const x = rdFind(id); x.d = d; return rdView(x); },
+  DeleteReportDesign: async (_reg: string, id: string) => { rdLibrary = rdLibrary.filter((x) => x.id !== id); return rdCards(); },
+  SetDefaultReportDesign: async (_reg: string, id: string) => { rdLibrary.forEach((x) => { x.def = x.id === id; }); return rdCards(); },
+  DuplicateReportDesign: async (_reg: string, id: string) => {
+    const o = rdFind(id);
+    const x = { ...o, id: `${rdLibrary.length}f1e2d3c-4b5a-4968-8776-65544332211${rdLibrary.length}`, d: { ...o.d, name: `${o.d.name} copy` }, def: false };
+    rdLibrary.push(x);
+    return rdView(x);
+  },
+  SuggestReportColours: async () => ({ accent: "#1b2a4a", secondary: "#8a6a00", fromAccent: "#1b2a4a", fromSecondary: "#c9a227" }),
+  ChooseReportLogo: async (_reg: string, id: string) => { const x = rdFind(id); x.logo = rdPng; return rdView(x); },
+  ChooseReportCoverImage: async (_reg: string, id: string) => { const x = rdFind(id); x.cover = rdPng; return rdView(x); },
+  RemoveReportLogo: async (_reg: string, id: string) => { const x = rdFind(id); x.logo = ""; return rdView(x); },
+  RemoveReportCoverImage: async (_reg: string, id: string) => { const x = rdFind(id); x.cover = ""; return rdView(x); },
+  RemoveReportCustomCover: async (_reg: string, id: string) => { const x = rdFind(id); x.custom = false; return rdView(x); },
 };
 
 // A kept server icon: a 1 by 1 PNG, as the Configuration is given one.
@@ -1213,11 +1265,7 @@ g.go = { app: {
   // Registry settings' "signed in as" line reads the user alone; the
   // account and the subscription are the Profile card's (Profile below).
   SettingsAPI: {
-    ReportDesignOptions: async () => rdOptions,
-    ReportDesign: async () => rdView(),
-    CheckReportDesign: async (d: Parameters<typeof rdCheck>[0]) => rdCheck(d),
-    SaveReportDesign: async (_reg: string, d: Record<string, unknown>) => { rdSaved = d; return rdView(); },
-    ResetReportDesign: async () => { rdSaved = null; return rdView(); },
+    ...rdBindings,
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
     OpenTopUp: async () => undefined,

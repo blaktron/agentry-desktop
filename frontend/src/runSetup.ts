@@ -159,6 +159,9 @@ export type RunForm = {
   acceptUnsigned: boolean;
   acceptUnscanned: boolean;
   allowVulnerableMCP: boolean;
+  /** The id of the report design the run's PDFs take, "" for the
+   *  account's default. */
+  reportDesign: string;
 };
 
 /** What the run setup does with a declared MCP server the registry's gate

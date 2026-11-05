@@ -468,7 +468,7 @@ function Preview() {
 
 const form = {
   mode: "autonomous", task: "", inputs: [], pickedFiles: [], intakeValues: {}, attach: [], outDir: "", timeoutSec: "", maxTurns: "",
-  keep: true, keepTouched: false, acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+  keep: true, keepTouched: false, acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false, reportDesign: "",
 };
 const setup = { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form: { ...form, mode: "hosted" } };
 const chatSetup = { ...setup, form: { ...form, mode: hash.startsWith("chat-hosted") ? "hosted-session" : "interactive" } };

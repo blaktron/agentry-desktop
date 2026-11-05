@@ -401,8 +401,8 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // else the key saved on this computer for its host, in the create's
 // sourceTokens, which the registry holds for this run alone
 // (HostedSourceTokens).
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool, sourceTokens map[string]string) (*HostedStartView, error) {
-	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional, sourceTokens)
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool, sourceTokens map[string]string, reportDesign string) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional, sourceTokens, reportDesign)
 }
 
 // startHosted is StartHostedRun and StartHostedSession: the same gates, the
@@ -412,7 +412,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 // writeInVoice asks the run to write in the account's live Writing Voice:
 // the registry checks there is one, and at the hand-off gives the run the
 // live version as it stands then.
-func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool, typedTokens map[string]string) (view *HostedStartView, err error) {
+func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool, typedTokens map[string]string, reportDesign string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	// runMayExist: the registry created the run, or a create's answer never
@@ -453,6 +453,13 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	}
 	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
+	}
+	// A picked report design is sent by its id alone, held to the shape of
+	// one before it reaches the registry.
+	if reportDesign = strings.TrimSpace(reportDesign); reportDesign != "" {
+		if _, err := designID(reportDesign); err != nil {
+			return nil, err
+		}
 	}
 	// A release the registry admitted without a scan is not run In Agentry
 	// from here: the platform records no consent for it yet, and a run
@@ -503,7 +510,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		return nil, err
 	}
-	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice, AskOptionalSecrets: askOptional, SourceTokens: sourceTokens}
+	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice, AskOptionalSecrets: askOptional, SourceTokens: sourceTokens, ReportDesign: reportDesign}
 	created, err := client.Create(ctx, req)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {

@@ -68,7 +68,7 @@ export type SettingsSection = "profile" | "report-design" | "registry" | "update
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
-  | "themes" | "design-editor" | "design-preview"
+  | "library" | "design-editor" | "design-preview" | "design-images"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations" | "runhosts"
@@ -88,8 +88,8 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "report-design", title: "Report design",
-    sentence: "How the PDFs your runs export look: a theme to start from, the accent, the fonts and the paper, kept on your account.",
-    parts: [{ id: "themes", label: "Themes" }, { id: "design-editor", label: "Editor" }, { id: "design-preview", label: "Preview" }],
+    sentence: "How the PDFs your runs export look: your library of designs, each a whole brand with its header, footer and cover page, kept on your account.",
+    parts: [{ id: "library", label: "Library" }],
   },
   {
     id: "registry", title: "Registry settings",

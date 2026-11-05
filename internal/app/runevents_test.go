@@ -169,7 +169,7 @@ func TestARunWhoseLogStallsForGoodStillReturns(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil)
+		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, "")
 		done <- err
 	}()
 	select {
@@ -223,7 +223,7 @@ func TestALocalRunsLogShowsWhatTheAgentDid(t *testing.T) {
 			return &run.Result{Status: "ok", RunID: req.RunID}, nil
 		},
 	}
-	if _, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil); err != nil {
+	if _, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, ""); err != nil {
 		t.Fatalf("RunAgent: %v", err)
 	}
 	mu.Lock()

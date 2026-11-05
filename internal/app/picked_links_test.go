@@ -109,19 +109,19 @@ func TestTheBindingsRefuseALinkOutOfAPickedFolder(t *testing.T) {
 	linkDir := filepath.Join(picked, "link")
 	for name, call := range map[string]func() error{
 		"RunAgent inputs": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil, "")
 			return err
 		},
 		"RunAgent outDir": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, 0, false, nil, false, false, nil, false, nil, nil, nil, "")
 			return err
 		},
 		"StartSession inputs": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", []string{through}, "", nil, 0, false, nil, false, false, nil, false, nil, nil, nil, "")
 			return err
 		},
 		"StartSession outDir": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, false, nil, false, false, nil, false, nil, nil, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, linkDir, nil, 0, false, nil, false, false, nil, false, nil, nil, nil, "")
 			return err
 		},
 		"BuildAPI.Save":     func() error { return b.Save("https://r.example", linkDir, build.Model{}) },
@@ -143,10 +143,10 @@ func TestAHostedRunSendsNothingThroughALink(t *testing.T) {
 	picked, through := linkedOut(t)
 	out := t.TempDir()
 	r.app.markPicked(picked, out)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{through}, out, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{through}, out, nil, nil, false, false, nil, ""); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("an input through a link: %v", err)
 	}
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, filepath.Join(picked, "link"), nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, filepath.Join(picked, "link"), nil, nil, false, false, nil, ""); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("an output folder through a link: %v", err)
 	}
 	if _, err := r.AttachHostedRun(reg, filepath.Join(picked, "link")); err == nil || !strings.Contains(err.Error(), "through a link") {
