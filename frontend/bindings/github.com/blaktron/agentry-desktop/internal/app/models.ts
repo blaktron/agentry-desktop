@@ -1176,7 +1176,8 @@ export class DesignerAvailabilityView {
 
     /**
      * DocumentHere and DocumentInAgentry say a Design may start from a
-     * document there, at most MaxDocumentBytes.
+     * document there, at most MaxDocumentBytes (the registry's own bound In
+     * Agentry, where it is smaller).
      */
     "documentHere": boolean;
     "documentInAgentry": boolean;
@@ -1308,6 +1309,12 @@ export class DesignerHostedView {
     "final": boolean;
 
     /**
+     * Document is the name of the document it was built around, "" for a
+     * run given none.
+     */
+    "document"?: string;
+
+    /**
      * URLs are the web addresses it was given; PagesLine what its record
      * says of their page reads, "" for a run given none.
      */
@@ -1357,10 +1364,10 @@ export class DesignerHostedView {
      * Creates a new DesignerHostedView instance from a string or object.
      */
     static createFrom($$source: any = {}): DesignerHostedView {
-        const $$createField17_0 = $$createType6;
+        const $$createField18_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("urls" in $$parsedSource) {
-            $$parsedSource["urls"] = $$createField17_0($$parsedSource["urls"]);
+            $$parsedSource["urls"] = $$createField18_0($$parsedSource["urls"]);
         }
         return new DesignerHostedView($$parsedSource as Partial<DesignerHostedView>);
     }
@@ -1370,8 +1377,9 @@ export class DesignerHostedView {
  * DesignerRequest is what the dialog starts a run with. From is the id of a
  * design of the library (a Design starts from it, a Cover is written for
  * it); Logo, Images and Document are files the native picker returned. A
- * Document is a Design's on this computer alone: the Report Designer In
- * Agentry is not given one here.
+ * Document is a Design's: on this computer the run reads it, and In Agentry
+ * it is uploaded as the run's document where the registry takes one
+ * (designBuild.document).
  */
 export class DesignerRequest {
     "job": string;

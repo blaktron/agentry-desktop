@@ -44,6 +44,39 @@ type DesignTerms struct {
 	// URLs are the web addresses a Design takes, each page read by AI
 	// Review before the run sees it; nil from a registry that takes none.
 	URLs *VoiceURLTerms `json:"urls,omitempty"`
+	// Document is the one document a Design may be built around; nil from a
+	// registry that takes none.
+	Document *DesignDocumentTerms `json:"document,omitempty"`
+}
+
+// DesignDocumentTerms is the status route's designBuild.document.
+type DesignDocumentTerms struct {
+	Enabled  bool     `json:"enabled"`
+	MaxBytes int64    `json:"maxBytes"`
+	Types    []string `json:"types"`
+}
+
+// TakesDocument reports whether the registry's Report Designer builds a
+// Design around a document, answering its terms.
+func (t *DesignTerms) TakesDocument() (*DesignDocumentTerms, bool) {
+	if t == nil || !t.Enabled || t.Document == nil || !t.Document.Enabled || t.Document.MaxBytes <= 0 {
+		return nil, false
+	}
+	return t.Document, true
+}
+
+// Takes reports whether a document of kind (pdf or docx) is one the
+// registry reads; a registry that lists no types reads both.
+func (d *DesignDocumentTerms) Takes(kind string) bool {
+	if len(d.Types) == 0 {
+		return kind == "pdf" || kind == "docx"
+	}
+	for _, t := range d.Types {
+		if t == kind {
+			return true
+		}
+	}
+	return false
 }
 
 // TakesURLs reports whether the registry's Report Designer reads web
@@ -82,9 +115,12 @@ type CallerDesign struct {
 // design it made is a design of the account's library now, never the
 // default, with DesignID and Name; Note says, in one word, why not.
 type DesignBuild struct {
-	Op       string `json:"op"`
-	From     string `json:"from,omitempty"`
-	Logo     string `json:"logo,omitempty"`
+	Op   string `json:"op"`
+	From string `json:"from,omitempty"`
+	Logo string `json:"logo,omitempty"`
+	// Document is the name of the input that was the document it was built
+	// around.
+	Document string `json:"document,omitempty"`
 	Applied  bool   `json:"applied"`
 	DesignID string `json:"designId,omitempty"`
 	Name     string `json:"name,omitempty"`
