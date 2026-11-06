@@ -95,6 +95,41 @@ func (s *hostedSlot) current() *hostedFollow {
 	return s.cur
 }
 
+// followHostedRun follows a built-in's run In Agentry in the background in
+// slot: emit is handed every state as it moves, then the final one. When the
+// registry stops answering before the run ends, the final emit carries the
+// last state read and lost, the error that broke the watch.
+func followHostedRun(slot *hostedSlot, reg, token string, started *hostedrun.Run, emit func(r *hostedrun.Run, final bool, lost error)) {
+	ctx, cancel := context.WithCancel(context.Background())
+	f := &hostedFollow{registry: reg, id: started.ID, cancel: cancel, done: make(chan struct{})}
+	if !slot.follow(f) {
+		cancel()
+		return
+	}
+	client := hostedrun.New(reg, token)
+	go func() {
+		defer close(f.done)
+		defer cancel()
+		defer slot.done(f)
+		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
+			Poll:     hostedPoll,
+			OnStatus: func(r *hostedrun.Run) { emit(r, false, nil) },
+		})
+		if err != nil {
+			last, gerr := client.Get(context.Background(), started.ID)
+			if gerr != nil || !last.Terminal() {
+				if gerr != nil {
+					last = started
+				}
+				emit(last, true, err)
+				return
+			}
+			final = last
+		}
+		emit(final, true, nil)
+	}()
+}
+
 // KnowledgeHostedAvailabilityView answers "is In Agentry offered for
 // Create knowledge here, can it be chosen" and what the panel states before
 // anything is created: the hold with the scan's credit inside it, the
