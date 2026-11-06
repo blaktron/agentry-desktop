@@ -1370,8 +1370,8 @@ export class DesignerHostedView {
  * DesignerRequest is what the dialog starts a run with. From is the id of a
  * design of the library (a Design starts from it, a Cover is written for
  * it); Logo, Images and Document are files the native picker returned. A
- * Document is refused where the Report Designer reads none
- * (designer.DocumentHere).
+ * Document is a Design's on this computer alone: the Report Designer In
+ * Agentry is not given one here.
  */
 export class DesignerRequest {
     "job": string;
@@ -1441,6 +1441,13 @@ export class DesignerResultView {
     "previews": number;
     "dir": string;
     "pages"?: voice$0.Page[];
+
+    /**
+     * DocumentPages is how many pages of the document the Designer looked
+     * at; LogoFromDocument says the design's logo was taken from it.
+     */
+    "documentPages"?: number;
+    "logoFromDocument"?: boolean;
 
     /** Creates a new DesignerResultView instance. */
     constructor($$source: Partial<DesignerResultView> = {}) {

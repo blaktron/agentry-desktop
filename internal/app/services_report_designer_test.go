@@ -210,8 +210,8 @@ func TestDesignWithAIIsOfferedInBothPlaces(t *testing.T) {
 		v.HostedMaxImages != 4 || !v.HostedURLs || v.HostedMaxURLs != 2 || v.MaxReferences != 4 || v.MaxURLs != 2 || v.MaxBriefBytes != 4096 {
 		t.Fatalf("ready: %+v", v)
 	}
-	if v.DocumentHere || v.DocumentInAgentry {
-		t.Fatalf("a document is offered before the Report Designer reads one: %+v", v)
+	if !v.DocumentHere || v.DocumentInAgentry || v.MaxDocumentBytes != 20<<20 {
+		t.Fatalf("a document is offered on this computer alone: %+v", v)
 	}
 	f.mu.Lock()
 	f.scopes = f.scopes[:2]
@@ -256,6 +256,11 @@ func TestOnThisComputerTheResultIsSavedOnlyOnYes(t *testing.T) {
 	imgs := pickedImages(t, a.app, "logo.png", "ref.png")
 	stray := filepath.Join(t.TempDir(), "stray.png")
 	_ = os.WriteFile(stray, testPNG(t, 4, 4), 0o600)
+	strayDoc := filepath.Join(t.TempDir(), "stray.pdf")
+	_ = os.WriteFile(strayDoc, []byte("%PDF-1.7 not picked"), 0o600)
+	doc := filepath.Join(t.TempDir(), "Annual Report.pdf")
+	_ = os.WriteFile(doc, []byte("%PDF-1.7 the brand"), 0o600)
+	a.app.markPicked(doc)
 
 	made := builtin(t, "boardroom")
 	made.Name = "Northwind"
@@ -268,16 +273,18 @@ func TestOnThisComputerTheResultIsSavedOnlyOnYes(t *testing.T) {
 	a.build = func(_ context.Context, _ dockerx.Client, o build.Options) (*build.Result, error) {
 		seen = o
 		_, _ = io.WriteString(o.Stderr, "rendered the cover\n")
-		return &build.Result{Design: made, Looked: true, Previews: 2, Dir: filepath.Join(o.OutDir, "design")}, nil
+		return &build.Result{Design: made, Looked: true, Previews: 2, Dir: filepath.Join(o.OutDir, "design"), DocumentPages: 3, LogoFromDocument: false}, nil
 	}
-	req := DesignerRequest{Job: designer.JobDesign, Brief: "Reports for a harbour trust.", From: houseID, Logo: imgs[0], Images: imgs[1:]}
+	req := DesignerRequest{Job: designer.JobDesign, Brief: "Reports for a harbour trust.", From: houseID, Logo: imgs[0], Images: imgs[1:], Document: doc}
 
 	for name, bad := range map[string]DesignerRequest{
-		"an image no picker returned": {Job: designer.JobDesign, Brief: "b", Images: []string{stray}},
-		"a logo no picker returned":   {Job: designer.JobDesign, Brief: "b", Logo: stray},
-		"a document":                  {Job: designer.JobDesign, Brief: "b", Document: imgs[1]},
-		"no brief":                    {Job: designer.JobDesign},
-		"a cover for no design":       {Job: designer.JobCover, Brief: "b"},
+		"an image no picker returned":   {Job: designer.JobDesign, Brief: "b", Images: []string{stray}},
+		"a logo no picker returned":     {Job: designer.JobDesign, Brief: "b", Logo: stray},
+		"an image as the document":      {Job: designer.JobDesign, Brief: "b", Document: imgs[1]},
+		"a document no picker returned": {Job: designer.JobDesign, Brief: "b", Document: strayDoc},
+		"a cover with a document":       {Job: designer.JobCover, Brief: "b", From: houseID, Document: doc},
+		"no brief":                      {Job: designer.JobDesign},
+		"a cover for no design":         {Job: designer.JobCover, Brief: "b"},
 	} {
 		if _, err := a.RunHere(f.srv.URL, bad); err == nil {
 			t.Errorf("%s ran", name)
@@ -290,6 +297,9 @@ func TestOnThisComputerTheResultIsSavedOnlyOnYes(t *testing.T) {
 	res, err := a.RunHere(f.srv.URL, req)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if seen.Document == nil || seen.Document.Name != "Annual Report.pdf" || string(seen.Document.Data) != "%PDF-1.7 the brand" || res.DocumentPages != 3 {
+		t.Fatalf("the document: %+v, result %+v", seen.Document, res)
 	}
 	if seen.From == nil || seen.From.Name != "House" || len(seen.Logo) == 0 || len(seen.Images) != 1 || !strings.HasPrefix(seen.OutDir, filepath.Join(home, "Downloads", "agentry-out")) {
 		t.Fatalf("handed %+v", seen)
@@ -347,6 +357,12 @@ func TestInAgentryTheRunIsFollowedToTheDesignItSaved(t *testing.T) {
 	}
 	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b", URLs: []string{"https://a.example/", "https://b.example/", "https://c.example/"}}); err == nil {
 		t.Fatal("three addresses")
+	}
+	pdf := filepath.Join(t.TempDir(), "brand.pdf")
+	_ = os.WriteFile(pdf, []byte("%PDF-1.7 brand"), 0o600)
+	a.app.markPicked(pdf)
+	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b", Document: pdf}); err == nil || !strings.Contains(err.Error(), "run it on this computer") {
+		t.Fatalf("a document In Agentry: %v", err)
 	}
 	if len(f.creates) != 0 || len(f.inputs) != 0 {
 		t.Fatalf("a refusal reached the registry: %v %v", f.creates, f.inputs)

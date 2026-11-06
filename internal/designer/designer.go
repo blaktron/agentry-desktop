@@ -77,6 +77,9 @@ type Request struct {
 	// URLs are a Design's web addresses, each page read by AI Review with
 	// the person's own TypeSafe key first.
 	URLs []string
+	// Document is a Design's one document to build the design around, a
+	// file a native picker returned; "" for none.
+	Document string
 	// Home is the runner home; OutDir the folder the run writes its
 	// reports, receipts and the design under design/ into.
 	Home    string
@@ -99,12 +102,17 @@ type Result struct {
 	// Dir is the folder the design was written to (design.json inside).
 	Dir   string
 	Pages []voice.Page
+	// DocumentPages is how many images of the document the Designer looked
+	// at; LogoFromDocument says the design's logo is a crop of it.
+	DocumentPages    int
+	LogoFromDocument bool
 }
 
 // Check holds a request to the rules the run holds it to, before anything
 // is read: the brief, the job, how many images and addresses, each address
-// as the CLI parses it, and a Cover's design.
-func Check(job, brief string, from bool, logo string, images, urls []string) error {
+// as the CLI parses it, a Cover's design, and that only a Design takes a
+// document.
+func Check(job, brief string, from bool, logo string, images, urls []string, document string) error {
 	b := strings.TrimSpace(brief)
 	switch {
 	case b == "":
@@ -130,8 +138,8 @@ func Check(job, brief string, from bool, logo string, images, urls []string) err
 		if !from {
 			return errors.New("a cover is written for one of your designs: choose it first")
 		}
-		if logo != "" || len(addrs) > 0 {
-			return errors.New("a cover takes the design's own logo and no web addresses")
+		if logo != "" || len(addrs) > 0 || document != "" {
+			return errors.New("a cover takes the design's own logo, no web addresses and no document")
 		}
 		if len(images) > MaxCoverImages {
 			return fmt.Errorf("a cover draws at most %d images", MaxCoverImages)
@@ -179,7 +187,7 @@ func Model() string { return knowledge.PolicyModel() }
 // policy's model. It costs no credits; the pages from web addresses are
 // read by AI Review first, and nothing else it reads or writes is reviewed.
 func Run(ctx context.Context, req Request) (*Result, error) {
-	if err := Check(req.Job, req.Brief, req.From != nil, req.Logo, req.Images, req.URLs); err != nil {
+	if err := Check(req.Job, req.Brief, req.From != nil, req.Logo, req.Images, req.URLs, req.Document); err != nil {
 		return nil, err
 	}
 	if req.From != nil {
@@ -192,6 +200,16 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		var err error
 		if logo, err = ReadImage("the logo", req.Logo); err != nil {
 			return nil, err
+		}
+	}
+	var doc *build.Document
+	if req.Document != "" {
+		var err error
+		if doc, err = ReadDocument(req.Document); err != nil {
+			return nil, err
+		}
+		if _, err := build.DocumentKind(doc.Name, doc.Data); err != nil {
+			return nil, fmt.Errorf("the document %s: %w", doc.Name, err)
 		}
 	}
 	var images [][]byte
@@ -224,6 +242,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	_, _ = fmt.Fprintf(logw, "The Report Designer runs on this computer against the model your runner policy names (%s). "+
 		"It costs no credits, and %s. It looks at its renders and your references when the model reads images.\n", knowledge.CreatorModel(pol), reviewed)
+	if doc != nil {
+		_, _ = fmt.Fprintf(logw, "It reads your document %s in full, after the same checks as any input, and keeps it only for the run.\n", doc.Name)
+	}
 	if len(urls) > 0 {
 		_, _ = fmt.Fprintln(logw, "Each page from a web address is fetched first and read by AI Review with your TypeSafe key; one it flags is withheld. "+
 			"A page drawn by scripts is rendered in a headless browser and read by AI Review there.")
@@ -234,7 +255,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	budgets := settings.BuiltinBudgets(localrun.ReportDesigner(), pol.Budgets).Run
 	res, err := b(ctx, dockerx.New(), build.Options{
-		Job: build.Job(req.Job), Brief: req.Brief, From: req.From, Logo: logo, Images: images, URLs: urls, Review: review, Web: web,
+		Job: build.Job(req.Job), Brief: req.Brief, From: req.From, Logo: logo, Images: images, URLs: urls, Document: doc, Review: review, Web: web,
 		Home: req.Home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
 		OutDir: req.OutDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: req.OnUsage,
 	})
@@ -250,5 +271,6 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Result{Design: res.Design, Looked: res.Looked, Thumbnail: res.Thumbnail, Previews: res.Previews, Dir: res.Dir, Pages: pages}, nil
+	return &Result{Design: res.Design, Looked: res.Looked, Thumbnail: res.Thumbnail, Previews: res.Previews, Dir: res.Dir, Pages: pages,
+		DocumentPages: res.DocumentPages, LogoFromDocument: res.LogoFromDocument}, nil
 }
