@@ -31,24 +31,28 @@ func TestTheInputsAreCheckedBeforeTheStart(t *testing.T) {
 		images []string
 		urls   []string
 		want   string
+		// document is the case's document, "" for none.
+		document string
 	}{
-		{"a brief alone", JobDesign, "Quarterly reports for a harbour trust.", false, "", nil, nil, ""},
-		{"everything a design takes", JobDesign, "b", true, "logo.png", refs, []string{"https://example.com/", " ", "https://example.org/about"}, ""},
-		{"no brief", JobDesign, "  \n", false, "", nil, nil, "works from a brief"},
-		{"a brief over 4 KiB", JobDesign, strings.Repeat("x", MaxBriefBytes+1), false, "", nil, nil, "at most 4 KiB"},
-		{"not UTF-8", JobDesign, "caf\xe9", false, "", nil, nil, "UTF-8"},
-		{"five references", JobDesign, "b", false, "", append(refs, "e.png"), nil, "at most 4 reference images"},
-		{"three addresses", JobDesign, "b", false, "", nil, []string{"https://a.example/", "https://b.example/", "https://c.example/"}, "at most 2 web addresses"},
-		{"a plain-http address", JobDesign, "b", false, "", nil, []string{"http://example.com/"}, "the web addresses: "},
-		{"a cover for no design", JobCover, "b", false, "", nil, nil, "choose it first"},
-		{"a cover with a logo", JobCover, "b", true, "logo.png", nil, nil, "design's own logo"},
-		{"a cover with an address", JobCover, "b", true, "", nil, []string{"https://example.com/"}, "no web addresses"},
-		{"a cover drawing too many", JobCover, "b", true, "", make([]string, MaxCoverImages+1), nil, "at most"},
-		{"a cover", JobCover, "A dawn harbour band.", true, "", refs, nil, ""},
-		{"another job", "edit", "b", true, "", nil, nil, "not design or cover"},
+		{"a brief alone", JobDesign, "Quarterly reports for a harbour trust.", false, "", nil, nil, "", ""},
+		{"everything a design takes", JobDesign, "b", true, "logo.png", refs, []string{"https://example.com/", " ", "https://example.org/about"}, "", ""},
+		{"no brief", JobDesign, "  \n", false, "", nil, nil, "works from a brief", ""},
+		{"a brief over 4 KiB", JobDesign, strings.Repeat("x", MaxBriefBytes+1), false, "", nil, nil, "at most 4 KiB", ""},
+		{"not UTF-8", JobDesign, "caf\xe9", false, "", nil, nil, "UTF-8", ""},
+		{"five references", JobDesign, "b", false, "", append(refs, "e.png"), nil, "at most 4 reference images", ""},
+		{"three addresses", JobDesign, "b", false, "", nil, []string{"https://a.example/", "https://b.example/", "https://c.example/"}, "at most 2 web addresses", ""},
+		{"a plain-http address", JobDesign, "b", false, "", nil, []string{"http://example.com/"}, "the web addresses: ", ""},
+		{"a cover for no design", JobCover, "b", false, "", nil, nil, "choose it first", ""},
+		{"a cover with a logo", JobCover, "b", true, "logo.png", nil, nil, "design's own logo", ""},
+		{"a cover with an address", JobCover, "b", true, "", nil, []string{"https://example.com/"}, "no web addresses", ""},
+		{"a cover drawing too many", JobCover, "b", true, "", make([]string, MaxCoverImages+1), nil, "at most", ""},
+		{"a cover", JobCover, "A dawn harbour band.", true, "", refs, nil, "", ""},
+		{"a design from a document", JobDesign, "Like our annual report.", false, "", nil, nil, "", "annual-report.pdf"},
+		{"a cover from a document", JobCover, "b", true, "", nil, nil, "no document", "annual-report.pdf"},
+		{"another job", "edit", "b", true, "", nil, nil, "not design or cover", ""},
 	}
 	for _, c := range cases {
-		err := Check(c.job, c.brief, c.from, c.logo, c.images, c.urls)
+		err := Check(c.job, c.brief, c.from, c.logo, c.images, c.urls, c.document)
 		switch {
 		case c.want == "" && err != nil:
 			t.Errorf("%s: %v", c.name, err)
@@ -103,10 +107,12 @@ func TestARunHandsTheDesignerWhatWasPicked(t *testing.T) {
 	var seen build.Options
 	fake := func(_ context.Context, _ dockerx.Client, o build.Options) (*build.Result, error) {
 		seen = o
-		return &build.Result{Design: made, Looked: true, Previews: 3, Dir: filepath.Join(o.OutDir, "design")}, nil
+		return &build.Result{Design: made, Looked: true, Previews: 3, Dir: filepath.Join(o.OutDir, "design"), DocumentPages: 4, LogoFromDocument: true}, nil
 	}
+	docPath := filepath.Join(dir, "Annual Report.pdf")
+	_ = os.WriteFile(docPath, []byte("%PDF-1.7 brand"), 0o600)
 	res, err := Run(context.Background(), Request{
-		Job: JobDesign, Brief: "  Reports for a harbour trust.  ", From: &from, Logo: logo, Images: []string{img},
+		Job: JobDesign, Brief: "  Reports for a harbour trust.  ", From: &from, Logo: logo, Images: []string{img}, Document: docPath,
 		Home: home, OutDir: out, RunID: "run-1", Build: fake,
 	})
 	if err != nil {
@@ -114,10 +120,12 @@ func TestARunHandsTheDesignerWhatWasPicked(t *testing.T) {
 	}
 	if seen.Job != build.Design || seen.Brief != "  Reports for a harbour trust.  " || seen.From != &from || string(seen.Logo) != "logo-bytes" ||
 		len(seen.Images) != 1 || string(seen.Images[0]) != "ref-bytes" || seen.Home != home || seen.OutDir != out || seen.RunID != "run-1" ||
-		seen.Budgets == nil || seen.Policy == nil || len(seen.URLs) != 0 {
+		seen.Budgets == nil || seen.Policy == nil || len(seen.URLs) != 0 ||
+		seen.Document == nil || seen.Document.Name != "Annual Report.pdf" || string(seen.Document.Data) != "%PDF-1.7 brand" {
 		t.Fatalf("handed %+v", seen)
 	}
-	if res.Design.Name != "Northwind Harbour Trust" || !res.Looked || res.Previews != 3 || res.Dir != filepath.Join(out, "design") {
+	if res.Design.Name != "Northwind Harbour Trust" || !res.Looked || res.Previews != 3 || res.Dir != filepath.Join(out, "design") ||
+		res.DocumentPages != 4 || !res.LogoFromDocument {
 		t.Fatalf("result %+v", res)
 	}
 
@@ -128,10 +136,10 @@ func TestARunHandsTheDesignerWhatWasPicked(t *testing.T) {
 	}
 }
 
-// A document is held to its rules by its bytes before anything reads it:
-// one regular file, not empty, at most 20 MB, a PDF or a Word document
-// whatever its name says.
-func TestADocumentIsCheckedByItsBytes(t *testing.T) {
+// A document is held to the CLI's own rule before a run reads it: one
+// regular file, not empty, at most 20 MB, a PDF or a Word document as its
+// bytes and its name say.
+func TestADocumentIsCheckedAsTheCLIChecksIt(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name string, b []byte) string {
 		p := filepath.Join(dir, name)
@@ -145,11 +153,6 @@ func TestADocumentIsCheckedByItsBytes(t *testing.T) {
 	w, _ := z.Create("word/document.xml")
 	_, _ = w.Write([]byte("<w:document/>"))
 	_ = z.Close()
-	var otherZip bytes.Buffer
-	z = zip.NewWriter(&otherZip)
-	w, _ = z.Create("xl/workbook.xml")
-	_, _ = w.Write([]byte("<workbook/>"))
-	_ = z.Close()
 	big, err := os.Create(filepath.Join(dir, "big.pdf"))
 	if err != nil {
 		t.Fatal(err)
@@ -162,9 +165,9 @@ func TestADocumentIsCheckedByItsBytes(t *testing.T) {
 	}{
 		{write("brand.pdf", []byte("%PDF-1.7\n%…")), DocumentPDF, ""},
 		{write("letterhead.docx", docx.Bytes()), DocumentDOCX, ""},
-		{write("named-pdf.docx", []byte("%PDF-1.4 x")), DocumentPDF, ""},
-		{write("sheet.docx", otherZip.Bytes()), "", "neither a PDF nor a Word document"},
-		{write("notes.pdf", []byte("plain text")), "", "neither a PDF nor a Word document"},
+		{write("pdf-named.docx", []byte("%PDF-1.4 x")), "", "a PDF or a Word document"},
+		{write("archive.zip", docx.Bytes()), "", "a PDF or a Word document"},
+		{write("notes.pdf", []byte("plain text")), "", "a PDF or a Word document"},
 		{write("empty.pdf", nil), "", "is empty"},
 		{filepath.Join(dir, "big.pdf"), "", "over 20 MB"},
 		{dir, "", "not a file"},
@@ -179,8 +182,8 @@ func TestADocumentIsCheckedByItsBytes(t *testing.T) {
 			t.Errorf("%s: %v, want %q", filepath.Base(c.path), err, c.want)
 		}
 	}
-	if DocumentHere {
-		t.Fatal("the Report Designer this app carries does not read a document")
+	if !DocumentHere {
+		t.Fatal("the Report Designer this app carries reads a document")
 	}
 }
 

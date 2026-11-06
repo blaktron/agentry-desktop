@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.17",
+      "highlights": [
+        "Design with AI can start from a document: one PDF or Word document that already looks the way you want.",
+        "The Report Designer takes its colours, faces, header, footer and logo from it, on this computer.",
+        "The document is read in full and kept only for the run."
+      ]
+    },
+    {
       "version": "0.7.16",
       "highlights": [
         "Design with AI in Settings → Report design writes a design, or a custom cover page, from your brief.",

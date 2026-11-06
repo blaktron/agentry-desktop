@@ -79,8 +79,8 @@ type pendingDesign struct {
 // DesignerRequest is what the dialog starts a run with. From is the id of a
 // design of the library (a Design starts from it, a Cover is written for
 // it); Logo, Images and Document are files the native picker returned. A
-// Document is refused where the Report Designer reads none
-// (designer.DocumentHere).
+// Document is a Design's on this computer alone: the Report Designer In
+// Agentry is not given one here.
 type DesignerRequest struct {
 	Job      string   `json:"job"`
 	Brief    string   `json:"brief"`
@@ -279,10 +279,10 @@ func (a *DesignerAPI) CheckAddresses(urls []string) (*DesignerAddressesView, err
 // check holds a request to the rules both places share, every image to the
 // native picker, and the document to its place, before anything is read.
 func (a *DesignerAPI) check(req DesignerRequest) error {
-	if req.Document != "" {
-		return designer.ErrNoDocument
+	if err := designer.Check(req.Job, req.Brief, strings.TrimSpace(req.From) != "", req.Logo, req.Images, req.URLs, req.Document); err != nil {
+		return err
 	}
-	if err := designer.Check(req.Job, req.Brief, strings.TrimSpace(req.From) != "", req.Logo, req.Images, req.URLs); err != nil {
+	if err := a.app.requirePicked("the document", req.Document); err != nil {
 		return err
 	}
 	if err := a.app.requirePicked("the logo", req.Logo); err != nil {
@@ -312,6 +312,10 @@ type DesignerResultView struct {
 	Previews  int               `json:"previews"`
 	Dir       string            `json:"dir"`
 	Pages     []voice.Page      `json:"pages,omitempty"`
+	// DocumentPages is how many pages of the document the Designer looked
+	// at; LogoFromDocument says the design's logo was taken from it.
+	DocumentPages    int  `json:"documentPages,omitempty"`
+	LogoFromDocument bool `json:"logoFromDocument,omitempty"`
 }
 
 // RunHere runs the Report Designer on this computer against the runner
@@ -353,7 +357,7 @@ func (a *DesignerAPI) RunHere(reg string, req DesignerRequest) (*DesignerResultV
 		_, _ = fmt.Fprintf(logw, "Its reports, receipts and the design it makes are written to %s.\n", out)
 		res, err = designer.Run(ctx, designer.Request{
 			Job: req.Job, Brief: req.Brief, From: from, Logo: req.Logo, Images: req.Images, URLs: req.URLs,
-			Home: home, OutDir: out, RunID: runID, Build: a.build, Log: logw,
+			Document: req.Document, Home: home, OutDir: out, RunID: runID, Build: a.build, Log: logw,
 		})
 		return err
 	})
@@ -370,6 +374,7 @@ func (a *DesignerAPI) RunHere(reg string, req DesignerRequest) (*DesignerResultV
 	return &DesignerResultView{
 		Token: tok, Job: req.Job, Name: res.Design.Name, View: designPreview(res.Design), Looked: res.Looked,
 		Thumbnail: res.Thumbnail, Previews: res.Previews, Dir: res.Dir, Pages: res.Pages,
+		DocumentPages: res.DocumentPages, LogoFromDocument: res.LogoFromDocument,
 	}, nil
 }
 
@@ -617,6 +622,9 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 				return nil, err
 			}
 		}
+	}
+	if req.Document != "" {
+		return nil, errors.New("the Report Designer In Agentry is not given a document from this app: run it on this computer to design from your document")
 	}
 	addrs := knowledge.TrimmedLines(req.URLs)
 	if err := a.hosted.claim("a Report Designer run In Agentry is already in progress: wait for it to finish, or cancel it"); err != nil {

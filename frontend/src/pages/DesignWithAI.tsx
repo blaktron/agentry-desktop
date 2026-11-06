@@ -24,7 +24,7 @@ import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Modal, Notice, Select, Spinner, Textarea } from "../ui";
 import { FoldedLog, StopButton } from "../progress";
 import {
-  addressLines, briefBytes, designerPriceLine, designerProblem, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,
+  addressLines, briefBytes, designerPriceLine, designerProblem, documentLine, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,
   type DesignerJob, type DesignerWhere,
 } from "../designer";
 import { isImageSrc, startFrom } from "../reportDesign";
@@ -126,6 +126,7 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
           The Report Designer made “{result.name}”{result.previews > 0 ? `, after ${result.previews} ${result.previews === 1 ? "render" : "renders"} it looked at` : ""}.
         </p>
         {looked && <Notice tone="warn">{looked}</Notice>}
+        {documentLine(result) && <p className="small" data-designer-document-line>{documentLine(result)}</p>}
         {result.job === "cover" && !result.thumbnail && <p className="muted small">Its last render was not of the cover it kept, so the design has no thumbnail of it.</p>}
         {result.view && <ResultCard view={result.view} opts={opts} />}
         <p className="muted small selectable">It is written to <span className="mono">{result.dir}</span>, with the run&apos;s reports and receipts beside it.</p>
@@ -217,12 +218,12 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
 
   const limits = avail ?? null;
   const w: DesignerWhere = where ?? "here";
-  const inputs = { job, brief, from, logo: job === "design" ? logo : "", images, urls, document: takesDocument(job, w, limitsOf(limits)) ? document : "" };
+  const inputs = { job, brief, from, logo: job === "design" ? logo : "", images, urls, document: job === "design" ? document : "" };
   const addrProblem = urls.length > 0 ? addressProblemOf(addrCheck) : null;
   const problem = limits ? designerProblem(inputs, w, limitsOf(limits), addrProblem) : "Reading where the Report Designer can run…";
   const dockerBlock = w === "here" && setup !== null && !setup.dockerOk;
   const imageMax = limits ? maxImages(job, w, limitsOf(limits)) : 4;
-  const typed = brief.trim() !== "" || images.length > 0 || urls.length > 0 || logo !== "";
+  const typed = brief.trim() !== "" || images.length > 0 || urls.length > 0 || logo !== "" || document !== "";
 
   async function start() {
     setError(null);
@@ -344,15 +345,20 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
         </div>
       )}
 
-      {takesDocument(job, w, limitsOf(limits)) && (
+      {job === "design" && (takesDocument(job, w, limitsOf(limits)) || document !== "") && (
         <div className="field" data-designer-document>
           <div className="field-label">Start from a document (optional)</div>
           <div className="row gap">
-            <Button onClick={() => DesignerAPI.ChooseDocument("A document to design from").then((p) => { if (p) setDocument(p); }).catch((e) => setError(String(e)))}>
-              {document ? "Choose another…" : "Choose a PDF or Word document…"}
-            </Button>
+            {takesDocument(job, w, limitsOf(limits)) && (
+              <Button onClick={() => DesignerAPI.ChooseDocument("A document to design from").then((p) => { if (p) setDocument(p); }).catch((e) => setError(String(e)))}>
+                {document ? "Choose another…" : "Choose a PDF or Word document…"}
+              </Button>
+            )}
             {document && <span className="small mono selectable">{document} <Button variant="link" onClick={() => setDocument("")}>Remove</Button></span>}
           </div>
+          {!takesDocument(job, w, limitsOf(limits)) && (
+            <span className="small step-problem">The Report Designer In Agentry is not given a document from this app: run it on this computer, or remove the document.</span>
+          )}
           <span className="muted small">
             One PDF or Word document, up to {Math.round((limits?.maxDocumentBytes ?? 0) / (1024 * 1024))} MB, that already looks the way you want. The
             Report Designer reads it in full and keeps it only for the run.
