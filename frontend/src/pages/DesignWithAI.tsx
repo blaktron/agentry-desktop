@@ -345,15 +345,20 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
         </div>
       )}
 
-      {takesDocument(job, w, limitsOf(limits)) && (
+      {job === "design" && (takesDocument(job, w, limitsOf(limits)) || document !== "") && (
         <div className="field" data-designer-document>
           <div className="field-label">Start from a document (optional)</div>
           <div className="row gap">
-            <Button onClick={() => DesignerAPI.ChooseDocument("A document to design from").then((p) => { if (p) setDocument(p); }).catch((e) => setError(String(e)))}>
-              {document ? "Choose another…" : "Choose a PDF or Word document…"}
-            </Button>
+            {takesDocument(job, w, limitsOf(limits)) && (
+              <Button onClick={() => DesignerAPI.ChooseDocument("A document to design from").then((p) => { if (p) setDocument(p); }).catch((e) => setError(String(e)))}>
+                {document ? "Choose another…" : "Choose a PDF or Word document…"}
+              </Button>
+            )}
             {document && <span className="small mono selectable">{document} <Button variant="link" onClick={() => setDocument("")}>Remove</Button></span>}
           </div>
+          {!takesDocument(job, w, limitsOf(limits)) && (
+            <span className="small step-problem">The Report Designer In Agentry is not given a document from this app: run it on this computer, or remove the document.</span>
+          )}
           <span className="muted small">
             One PDF or Word document, up to {Math.round((limits?.maxDocumentBytes ?? 0) / (1024 * 1024))} MB, that already looks the way you want. The
             Report Designer reads it in full and keeps it only for the run.
