@@ -347,6 +347,8 @@ type Input struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Bytes int64  `json:"bytes"`
+	// Document is what a kind=document upload was sniffed as, pdf or docx.
+	Document string `json:"document,omitempty"`
 }
 
 // CreateRequest is the body of POST /x/runs/: a run names a Ref; a
@@ -412,6 +414,9 @@ type CreateRequest struct {
 	// Design's logo.
 	From string `json:"from,omitempty"`
 	Logo string `json:"logo,omitempty"`
+	// Document is the id of the input among Inputs that is a Design's
+	// document, uploaded with UploadDocument.
+	Document string `json:"document,omitempty"`
 	// Web is a knowledge build's Search the web choice; nil leaves it to the
 	// registry's default, on for a new pack with no documents and off
 	// otherwise. A knowledge build's Brief is what the pack should cover and
@@ -596,7 +601,23 @@ func (c *Client) Cancel(ctx context.Context, id string) (*Run, error) {
 // UploadInput stores one input file for a run this account will create.
 // The body is the file; name is how the run sees it under /inputs.
 func (c *Client) UploadInput(ctx context.Context, name string, body io.Reader, size int64) (*Input, error) {
-	req, err := c.request(ctx, http.MethodPost, c.path("inputs")+"?name="+url.QueryEscape(name), body, "application/octet-stream")
+	return c.upload(ctx, name, "", body, size)
+}
+
+// UploadDocument stores the one document a Report Designer Design is built
+// around (kind=document): the registry sniffs it as a PDF or a Word
+// document before it keeps it, within designBuild.document.maxBytes, and
+// answers which it is in the input's Document.
+func (c *Client) UploadDocument(ctx context.Context, name string, body io.Reader, size int64) (*Input, error) {
+	return c.upload(ctx, name, "document", body, size)
+}
+
+func (c *Client) upload(ctx context.Context, name, kind string, body io.Reader, size int64) (*Input, error) {
+	q := "?name=" + url.QueryEscape(name)
+	if kind != "" {
+		q += "&kind=" + url.QueryEscape(kind)
+	}
+	req, err := c.request(ctx, http.MethodPost, c.path("inputs")+q, body, "application/octet-stream")
 	if err != nil {
 		return nil, err
 	}

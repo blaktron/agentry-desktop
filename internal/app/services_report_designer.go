@@ -23,6 +23,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -79,8 +80,9 @@ type pendingDesign struct {
 // DesignerRequest is what the dialog starts a run with. From is the id of a
 // design of the library (a Design starts from it, a Cover is written for
 // it); Logo, Images and Document are files the native picker returned. A
-// Document is a Design's on this computer alone: the Report Designer In
-// Agentry is not given one here.
+// Document is a Design's: on this computer the run reads it, and In Agentry
+// it is uploaded as the run's document where the registry takes one
+// (designBuild.document).
 type DesignerRequest struct {
 	Job      string   `json:"job"`
 	Brief    string   `json:"brief"`
@@ -129,7 +131,8 @@ type DesignerAvailabilityView struct {
 	HostedMaxURLs   int  `json:"hostedMaxUrls,omitempty"`
 
 	// DocumentHere and DocumentInAgentry say a Design may start from a
-	// document there, at most MaxDocumentBytes.
+	// document there, at most MaxDocumentBytes (the registry's own bound In
+	// Agentry, where it is smaller).
 	DocumentHere      bool  `json:"documentHere"`
 	DocumentInAgentry bool  `json:"documentInAgentry"`
 	MaxDocumentBytes  int64 `json:"maxDocumentBytes"`
@@ -176,6 +179,10 @@ func (a *DesignerAPI) Availability(reg, job string) (*DesignerAvailabilityView, 
 			out.Credits, out.HoldCredits, out.HostedMaxImages = t.Credits, t.Credits, t.MaxImages
 			if u, ok := t.TakesURLs(); ok {
 				out.HostedURLs, out.HostedMaxURLs = true, u.Max
+			}
+			if d, ok := t.TakesDocument(); ok {
+				out.DocumentInAgentry = true
+				out.MaxDocumentBytes = min(out.MaxDocumentBytes, d.MaxBytes)
 			}
 		}
 		if st.Caller != nil && st.Caller.DesignBuild != nil {
@@ -534,6 +541,9 @@ type DesignerHostedView struct {
 	Name     string `json:"name,omitempty"`
 	Note     string `json:"note,omitempty"`
 	Final    bool   `json:"final"`
+	// Document is the name of the document it was built around, "" for a
+	// run given none.
+	Document string `json:"document,omitempty"`
 	// URLs are the web addresses it was given; PagesLine what its record
 	// says of their page reads, "" for a run given none.
 	URLs      []string `json:"urls,omitempty"`
@@ -555,7 +565,7 @@ func designerHostedView(r *hostedrun.Run, final bool) *DesignerHostedView {
 		HoldCredits: r.HoldCredits, SettledCredits: rv.SettledCredits, Settled: rv.Settled, Final: final,
 	}
 	if b := r.DesignBuild; b != nil {
-		out.Op, out.Applied, out.DesignID, out.Name = b.Op, b.Applied, b.DesignID, b.Name
+		out.Op, out.Applied, out.DesignID, out.Name, out.Document = b.Op, b.Applied, b.DesignID, b.Name, b.Document
 		out.Note = hostedrun.DesignNoteSentence(b.Note)
 		if !b.Applied && b.Note != "" && out.Note == "" {
 			out.Note = "The Report Designer saved no design. Its credits were refunded."
@@ -623,9 +633,6 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 			}
 		}
 	}
-	if req.Document != "" {
-		return nil, errors.New("the Report Designer In Agentry is not given a document from this app: run it on this computer to design from your document")
-	}
 	addrs := knowledge.TrimmedLines(req.URLs)
 	if err := a.hosted.claim("a Report Designer run In Agentry is already in progress: wait for it to finish, or cancel it"); err != nil {
 		return nil, err
@@ -662,6 +669,16 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 			return nil, fmt.Errorf("the Report Designer In Agentry takes at most %d web addresses", u.Max)
 		}
 	}
+	var doc *designerDocument
+	if req.Document != "" {
+		d, ok := t.TakesDocument()
+		if !ok {
+			return nil, errors.New("this registry's Report Designer is not given a document In Agentry: run it on this computer, or remove the document")
+		}
+		if doc, err = readHostedDocument(req.Document, d); err != nil {
+			return nil, err
+		}
+	}
 	var paths []string
 	if req.Logo != "" {
 		paths = append(paths, req.Logo)
@@ -673,6 +690,16 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 		}
 	}
 	cr := hostedrun.CreateRequest{Kind: hostedrun.KindDesignBuild, Op: req.Job, Brief: strings.TrimSpace(req.Brief), From: from, URLs: addrs}
+	if doc != nil {
+		in, err := client.UploadDocument(ctx, doc.name, bytes.NewReader(doc.data), int64(len(doc.data)))
+		if err != nil {
+			if r := hostedrun.RefusalOf(err); r != nil {
+				return designerRefusal(r), nil
+			}
+			return nil, err
+		}
+		cr.Document = in.ID
+	}
 	if len(paths) > 0 {
 		files, err := hostedrun.StageInputs(paths)
 		if err != nil {
@@ -690,6 +717,9 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 			cr.Logo = ids[0]
 		}
 	}
+	if cr.Document != "" {
+		cr.Inputs = append(cr.Inputs, cr.Document)
+	}
 	created, err := client.Create(ctx, cr)
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
@@ -700,6 +730,33 @@ func (a *DesignerAPI) StartHosted(reg string, req DesignerRequest) (*DesignerHos
 	claimed = false
 	a.followHosted(url, token, created)
 	return &DesignerHostedStartView{Run: designerHostedView(created, false)}, nil
+}
+
+// designerDocument is a picked document read for an upload.
+type designerDocument struct {
+	name string
+	data []byte
+}
+
+// readHostedDocument reads a picked document within the CLI's cap and the
+// registry's, held to the CLI's own type rule and to the types the
+// registry reads, before anything is uploaded.
+func readHostedDocument(path string, terms *hostedrun.DesignDocumentTerms) (*designerDocument, error) {
+	kind, err := designer.CheckDocument(path)
+	if err != nil {
+		return nil, err
+	}
+	if !terms.Takes(kind) {
+		return nil, fmt.Errorf("the Report Designer In Agentry does not read a %s document", strings.ToUpper(kind))
+	}
+	d, err := designer.ReadDocument(path)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(d.Data)) > terms.MaxBytes {
+		return nil, fmt.Errorf("the document %s is over the %d MB the Report Designer In Agentry takes", d.Name, terms.MaxBytes>>20)
+	}
+	return &designerDocument{name: d.Name, data: d.Data}, nil
 }
 
 func designerRefusal(r *hostedrun.Refusal) *DesignerHostedStartView {
