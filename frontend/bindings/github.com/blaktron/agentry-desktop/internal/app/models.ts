@@ -1369,9 +1369,9 @@ export class DesignerHostedView {
 /**
  * DesignerRequest is what the dialog starts a run with. From is the id of a
  * design of the library (a Design starts from it, a Cover is written for
- * it); Logo and Images are files the native picker returned; Document is the
- * place a document to design from will take, refused until the Report
- * Designer reads one.
+ * it); Logo, Images and Document are files the native picker returned. A
+ * Document is refused where the Report Designer reads none
+ * (designer.DocumentHere).
  */
 export class DesignerRequest {
     "job": string;
