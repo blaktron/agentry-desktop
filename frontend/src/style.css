@@ -1947,3 +1947,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .report-design-images h3 { margin: 0 0 6px; font-size: 15px; }
 .report-design-cover-image { display: block; max-height: 120px; width: auto; max-width: 100%; margin: 4px 0 8px; border: 1px solid var(--color-border); border-radius: 4px; background: #ffffff; }
 .report-design-custom-cover { display: block; max-height: 160px; width: auto; margin: 4px 0 8px; border: 1px solid var(--color-border); background: #ffffff; }
+/* Design with AI's result: the design's name over its likeness, drawn at
+   the size of the library's column rather than the dialog's width. */
+.report-design-result { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
+.report-design-result-pages { flex: 1; min-width: 0; max-width: 18rem; }

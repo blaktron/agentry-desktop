@@ -26,6 +26,7 @@ type Services struct {
 	build        *BuildAPI
 	knowledge    *KnowledgeAPI
 	voice        *VoiceAPI
+	designer     *DesignerAPI
 	home         *HomeAPI
 	publisher    *PublisherAPI
 	selfUpdate   *SelfUpdateAPI
@@ -74,6 +75,7 @@ func New(notices string) *Services {
 		build:         &BuildAPI{app: app, run: run},
 		knowledge:     &KnowledgeAPI{app: app, run: run},
 		voice:         &VoiceAPI{app: app, run: run},
+		designer:      &DesignerAPI{app: app, run: run},
 		home:          &HomeAPI{},
 		publisher:     &PublisherAPI{app: app},
 		selfUpdate:    newSelfUpdateAPI(app, meetings.suspendForUpdate),
@@ -200,6 +202,7 @@ func (s *Services) Bind() []application.Service {
 		application.NewService(s.build),
 		application.NewService(s.knowledge),
 		application.NewService(s.voice),
+		application.NewService(s.designer),
 		application.NewService(s.home),
 		application.NewService(s.publisher),
 		application.NewService(s.selfUpdate),

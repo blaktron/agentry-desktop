@@ -84,6 +84,9 @@ type Caller struct {
 	// Voice is what the caller's payer may still start of Voice Writer
 	// runs this billing cycle; nil where the deployment runs none.
 	Voice *CallerVoice `json:"voice,omitempty"`
+	// DesignBuild is what a Report Designer run would hold on the caller's
+	// payer; nil where the deployment runs none.
+	DesignBuild *CallerDesign `json:"designBuild,omitempty"`
 	// Revise says whether the caller's payer may revise a QuickAgent In
 	// Agentry (Edit with AI): Pro and above. Whom it may revise is per
 	// QuickAgent, answered at create. Nil from a registry that does not
@@ -186,6 +189,9 @@ type Status struct {
 	// VoiceBuild is the Voice Writer's terms here and whether a run may
 	// attach a voice; nil from a registry that does not send it.
 	VoiceBuild *VoiceTerms `json:"voiceBuild,omitempty"`
+	// DesignBuild is the Report Designer's terms here; nil from a registry
+	// that does not send it.
+	DesignBuild *DesignTerms `json:"designBuild,omitempty"`
 }
 
 // KnowledgeAttach is the status route's knowledgeAttach block.
@@ -296,9 +302,11 @@ type Run struct {
 	// Writing Voice a run or a session attached.
 	VoiceBuild *VoiceBuild    `json:"voiceBuild,omitempty"`
 	Voice      *AttachedVoice `json:"voice,omitempty"`
-	CreatedAt  time.Time      `json:"createdAt"`
-	StartedAt  *time.Time     `json:"startedAt,omitempty"`
-	FinishedAt *time.Time     `json:"finishedAt,omitempty"`
+	// DesignBuild is a hosted Report Designer run's record.
+	DesignBuild *DesignBuild `json:"designBuild,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
+	StartedAt   *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt  *time.Time   `json:"finishedAt,omitempty"`
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
@@ -398,6 +406,12 @@ type CreateRequest struct {
 	Op           string            `json:"op,omitempty"`
 	Brief        string            `json:"brief,omitempty"`
 	Note         string            `json:"note,omitempty"`
+	// From and Logo are a Report Designer run's (KindDesignBuild): From the
+	// id of the account's design a Design starts from or a Cover is
+	// written for, Logo the id of the input among Inputs that is a
+	// Design's logo.
+	From string `json:"from,omitempty"`
+	Logo string `json:"logo,omitempty"`
 	// Web is a knowledge build's Search the web choice; nil leaves it to the
 	// registry's default, on for a new pack with no documents and off
 	// otherwise. A knowledge build's Brief is what the pack should cover and

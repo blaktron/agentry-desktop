@@ -633,7 +633,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 <span><strong>No time or turn limit for the built-in agents</strong></span>
               </label>
               <p className="muted small" style={{ marginBottom: 0 }}>
-                On unless you turn it off. While it is on, drafts, knowledge builds, local reviews and Writing Voice runs on
+                On unless you turn it off. While it is on, drafts, knowledge builds, local reviews, Writing Voice runs and Report Designer runs on
                 this computer have no timeout and no turn limit: each runs until it finishes or you stop it, and only a
                 safety cap far past what any of them needs ends one that loops. The runner policy&apos;s cost cap still
                 applies, unless it is 0. A draft&apos;s repair turn has no timeout too, with at most eight tool calls and
