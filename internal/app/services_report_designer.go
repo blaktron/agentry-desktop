@@ -36,6 +36,8 @@ import (
 
 	"github.com/blaktron/agentry/pkg/reportdesign"
 
+	"github.com/blaktron/agentry-cli/pkg/reportdesigner/build"
+
 	"github.com/blaktron/agentry-desktop/internal/designer"
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -738,25 +740,34 @@ type designerDocument struct {
 	data []byte
 }
 
-// readHostedDocument reads a picked document within the CLI's cap and the
-// registry's, held to the CLI's own type rule and to the types the
-// registry reads, before anything is uploaded.
+// readHostedDocument reads a picked document once, within the CLI's cap
+// and the registry's, and holds those bytes to the CLI's own type rule and
+// to the types the registry reads before anything is uploaded: what is
+// checked is what is sent.
 func readHostedDocument(path string, terms *hostedrun.DesignDocumentTerms) (*designerDocument, error) {
-	kind, err := designer.CheckDocument(path)
-	if err != nil {
-		return nil, err
-	}
-	if !terms.Takes(kind) {
-		return nil, fmt.Errorf("the Report Designer In Agentry does not read a %s document", strings.ToUpper(kind))
-	}
 	d, err := designer.ReadDocument(path)
 	if err != nil {
 		return nil, err
 	}
+	kind, err := build.DocumentKind(d.Name, d.Data)
+	if err != nil {
+		return nil, fmt.Errorf("the document %s: %w", d.Name, err)
+	}
+	if !terms.Takes(string(kind)) {
+		return nil, fmt.Errorf("the Report Designer In Agentry does not read %s", documentWords(string(kind)))
+	}
 	if int64(len(d.Data)) > terms.MaxBytes {
-		return nil, fmt.Errorf("the document %s is over the %d MB the Report Designer In Agentry takes", d.Name, terms.MaxBytes>>20)
+		return nil, fmt.Errorf("the document %s is over the %.1f MB the Report Designer In Agentry takes", d.Name, float64(terms.MaxBytes)/(1<<20))
 	}
 	return &designerDocument{name: d.Name, data: d.Data}, nil
+}
+
+// documentWords names a kind of document as the page does.
+func documentWords(kind string) string {
+	if kind == designer.DocumentDOCX {
+		return "a Word document"
+	}
+	return "a PDF"
 }
 
 func designerRefusal(r *hostedrun.Refusal) *DesignerHostedStartView {
