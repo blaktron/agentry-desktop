@@ -101,3 +101,32 @@ func TestADesignCreateCarriesFromAndLogo(t *testing.T) {
 		}
 	}
 }
+
+// The document terms are read as the registry writes them, and a registry
+// that sends none takes no document.
+func TestADesignDocumentIsTakenOnlyWhereTheTermsSaySo(t *testing.T) {
+	var st Status
+	if err := json.Unmarshal([]byte(`{"designBuild":{"enabled":true,"document":{"enabled":true,"maxBytes":20971520,"types":["pdf","docx"]}}}`), &st); err != nil {
+		t.Fatal(err)
+	}
+	d, ok := st.DesignBuild.TakesDocument()
+	if !ok || d.MaxBytes != 20<<20 || !d.Takes("pdf") || !d.Takes("docx") || d.Takes("pptx") {
+		t.Fatalf("%+v %v", d, ok)
+	}
+	for _, body := range []string{`{"designBuild":{"enabled":true}}`, `{"designBuild":{"enabled":false,"document":{"enabled":true,"maxBytes":1}}}`,
+		`{"designBuild":{"enabled":true,"document":{"enabled":false,"maxBytes":1}}}`, `{}`} {
+		var s Status
+		_ = json.Unmarshal([]byte(body), &s)
+		if _, ok := s.DesignBuild.TakesDocument(); ok {
+			t.Errorf("%s takes a document", body)
+		}
+	}
+	only := DesignDocumentTerms{Enabled: true, MaxBytes: 1, Types: []string{"pdf"}}
+	if !only.Takes("pdf") || only.Takes("docx") {
+		t.Fatal("types")
+	}
+	b, _ := json.Marshal(CreateRequest{Kind: KindDesignBuild, Op: DesignOp, Brief: "b", Document: "d", Inputs: []string{"d"}})
+	if !strings.Contains(string(b), `"document":"d"`) {
+		t.Fatalf("%s", b)
+	}
+}

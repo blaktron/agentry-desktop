@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.18",
+      "highlights": [
+        "Design with AI In Agentry can start from a document too: one PDF or Word document, uploaded for the run.",
+        "The Report Designer takes the document's colours, faces, header, footer and logo, at the same 20 credits."
+      ]
+    },
+    {
       "version": "0.7.17",
       "highlights": [
         "Design with AI can start from a document: one PDF or Word document that already looks the way you want.",

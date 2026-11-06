@@ -107,6 +107,7 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
         <Notice tone="ok">
           “{saved.design?.name ?? "The design"}” is in your library as a new design.{saved.default ? " The registry made it your default." : " It is not your default: Use makes it so."}
         </Notice>
+        {followed && hosted?.document && <p className="small" data-designer-document-line>It was built around your document {hosted.document}.</p>}
         <ResultCard view={saved} opts={opts} />
         <div className="row gap mt" style={{ justifyContent: "flex-end" }}>
           <Button onClick={onClose}>Close</Button>

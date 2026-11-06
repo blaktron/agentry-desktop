@@ -33,9 +33,11 @@ type designerFake struct {
 	srv     *httptest.Server
 	scopes  []string
 	enabled bool
-	inputs  []string
-	creates []string
-	run     *hostedrun.Run
+	// document says the status route offers designBuild.document.
+	document bool
+	inputs   []string
+	creates  []string
+	run      *hostedrun.Run
 }
 
 func newDesignerFake(t *testing.T) *designerFake {
@@ -71,18 +73,27 @@ func newDesignerFake(t *testing.T) *designerFake {
 	mux.HandleFunc("GET /api/v1/x/runs/status", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		terms := map[string]any{"enabled": f.enabled, "credits": 20, "caps": map[string]int{"timeoutSeconds": 1800}, "maxImages": 4,
+			"maxBriefBytes": 4096, "ops": []string{"design", "cover"}, "urls": map[string]any{"enabled": true, "max": 2, "maxPages": 60}}
+		if f.document {
+			terms["document"] = map[string]any{"enabled": true, "maxBytes": 20 << 20, "types": []string{"pdf", "docx"}}
+		}
 		hostedJSON(w, http.StatusOK, map[string]any{"enabled": true, "hostsOnline": 1,
-			"designBuild": map[string]any{"enabled": f.enabled, "credits": 20, "caps": map[string]int{"timeoutSeconds": 1800}, "maxImages": 4,
-				"maxBriefBytes": 4096, "ops": []string{"design", "cover"}, "urls": map[string]any{"enabled": true, "max": 2, "maxPages": 60}},
-			"caller": map[string]any{"tier": "standard", "designBuild": map[string]int{"holdCredits": 20}}})
+			"designBuild": terms,
+			"caller":      map[string]any{"tier": "standard", "designBuild": map[string]int{"holdCredits": 20}}})
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/inputs", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		id := "0000000" + string(rune('1'+len(f.inputs))) + "-0000-4000-8000-000000000000"
-		f.inputs = append(f.inputs, r.URL.Query().Get("name")+"="+string(body))
-		hostedJSON(w, http.StatusCreated, map[string]any{"id": id, "name": r.URL.Query().Get("name"), "bytes": len(body)})
+		kind := r.URL.Query().Get("kind")
+		f.inputs = append(f.inputs, kind+":"+r.URL.Query().Get("name")+"="+string(body))
+		out := map[string]any{"id": id, "name": r.URL.Query().Get("name"), "bytes": len(body)}
+		if kind == "document" {
+			out["document"] = "pdf"
+		}
+		hostedJSON(w, http.StatusCreated, out)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -361,8 +372,9 @@ func TestInAgentryTheRunIsFollowedToTheDesignItSaved(t *testing.T) {
 	pdf := filepath.Join(t.TempDir(), "brand.pdf")
 	_ = os.WriteFile(pdf, []byte("%PDF-1.7 brand"), 0o600)
 	a.app.markPicked(pdf)
+	// A registry that does not offer designBuild.document is given none.
 	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b", Document: pdf}); err == nil || !strings.Contains(err.Error(), "run it on this computer") {
-		t.Fatalf("a document In Agentry: %v", err)
+		t.Fatalf("a document In Agentry where the registry takes none: %v", err)
 	}
 	if len(f.creates) != 0 || len(f.inputs) != 0 {
 		t.Fatalf("a refusal reached the registry: %v %v", f.creates, f.inputs)
@@ -382,7 +394,7 @@ func TestInAgentryTheRunIsFollowedToTheDesignItSaved(t *testing.T) {
 		len(cr.Inputs) != 3 || cr.Logo != cr.Inputs[0] || len(cr.URLs) != 1 || cr.Ref != "" || cr.Task != "" {
 		t.Fatalf("created %s", f.creates[0])
 	}
-	if len(inputs) != 3 || !strings.HasPrefix(inputs[0], "logo.png=") {
+	if len(inputs) != 3 || !strings.HasPrefix(inputs[0], ":logo.png=") {
 		t.Fatalf("uploaded %v", inputs)
 	}
 	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b"}); err == nil {
@@ -490,5 +502,99 @@ func TestThePickersMarkOnlyWhatTheyReturn(t *testing.T) {
 	answer = pdf
 	if p, err := a.ChooseDocument("Choose a document"); err != nil || p != pdf || a.app.requirePicked("the document", pdf) != nil {
 		t.Fatalf("a PDF: %q %v", p, err)
+	}
+}
+
+// Where the registry takes a document, a Design In Agentry uploads it with
+// kind=document and names its input in the create's document, among the
+// inputs; the availability says so; a Cover still takes none, and a file
+// that is not a PDF or a Word document never reaches the registry.
+func TestInAgentryADesignIsBuiltAroundAnUploadedDocument(t *testing.T) {
+	f := newDesignerFake(t)
+	f.document = true
+	signIn(t, f.srv.URL)
+	fastPoll(t)
+	a, events := newDesignerAPI(t)
+	if v, err := a.Availability(f.srv.URL, designer.JobDesign); err != nil || !v.DocumentInAgentry || v.MaxDocumentBytes != 20<<20 {
+		t.Fatalf("availability: %+v %v", v, err)
+	}
+	dir := t.TempDir()
+	pdf, txt := filepath.Join(dir, "Annual Report.pdf"), filepath.Join(dir, "notes.pdf")
+	_ = os.WriteFile(pdf, []byte("%PDF-1.7 the brand"), 0o600)
+	_ = os.WriteFile(txt, []byte("plain text"), 0o600)
+	a.app.markPicked(pdf)
+	a.app.markPicked(txt)
+	houseID := f.lib.add(builtin(t, "modern"), true)
+	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b", Document: txt}); err == nil || !strings.Contains(err.Error(), "a PDF or a Word document") {
+		t.Fatalf("a text file named .pdf: %v", err)
+	}
+	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobCover, Brief: "b", From: houseID, Document: pdf}); err == nil || !strings.Contains(err.Error(), "no document") {
+		t.Fatalf("a cover with a document: %v", err)
+	}
+	f.mu.Lock()
+	n := len(f.inputs) + len(f.creates)
+	f.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("a refusal reached the registry: %v %v", f.inputs, f.creates)
+	}
+	imgs := pickedImages(t, a.app, "logo.png")
+	start, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "Like our annual report.", Logo: imgs[0], Document: pdf})
+	if err != nil || start.Run == nil {
+		t.Fatalf("start: %+v %v", start, err)
+	}
+	f.mu.Lock()
+	var cr hostedrun.CreateRequest
+	_ = json.Unmarshal([]byte(f.creates[0]), &cr)
+	inputs := append([]string(nil), f.inputs...)
+	f.mu.Unlock()
+	if len(inputs) != 2 || inputs[0] != "document:Annual Report.pdf=%PDF-1.7 the brand" || !strings.HasPrefix(inputs[1], ":logo.png=") {
+		t.Fatalf("uploaded %q", inputs)
+	}
+	if cr.Document == "" || cr.Logo == "" || cr.Document == cr.Logo || len(cr.Inputs) != 2 || cr.Inputs[0] != cr.Logo || cr.Inputs[1] != cr.Document {
+		t.Fatalf("created %s", f.creates[0])
+	}
+	f.mu.Lock()
+	f.run.DesignBuild.Document = "Annual Report.pdf"
+	f.mu.Unlock()
+	saved := f.lib.add(builtin(t, "boardroom"), false)
+	f.finish(true, saved, "Larkspur Co-operative", "")
+	if end := events.final(t); !end.Applied || end.Document != "Annual Report.pdf" {
+		t.Fatalf("final %+v", end)
+	}
+}
+
+// Before anything is uploaded a document is held to the picker, to the types
+// the registry reads and to its byte bound; each refusal reaches no route.
+func TestADocumentInAgentryIsRefusedBeforeAnyUpload(t *testing.T) {
+	f := newDesignerFake(t)
+	f.document = true
+	signIn(t, f.srv.URL)
+	a, _ := newDesignerAPI(t)
+	dir := t.TempDir()
+	pdf, docx := filepath.Join(dir, "brand.pdf"), filepath.Join(dir, "letterhead.docx")
+	_ = os.WriteFile(pdf, []byte("%PDF-1.7 brand"), 0o600)
+	_ = os.WriteFile(docx, []byte("PK\x03\x04 word"), 0o600)
+	unpicked := filepath.Join(t.TempDir(), "unpicked.pdf")
+	_ = os.WriteFile(unpicked, []byte("%PDF-1.7 x"), 0o600)
+	a.app.markPicked(pdf)
+	a.app.markPicked(docx)
+	if _, err := a.StartHosted(f.srv.URL, DesignerRequest{Job: designer.JobDesign, Brief: "b", Document: unpicked}); err == nil || !strings.Contains(err.Error(), "file dialog") {
+		t.Fatalf("an unpicked document: %v", err)
+	}
+	pdfOnly := &hostedrun.DesignDocumentTerms{Enabled: true, MaxBytes: 20 << 20, Types: []string{"pdf"}}
+	if _, err := readHostedDocument(docx, pdfOnly); err == nil || !strings.Contains(err.Error(), "does not read a Word document") {
+		t.Fatalf("a Word document to a registry that reads PDFs: %v", err)
+	}
+	tiny := &hostedrun.DesignDocumentTerms{Enabled: true, MaxBytes: 4, Types: []string{"pdf", "docx"}}
+	if _, err := readHostedDocument(pdf, tiny); err == nil || !strings.Contains(err.Error(), "over the") {
+		t.Fatalf("past the registry's bound: %v", err)
+	}
+	if d, err := readHostedDocument(pdf, pdfOnly); err != nil || d.name != "brand.pdf" || string(d.data) != "%PDF-1.7 brand" {
+		t.Fatalf("a PDF: %+v %v", d, err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.inputs) != 0 || len(f.creates) != 0 {
+		t.Fatalf("a refusal reached the registry: %v %v", f.inputs, f.creates)
 	}
 }

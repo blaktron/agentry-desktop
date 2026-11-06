@@ -471,7 +471,7 @@ const voiceHostedRun = { id: "run-7f3a", op: "create", status: "queued", state: 
 // Design with AI: both places, the price In Agentry and this computer's model.
 const designerAvail = { model: "anthropic claude-sonnet-5-5", reviewReady: true, maxBriefBytes: 4096, maxReferences: 4, maxCoverImages: 6, maxUrls: 2, maxImageBytes: 4194304,
   offered: true, available: true, credits: 20, holdCredits: 20, balance: 180, balanceKnown: true, hostedMaxImages: 4, hostedUrls: true, hostedMaxUrls: 2,
-  documentHere: true, documentInAgentry: false, maxDocumentBytes: 20971520 };
+  documentHere: true, documentInAgentry: window.location.hash !== "#report-ai-no-hosted-document", maxDocumentBytes: 20971520 };
 const designerHostedRun = { id: "01a1ad22-83e0-7f23-ae55-edb2187c4a3b", op: "design", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.",
   cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
 
