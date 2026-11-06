@@ -147,18 +147,15 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	isolate(t)
 	pol := policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
 	// The built-ins this app runs as runs: a persistent built-in is started
-	// only by a segment, which the switch's sentence does not cover, and the
-	// Report Designer is not run from this app until Design with AI offers
-	// it, when the sentence must name it.
-	designer := localrun.ReportDesigner().Ref()
+	// only by a segment, which the switch's sentence does not cover.
 	var builtins []localrun.Builtin
 	for _, b := range localrun.Builtins() {
-		if !b.Persistent() && b.Ref() != designer {
+		if !b.Persistent() {
 			builtins = append(builtins, b)
 		}
 	}
-	if len(builtins) != 4 {
-		t.Fatalf("%d built-ins run as runs: the switch's sentence in Run defaults names four", len(builtins))
+	if len(builtins) != 5 {
+		t.Fatalf("%d built-ins run as runs: the switch's sentence in Run defaults names five", len(builtins))
 	}
 	noLimit := BuiltinLimits{
 		Run:   spec.Budgets{TimeoutSeconds: 0, MaxTurns: BuiltinFailsafeTurns, MaxCostUSD: 2},

@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.16",
+      "highlights": [
+        "Design with AI in Settings → Report design writes a design, or a custom cover page, from your brief.",
+        "Run it In Agentry for 20 credits, refunded if nothing is saved, or on this computer with your own model.",
+        "What it makes is a new design, never your default: Use makes it so.",
+        "A run on your own model server summarizes and goes on when the server says the conversation is too long."
+      ]
+    },
+    {
       "version": "0.7.15",
       "highlights": [
         "A reminder from one of the Assistant's tasks is now a message from it in the chat, not hidden in the task's folded line.",

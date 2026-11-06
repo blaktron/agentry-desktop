@@ -747,36 +747,13 @@ func accountJob(a *voice.Account) string {
 // change as voice:hosted. Its voice lands in the account, not here: the
 // panel reads the account again when the run is over.
 func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
-	ctx, cancel := context.WithCancel(context.Background())
-	f := &hostedFollow{registry: reg, id: started.ID, cancel: cancel, done: make(chan struct{})}
-	if !v.hosted.follow(f) {
-		cancel()
-		return
-	}
-	client := hostedrun.New(reg, token)
-	go func() {
-		defer close(f.done)
-		defer cancel()
-		defer v.hosted.done(f)
-		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
-			Poll:     hostedPoll,
-			OnStatus: func(r *hostedrun.Run) { emitEvent(v.app, eventVoiceHosted, voiceHostedView(r, false)) },
-		})
-		if err != nil {
-			last, gerr := client.Get(context.Background(), started.ID)
-			if gerr != nil || !last.Terminal() {
-				out := voiceHostedView(started, true)
-				if gerr == nil {
-					out = voiceHostedView(last, true)
-				}
-				out.Error = "lost touch with the registry while the Voice Writer ran (" + err.Error() + "); open the Voice page again to see your account's voice"
-				emitEvent(v.app, eventVoiceHosted, out)
-				return
-			}
-			final = last
+	followHostedRun(&v.hosted, reg, token, started, func(r *hostedrun.Run, final bool, lost error) {
+		out := voiceHostedView(r, final)
+		if lost != nil {
+			out.Error = "lost touch with the registry while the Voice Writer ran (" + lost.Error() + "); open the Voice page again to see your account's voice"
 		}
-		emitEvent(v.app, eventVoiceHosted, voiceHostedView(final, true))
-	}()
+		emitEvent(v.app, eventVoiceHosted, out)
+	})
 }
 
 // AttachHosted follows this account's Voice Writer run In Agentry in flight,

@@ -468,6 +468,13 @@ const voiceAvail = voiceHash === "#voice-standard"
   : { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, max: 0, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
 const voiceHostedRun = { id: "run-7f3a", op: "create", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.", cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
 
+// Design with AI: both places, the price In Agentry and this computer's model.
+const designerAvail = { model: "anthropic claude-sonnet-5-5", reviewReady: true, maxBriefBytes: 4096, maxReferences: 4, maxCoverImages: 6, maxUrls: 2, maxImageBytes: 4194304,
+  offered: true, available: true, credits: 20, holdCredits: 20, balance: 180, balanceKnown: true, hostedMaxImages: 4, hostedUrls: true, hostedMaxUrls: 2,
+  documentHere: false, documentInAgentry: false, maxDocumentBytes: 20971520 };
+const designerHostedRun = { id: "01a1ad22-83e0-7f23-ae55-edb2187c4a3b", op: "design", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.",
+  cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
+
 // Home's Recent runs, relative to now so the card
 // reads the same on any day.
 const REG_DEFAULT = "https://secureagentry.net";
@@ -1137,6 +1144,31 @@ g.go = { app: {
     UnpinScheduled: async () => harnessUnpinScheduled(),
     Agent: async () => harnessHomeAgent,
     SetAgent: async (name: string) => { harnessHomeAgent = name; document.body.dataset.homeAgent = name; return name; },
+  },
+  DesignerAPI: {
+    Availability: async () => (window.location.hash === "#report-ai-standard"
+      ? { ...designerAvail, available: false, reason: "This account already has a Voice Writer run In Agentry in flight. Agentry runs one at a time.", remedy: "Wait for it to finish, or cancel it." }
+      : designerAvail),
+    AttachHosted: async () => ({}),
+    ChooseImage: async (title: string) => (/logo/i.test(title) ? "/home/me/Pictures/northwind-logo.png" : `/home/me/Pictures/reference-${Date.now() % 1000}.png`),
+    ChooseDocument: async () => "/home/me/Documents/northwind-annual-report.pdf",
+    CheckAddresses: async (urls: string[]) => ({ check: { max: 2, lines: urls.map((u) => ({ address: u, shown: u, host: new URL(u).host })) }, reviewReady: true }),
+    RunHere: async () => {
+      await new Promise((r) => setTimeout(r, 300));
+      const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };
+      return { token: "t-1", job: "design", name: made.name, view: { id: "", default: false, design: made, label: made.name, logo: rdPng },
+        looked: true, thumbnail: false, previews: 3, dir: "/home/me/Downloads/agentry-out/report-designer/design" };
+    },
+    SaveResult: async () => {
+      const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };
+      const x = { id: `${rdLibrary.length}f1e2d3c-4b5a-4968-8776-65544332211${rdLibrary.length}`, d: made, def: false, logo: rdPng, cover: "", custom: false };
+      rdLibrary.push(x);
+      return rdView(x);
+    },
+    DiscardResult: async () => undefined,
+    StopHere: async () => undefined,
+    StartHosted: async () => ({ run: designerHostedRun }),
+    CancelHosted: async () => ({ ...designerHostedRun, cancelRequested: true }),
   },
   VoiceAPI: {
     View: async () => voiceView,

@@ -4,6 +4,7 @@
 import * as App from "./app.js";
 import * as BrowseAPI from "./browseapi.js";
 import * as BuildAPI from "./buildapi.js";
+import * as DesignerAPI from "./designerapi.js";
 import * as DestinationsAPI from "./destinationsapi.js";
 import * as HomeAPI from "./homeapi.js";
 import * as InstallAPI from "./installapi.js";
@@ -25,6 +26,7 @@ export {
     App,
     BrowseAPI,
     BuildAPI,
+    DesignerAPI,
     DestinationsAPI,
     HomeAPI,
     InstallAPI,
@@ -64,6 +66,12 @@ export {
     DependencyAlertView,
     DescribeHostedView,
     DescribeStatusView,
+    DesignerAddressesView,
+    DesignerAvailabilityView,
+    DesignerHostedStartView,
+    DesignerHostedView,
+    DesignerRequest,
+    DesignerResultView,
     DocumentsView,
     DraftAIReviewView,
     DraftCheckView,

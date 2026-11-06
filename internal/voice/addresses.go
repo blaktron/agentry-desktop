@@ -88,6 +88,13 @@ var jevKey = drafter.JevKey
 // web_read configuration that reads them, with the person's own TypeSafe
 // key: nil for a build of files alone, and a refusal without the key.
 func pageReview(pol *policy.Policy, urls []string) ([]*sources.Source, webscan.Scanner, *engine.WebRun, error) {
+	return PageReview(pol, urls, NoReviewKey)
+}
+
+// PageReview is pageReview for another built-in that reads web addresses as
+// the Voice Writer does (the Report Designer): noKey is its refusal, in its
+// own words, when the person keeps no TypeSafe key.
+func PageReview(pol *policy.Policy, urls []string, noKey string) ([]*sources.Source, webscan.Scanner, *engine.WebRun, error) {
 	urls = knowledge.TrimmedLines(urls)
 	if len(urls) == 0 {
 		return nil, nil, nil, nil
@@ -104,7 +111,7 @@ func pageReview(pol *policy.Policy, urls []string) ([]*sources.Source, webscan.S
 		return nil, nil, nil, err
 	}
 	if jev == "" {
-		return nil, nil, nil, errors.New(NoReviewKey)
+		return nil, nil, nil, errors.New(noKey)
 	}
 	sc, err := drafter.CoreJev(jev)
 	if err != nil {

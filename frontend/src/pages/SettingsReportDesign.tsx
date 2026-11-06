@@ -11,6 +11,10 @@ import {
 } from "../reportDesign";
 import { ReportDesignPreview } from "./ReportDesignPreview";
 import { PdfViewer } from "../PdfViewer";
+import * as DesignerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/designerapi";
+import { EventsOn } from "../host";
+import { DesignWithAI } from "./DesignWithAI";
+import type { DesignerJob } from "../designer";
 
 // Settings → Report design: the account's library of report designs and the
 // editor for one of them, the same library the site edits. The library is
@@ -30,8 +34,13 @@ import { PdfViewer } from "../PdfViewer";
 // Save never sends them, so the core keeps them. The preview and the parts
 // draw each only as the data: URL Go's view built from the core's answer.
 // Brand from logo asks the core to read the logo's two colours and offers
-// them; nothing applies them until the person takes them. Design with AI
-// has its place and is not built yet.
+// them; nothing applies them until the person takes them.
+//
+// Design with AI (DesignWithAI.tsx) runs the built-in Report Designer, In
+// Agentry or on this computer: from the library for a whole design, from the
+// editor's custom cover card for a cover page of the design open there. A
+// run In Agentry is followed here, so the page says it is under way when
+// its dialog is closed, and a library opened again finds it.
 //
 // Render lays the sample report out in the design the editor holds, unsaved
 // changes included, through the runner's own PDF export on this computer,
@@ -58,6 +67,8 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   const [confirmDelete, setConfirmDelete] = useState<app.ReportDesignCard | null>(null);
   const [newKit, setNewKit] = useState<{ id: string; name: string; makeDefault: boolean } | null>(null);
   const [suggestion, setSuggestion] = useState<app.ReportColourSuggestion | null>(null);
+  const [designAI, setDesignAI] = useState<{ job: DesignerJob; from: string } | null>(null);
+  const [hosted, setHosted] = useState<app.DesignerHostedView | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -78,6 +89,18 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
       .catch((e) => { if (live) setErr(String(e)); });
     return () => { live = false; };
   }, [registry, signedIn]);
+
+  // A Report Designer run In Agentry: followed through its events, and
+  // found again when the page opens while one is under way.
+  useEffect(() => EventsOn("designer:hosted", (v: app.DesignerHostedView) => setHosted(v)), []);
+  useEffect(() => {
+    if (!signedIn) return;
+    DesignerAPI.AttachHosted(registry).then((r) => { if (r.run) setHosted(r.run); }).catch(() => {});
+  }, [registry, signedIn]);
+  const hostedSaved = hosted?.final && hosted.applied ? hosted.designId : "";
+  useEffect(() => {
+    if (hostedSaved && signedIn) void SettingsAPI.ReportDesignLibrary(registry).then(setLib).catch(() => {});
+  }, [hostedSaved, registry, signedIn]);
 
   // The core's verdict on each state; only the latest counts.
   const seq = useRef(0);
@@ -171,13 +194,23 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
         <Library lib={lib} opts={opts} busy={busy} err={err} said={said} defaultName={defaultName} full={full}
           kitName={kitName} kitOf={kitOf}
           onOpen={(id) => void open(id)} onUse={(id) => void use(id)} onDuplicate={(id) => void duplicate(id)}
-          onDelete={setConfirmDelete} onNew={() => setNewKit({ id: opts.defaultKitId, name: "", makeDefault: lib.designs.length === 0 })} />
+          onDelete={setConfirmDelete} onNew={() => setNewKit({ id: opts.defaultKitId, name: "", makeDefault: lib.designs.length === 0 })}
+          hosted={designAI ? null : hosted} onDesignAI={() => setDesignAI({ job: "design", from: "" })} />
       ) : (
         <Editor registry={registry} opts={opts} lib={lib} view={view} d={d} setD={setD} check={check} busy={busy} err={err} said={said}
           suggestion={suggestion} setSuggestion={setSuggestion} kitName={kitName}
           onClose={close} onUse={(id) => void use(id)} onDelete={() => setConfirmDelete(lib.designs.find((x) => x.id === view.id) ?? { ...app.ReportDesignCard.createFrom({ id: view.id, name: view.design?.name ?? "This design", basedOn: view.design?.basedOn ?? "", version: 0, default: view.default, hasLogo: false, hasCoverImage: false, hasCustomCover: false, updatedAt: "" }) })}
           onSaved={(v) => { setView(v); if (v.design) setD(startFrom(v.design)); setSaid(savedSentence(v.label ?? v.design?.name ?? "the design", v.default)); void readLibrary(registry).catch((e) => setErr(String(e))); }}
-          act={act} />
+          act={act} onCoverAI={() => setDesignAI({ job: "cover", from: view.id })} />
+      )}
+
+      {designAI && (
+        <DesignWithAI registry={registry} lib={lib} opts={opts} initialJob={designAI.job} initialFrom={designAI.from}
+          hosted={hosted} onHosted={setHosted}
+          onUse={(id) => void use(id)}
+          onEdit={(id) => { setDesignAI(null); void open(id); }}
+          onSaved={() => void readLibrary(registry).catch((e) => setErr(String(e)))}
+          onClose={() => setDesignAI(null)} />
       )}
 
       {confirmDelete && (
@@ -241,7 +274,7 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
 }
 
 // Library is the cards.
-function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf, onOpen, onUse, onDuplicate, onDelete, onNew }: {
+function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf, onOpen, onUse, onDuplicate, onDelete, onNew, hosted, onDesignAI }: {
   lib: app.ReportDesignLibrary;
   opts: app.ReportDesignOptions;
   busy: string;
@@ -256,7 +289,11 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
   onDuplicate: (id: string) => void;
   onDelete: (card: app.ReportDesignCard) => void;
   onNew: () => void;
+  /** The Report Designer run In Agentry the page follows, while its dialog is closed. */
+  hosted: app.DesignerHostedView | null;
+  onDesignAI: () => void;
 }) {
+  const hostedRunning = !!hosted && !hosted.final;
   return (
     <section id="settings-part-library" className="settings-part">
       <h2>Your library</h2>
@@ -269,10 +306,23 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
         <div className="row report-design-actions">
           <Button variant="primary" disabled={!!busy || full} onClick={onNew}>New from a kit…</Button>
           <span className="report-design-ai">
-            <Button disabled title="Not available yet">Design with AI…</Button>
-            <span className="muted small">Coming later: the Report Designer drafts a design from a brief, your logo and the pages you show it.</span>
+            <Button disabled={!!busy || full} onClick={onDesignAI} data-design-ai>Design with AI…</Button>
+            <span className="muted small">The Report Designer writes a design from your brief, your logo and the pages you show it, In Agentry or on this computer.</span>
           </span>
         </div>
+        {hostedRunning && (
+          <Notice tone="info">
+            The Report Designer is running In Agentry: {hosted.statusLine}{" "}
+            <Button variant="link" onClick={onDesignAI}>Show it</Button>
+          </Notice>
+        )}
+        {hosted?.final && (
+          <Notice tone={hosted.applied ? "ok" : "warn"}>
+            {hosted.applied
+              ? `The Report Designer saved “${hosted.name ?? "its design"}” to your library. It is not your default: Use makes it so.`
+              : hosted.error || hosted.note || hosted.outcomeLine || hosted.statusLine}
+          </Notice>
+        )}
         {full && <p className="muted small" data-library-full>Your library holds {lib.max} designs, the most it can: delete one to add another.</p>}
         {lib.designs.length > 0 && (
           <ul className="report-design-cards" role="list">
@@ -317,7 +367,7 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
 }
 
 // Editor is one design's controls beside the preview, and its images.
-function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggestion, setSuggestion, kitName, onClose, onUse, onDelete, onSaved, act }: {
+function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggestion, setSuggestion, kitName, onClose, onUse, onDelete, onSaved, act, onCoverAI }: {
   registry: string;
   opts: app.ReportDesignOptions;
   lib: app.ReportDesignLibrary;
@@ -336,6 +386,7 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
   onDelete: () => void;
   onSaved: (v: app.ReportDesignView) => void;
   act: <T>(kind: Busy, run: () => Promise<T>, then: (v: T) => void) => Promise<void>;
+  onCoverAI: () => void;
 }) {
   const [rendering, setRendering] = useState(false);
   const back = (
@@ -640,16 +691,22 @@ function Editor({ registry, opts, view, d, setD, check, busy, err, said, suggest
                   <p className="muted small">No picture of it yet.</p>
                 )}
                 <div className="row">
+                  <Button disabled={!!busy} onClick={onCoverAI}>Another cover with AI…</Button>
                   <Button variant="danger" busy={busy === "uncustom"} busyLabel="Removing…" disabled={!!busy} onClick={() => void image("uncustom")}>
                     Remove the custom cover
                   </Button>
                 </div>
               </>
             ) : (
-              <p className="muted small" data-no-custom-cover>
-                None. A custom cover is written in code by the Report Designer, which Design with AI will offer here; the site and the command line
-                can add one to this design meanwhile.
-              </p>
+              <>
+                <p className="muted small" data-no-custom-cover>
+                  None. A custom cover is written in code by the Report Designer. Design a cover page with AI makes a new design: this one with
+                  that cover. This design stays as it is.
+                </p>
+                <div className="row">
+                  <Button disabled={!!busy} onClick={onCoverAI} data-cover-ai>Design a cover page with AI…</Button>
+                </div>
+              </>
             )}
           </Card>
         </div>
