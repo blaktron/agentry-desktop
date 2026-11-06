@@ -80,7 +80,11 @@ export function designerProblem(i: DesignerInputs, where: DesignerWhere, l: Desi
     return i.job === "cover" ? `A cover draws at most ${most} images.` : `A design takes at most ${most} reference images.`;
   }
   if (i.job === "cover" && (i.logo !== "" || i.urls.length > 0)) return "A cover takes the design's own logo and no web addresses.";
-  if (i.document !== "" && !takesDocument(i.job, where, l)) return "The Report Designer does not read a document there.";
+  if (i.document !== "" && !takesDocument(i.job, where, l)) {
+    return where === "agentry"
+      ? "The Report Designer In Agentry is not given a document from this app: run it on this computer, or remove the document."
+      : "The Report Designer does not read a document here.";
+  }
   if (i.urls.length > 0) {
     if (addressProblem) return addressProblem;
     if (where === "agentry") {
@@ -126,4 +130,14 @@ export function savePrompt(job: DesignerJob): string {
   return job === "cover"
     ? "Nothing is in your library yet. Add it, and it is a new design with this custom cover page; the design it was written for stays as it is."
     : "Nothing is in your library yet. Add it, and it is a new design, not your default.";
+}
+
+/** What a run on this computer took from the person's document, or null
+ *  for a run given none. */
+export function documentLine(r: { documentPages?: number; logoFromDocument?: boolean }): string | null {
+  const n = r.documentPages ?? 0;
+  if (n === 0 && !r.logoFromDocument) return null;
+  let s = n > 0 ? `It looked at ${n} ${n === 1 ? "page" : "pages"} of your document` : "It read your document";
+  if (r.logoFromDocument) s += ", and took your logo from it";
+  return s + ".";
 }

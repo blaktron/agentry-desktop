@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  addressLines, briefBytes, designerPriceLine, designerProblem, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,
+  addressLines, briefBytes, designerPriceLine, designerProblem, documentLine, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,
   type DesignerInputs, type DesignerLimits,
 } from "../src/designer.ts";
 
@@ -56,6 +56,8 @@ test("the document's place is drawn only where the Report Designer reads one", (
   assert.equal(takesDocument("design", "here", { ...limits, documentHere: true }), true);
   assert.equal(takesDocument("cover", "agentry", { ...limits, documentInAgentry: true }), false);
   assert.match(designerProblem({ ...design, document: "brand.pdf" }, "here", limits) ?? "", /does not read a document/);
+  assert.equal(designerProblem({ ...design, document: "brand.pdf" }, "here", { ...limits, documentHere: true }), null);
+  assert.match(designerProblem({ ...design, document: "brand.pdf" }, "agentry", { ...limits, documentHere: true }) ?? "", /run it on this computer, or remove the document/);
   assert.equal(designerProblem({ ...design, document: "brand.pdf" }, "agentry", { ...limits, documentInAgentry: true }), null);
 });
 
@@ -83,4 +85,11 @@ test("a finished run says the design it saved, or why not with the refund", () =
   assert.match(lookedLine(false) ?? "", /could not look/);
   assert.match(savePrompt("design"), /not your default/);
   assert.match(savePrompt("cover"), /stays as it is/);
+});
+
+test("what a run took from the document", () => {
+  assert.equal(documentLine({}), null);
+  assert.equal(documentLine({ documentPages: 1 }), "It looked at 1 page of your document.");
+  assert.equal(documentLine({ documentPages: 4, logoFromDocument: true }), "It looked at 4 pages of your document, and took your logo from it.");
+  assert.equal(documentLine({ documentPages: 0, logoFromDocument: true }), "It read your document, and took your logo from it.");
 });
