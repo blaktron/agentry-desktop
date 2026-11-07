@@ -22,6 +22,7 @@ import * as SettingsAPI from "./settingsapi.js";
 import * as ValidateAPI from "./validateapi.js";
 import * as VoiceAPI from "./voiceapi.js";
 import * as WhatsNewAPI from "./whatsnewapi.js";
+import * as YourComputerAPI from "./yourcomputerapi.js";
 export {
     App,
     BrowseAPI,
@@ -43,7 +44,8 @@ export {
     SettingsAPI,
     ValidateAPI,
     VoiceAPI,
-    WhatsNewAPI
+    WhatsNewAPI,
+    YourComputerAPI
 };
 
 export {
@@ -58,6 +60,7 @@ export {
     ChangedInstallView,
     CodingAgentsView,
     ConnectView,
+    ContextWindowView,
     CreatorBudgetView,
     CreatorWebView,
     CreditsOfferView,
@@ -262,5 +265,6 @@ export {
     VoiceSaveView,
     VoiceView,
     WhatsNewCard,
-    WhatsNewView
+    WhatsNewView,
+    YourComputerView
 } from "./models.js";

@@ -1331,6 +1331,10 @@ func declaredLines(plan *install.Plan) []string {
 	if c.Browser != nil {
 		lines = append(lines, "browser: "+mcpview.BrowserLine(c.Browser))
 	}
+	// Each application on the person's computer in the catalogue's words
+	// (its tool count, the tools that run code inside it, the hosts it
+	// reaches from the computer), and the screen: the CLI's lines.
+	lines = append(lines, mcpview.DesktopLines(c.Desktop)...)
 	// Each MCP server's own reach, which asks for this consent by itself
 	// whatever the release's own egress says.
 	lines = append(lines, plan.ServerReach...)

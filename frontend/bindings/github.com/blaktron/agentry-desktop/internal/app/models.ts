@@ -28,6 +28,9 @@ import * as draft$0 from "../draft/models.js";
 import * as install$0 from "../install/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as linkservice$0 from "../linkservice/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as mcpview$0 from "../mcpview/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -607,6 +610,35 @@ export class ConnectView {
             $$parsedSource["needsOwnClient"] = $$createField1_0($$parsedSource["needsOwnClient"]);
         }
         return new ConnectView($$parsedSource as Partial<ConnectView>);
+    }
+}
+
+/**
+ * ContextWindowView is what an endpoint of the person's own reported as a
+ * model's context window: Tokens, and Source, the address that said so.
+ * Tokens 0 is an endpoint that did not say, and Unknown is then the sentence
+ * the form shows beside the empty field.
+ */
+export class ContextWindowView {
+    "tokens": number;
+    "source"?: string;
+    "unknown"?: string;
+
+    /** Creates a new ContextWindowView instance. */
+    constructor($$source: Partial<ContextWindowView> = {}) {
+        if (!("tokens" in $$source)) {
+            this["tokens"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ContextWindowView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ContextWindowView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ContextWindowView($$parsedSource as Partial<ContextWindowView>);
     }
 }
 
@@ -2467,6 +2499,12 @@ export class HostedAvailabilityView {
      * the setup says why.
      */
     "targetHosts"?: boolean;
+
+    /**
+     * Desktop says the release uses an application on this computer, which
+     * only a run on this computer reaches: no choice In Agentry is offered.
+     */
+    "desktop"?: boolean;
     "enabled": boolean;
 
     /**
@@ -2602,26 +2640,26 @@ export class HostedAvailabilityView {
      * Creates a new HostedAvailabilityView instance from a string or object.
      */
     static createFrom($$source: any = {}): HostedAvailabilityView {
-        const $$createField12_0 = $$createType54;
-        const $$createField20_0 = $$createType6;
+        const $$createField13_0 = $$createType54;
         const $$createField21_0 = $$createType6;
-        const $$createField23_0 = $$createType56;
-        const $$createField24_0 = $$createType58;
+        const $$createField22_0 = $$createType6;
+        const $$createField24_0 = $$createType56;
+        const $$createField25_0 = $$createType58;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("caps" in $$parsedSource) {
-            $$parsedSource["caps"] = $$createField12_0($$parsedSource["caps"]);
+            $$parsedSource["caps"] = $$createField13_0($$parsedSource["caps"]);
         }
         if ("declaredSecrets" in $$parsedSource) {
-            $$parsedSource["declaredSecrets"] = $$createField20_0($$parsedSource["declaredSecrets"]);
+            $$parsedSource["declaredSecrets"] = $$createField21_0($$parsedSource["declaredSecrets"]);
         }
         if ("optionalSecrets" in $$parsedSource) {
-            $$parsedSource["optionalSecrets"] = $$createField21_0($$parsedSource["optionalSecrets"]);
+            $$parsedSource["optionalSecrets"] = $$createField22_0($$parsedSource["optionalSecrets"]);
         }
         if ("session" in $$parsedSource) {
-            $$parsedSource["session"] = $$createField23_0($$parsedSource["session"]);
+            $$parsedSource["session"] = $$createField24_0($$parsedSource["session"]);
         }
         if ("schedule" in $$parsedSource) {
-            $$parsedSource["schedule"] = $$createField24_0($$parsedSource["schedule"]);
+            $$parsedSource["schedule"] = $$createField25_0($$parsedSource["schedule"]);
         }
         return new HostedAvailabilityView($$parsedSource as Partial<HostedAvailabilityView>);
     }
@@ -7379,6 +7417,13 @@ export class ProfileStatusView {
      */
     "acceptsKnowledge"?: KnowledgeAcceptsView | null;
 
+    /**
+     * Desktop are the applications on this computer the release uses, by
+     * catalogue id: the run setup shows a card for each and starts no run
+     * here until each is ready.
+     */
+    "desktop": string[];
+
     /** Creates a new ProfileStatusView instance. */
     constructor($$source: Partial<ProfileStatusView> = {}) {
         if (!("ref" in $$source)) {
@@ -7417,6 +7462,9 @@ export class ProfileStatusView {
         if (!("shipsKnowledge" in $$source)) {
             this["shipsKnowledge"] = [];
         }
+        if (!("desktop" in $$source)) {
+            this["desktop"] = [];
+        }
 
         Object.assign(this, $$source);
     }
@@ -7434,6 +7482,7 @@ export class ProfileStatusView {
         const $$createField11_0 = $$createType161;
         const $$createField12_0 = $$createType6;
         const $$createField13_0 = $$createType163;
+        const $$createField14_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("declaredSecrets" in $$parsedSource) {
             $$parsedSource["declaredSecrets"] = $$createField2_0($$parsedSource["declaredSecrets"]);
@@ -7461,6 +7510,9 @@ export class ProfileStatusView {
         }
         if ("acceptsKnowledge" in $$parsedSource) {
             $$parsedSource["acceptsKnowledge"] = $$createField13_0($$parsedSource["acceptsKnowledge"]);
+        }
+        if ("desktop" in $$parsedSource) {
+            $$parsedSource["desktop"] = $$createField14_0($$parsedSource["desktop"]);
         }
         return new ProfileStatusView($$parsedSource as Partial<ProfileStatusView>);
     }
@@ -11283,6 +11335,12 @@ export class SetupStatusView {
     "apiKeyKind"?: string;
     "keyNotice"?: string;
     "baseUrl"?: string;
+
+    /**
+     * ContextWindow is the policy's model.contextWindow in tokens; absent
+     * when it records none.
+     */
+    "contextWindow"?: number;
     "imagesReady": boolean;
 
     /**
@@ -12471,6 +12529,68 @@ export class WhatsNewView {
     }
 }
 
+/**
+ * YourComputerView is Settings → Your computer.
+ */
+export class YourComputerView {
+    /**
+     * Applications are the catalogue's, with their state on this computer.
+     */
+    "applications": linkservice$0.AppState[];
+
+    /**
+     * Using are the runs bound now.
+     */
+    "using": linkservice$0.Bound[];
+
+    /**
+     * Recent are the runs that used the computer, the newest first.
+     */
+    "recent": linkservice$0.RecentRun[];
+
+    /**
+     * Socket is the link socket a run from the CLI binds over, and
+     * SocketError why it is not served.
+     */
+    "socket"?: string;
+    "socketError"?: string;
+
+    /** Creates a new YourComputerView instance. */
+    constructor($$source: Partial<YourComputerView> = {}) {
+        if (!("applications" in $$source)) {
+            this["applications"] = [];
+        }
+        if (!("using" in $$source)) {
+            this["using"] = [];
+        }
+        if (!("recent" in $$source)) {
+            this["recent"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new YourComputerView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): YourComputerView {
+        const $$createField0_0 = $$createType274;
+        const $$createField1_0 = $$createType276;
+        const $$createField2_0 = $$createType278;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("applications" in $$parsedSource) {
+            $$parsedSource["applications"] = $$createField0_0($$parsedSource["applications"]);
+        }
+        if ("using" in $$parsedSource) {
+            $$parsedSource["using"] = $$createField1_0($$parsedSource["using"]);
+        }
+        if ("recent" in $$parsedSource) {
+            $$parsedSource["recent"] = $$createField2_0($$parsedSource["recent"]);
+        }
+        return new YourComputerView($$parsedSource as Partial<YourComputerView>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = AgentView.createFrom;
 const $$createType1 = VersionView.createFrom;
@@ -12745,3 +12865,9 @@ const $$createType269 = $Create.Nullable($$createType268);
 const $$createType270 = voice$0.Sync.createFrom;
 const $$createType271 = WhatsNewCard.createFrom;
 const $$createType272 = $Create.Array($$createType271);
+const $$createType273 = linkservice$0.AppState.createFrom;
+const $$createType274 = $Create.Array($$createType273);
+const $$createType275 = linkservice$0.Bound.createFrom;
+const $$createType276 = $Create.Array($$createType275);
+const $$createType277 = linkservice$0.RecentRun.createFrom;
+const $$createType278 = $Create.Array($$createType277);

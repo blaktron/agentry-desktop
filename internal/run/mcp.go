@@ -226,6 +226,9 @@ func capabilityLines(c manifest.Capabilities) []string {
 	if c.Browser != nil {
 		lines = append(lines, "browser: "+mcpview.BrowserLine(c.Browser))
 	}
+	// The person's computer: each application in the catalogue's words, and
+	// the screen (the CLI's lines).
+	lines = append(lines, mcpview.DesktopLines(c.Desktop)...)
 	// Shipped knowledge: packs inside the release the agent reads, part of
 	// what is consented to (the CLI's line).
 	if len(c.Knowledge) > 0 {
@@ -275,7 +278,7 @@ func isZeroCapabilities(c manifest.Capabilities) bool {
 		c.Filesystem.Read.IsZero() && c.Filesystem.Write.IsZero() &&
 		c.Exec.IsZero() &&
 		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0 && len(c.TargetHosts) == 0 &&
-		c.Browser == nil
+		c.Browser == nil && c.Desktop == nil
 }
 
 func renderEgress(e manifest.Egress) string {

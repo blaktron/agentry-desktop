@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.19",
+      "highlights": [
+        "QuickAgents can use Blender on your computer: Agentry Desktop starts its MCP server and asks before code runs.",
+        "Settings → Your computer shows each application's state, the runs using it, and Pause and Stop.",
+        "Model setup shows the context window of a model on a server of your own, asked from the server or typed in.",
+        "Get models fills it in for LM Studio, Ollama, llama.cpp and vLLM, and Ask the server asks again."
+      ]
+    },
+    {
       "version": "0.7.18",
       "highlights": [
         "Design with AI In Agentry can start from a document too: one PDF or Word document, uploaded for the run.",

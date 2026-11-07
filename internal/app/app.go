@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/blaktron/agentry-desktop/internal/linkservice"
 	"github.com/blaktron/agentry-desktop/internal/notifications"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -27,6 +28,9 @@ type App struct {
 	// when a native picker in this process returned it, or Go made it for
 	// the Build tab's Save (picked).
 	confirm func(ctx context.Context, title, message string) (bool, error)
+	// chooseExec is an exec call's dialog; nil is the native one, and a test
+	// substitutes its own.
+	chooseExec func(ctx context.Context, q linkservice.ExecQuestion) (linkservice.ExecAnswer, error)
 	// pickDirectory is the native directory picker ("" when cancelled);
 	// a test substitutes one, the way it does for confirm.
 	pickDirectory func(ctx context.Context, title string) (string, error)

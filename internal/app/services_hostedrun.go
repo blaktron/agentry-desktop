@@ -101,7 +101,10 @@ type HostedAvailabilityView struct {
 	// on this computer reaches: no choice In Agentry is offered for it, and
 	// the setup says why.
 	TargetHosts bool `json:"targetHosts,omitempty"`
-	Enabled     bool `json:"enabled"`
+	// Desktop says the release uses an application on this computer, which
+	// only a run on this computer reaches: no choice In Agentry is offered.
+	Desktop bool `json:"desktop,omitempty"`
+	Enabled bool `json:"enabled"`
 	// RunnersOnline counts what can take a run now: the sandbox hosts the
 	// registry pushes to.
 	RunnersOnline int `json:"runnersOnline"`
@@ -330,6 +333,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	}
 	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = d.Modes, d.Secrets, d.Optional
 	facts.TargetHosts, v.TargetHosts = len(d.TargetHosts) > 0, len(d.TargetHosts) > 0
+	facts.Desktop, v.Desktop = len(d.Desktop) > 0, len(d.Desktop) > 0
 	v.DeclaredSecrets, v.OptionalSecrets = d.Secrets, emptyNotNil(d.Optional)
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
@@ -474,6 +478,9 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		// A target host is reached only from this computer: the page offers
 		// no run In Agentry for it, and this is the same rule in Go.
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
+			return nil, err
+		}
+		if err := run.RefuseHostedDesktop(sig.Manifest); err != nil {
 			return nil, err
 		}
 		// A browser runs In Agentry: its site goes as a plain answer, never

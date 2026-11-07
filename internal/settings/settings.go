@@ -184,6 +184,13 @@ type Settings struct {
 	// name: "" for Agentry Helper, the default (home.go).
 	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`
 
+	// ScreeningOff are the application servers (catalogue ids) whose own
+	// script screening the person turned off in Settings → Your computer,
+	// after a native confirmation: Agentry Desktop launches them without
+	// the variable that turns it on. Absent is screening on.
+	// SetScreeningOff is its one writer, as SetUnsafeMode is the switch's.
+	ScreeningOff []string `yaml:"screeningOff,omitempty" json:"-"`
+
 	// MeetingNotes is the Meeting notes page's settings.
 	MeetingNotes MeetingNotes `yaml:"meetingNotes,omitempty" json:"-"`
 }
@@ -366,18 +373,23 @@ var saveMu sync.Mutex
 // Save writes the settings file with 0600 permissions (it may carry a PAT
 // when the keychain is unavailable).
 //
-// It never changes the Unsafe Mode switch, Meeting notes' switch, its
-// automatic list or its sending to the Assistant: whatever s says, the file
-// keeps the values it has. Every other setting is saved by a binding that loads,
-// changes one field and saves, with no lock across the three; were the switch
-// saved the same way, a save that loaded it on before it was turned off would
-// turn it back on with no confirmation. SetUnsafeMode and SetMeetingNotesOn
-// are their one writers.
+// It never changes the Unsafe Mode switch, an application server's lifted
+// script screening, Meeting notes' switch, its automatic list or its sending to
+// the Assistant: whatever s says, the file keeps the values it has. Every
+// other setting is saved by a binding that loads, changes one field and
+// saves, with no lock across the three; were the switch saved the same
+// way, a save that loaded it on before it was turned off would turn it
+// back on with no confirmation. SetUnsafeMode, SetScreeningOff and
+// SetMeetingNotesOn are their one writers.
 func Save(s Settings) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()
 	cur, err := Load()
 	s.UnsafeMode = err == nil && cur.UnsafeMode
+	s.ScreeningOff = nil
+	if err == nil {
+		s.ScreeningOff = cur.ScreeningOff
+	}
 	s.MeetingNotes.On = err == nil && cur.MeetingNotes.On
 	s.MeetingNotes.SendToAssistant = err == nil && cur.MeetingNotes.SendToAssistant
 	s.MeetingNotes.Automatic = nil
@@ -460,6 +472,29 @@ func SetUnsafeMode(on bool) error {
 	s.UnsafeMode = on
 	return write(s)
 }
+
+// SetScreeningOff writes whether an application server's own script screening
+// is lifted, and nothing else. The caller is the one binding that may:
+// YourComputerAPI.SetScreening, after the native confirmation when it is
+// lifting it.
+func SetScreeningOff(id string, lifted bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.ScreeningOff = slices.DeleteFunc(s.ScreeningOff, func(x string) bool { return x == id })
+	if lifted {
+		s.ScreeningOff = append(s.ScreeningOff, id)
+		slices.Sort(s.ScreeningOff)
+	}
+	return write(s)
+}
+
+// IsScreeningOff says the person lifted the application server's own
+// script screening.
+func (s Settings) IsScreeningOff(id string) bool { return slices.Contains(s.ScreeningOff, id) }
 
 func write(s Settings) error {
 	path, err := Path()
