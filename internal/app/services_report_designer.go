@@ -322,9 +322,15 @@ type DesignerResultView struct {
 	Dir       string            `json:"dir"`
 	Pages     []voice.Page      `json:"pages,omitempty"`
 	// DocumentPages is how many pages of the document the Designer looked
-	// at; LogoFromDocument says the design's logo was taken from it.
-	DocumentPages    int  `json:"documentPages,omitempty"`
-	LogoFromDocument bool `json:"logoFromDocument,omitempty"`
+	// at; LogoFromDocument says the design's logo was taken from it,
+	// CoverImageFromDocument its cover image, and CoverFromDocument that its
+	// custom cover is modelled on the document's cover page, drawing
+	// CoverPicturesFromDocument pictures of it.
+	DocumentPages             int  `json:"documentPages,omitempty"`
+	LogoFromDocument          bool `json:"logoFromDocument,omitempty"`
+	CoverImageFromDocument    bool `json:"coverImageFromDocument,omitempty"`
+	CoverFromDocument         bool `json:"coverFromDocument,omitempty"`
+	CoverPicturesFromDocument int  `json:"coverPicturesFromDocument,omitempty"`
 }
 
 // RunHere runs the Report Designer on this computer against the runner
@@ -384,6 +390,7 @@ func (a *DesignerAPI) RunHere(reg string, req DesignerRequest) (*DesignerResultV
 		Token: tok, Job: req.Job, Name: res.Design.Name, View: designPreview(res.Design), Looked: res.Looked,
 		Thumbnail: res.Thumbnail, Previews: res.Previews, Dir: res.Dir, Pages: res.Pages,
 		DocumentPages: res.DocumentPages, LogoFromDocument: res.LogoFromDocument,
+		CoverImageFromDocument: res.CoverImageFromDocument, CoverFromDocument: res.CoverFromDocument, CoverPicturesFromDocument: res.CoverPicturesFromDocument,
 	}, nil
 }
 

@@ -92,4 +92,13 @@ test("what a run took from the document", () => {
   assert.equal(documentLine({ documentPages: 1 }), "It looked at 1 page of your document.");
   assert.equal(documentLine({ documentPages: 4, logoFromDocument: true }), "It looked at 4 pages of your document, and took your logo from it.");
   assert.equal(documentLine({ documentPages: 0, logoFromDocument: true }), "It read your document, and took your logo from it.");
+  assert.equal(
+    documentLine({ documentPages: 4, logoFromDocument: true, coverFromDocument: true, coverPicturesFromDocument: 1 }),
+    "It looked at 4 pages of your document, and took your logo from it. Its cover is modelled on your cover page, with 1 picture from it.",
+  );
+  assert.equal(
+    documentLine({ documentPages: 2, logoFromDocument: true, coverImageFromDocument: true }),
+    "It looked at 2 pages of your document, and took your logo and a cover image from it.",
+  );
+  assert.equal(documentLine({ documentPages: 3, coverFromDocument: true }), "It looked at 3 pages of your document. Its cover is modelled on your cover page.");
 });

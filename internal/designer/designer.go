@@ -103,9 +103,15 @@ type Result struct {
 	Dir   string
 	Pages []voice.Page
 	// DocumentPages is how many images of the document the Designer looked
-	// at; LogoFromDocument says the design's logo is a crop of it.
-	DocumentPages    int
-	LogoFromDocument bool
+	// at; LogoFromDocument says the design's logo is a crop of it,
+	// CoverImageFromDocument that its cover image is a picture of it, and
+	// CoverFromDocument that its custom cover is modelled on the document's
+	// cover page, drawing CoverPicturesFromDocument pictures of it.
+	DocumentPages             int
+	LogoFromDocument          bool
+	CoverImageFromDocument    bool
+	CoverFromDocument         bool
+	CoverPicturesFromDocument int
 }
 
 // Check holds a request to the rules the run holds it to, before anything
@@ -272,5 +278,6 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		return nil, err
 	}
 	return &Result{Design: res.Design, Looked: res.Looked, Thumbnail: res.Thumbnail, Previews: res.Previews, Dir: res.Dir, Pages: pages,
-		DocumentPages: res.DocumentPages, LogoFromDocument: res.LogoFromDocument}, nil
+		DocumentPages: res.DocumentPages, LogoFromDocument: res.LogoFromDocument,
+		CoverImageFromDocument: res.CoverImageFromDocument, CoverFromDocument: res.CoverFromDocument, CoverPicturesFromDocument: res.CoverPicturesFromDocument}, nil
 }
