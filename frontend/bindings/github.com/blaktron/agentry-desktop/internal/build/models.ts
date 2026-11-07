@@ -218,6 +218,150 @@ export class DependencyRow {
 }
 
 /**
+ * DesktopApp is one entry of the catalogue of application servers as the
+ * form offers it: the id a release names, the application, the systems it
+ * is offered on, and the tools a run may be given with their classes.
+ */
+export class DesktopApp {
+    "id": string;
+    "application": string;
+    "platforms": string[];
+    "tools": DesktopAppTool[];
+
+    /** Creates a new DesktopApp instance. */
+    constructor($$source: Partial<DesktopApp> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("application" in $$source)) {
+            this["application"] = "";
+        }
+        if (!("platforms" in $$source)) {
+            this["platforms"] = [];
+        }
+        if (!("tools" in $$source)) {
+            this["tools"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopApp instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopApp {
+        const $$createField2_0 = $$createType0;
+        const $$createField3_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("platforms" in $$parsedSource) {
+            $$parsedSource["platforms"] = $$createField2_0($$parsedSource["platforms"]);
+        }
+        if ("tools" in $$parsedSource) {
+            $$parsedSource["tools"] = $$createField3_0($$parsedSource["tools"]);
+        }
+        return new DesktopApp($$parsedSource as Partial<DesktopApp>);
+    }
+}
+
+/**
+ * DesktopAppTool is one tool of an application server: read, act or exec
+ * (code the application runs, which the person is asked about before each
+ * call), and whether it reaches the entry's hosts.
+ */
+export class DesktopAppTool {
+    "name": string;
+    "class": string;
+    "egress"?: boolean;
+
+    /** Creates a new DesktopAppTool instance. */
+    constructor($$source: Partial<DesktopAppTool> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("class" in $$source)) {
+            this["class"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopAppTool instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopAppTool {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DesktopAppTool($$parsedSource as Partial<DesktopAppTool>);
+    }
+}
+
+/**
+ * DesktopRow is capabilities.desktop as the form carries it.
+ */
+export class DesktopRow {
+    "servers": DesktopServerRow[];
+
+    /**
+     * ComputerUse is "app", "screen" or empty for none.
+     */
+    "computerUse"?: string;
+
+    /** Creates a new DesktopRow instance. */
+    constructor($$source: Partial<DesktopRow> = {}) {
+        if (!("servers" in $$source)) {
+            this["servers"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopRow {
+        const $$createField0_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("servers" in $$parsedSource) {
+            $$parsedSource["servers"] = $$createField0_0($$parsedSource["servers"]);
+        }
+        return new DesktopRow($$parsedSource as Partial<DesktopRow>);
+    }
+}
+
+/**
+ * DesktopServerRow is one application server the line uses: its catalogue
+ * id and the tools the release narrows it to, empty for every tool the
+ * catalogue gives.
+ */
+export class DesktopServerRow {
+    "id": string;
+    "tools": string[];
+
+    /** Creates a new DesktopServerRow instance. */
+    constructor($$source: Partial<DesktopServerRow> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("tools" in $$source)) {
+            this["tools"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopServerRow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopServerRow {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("tools" in $$parsedSource) {
+            $$parsedSource["tools"] = $$createField1_0($$parsedSource["tools"]);
+        }
+        return new DesktopServerRow($$parsedSource as Partial<DesktopServerRow>);
+    }
+}
+
+/**
  * DiffFile is one file's diff, as the revision view draws it.
  */
 export class DiffFile {
@@ -248,7 +392,7 @@ export class DiffFile {
      * Creates a new DiffFile instance from a string or object.
      */
     static createFrom($$source: any = {}): DiffFile {
-        const $$createField1_0 = $$createType5;
+        const $$createField1_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField1_0($$parsedSource["lines"]);
@@ -352,7 +496,7 @@ export class GuideModel {
      */
     static createFrom($$source: any = {}): GuideModel {
         const $$createField1_0 = $$createType0;
-        const $$createField4_0 = $$createType7;
+        const $$createField4_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("prepare" in $$parsedSource) {
             $$parsedSource["prepare"] = $$createField1_0($$parsedSource["prepare"]);
@@ -535,11 +679,11 @@ export class MCPServerRow {
     static createFrom($$source: any = {}): MCPServerRow {
         const $$createField3_0 = $$createType0;
         const $$createField6_0 = $$createType0;
-        const $$createField7_0 = $$createType9;
+        const $$createField7_0 = $$createType13;
         const $$createField8_0 = $$createType0;
         const $$createField9_0 = $$createType0;
         const $$createField10_0 = $$createType0;
-        const $$createField11_0 = $$createType11;
+        const $$createField11_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("args" in $$parsedSource) {
             $$parsedSource["args"] = $$createField3_0($$parsedSource["args"]);
@@ -689,6 +833,14 @@ export class Model {
      */
     "targetHosts": string[];
     "browser"?: BrowserRow | null;
+
+    /**
+     * Desktop is capabilities.desktop, nil for none: the applications on
+     * the person's computer the run uses through their installed servers,
+     * by catalogue id with the release's narrowing of each one's tools, and
+     * its computer use of their windows or the screen.
+     */
+    "desktop"?: DesktopRow | null;
 
     /**
      * The knowledge block. The prompt is knowledge.accepts: one plain line
@@ -865,11 +1017,11 @@ export class Model {
      */
     static createFrom($$source: any = {}): Model {
         const $$createField2_0 = $$createType0;
-        const $$createField6_0 = $$createType13;
+        const $$createField6_0 = $$createType17;
         const $$createField8_0 = $$createType0;
-        const $$createField11_0 = $$createType15;
+        const $$createField11_0 = $$createType19;
         const $$createField12_0 = $$createType0;
-        const $$createField16_0 = $$createType16;
+        const $$createField16_0 = $$createType20;
         const $$createField17_0 = $$createType0;
         const $$createField18_0 = $$createType0;
         const $$createField20_0 = $$createType0;
@@ -879,15 +1031,16 @@ export class Model {
         const $$createField26_0 = $$createType0;
         const $$createField27_0 = $$createType0;
         const $$createField28_0 = $$createType0;
-        const $$createField29_0 = $$createType18;
+        const $$createField29_0 = $$createType22;
         const $$createField30_0 = $$createType0;
-        const $$createField31_0 = $$createType20;
-        const $$createField34_0 = $$createType0;
-        const $$createField35_0 = $$createType22;
-        const $$createField36_0 = $$createType24;
-        const $$createField37_0 = $$createType26;
-        const $$createField38_0 = $$createType28;
-        const $$createField41_0 = $$createType0;
+        const $$createField31_0 = $$createType24;
+        const $$createField32_0 = $$createType26;
+        const $$createField35_0 = $$createType0;
+        const $$createField36_0 = $$createType28;
+        const $$createField37_0 = $$createType30;
+        const $$createField38_0 = $$createType32;
+        const $$createField39_0 = $$createType34;
+        const $$createField42_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("modes" in $$parsedSource) {
             $$parsedSource["modes"] = $$createField2_0($$parsedSource["modes"]);
@@ -943,23 +1096,26 @@ export class Model {
         if ("browser" in $$parsedSource) {
             $$parsedSource["browser"] = $$createField31_0($$parsedSource["browser"]);
         }
+        if ("desktop" in $$parsedSource) {
+            $$parsedSource["desktop"] = $$createField32_0($$parsedSource["desktop"]);
+        }
         if ("knowledgeShips" in $$parsedSource) {
-            $$parsedSource["knowledgeShips"] = $$createField34_0($$parsedSource["knowledgeShips"]);
+            $$parsedSource["knowledgeShips"] = $$createField35_0($$parsedSource["knowledgeShips"]);
         }
         if ("ships" in $$parsedSource) {
-            $$parsedSource["ships"] = $$createField35_0($$parsedSource["ships"]);
+            $$parsedSource["ships"] = $$createField36_0($$parsedSource["ships"]);
         }
         if ("dependencies" in $$parsedSource) {
-            $$parsedSource["dependencies"] = $$createField36_0($$parsedSource["dependencies"]);
+            $$parsedSource["dependencies"] = $$createField37_0($$parsedSource["dependencies"]);
         }
         if ("persona" in $$parsedSource) {
-            $$parsedSource["persona"] = $$createField37_0($$parsedSource["persona"]);
+            $$parsedSource["persona"] = $$createField38_0($$parsedSource["persona"]);
         }
         if ("persistent" in $$parsedSource) {
-            $$parsedSource["persistent"] = $$createField38_0($$parsedSource["persistent"]);
+            $$parsedSource["persistent"] = $$createField39_0($$parsedSource["persistent"]);
         }
         if ("publishInclude" in $$parsedSource) {
-            $$parsedSource["publishInclude"] = $$createField41_0($$parsedSource["publishInclude"]);
+            $$parsedSource["publishInclude"] = $$createField42_0($$parsedSource["publishInclude"]);
         }
         return new Model($$parsedSource as Partial<Model>);
     }
@@ -1000,8 +1156,8 @@ export class OAuthRow {
      */
     static createFrom($$source: any = {}): OAuthRow {
         const $$createField1_0 = $$createType0;
-        const $$createField2_0 = $$createType30;
-        const $$createField3_0 = $$createType11;
+        const $$createField2_0 = $$createType36;
+        const $$createField3_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scopes" in $$parsedSource) {
             $$parsedSource["scopes"] = $$createField1_0($$parsedSource["scopes"]);
@@ -1072,7 +1228,7 @@ export class PublishResult {
      * Creates a new PublishResult instance from a string or object.
      */
     static createFrom($$source: any = {}): PublishResult {
-        const $$createField6_0 = $$createType31;
+        const $$createField6_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("findingCounts" in $$parsedSource) {
             $$parsedSource["findingCounts"] = $$createField6_0($$parsedSource["findingCounts"]);
@@ -1353,12 +1509,12 @@ export class Summary {
      * Creates a new Summary instance from a string or object.
      */
     static createFrom($$source: any = {}): Summary {
-        const $$createField3_0 = $$createType33;
-        const $$createField4_0 = $$createType35;
-        const $$createField5_0 = $$createType37;
+        const $$createField3_0 = $$createType39;
+        const $$createField4_0 = $$createType41;
+        const $$createField5_0 = $$createType43;
         const $$createField6_0 = $$createType0;
         const $$createField7_0 = $$createType0;
-        const $$createField9_0 = $$createType39;
+        const $$createField9_0 = $$createType45;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("keys" in $$parsedSource) {
             $$parsedSource["keys"] = $$createField3_0($$parsedSource["keys"]);
@@ -1564,8 +1720,8 @@ export class SummaryPersistent {
      * Creates a new SummaryPersistent instance from a string or object.
      */
     static createFrom($$source: any = {}): SummaryPersistent {
-        const $$createField1_0 = $$createType41;
-        const $$createField3_0 = $$createType43;
+        const $$createField1_0 = $$createType47;
+        const $$createField3_0 = $$createType49;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("capabilities" in $$parsedSource) {
             $$parsedSource["capabilities"] = $$createField1_0($$parsedSource["capabilities"]);
@@ -1651,7 +1807,7 @@ export class SummaryServer {
      */
     static createFrom($$source: any = {}): SummaryServer {
         const $$createField1_0 = $$createType0;
-        const $$createField2_0 = $$createType35;
+        const $$createField2_0 = $$createType41;
         const $$createField3_0 = $$createType0;
         const $$createField4_0 = $$createType0;
         const $$createField5_0 = $$createType0;
@@ -1752,43 +1908,49 @@ const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = $Create.Map($Create.Any, $Create.Any);
 const $$createType2 = SectionProblem.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = DiffLine.createFrom;
+const $$createType4 = DesktopAppTool.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = ConnectRow.createFrom;
+const $$createType6 = DesktopServerRow.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = OAuthRow.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = EnvRow.createFrom;
+const $$createType8 = DiffLine.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = ConnectRow.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = AuthorRow.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = IntakeRow.createFrom;
+const $$createType12 = OAuthRow.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);
+const $$createType14 = EnvRow.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = GuideModel.createFrom;
-const $$createType17 = MCPServerRow.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = BrowserRow.createFrom;
-const $$createType20 = $Create.Nullable($$createType19);
-const $$createType21 = ShipSource.createFrom;
+const $$createType16 = AuthorRow.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = IntakeRow.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = GuideModel.createFrom;
+const $$createType21 = MCPServerRow.createFrom;
 const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = DependencyRow.createFrom;
-const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = manifest$0.Persona.createFrom;
+const $$createType23 = BrowserRow.createFrom;
+const $$createType24 = $Create.Nullable($$createType23);
+const $$createType25 = DesktopRow.createFrom;
 const $$createType26 = $Create.Nullable($$createType25);
-const $$createType27 = manifest$0.Persistent.createFrom;
-const $$createType28 = $Create.Nullable($$createType27);
-const $$createType29 = TokenFileRow.createFrom;
+const $$createType27 = ShipSource.createFrom;
+const $$createType28 = $Create.Array($$createType27);
+const $$createType29 = DependencyRow.createFrom;
 const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = $Create.Map($Create.Any, $Create.Any);
-const $$createType32 = SummaryKey.createFrom;
-const $$createType33 = $Create.Array($$createType32);
-const $$createType34 = SummaryHost.createFrom;
-const $$createType35 = $Create.Array($$createType34);
-const $$createType36 = SummaryServer.createFrom;
-const $$createType37 = $Create.Array($$createType36);
-const $$createType38 = SummaryPersistent.createFrom;
-const $$createType39 = $Create.Nullable($$createType38);
-const $$createType40 = SummaryCapability.createFrom;
+const $$createType31 = manifest$0.Persona.createFrom;
+const $$createType32 = $Create.Nullable($$createType31);
+const $$createType33 = manifest$0.Persistent.createFrom;
+const $$createType34 = $Create.Nullable($$createType33);
+const $$createType35 = TokenFileRow.createFrom;
+const $$createType36 = $Create.Array($$createType35);
+const $$createType37 = $Create.Map($Create.Any, $Create.Any);
+const $$createType38 = SummaryKey.createFrom;
+const $$createType39 = $Create.Array($$createType38);
+const $$createType40 = SummaryHost.createFrom;
 const $$createType41 = $Create.Array($$createType40);
-const $$createType42 = SummarySubagent.createFrom;
+const $$createType42 = SummaryServer.createFrom;
 const $$createType43 = $Create.Array($$createType42);
+const $$createType44 = SummaryPersistent.createFrom;
+const $$createType45 = $Create.Nullable($$createType44);
+const $$createType46 = SummaryCapability.createFrom;
+const $$createType47 = $Create.Array($$createType46);
+const $$createType48 = SummarySubagent.createFrom;
+const $$createType49 = $Create.Array($$createType48);

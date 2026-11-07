@@ -131,6 +131,19 @@ func (b *BuildAPI) Summary(m build.Model, unmentioned []string) *build.Summary {
 	return m.Summarize(unmentioned)
 }
 
+// DesktopApps is the catalogue of application servers built into this app,
+// which the form offers for capabilities.desktop. It reads nothing and
+// writes nothing.
+func (b *BuildAPI) DesktopApps() []build.DesktopApp {
+	return build.DesktopApps()
+}
+
+// DesktopConsent is what the install consent will ask of the form's desktop
+// line, in its words. It reads nothing and writes nothing.
+func (b *BuildAPI) DesktopConsent(m build.Model) []string {
+	return build.DesktopConsent(&m)
+}
+
 // ServerChecks asks the registry what it last knew of each declared server
 // version, the check the agent page shows, for the Build page's Tools and
 // Review steps. It reads no file; its one request is the registry's public

@@ -136,6 +136,27 @@ export function DescribeStatus(): $CancellablePromise<$models.DescribeStatusView
 }
 
 /**
+ * DesktopApps is the catalogue of application servers built into this app,
+ * which the form offers for capabilities.desktop. It reads nothing and
+ * writes nothing.
+ */
+export function DesktopApps(): $CancellablePromise<build$0.DesktopApp[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.DesktopApps").then(($result: any) => {
+        return $$createType13($result);
+    });
+}
+
+/**
+ * DesktopConsent is what the install consent will ask of the form's desktop
+ * line, in its words. It reads nothing and writes nothing.
+ */
+export function DesktopConsent(m: build$0.Model): $CancellablePromise<string[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.DesktopConsent", m).then(($result: any) => {
+        return $$createType14($result);
+    });
+}
+
+/**
  * EditRelease reads ns/name's current release (its newest published,
  * unyanked version) for Edit: its manifest and instruction file, through
  * the API with the app's token, into the form (build.FromRelease), at the
@@ -148,7 +169,7 @@ export function DescribeStatus(): $CancellablePromise<$models.DescribeStatusView
  */
 export function EditRelease(reg: string, ns: string, name: string): $CancellablePromise<$models.EditView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.EditRelease", reg, ns, name).then(($result: any) => {
-        return $$createType13($result)!;
+        return $$createType16($result)!;
     });
 }
 
@@ -170,7 +191,7 @@ export function Exists(dir: string): $CancellablePromise<boolean> {
  */
 export function Install(dir: string): $CancellablePromise<$models.LocalInstallView | null> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.Install", dir).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType18($result);
     });
 }
 
@@ -179,7 +200,7 @@ export function Install(dir: string): $CancellablePromise<$models.LocalInstallVi
  */
 export function Load(dir: string): $CancellablePromise<build$0.Model> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.Load", dir).then(($result: any) => {
-        return $$createType17($result)!;
+        return $$createType20($result)!;
     });
 }
 
@@ -189,7 +210,7 @@ export function Load(dir: string): $CancellablePromise<build$0.Model> {
  */
 export function NewModel(reg: string): $CancellablePromise<build$0.Model> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.NewModel", reg).then(($result: any) => {
-        return $$createType17($result)!;
+        return $$createType20($result)!;
     });
 }
 
@@ -234,7 +255,7 @@ export function OpenRecordedDraft(runID: string): $CancellablePromise<$models.Dr
  */
 export function PublishThisVersion(reg: string, dir: string, key: string): $CancellablePromise<build$0.PublishResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.PublishThisVersion", reg, dir, key).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType22($result)!;
     });
 }
 
@@ -257,7 +278,7 @@ export function PublishThisVersion(reg: string, dir: string, key: string): $Canc
  */
 export function ReviewLocally(reg: string, dir: string): $CancellablePromise<$models.ReviewView | null> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.ReviewLocally", reg, dir).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType24($result);
     });
 }
 
@@ -267,7 +288,7 @@ export function ReviewLocally(reg: string, dir: string): $CancellablePromise<$mo
  */
 export function ReviewStatus(): $CancellablePromise<$models.ReviewStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.ReviewStatus").then(($result: any) => {
-        return $$createType23($result)!;
+        return $$createType26($result)!;
     });
 }
 
@@ -316,7 +337,7 @@ export function Save(reg: string, dir: string, m: build$0.Model): $CancellablePr
  */
 export function ServerChecks(reg: string, m: build$0.Model): $CancellablePromise<mcpvuln$0.Status[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.ServerChecks", reg, m).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType28($result);
     });
 }
 
@@ -329,7 +350,7 @@ export function ServerChecks(reg: string, m: build$0.Model): $CancellablePromise
  */
 export function ShipOptions(reg: string): $CancellablePromise<build$0.ShipOption[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.ShipOptions", reg).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType30($result);
     });
 }
 
@@ -367,7 +388,7 @@ export function StopReview(): $CancellablePromise<void> {
  */
 export function Submit(reg: string, dir: string): $CancellablePromise<build$0.PublishResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.Submit", reg, dir).then(($result: any) => {
-        return $$createType19($result)!;
+        return $$createType22($result)!;
     });
 }
 
@@ -379,7 +400,7 @@ export function Submit(reg: string, dir: string): $CancellablePromise<build$0.Pu
  */
 export function Summary(m: build$0.Model, unmentioned: string[]): $CancellablePromise<build$0.Summary> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.Summary", m, unmentioned).then(($result: any) => {
-        return $$createType29($result)!;
+        return $$createType32($result)!;
     });
 }
 
@@ -389,7 +410,7 @@ export function Summary(m: build$0.Model, unmentioned: string[]): $CancellablePr
  */
 export function Validate(dir: string): $CancellablePromise<validate$0.Result> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.BuildAPI.Validate", dir).then(($result: any) => {
-        return $$createType31($result)!;
+        return $$createType34($result)!;
     });
 }
 
@@ -406,23 +427,26 @@ const $$createType8 = $models.DraftView.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = $models.DescribeStatusView.createFrom;
 const $$createType11 = $Create.Nullable($$createType10);
-const $$createType12 = $models.EditView.createFrom;
-const $$createType13 = $Create.Nullable($$createType12);
-const $$createType14 = $models.LocalInstallView.createFrom;
-const $$createType15 = $Create.Nullable($$createType14);
-const $$createType16 = build$0.Model.createFrom;
-const $$createType17 = $Create.Nullable($$createType16);
-const $$createType18 = build$0.PublishResult.createFrom;
-const $$createType19 = $Create.Nullable($$createType18);
-const $$createType20 = $models.ReviewView.createFrom;
-const $$createType21 = $Create.Nullable($$createType20);
-const $$createType22 = $models.ReviewStatusView.createFrom;
-const $$createType23 = $Create.Nullable($$createType22);
-const $$createType24 = mcpvuln$0.Status.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = build$0.ShipOption.createFrom;
-const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = build$0.Summary.createFrom;
-const $$createType29 = $Create.Nullable($$createType28);
-const $$createType30 = validate$0.Result.createFrom;
-const $$createType31 = $Create.Nullable($$createType30);
+const $$createType12 = build$0.DesktopApp.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $Create.Array($Create.Any);
+const $$createType15 = $models.EditView.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
+const $$createType17 = $models.LocalInstallView.createFrom;
+const $$createType18 = $Create.Nullable($$createType17);
+const $$createType19 = build$0.Model.createFrom;
+const $$createType20 = $Create.Nullable($$createType19);
+const $$createType21 = build$0.PublishResult.createFrom;
+const $$createType22 = $Create.Nullable($$createType21);
+const $$createType23 = $models.ReviewView.createFrom;
+const $$createType24 = $Create.Nullable($$createType23);
+const $$createType25 = $models.ReviewStatusView.createFrom;
+const $$createType26 = $Create.Nullable($$createType25);
+const $$createType27 = mcpvuln$0.Status.createFrom;
+const $$createType28 = $Create.Array($$createType27);
+const $$createType29 = build$0.ShipOption.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = build$0.Summary.createFrom;
+const $$createType32 = $Create.Nullable($$createType31);
+const $$createType33 = validate$0.Result.createFrom;
+const $$createType34 = $Create.Nullable($$createType33);
