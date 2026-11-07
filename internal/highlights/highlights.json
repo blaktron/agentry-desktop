@@ -3,10 +3,10 @@
     {
       "version": "0.7.20",
       "highlights": [
-        "QuickAgents can see and use the windows of the applications they name on your computer, on Linux.",
-        "Computer use stays off until you turn it on in Settings → Your computer, which asks you first.",
+        "QuickAgents can see and use the windows of the applications they name on Linux, once you turn computer use on.",
         "The tray, a banner and Ctrl+Shift+Escape pause or stop it; Keep what the agent saw saves each screenshot.",
-        "On Wayland your desktop asks once which window to share; on KDE Plasma each input is checked with KWin."
+        "Design with AI from a document keeps its logo and its cover page's artwork, and can model the cover on yours.",
+        "The result says what it took from your document: the logo, a cover image or a cover like your cover page."
       ]
     },
     {
