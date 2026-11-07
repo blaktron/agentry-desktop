@@ -37,6 +37,7 @@ func (s *Service) BindInProcess(ctx context.Context, req desktop.BindRequest) (*
 			}
 			return nil
 		},
-		FarEnd: InProcessFarEnd,
+		FarEnd:   InProcessFarEnd,
+		Computer: b.Computer,
 	}, nil
 }

@@ -4,6 +4,7 @@ import './style.css'
 // After the base table, so a theme's block wins over it.
 import './themes.css'
 import App from './App'
+import {ComputerUseBanner} from './pages/ComputerUseBanner'
 import {Recover} from './Recover'
 import {installDropGuard} from './dropGuard'
 // Loaded first for what it sets up on the runtime's errors (host.ts).
@@ -23,7 +24,8 @@ root.render(
             leave a blank window. */}
         <Recover subject="Agentry Desktop" recoverLabel="Reload" onRecover={() => window.location.reload()}
                  hint="Reload starts it again from the beginning.">
-            <App/>
+            {/* The computer-use banner is a window of its own on the same page. */}
+            {window.location.hash === '#computer-use' ? <ComputerUseBanner/> : <App/>}
         </Recover>
     </React.StrictMode>
 )

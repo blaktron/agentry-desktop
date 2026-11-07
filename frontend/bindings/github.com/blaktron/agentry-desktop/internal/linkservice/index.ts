@@ -6,5 +6,6 @@ export {
     Bound,
     RecentRun,
     RecentServer,
+    Support,
     ToolState
 } from "./models.js";

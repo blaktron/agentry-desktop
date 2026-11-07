@@ -91,6 +91,7 @@ overrides:
       - libjavascriptcoregtk-6.0-1
       - libwebkitgtk-6.0-4
       - libx11-6
+      - libpipewire-0.3-0t64
   rpm:
     depends:
       - glibc >= 2.39
@@ -98,6 +99,7 @@ overrides:
       - gtk4
       - libsoup3
       - javascriptcoregtk6.0
+      - pipewire-libs
       - webkitgtk6.0
       - libX11
 

@@ -130,6 +130,11 @@ func (s *Services) Startup(ctx context.Context) {
 	// The link socket a run from the CLI on this computer binds over to use
 	// an application here.
 	s.yourComputer.start(ctx)
+	// Computer use shows in the tray and the banner while a run has it.
+	s.yourComputer.onComputer = func() {
+		s.followAgents(ctx)
+		s.yourComputer.showBanner(ctx)
+	}
 }
 
 // BeforeClose runs as the window closes, and reports whether to keep the

@@ -69,16 +69,17 @@ var (
 	windowHide = nativeHideWindow
 	appQuit    = nativeQuit
 	// trayStart, traySet and trayMeeting are the tray's, a test's seams.
-	trayStart   = tray.Start
-	traySet     = tray.SetRunning
-	trayMeeting = tray.SetMeeting
+	trayStart    = tray.Start
+	traySet      = tray.SetRunning
+	trayMeeting  = tray.SetMeeting
+	trayComputer = tray.SetComputer
 )
 
 // keepsRunning says whether the app runs on in the background with its
 // window closed: an agent that runs there is enabled, or Meeting notes is
 // on.
 func (s *Services) keepsRunning() bool {
-	return s.persistent.keepsRunning() || s.meeting.keepsRunning()
+	return s.persistent.keepsRunning() || s.meeting.keepsRunning() || s.yourComputer.usingComputer()
 }
 
 // meetingTray is a recording as the tray shows it; canRoom says a meeting
@@ -178,6 +179,10 @@ func (s *Services) followAgents(ctx context.Context) {
 			OnMeetingPause:  func() { s.meeting.handleAction(meeting.ActionPause) },
 			OnMeetingResume: func() { s.meeting.handleAction(meeting.ActionResume) },
 			OnMeetingStop:   func() { s.meeting.handleAction(meeting.ActionStop) },
+			OnComputerPause: func() { s.yourComputer.pauseComputerUse() },
+			// Resume is asked again in a native dialog, as the page's is.
+			OnComputerResume: func() { s.yourComputer.resumeComputerUse() },
+			OnComputerStop:   func() { s.yourComputer.stopComputerUse() },
 			// The window comes up first, so the native dialog that asks
 			// before a recording starts is seen with it.
 			OnMeetingRecordRoom: func() {
@@ -191,6 +196,7 @@ func (s *Services) followAgents(ctx context.Context) {
 	}
 	traySet(s.persistent.runningLabels())
 	trayMeeting(meetingTray(s.meeting.recording(), s.meeting.recordsRoomsNow()))
+	trayComputer(s.yourComputer.computerTray())
 }
 
 // quit is the person's quit: the intent, then the question a window's close

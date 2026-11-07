@@ -43,6 +43,33 @@ type Menu struct {
 	// OnMeetingRecordRoom starts recording a meeting in the room; its item
 	// shows while Meeting.CanRecordRoom.
 	OnMeetingRecordRoom func()
+	// OnComputerPause, OnComputerResume and OnComputerStop act on every
+	// run using the computer (SetComputer).
+	OnComputerPause  func()
+	OnComputerResume func()
+	OnComputerStop   func()
+}
+
+// Computer is the computer use the tray shows; the zero value is none.
+type Computer struct {
+	Active bool
+	Paused bool
+	// What is who uses what, as the menu says it: "scene-helper in
+	// Blender".
+	What string
+}
+
+// ComputerLabels are the menu's words for c: its status line and its
+// pause item's title.
+func ComputerLabels(c Computer) (status, pause string) {
+	what := c.What
+	if what == "" {
+		what = "an agent"
+	}
+	if c.Paused {
+		return "Computer use paused: " + what, "Resume computer use"
+	}
+	return "Using your computer: " + what, "Pause computer use"
 }
 
 // Meeting is the meeting recording the tray shows; the zero value is none.
@@ -84,7 +111,22 @@ var (
 	// once the menu is built.
 	meeting     Meeting
 	meetingMenu *meetingItems
+	// computer is what SetComputer was last told, and computerMenu its
+	// items once the menu is built.
+	computer     Computer
+	computerMenu *meetingItems
 )
+
+// SetComputer shows the computer use going on, or none, in the menu and
+// on the icon.
+func SetComputer(c Computer) {
+	mu.Lock()
+	defer mu.Unlock()
+	computer = c
+	if computerMenu != nil {
+		applyMeeting()
+	}
+}
 
 // Start shows the icon. A second call does nothing.
 func Start(m Menu) {
@@ -163,16 +205,33 @@ func MeetingLabels(m Meeting) (status, pause string) {
 	return "Recording " + what, "Pause recording"
 }
 
-// applyMeeting draws meeting; mu is held.
+// applyMeeting draws meeting and computer use; mu is held.
 func applyMeeting() {
+	tooltip := menu.Tooltip
+	if ci := computerMenu; ci != nil {
+		hide := !computer.Active
+		ci.status.SetHidden(hide)
+		ci.pause.SetHidden(hide)
+		ci.stop.SetHidden(hide)
+		if computer.Active {
+			status, pause := ComputerLabels(computer)
+			ci.status.SetLabel(status)
+			ci.pause.SetLabel(pause)
+			tooltip += ": " + status
+		}
+	}
 	it := meetingMenu
 	it.room.SetHidden(!meeting.CanRecordRoom || meeting.Recording)
 	if !meeting.Recording {
 		it.status.SetHidden(true)
 		it.pause.SetHidden(true)
 		it.stop.SetHidden(true)
-		setLook(normalLook)
-		icon.SetTooltip(menu.Tooltip)
+		if computer.Active {
+			setLook(recordingLook)
+		} else {
+			setLook(normalLook)
+		}
+		icon.SetTooltip(tooltip)
 		return
 	}
 	status, pause := MeetingLabels(meeting)
@@ -182,7 +241,7 @@ func applyMeeting() {
 	it.pause.SetHidden(false)
 	it.stop.SetHidden(false)
 	setLook(recordingLook)
-	icon.SetTooltip(menu.Tooltip + ": " + status)
+	icon.SetTooltip(tooltip + "; " + status)
 }
 
 // setLook puts the icon's image on the status item. A template image the
@@ -296,6 +355,30 @@ func build() bool {
 			m.OnMeetingStop()
 		}
 	})
+	ci := &meetingItems{
+		status: mn.Add("Using your computer").SetTooltip("An agent is using your computer"),
+		pause:  mn.Add("Pause computer use").SetTooltip("Pause or resume every agent's use of your computer"),
+		stop:   mn.Add("Stop computer use").SetTooltip("Stop every agent's use of your computer"),
+	}
+	ci.status.SetEnabled(false)
+	for _, it := range []*application.MenuItem{ci.status, ci.pause, ci.stop} {
+		it.SetHidden(true)
+	}
+	ci.pause.OnClick(func(*application.Context) {
+		mu.Lock()
+		paused := computer.Paused
+		mu.Unlock()
+		if f := m.OnComputerPause; !paused && f != nil {
+			f()
+		} else if f := m.OnComputerResume; paused && f != nil {
+			f()
+		}
+	})
+	ci.stop.OnClick(func(*application.Context) {
+		if m.OnComputerStop != nil {
+			m.OnComputerStop()
+		}
+	})
 	items := map[string]*application.MenuItem{}
 	for _, name := range m.Agents {
 		name := name
@@ -314,13 +397,13 @@ func build() bool {
 			m.OnQuit()
 		}
 	})
-	slots, meetingMenu = items, mi
+	slots, meetingMenu, computerMenu = items, mi, ci
 	drawn = look{}
 	icon.SetMenu(mn)
 	icon.OnClick(async(m.OnOpen))
 	// A status item made while a meeting is recorded starts with the
 	// recording icon, so applyMeeting below has nothing to swap.
-	if meeting.Recording {
+	if meeting.Recording || computer.Active {
 		paint(recordingLook)
 	} else {
 		paint(normalLook)
