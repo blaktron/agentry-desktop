@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.21",
+      "highlights": [
+        "Computer use works on macOS and Windows too; on macOS, turning it on asks for the permissions it needs.",
+        "On Windows, Ctrl+Shift+F12 stops it, and an application run as administrator is refused: Windows blocks input to it.",
+        "QuickAgents can use Unreal Engine on your computer through Epic's own Unreal MCP plugin.",
+        "Build offers the applications on your computer a QuickAgent uses, with each one's tools and what the install will ask."
+      ]
+    },
+    {
       "version": "0.7.20",
       "highlights": [
         "QuickAgents can see and use the windows of the applications they name on Linux, once you turn computer use on.",
