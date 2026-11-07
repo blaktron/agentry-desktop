@@ -116,6 +116,11 @@ type Model struct {
 	// without them has no host tools and no browser.
 	TargetHosts []string    `json:"targetHosts"`
 	Browser     *BrowserRow `json:"browser,omitempty"`
+	// Desktop is capabilities.desktop, nil for none: the applications on
+	// the person's computer the run uses through their installed servers,
+	// by catalogue id with the release's narrowing of each one's tools, and
+	// its computer use of their windows or the screen.
+	Desktop *DesktopRow `json:"desktop,omitempty"`
 
 	// The knowledge block. The prompt is knowledge.accepts: one plain line
 	// the run setup's Knowledge step shows when the QuickAgent needs a pack
@@ -166,6 +171,41 @@ type BrowserRow struct {
 // and consent share.
 func (b *BrowserRow) manifest() *manifest.Browser {
 	return &manifest.Browser{Sites: compact(b.Sites), Hosts: compact(b.Hosts), Scope: manifest.BrowserScope(strings.TrimSpace(b.Scope)), Secrets: compact(b.Secrets)}
+}
+
+// DesktopRow is capabilities.desktop as the form carries it.
+type DesktopRow struct {
+	Servers []DesktopServerRow `json:"servers"`
+	// ComputerUse is "app", "screen" or empty for none.
+	ComputerUse string `json:"computerUse,omitempty"`
+}
+
+// DesktopServerRow is one application server the line uses: its catalogue
+// id and the tools the release narrows it to, empty for every tool the
+// catalogue gives.
+type DesktopServerRow struct {
+	ID    string   `json:"id"`
+	Tools []string `json:"tools"`
+}
+
+// manifest is the row as the core's type, for the consent's words.
+func (d *DesktopRow) manifest() *manifest.Desktop {
+	if d == nil {
+		return nil
+	}
+	out := &manifest.Desktop{ComputerUse: manifest.ComputerUse(strings.TrimSpace(d.ComputerUse))}
+	for _, s := range d.Servers {
+		if id := strings.TrimSpace(s.ID); id != "" {
+			out.Servers = append(out.Servers, manifest.DesktopServer{ID: id, Tools: compact(s.Tools)})
+		}
+	}
+	return out
+}
+
+// empty reports a row that declares nothing: no server and no computer use.
+func (d *DesktopRow) empty() bool {
+	m := d.manifest()
+	return m == nil || (len(m.Servers) == 0 && m.ComputerUse == "")
 }
 
 // AuthorRow is one authors entry.
@@ -1148,6 +1188,30 @@ func (m *Model) reachLines() []string {
 	return append(append(out, "  browser:"), lines...)
 }
 
+// desktopLines are capabilities.desktop: each application server by id with
+// its narrowing, then the computer use. A row that declares nothing writes
+// nothing.
+func (m *Model) desktopLines() []string {
+	if m.Desktop.empty() {
+		return nil
+	}
+	d := m.Desktop.manifest()
+	out := []string{"  desktop:"}
+	if len(d.Servers) > 0 {
+		out = append(out, "    servers:")
+		for _, s := range d.Servers {
+			out = append(out, "      - id: "+q(s.ID))
+			if len(s.Tools) > 0 {
+				out = append(out, "        tools: "+seq(s.Tools))
+			}
+		}
+	}
+	if d.ComputerUse != "" {
+		out = append(out, "    computerUse: "+q(string(d.ComputerUse)))
+	}
+	return out
+}
+
 // declaredSecrets is every key the QuickAgent declares, its own then each
 // server's, each once, in the form's order.
 func (m *Model) declaredSecrets() []string {
@@ -1287,7 +1351,7 @@ func (m *Model) fragment(sec Section) string {
 	case SectionTools:
 		lines = append(append([]string{"capabilities:"}, m.networkLines()...), m.serverLines()...)
 	case SectionAccess:
-		lines = append(append([]string{"capabilities:"}, m.accessLines()...), m.persistentLines()...)
+		lines = append(append(append([]string{"capabilities:"}, m.accessLines()...), m.desktopLines()...), m.persistentLines()...)
 	case SectionQuestions:
 		lines = m.intakeLines()
 	case SectionGuide:
@@ -1326,6 +1390,7 @@ func (m *Model) manifestYAML() string {
 	caps = append(caps, m.accessLines()...)
 	caps = append(caps, m.serverLines()...)
 	caps = append(caps, m.reachLines()...)
+	caps = append(caps, m.desktopLines()...)
 	caps = append(caps, m.persistentLines()...)
 	block(append(caps, m.optionalLines()...))
 	block(m.knowledgeLines())
@@ -1642,6 +1707,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 			} `yaml:"browser"`
 			DataAccess []string             `yaml:"dataAccess"`
 			Persistent *manifest.Persistent `yaml:"persistent"`
+			Desktop    *manifest.Desktop    `yaml:"desktop"`
 			MCPServers []struct {
 				NPM     string            `yaml:"npm"`
 				PyPI    string            `yaml:"pypi"`
@@ -1747,6 +1813,12 @@ func decodeManifest(raw []byte) (*Model, error) {
 	}
 	if b := doc.Capabilities.Browser; b != nil {
 		m.Browser = &BrowserRow{Sites: orEmpty(b.Sites), Hosts: orEmpty(b.Hosts), Scope: b.Scope, Secrets: orEmpty(b.Secrets)}
+	}
+	if d := doc.Capabilities.Desktop; d != nil {
+		m.Desktop = &DesktopRow{Servers: []DesktopServerRow{}, ComputerUse: string(d.ComputerUse)}
+		for _, s := range d.Servers {
+			m.Desktop.Servers = append(m.Desktop.Servers, DesktopServerRow{ID: s.ID, Tools: orEmpty(s.Tools)})
+		}
 	}
 	for i, srv := range doc.Capabilities.MCPServers {
 		if err := heldWhole(i, srv.NPM, srv.PyPI, srv.URL, strings.TrimSpace(srv.Auth), srv.Version, srv.Scopes, srv.Secrets, srv.Egress, len(srv.Args) > 0 || len(srv.Env) > 0, srv.OAuth != nil); err != nil {
