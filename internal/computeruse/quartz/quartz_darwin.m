@@ -277,6 +277,20 @@ static window_image_fn window_image(void) {
 	return fn;
 }
 
+typedef CGImageRef (*display_image_fn)(CGDirectDisplayID);
+
+// display_image is CGDisplayCreateImage, looked up by symbol for the same
+// reason.
+static display_image_fn display_image(void) {
+	static display_image_fn fn = NULL;
+	static int looked = 0;
+	if (!looked) {
+		fn = (display_image_fn)dlsym(RTLD_DEFAULT, "CGDisplayCreateImage");
+		looked = 1;
+	}
+	return fn;
+}
+
 int qz_capture_window(uint32_t wid, int pw, int ph, uint8_t **out, int *ow, int *oh, char *err, int errn) {
 	@autoreleasepool {
 		if (!qz_screen_granted()) {
@@ -352,7 +366,7 @@ int qz_capture_display(int pw, int ph, uint8_t **out, int *ow, int *oh, char *er
 				}
 			}
 		} else {
-			img = CGDisplayCreateImage(CGMainDisplayID());
+			img = display_image() != NULL ? display_image()(CGMainDisplayID()) : NULL;
 			if (img == NULL) {
 				why = @"macOS returned no image of the display";
 			}
