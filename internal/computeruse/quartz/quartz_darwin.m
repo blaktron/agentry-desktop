@@ -87,8 +87,9 @@ void qz_request_screen(void) {
 
 static void copy_str(char *dst, int n, NSString *s) {
 	dst[0] = 0;
-	if (s != nil) {
-		[s getCString:dst maxLength:n encoding:NSUTF8StringEncoding];
+	const char *u = s != nil ? [s UTF8String] : NULL;
+	if (u != NULL) {
+		strlcpy(dst, u, n);
 	}
 }
 
@@ -228,18 +229,31 @@ static CGImageRef screenshot(SCContentFilter *filter, int pw, int ph, NSString *
 	cfg.height = ph;
 	cfg.showsCursor = NO;
 	cfg.ignoreShadowsSingleWindow = YES;
+	// The answer may come after the wait gave up: then the image it
+	// retained is released there, never kept.
 	__block CGImageRef got = NULL;
 	__block NSError *failed = nil;
+	__block BOOL abandoned = NO;
+	NSObject *lock = [NSObject new];
 	dispatch_semaphore_t done = dispatch_semaphore_create(0);
 	Class mgr = NSClassFromString(@"SCScreenshotManager");
 	[mgr captureImageWithFilter:filter configuration:cfg completionHandler:^(CGImageRef image, NSError *error) {
-		if (image != NULL) {
-			got = CGImageRetain(image);
+		@synchronized (lock) {
+			if (!abandoned && image != NULL) {
+				got = CGImageRetain(image);
+			}
+			failed = error;
 		}
-		failed = error;
 		dispatch_semaphore_signal(done);
 	}];
 	if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) != 0) {
+		@synchronized (lock) {
+			abandoned = YES;
+			if (got != NULL) {
+				CGImageRelease(got);
+				got = NULL;
+			}
+		}
 		*why = @"ScreenCaptureKit did not capture within ten seconds";
 		return NULL;
 	}
@@ -368,14 +382,15 @@ int qz_activate(int32_t pid, double x, double y, double w, double h) {
 		}
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-		[app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+		BOOL activated = [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
 #pragma clang diagnostic pop
+		int raised = 0;
 		if (!load_ax() || !ax_trusted()) {
-			return 0;
+			return activated ? 0 : -1;
 		}
 		ax_ref ax = ax_create_app(pid);
 		if (ax == NULL) {
-			return 0;
+			return activated ? 0 : -1;
 		}
 		CFTypeRef windows = NULL;
 		if (ax_copy_attr(ax, CFSTR("AXWindows"), &windows) == 0 && windows != NULL) {
@@ -395,14 +410,14 @@ int qz_activate(int32_t pid, double x, double y, double w, double h) {
 				}
 				if (fabs(p.x - x) < 2 && fabs(p.y - y) < 2 && fabs(s.width - w) < 2 && fabs(s.height - h) < 2) {
 					ax_set_attr(aw, CFSTR("AXMain"), kCFBooleanTrue);
-					ax_perform(aw, CFSTR("AXRaise"));
+					raised = ax_perform(aw, CFSTR("AXRaise")) == 0;
 					break;
 				}
 			}
 			CFRelease(windows);
 		}
 		CFRelease(ax);
-		return 0;
+		return (activated || raised) ? 0 : -1;
 	}
 }
 
@@ -477,14 +492,13 @@ int qz_button(int button, int down, double x, double y, uint64_t flags, int clic
 	return post(e, flags);
 }
 
-int qz_scroll(int32_t dy, int32_t dx) {
+int qz_scroll(int32_t dy, int32_t dx, double x, double y, uint64_t flags) {
 	CGEventRef e = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitLine, 2, dy, dx);
 	if (e == NULL) {
 		return -1;
 	}
-	CGEventPost(kCGHIDEventTap, e);
-	CFRelease(e);
-	return 0;
+	CGEventSetLocation(e, CGPointMake(x, y));
+	return post(e, flags);
 }
 
 int qz_key(uint16_t code, int down, uint64_t flags) {

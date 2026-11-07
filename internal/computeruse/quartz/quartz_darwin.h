@@ -38,7 +38,7 @@ int qz_activate(int32_t pid, double x, double y, double w, double h);
 int qz_cursor(double *x, double *y);
 int qz_move(double x, double y, uint64_t flags);
 int qz_button(int button, int down, double x, double y, uint64_t flags, int clicks);
-int qz_scroll(int32_t dy, int32_t dx);
+int qz_scroll(int32_t dy, int32_t dx, double x, double y, uint64_t flags);
 int qz_key(uint16_t code, int down, uint64_t flags);
 int qz_unicode(uint32_t cp, int down, uint64_t flags);
 

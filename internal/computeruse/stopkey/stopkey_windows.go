@@ -12,7 +12,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// call calls a procedure for its first result alone.
+// call calls a procedure for its first result alone, keeping a pointer
+// passed as a uintptr in place until it returns.
+//
+//go:uintptrescapes
 func call(p *windows.LazyProc, args ...uintptr) uintptr {
 	r, _, _ := p.Call(args...)
 	return r
@@ -24,6 +27,7 @@ var (
 	procUnregisterHotKey   = user32.NewProc("UnregisterHotKey")
 	procGetMessageW        = user32.NewProc("GetMessageW")
 	procPostThreadMessageW = user32.NewProc("PostThreadMessageW")
+	procPeekMessageW       = user32.NewProc("PeekMessageW")
 )
 
 const (
@@ -34,6 +38,7 @@ const (
 	vkF12       = 0x7b
 	wmHotKey    = 0x0312
 	wmQuit      = 0x0012
+	pmNoRemove  = 0x0000
 )
 
 // msg is MSG.
@@ -57,8 +62,11 @@ type winBinding struct {
 
 func (b *winBinding) Close() error {
 	b.once.Do(func() {
-		call(procPostThreadMessageW, uintptr(b.tid), wmQuit, 0, 0)
-		<-b.done
+		// The thread's queue exists before Bind returns, so the quit
+		// reaches its loop; a post that fails anyway is not waited on.
+		if call(procPostThreadMessageW, uintptr(b.tid), wmQuit, 0, 0) != 0 {
+			<-b.done
+		}
 	})
 	return nil
 }
@@ -81,8 +89,11 @@ func bind(ctx context.Context, stop func()) (Binding, error) {
 			return
 		}
 		defer call(procUnregisterHotKey, 0, hotKeyID)
-		started <- nil
 		var m msg
+		// A thread has a message queue once it looks at it: made here,
+		// before Bind returns, so Close's quit is never posted to none.
+		call(procPeekMessageW, uintptr(unsafe.Pointer(&m)), 0, 0, 0, pmNoRemove)
+		started <- nil
 		for {
 			r := call(procGetMessageW, uintptr(unsafe.Pointer(&m)), 0, 0, 0)
 			if int32(r) <= 0 {

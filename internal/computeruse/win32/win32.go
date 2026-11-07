@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"image"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
 )
@@ -63,6 +66,8 @@ var (
 	procReleaseDC                = user32.NewProc("ReleaseDC")
 	procPrintWindow              = user32.NewProc("PrintWindow")
 	procGetSystemMetrics         = user32.NewProc("GetSystemMetrics")
+	procAttachThreadInput        = user32.NewProc("AttachThreadInput")
+	procMapVirtualKeyW           = user32.NewProc("MapVirtualKeyW")
 
 	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")
 	procCreateCompatibleBitmap = gdi32.NewProc("CreateCompatibleBitmap")
@@ -80,6 +85,7 @@ const (
 	swRestore           = 9
 	pwRenderFullContent = 2
 	dwmwaCloaked        = 14
+	dwmwaFrameBounds    = 9
 	srccopy             = 0x00cc0020
 	captureblt          = 0x40000000
 	smXVirtualScreen    = 76
@@ -107,7 +113,11 @@ const (
 
 // call calls a procedure for its first result alone: the calls here say
 // whether they worked in that result, and their error is the thread's last
-// error, read only where the result says to.
+// error, read only where the result says to. A pointer passed as a uintptr
+// is kept alive and in place until the call returns, as LazyProc.Call
+// itself keeps it.
+//
+//go:uintptrescapes
 func call(p *windows.LazyProc, args ...uintptr) uintptr {
 	r, _, _ := p.Call(args...)
 	return r
@@ -173,6 +183,10 @@ type Backend struct {
 	// held are the modifiers pressed and not released, which make a
 	// character a key of a combination rather than typed text.
 	held map[uint32]bool
+	// moved is where the last Move put the pointer, on the screen: a
+	// press or a scroll is sent only while the pointer is still there.
+	moved    point
+	hasMoved bool
 }
 
 var (
@@ -231,18 +245,51 @@ type win struct {
 
 func (w win) id() string { return strconv.FormatUint(uint64(w.hwnd), 16) }
 
+// enum holds what the one enumeration callback does with each window:
+// Go keeps every callback it makes for the life of the process, and only a
+// couple of thousand fit, so there is one, made once, and each walk sets
+// what it does under the lock.
+var enum struct {
+	sync.Mutex
+	each func(hwnd uintptr)
+}
+
+var enumCallback = windows.NewCallback(func(hwnd, _ uintptr) uintptr {
+	enum.each(hwnd)
+	return 1
+})
+
+// eachWindow calls f with every top-level window, front to back.
+func eachWindow(f func(hwnd uintptr)) {
+	enum.Lock()
+	defer enum.Unlock()
+	enum.each = f
+	call(procEnumWindows, enumCallback, 0)
+	enum.each = nil
+}
+
+// visible reports a window that is shown, not cloaked by the window
+// manager, and has an area, with its rectangle.
+func visible(hwnd uintptr) (rect, bool) {
+	if call(procIsWindowVisible, hwnd) == 0 || cloaked(hwnd) {
+		return rect{}, false
+	}
+	var r rect
+	if call(procGetWindowRect, hwnd, uintptr(unsafe.Pointer(&r))) == 0 || r.Right <= r.Left || r.Bottom <= r.Top {
+		return rect{}, false
+	}
+	return r, true
+}
+
 // list is the allowed windows, front to back as EnumWindows gives them.
 func (b *Backend) list() []win {
 	var out []win
 	exes := map[uint32]string{}
 	elev := map[uint32]bool{}
-	cb := windows.NewCallback(func(hwnd, _ uintptr) uintptr {
-		if ok := call(procIsWindowVisible, hwnd); ok == 0 || cloaked(hwnd) {
-			return 1
-		}
-		var r rect
-		if ok := call(procGetWindowRect, hwnd, uintptr(unsafe.Pointer(&r))); ok == 0 || r.Right <= r.Left || r.Bottom <= r.Top {
-			return 1
+	eachWindow(func(hwnd uintptr) {
+		r, ok := visible(hwnd)
+		if !ok {
+			return
 		}
 		var pid uint32
 		call(procGetWindowThreadProcessID, hwnd, uintptr(unsafe.Pointer(&pid)))
@@ -256,13 +303,44 @@ func (b *Backend) list() []win {
 		}
 		app, ok := b.opt.Match(exe)
 		if !ok {
-			return 1
+			return
 		}
 		out = append(out, win{hwnd: hwnd, app: app, title: windowText(hwnd), r: r, elevated: elev[pid]})
-		return 1
 	})
-	call(procEnumWindows, cb, 0)
 	return out
+}
+
+// overlapped reports a shown window in front of hwnd whose rectangle meets
+// r.
+func overlapped(hwnd uintptr, r rect) bool {
+	found, over := false, false
+	eachWindow(func(h uintptr) {
+		if found || over {
+			return
+		}
+		if h == hwnd {
+			found = true
+			return
+		}
+		if o, ok := visible(h); ok && o.Left < r.Right && r.Left < o.Right && o.Top < r.Bottom && r.Top < o.Bottom {
+			over = true
+		}
+	})
+	return over
+}
+
+// frameBounds is the window's visible frame, without the invisible resize
+// border Windows draws around it; the window's rectangle where the window
+// manager does not say.
+func frameBounds(hwnd uintptr, r rect) rect {
+	if dwmapi.Load() != nil {
+		return r
+	}
+	var f rect
+	if call(procDwmGetWindowAttribute, hwnd, dwmwaFrameBounds, uintptr(unsafe.Pointer(&f)), unsafe.Sizeof(f)) != 0 || f.Right <= f.Left || f.Bottom <= f.Top {
+		return r
+	}
+	return f
 }
 
 func cloaked(hwnd uintptr) bool {
@@ -377,9 +455,10 @@ func (b *Backend) find(id string) (win, error) {
 	return win{}, computeruse.ErrNoWindow
 }
 
-// Focus brings the window to the foreground. Windows lets a process take
-// the foreground only after input it sent, so an Alt press and release goes
-// first.
+// Focus brings the window to the foreground. Windows lets a thread set
+// the foreground only while its input is attached to the foreground
+// window's thread, so it attaches for the call. No key is sent: one would
+// land in the window in front, which the scope may not allow.
 func (b *Backend) Focus(ctx context.Context, id string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -387,22 +466,40 @@ func (b *Backend) Focus(ctx context.Context, id string) error {
 	if err != nil || b.opt.Scope == computeruse.ScopeScreen {
 		return err
 	}
-	if ic := call(procIsIconic, w.hwnd); ic != 0 {
-		call(procShowWindow, w.hwnd, swRestore)
+	if foreground() != w.hwnd {
+		if call(procIsIconic, w.hwnd) != 0 {
+			call(procShowWindow, w.hwnd, swRestore)
+		}
+		raise(w.hwnd)
 	}
-	_ = sendKeys(keyEvent{typ: inputKeyboard, ki: keybdInput{vk: 0x12}}, keyEvent{typ: inputKeyboard, ki: keybdInput{vk: 0x12, flags: keyUp}})
-	call(procBringWindowToTop, w.hwnd)
-	call(procSetForegroundWindow, w.hwnd)
 	deadline := time.Now().Add(time.Second)
 	for foreground() != w.hwnd {
 		if time.Now().After(deadline) {
-			return fmt.Errorf("Windows did not bring %s's window to the front", w.app)
+			return fmt.Errorf("%s's window did not come to the front", w.app)
 		}
 		if err := sleep(ctx, 50*time.Millisecond); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// raise brings a window to the front from a thread whose input is attached
+// to the foreground window's thread for the call.
+func raise(hwnd uintptr) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	self := uintptr(windows.GetCurrentThreadId())
+	var fgThread uintptr
+	if fg := foreground(); fg != 0 {
+		fgThread = call(procGetWindowThreadProcessID, fg, 0)
+	}
+	attached := fgThread != 0 && fgThread != self && call(procAttachThreadInput, self, fgThread, 1) != 0
+	call(procBringWindowToTop, hwnd)
+	call(procSetForegroundWindow, hwnd)
+	if attached {
+		call(procAttachThreadInput, self, fgThread, 0)
+	}
 }
 
 func sleep(ctx context.Context, d time.Duration) error {
@@ -459,14 +556,17 @@ func (b *Backend) Capture(ctx context.Context, id string) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	if id != screenID && black(pix) && foreground() == w.hwnd {
+	if id != screenID && black(pix) && foreground() == w.hwnd && !overlapped(w.hwnd, w.r) {
 		// A window drawn by the graphics card (Direct3D, Vulkan) can come
 		// back black from PrintWindow. While it is the foreground window
-		// nothing covers it, so its area of the screen is the window.
+		// and no window lies over it, its visible frame on the screen is
+		// the window; the invisible border around the frame, where what is
+		// behind shows through, stays black.
+		f := frameBounds(w.hwnd, w.r)
 		old = call(procSelectObject, mem, bmp)
-		if ok := call(procBitBlt, mem, 0, 0, uintptr(width), uintptr(height), screen, uintptr(w.r.Left), uintptr(w.r.Top), srccopy|captureblt); ok == 0 {
+		if call(procBitBlt, mem, uintptr(f.Left-w.r.Left), uintptr(f.Top-w.r.Top), uintptr(f.Right-f.Left), uintptr(f.Bottom-f.Top), screen, uintptr(f.Left), uintptr(f.Top), srccopy) == 0 {
 			call(procSelectObject, mem, old)
-			return nil, fmt.Errorf("Windows did not copy %s's window from the screen", w.app)
+			return nil, fmt.Errorf("%s's window could not be copied from the screen", w.app)
 		}
 		if pix, err = readBits(mem, bmp, old, width, height); err != nil {
 			return nil, err
@@ -536,9 +636,11 @@ func (b *Backend) Move(ctx context.Context, id string, p image.Point) error {
 	if p.X < 0 || p.Y < 0 || p.X >= int(w.r.Right-w.r.Left) || p.Y >= int(w.r.Bottom-w.r.Top) {
 		return fmt.Errorf("the point %v is outside the window", p)
 	}
-	if ok := call(procSetCursorPos, uintptr(int(w.r.Left)+p.X), uintptr(int(w.r.Top)+p.Y)); ok == 0 {
-		return errors.New("Windows did not move the pointer")
+	at := point{X: w.r.Left + int32(p.X), Y: w.r.Top + int32(p.Y)}
+	if call(procSetCursorPos, uintptr(at.X), uintptr(at.Y)) == 0 {
+		return errors.New("the pointer could not be moved")
 	}
+	b.moved, b.hasMoved = at, true
 	return nil
 }
 
@@ -562,10 +664,30 @@ func (b *Backend) Covered(ctx context.Context, id string, p image.Point) (bool, 
 	return root != w.hwnd, nil
 }
 
-// Button presses or releases a button where the pointer is.
+// stillThere refuses a press or a scroll when the pointer is no longer
+// where the last move put it: the person moved it, and the input would land
+// wherever it is now, which the check before the move did not see.
+func (b *Backend) stillThere() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var p point
+	if !b.hasMoved || call(procGetCursorPos, uintptr(unsafe.Pointer(&p))) == 0 || p != b.moved {
+		return &computeruse.Refusal{Reason: receipt.DesktopOutsideWindow, Message: "the pointer moved after it was placed, so the input was not sent: take a new screenshot"}
+	}
+	return nil
+}
+
+// Button presses or releases a button where the pointer is. A press is
+// sent only while the pointer is where the last move put it; a release is
+// always sent, so no button is left held.
 func (b *Backend) Button(ctx context.Context, btn computeruse.Button, down bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if down {
+		if err := b.stillThere(); err != nil {
+			return err
+		}
 	}
 	var flags uint32
 	switch {
@@ -606,6 +728,9 @@ func (b *Backend) Scroll(ctx context.Context, d computeruse.Direction, steps int
 	default:
 		return fmt.Errorf("no such direction %q", d)
 	}
+	if err := b.stillThere(); err != nil {
+		return err
+	}
 	for i := 0; i < steps; i++ {
 		if err := sendMouse(mouseEvent{typ: inputMouse, mi: mouseInput{flags: flags, mouseData: uint32(amount)}}); err != nil {
 			return err
@@ -641,7 +766,10 @@ func (b *Backend) Key(ctx context.Context, keysym uint32, down bool) error {
 		if k.Extended {
 			flags |= keyExtended
 		}
-		return sendKeys(keyEvent{typ: inputKeyboard, ki: keybdInput{vk: k.VK, flags: flags}})
+		// The scan code goes with the virtual key: an application that
+		// reads raw keyboard input (a game engine's editor) reads it.
+		scan := uint16(call(procMapVirtualKeyW, uintptr(k.VK), 0))
+		return sendKeys(keyEvent{typ: inputKeyboard, ki: keybdInput{vk: k.VK, scan: scan, flags: flags}})
 	}
 	r, ok := computeruse.KeysymRune(keysym)
 	if !ok {

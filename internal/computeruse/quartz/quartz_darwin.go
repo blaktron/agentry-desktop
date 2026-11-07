@@ -87,6 +87,11 @@ type Backend struct {
 	// held are the modifiers pressed and not released: their flags go on
 	// every event, and a character pressed under them is its key.
 	held map[uint32]bool
+	// px and py are where the last Move put the pointer, in the display
+	// space, and moved says one has: a press or a scroll is posted there,
+	// and refused before any move.
+	px, py float64
+	moved  bool
 }
 
 var (
@@ -240,10 +245,11 @@ func (b *Backend) Windows(ctx context.Context) ([]computeruse.Window, error) {
 	return out, nil
 }
 
-// frontWindow is the id of the frontmost application's front window.
+// frontWindow is the id of the frontmost application's front window,
+// passing over the tiny or invisible helper windows an application keeps.
 func frontWindow(ws []win, pid int32) uint32 {
 	for _, w := range ws {
-		if w.pid == pid && w.layer == 0 && w.alpha > 0 {
+		if w.pid == pid && w.layer == 0 && w.alpha > 0 && w.w >= 2 && w.h >= 2 {
 			return w.id
 		}
 	}
@@ -292,9 +298,11 @@ func (b *Backend) Capture(ctx context.Context, id string) (image.Image, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// The window is found under the lock; the capture, which may wait on
+	// ScreenCaptureKit, runs without it, so a stop is not held behind it.
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	w, _, err := b.find(id)
+	b.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -352,13 +360,6 @@ func (b *Backend) Cursor(ctx context.Context, id string) (image.Point, bool, err
 	return p, p.X >= 0 && p.Y >= 0 && p.X < sz.X && p.Y < sz.Y, nil
 }
 
-// pointer is where the last move put the pointer, in the display space:
-// a button press is posted there.
-var pointer struct {
-	sync.Mutex
-	x, y float64
-}
-
 // Move puts the pointer at a position in the window.
 func (b *Backend) Move(ctx context.Context, id string, p image.Point) error {
 	if err := ctx.Err(); err != nil {
@@ -378,9 +379,7 @@ func (b *Backend) Move(ctx context.Context, id string, p image.Point) error {
 	if C.qz_move(C.double(x), C.double(y), C.uint64_t(b.flags())) != 0 {
 		return errors.New("macOS did not move the pointer")
 	}
-	pointer.Lock()
-	pointer.x, pointer.y = x, y
-	pointer.Unlock()
+	b.px, b.py, b.moved = x, y, true
 	return nil
 }
 
@@ -433,9 +432,12 @@ func (b *Backend) Button(ctx context.Context, btn computeruse.Button, down bool)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	pointer.Lock()
-	x, y := pointer.x, pointer.y
-	pointer.Unlock()
+	b.mu.Lock()
+	x, y, moved := b.px, b.py, b.moved
+	b.mu.Unlock()
+	if !moved {
+		return errors.New("the pointer was not placed in the window before the press, so it was not sent")
+	}
 	clicks.Lock()
 	if down {
 		if clicks.b == btn && clicks.x == x && clicks.y == y && clicks.n < 3 && time.Since(clicks.at) < clickInterval {
@@ -481,8 +483,14 @@ func (b *Backend) Scroll(ctx context.Context, d computeruse.Direction, steps int
 	default:
 		return fmt.Errorf("no such direction %q", d)
 	}
+	b.mu.Lock()
+	x, y, moved, flags := b.px, b.py, b.moved, b.flags()
+	b.mu.Unlock()
+	if !moved {
+		return errors.New("the pointer was not placed in the window before the scroll, so it was not sent")
+	}
 	for i := 0; i < steps; i++ {
-		if C.qz_scroll(C.int32_t(dy), C.int32_t(dx)) != 0 {
+		if C.qz_scroll(C.int32_t(dy), C.int32_t(dx), C.double(x), C.double(y), C.uint64_t(flags)) != 0 {
 			return errors.New("macOS did not take the scroll")
 		}
 	}
