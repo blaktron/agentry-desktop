@@ -91,6 +91,9 @@ overrides:
       - libjavascriptcoregtk-6.0-1
       - libwebkitgtk-6.0-4
       - libx11-6
+    # Computer use on Wayland reads a shared window through PipeWire, which
+    # the app loads when it is there.
+    recommends:
       - libpipewire-0.3-0t64
   rpm:
     depends:
@@ -99,9 +102,10 @@ overrides:
       - gtk4
       - libsoup3
       - javascriptcoregtk6.0
-      - pipewire-libs
       - webkitgtk6.0
       - libX11
+    recommends:
+      - pipewire-libs
 
 rpm:
   summary: Desktop client for Agentry registries

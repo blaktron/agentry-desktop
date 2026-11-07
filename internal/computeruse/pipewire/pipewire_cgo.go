@@ -5,7 +5,8 @@
 package pipewire
 
 /*
-#cgo pkg-config: libpipewire-0.3
+#cgo CFLAGS: -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2 -D_REENTRANT
+#cgo LDFLAGS: -ldl
 
 #include <errno.h>
 #include <fcntl.h>
@@ -22,6 +23,76 @@ package pipewire
 #include <spa/param/video/format-utils.h>
 #include <spa/pod/builder.h>
 #include <pipewire/pipewire.h>
+#include <dlfcn.h>
+
+// libpipewire is loaded when a stream is first opened, never linked: the app
+// starts on a system without it, and only reading a shared window needs it.
+// Each function the code below calls goes through a pointer resolved then.
+#define PW_FUNCS(X) \
+	X(void, pw_init, (int *, char ***)) \
+	X(struct pw_thread_loop *, pw_thread_loop_new, (const char *, const struct spa_dict *)) \
+	X(struct pw_loop *, pw_thread_loop_get_loop, (struct pw_thread_loop *)) \
+	X(int, pw_thread_loop_start, (struct pw_thread_loop *)) \
+	X(void, pw_thread_loop_stop, (struct pw_thread_loop *)) \
+	X(void, pw_thread_loop_destroy, (struct pw_thread_loop *)) \
+	X(void, pw_thread_loop_lock, (struct pw_thread_loop *)) \
+	X(void, pw_thread_loop_unlock, (struct pw_thread_loop *)) \
+	X(struct pw_context *, pw_context_new, (struct pw_loop *, struct pw_properties *, size_t)) \
+	X(void, pw_context_destroy, (struct pw_context *)) \
+	X(struct pw_core *, pw_context_connect, (struct pw_context *, struct pw_properties *, size_t)) \
+	X(struct pw_core *, pw_context_connect_fd, (struct pw_context *, int, struct pw_properties *, size_t)) \
+	X(int, pw_core_disconnect, (struct pw_core *)) \
+	X(struct pw_stream *, pw_stream_new, (struct pw_core *, const char *, struct pw_properties *)) \
+	X(void, pw_stream_destroy, (struct pw_stream *)) \
+	X(void, pw_stream_add_listener, (struct pw_stream *, struct spa_hook *, const struct pw_stream_events *, void *)) \
+	X(int, pw_stream_connect, (struct pw_stream *, enum pw_direction, uint32_t, enum pw_stream_flags, const struct spa_pod **, uint32_t)) \
+	X(struct pw_buffer *, pw_stream_dequeue_buffer, (struct pw_stream *)) \
+	X(int, pw_stream_queue_buffer, (struct pw_stream *, struct pw_buffer *)) \
+	X(int, pw_stream_update_params, (struct pw_stream *, const struct spa_pod **, uint32_t))
+
+#define PW_PTR(ret, name, args) static ret (*p_##name) args;
+PW_FUNCS(PW_PTR)
+static struct pw_properties *(*p_pw_properties_new)(const char *, ...);
+
+// pw_load opens libpipewire and resolves every function, or says why not.
+static int pw_load(char *err, size_t errlen)
+{
+	void *h = dlopen("libpipewire-0.3.so.0", RTLD_NOW | RTLD_LOCAL);
+	if (!h) {
+		snprintf(err, errlen, "libpipewire-0.3 is not installed on this computer (%s)", dlerror());
+		return -1;
+	}
+#define PW_SYM(ret, name, args) \
+	if (!(p_##name = (ret (*) args)dlsym(h, #name))) { snprintf(err, errlen, "libpipewire-0.3 lacks %s", #name); return -1; }
+	PW_FUNCS(PW_SYM)
+	if (!(p_pw_properties_new = (struct pw_properties *(*)(const char *, ...))dlsym(h, "pw_properties_new"))) {
+		snprintf(err, errlen, "libpipewire-0.3 lacks pw_properties_new");
+		return -1;
+	}
+	return 0;
+}
+
+#define pw_init p_pw_init
+#define pw_thread_loop_new p_pw_thread_loop_new
+#define pw_thread_loop_get_loop p_pw_thread_loop_get_loop
+#define pw_thread_loop_start p_pw_thread_loop_start
+#define pw_thread_loop_stop p_pw_thread_loop_stop
+#define pw_thread_loop_destroy p_pw_thread_loop_destroy
+#define pw_thread_loop_lock p_pw_thread_loop_lock
+#define pw_thread_loop_unlock p_pw_thread_loop_unlock
+#define pw_context_new p_pw_context_new
+#define pw_context_destroy p_pw_context_destroy
+#define pw_context_connect p_pw_context_connect
+#define pw_context_connect_fd p_pw_context_connect_fd
+#define pw_core_disconnect p_pw_core_disconnect
+#define pw_stream_new p_pw_stream_new
+#define pw_stream_destroy p_pw_stream_destroy
+#define pw_stream_add_listener p_pw_stream_add_listener
+#define pw_stream_connect p_pw_stream_connect
+#define pw_stream_dequeue_buffer p_pw_stream_dequeue_buffer
+#define pw_stream_queue_buffer p_pw_stream_queue_buffer
+#define pw_stream_update_params p_pw_stream_update_params
+#define pw_properties_new p_pw_properties_new
 
 #define CAP_MAX_DIM 8192
 #define CAP_MAX_BYTES ((size_t)CAP_MAX_DIM * CAP_MAX_DIM * 4)
@@ -223,9 +294,12 @@ static void cap_destroy(cap *c)
 	free(c);
 }
 
-static void cap_init_once(void)
+static int cap_init_once(char *err, size_t errlen)
 {
+	if (pw_load(err, errlen) != 0)
+		return -1;
 	pw_init(NULL, NULL);
+	return 0;
 }
 
 // cap_open connects over fd (or to the default daemon when fd < 0) and starts
@@ -393,6 +467,7 @@ import (
 	"errors"
 	"image"
 	"sync"
+	"syscall"
 	"unsafe"
 )
 
@@ -408,14 +483,35 @@ type Stream struct {
 	closed bool
 }
 
-// Available reports whether this build can capture a window stream.
-func Available() bool { return true }
+// Available reports whether this computer can capture a window stream:
+// libpipewire loads.
+func Available() bool { return load() == nil }
+
+var (
+	loadErr error
+)
+
+// load opens libpipewire once.
+func load() error {
+	initOnce.Do(func() {
+		var msg [256]C.char
+		if C.cap_init_once(&msg[0], C.size_t(len(msg))) != 0 {
+			loadErr = errors.New("pipewire: " + C.GoString(&msg[0]))
+		}
+	})
+	return loadErr
+}
 
 // Open connects to PipeWire over fd (a remote from the ScreenCast portal; -1
 // connects to the user's default PipeWire daemon instead, for tests) and starts
 // consuming the video node. Open takes ownership of fd.
 func Open(fd int, node uint32) (*Stream, error) {
-	initOnce.Do(func() { C.cap_init_once() })
+	if err := load(); err != nil {
+		if fd >= 0 {
+			_ = syscall.Close(fd)
+		}
+		return nil, err
+	}
 	var msg [256]C.char
 	c := C.cap_open(C.int(fd), C.uint32_t(node), &msg[0], C.size_t(len(msg)))
 	if c == nil {
