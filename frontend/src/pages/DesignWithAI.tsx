@@ -362,7 +362,8 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
           )}
           <span className="muted small">
             One PDF or Word document, up to {Math.round((limits?.maxDocumentBytes ?? 0) / (1024 * 1024))} MB, that already looks the way you want. The
-            Report Designer reads it in full and keeps it only for the run.
+            Report Designer reads it in full and keeps it only for the run. The design can keep its logo and its cover page&apos;s artwork, never a
+            whole page or its text.
           </span>
         </div>
       )}

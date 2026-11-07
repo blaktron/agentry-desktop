@@ -1484,10 +1484,16 @@ export class DesignerResultView {
 
     /**
      * DocumentPages is how many pages of the document the Designer looked
-     * at; LogoFromDocument says the design's logo was taken from it.
+     * at; LogoFromDocument says the design's logo was taken from it,
+     * CoverImageFromDocument its cover image, and CoverFromDocument that its
+     * custom cover is modelled on the document's cover page, drawing
+     * CoverPicturesFromDocument pictures of it.
      */
     "documentPages"?: number;
     "logoFromDocument"?: boolean;
+    "coverImageFromDocument"?: boolean;
+    "coverFromDocument"?: boolean;
+    "coverPicturesFromDocument"?: number;
 
     /** Creates a new DesignerResultView instance. */
     constructor($$source: Partial<DesignerResultView> = {}) {
