@@ -57,7 +57,7 @@ docker run --rm --security-opt label=disable -v "$PWD:/src" -w /src \
   trap "chown -R ${HOST_UID}:${HOST_GID} build/linux 2>/dev/null || true" EXIT
   apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    libgtk-4-dev libwebkitgtk-6.0-dev pkg-config xvfb dbus >/dev/null 2>&1
+    libgtk-4-dev libwebkitgtk-6.0-dev libpipewire-0.3-dev pkg-config xvfb dbus >/dev/null 2>&1
   mkdir -p build/linux
   # -buildvcs=false: the bind-mounted .git belongs to another uid, which git
   # inside the container refuses to read; the version is stamped by ldflags.

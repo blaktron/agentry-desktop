@@ -193,6 +193,20 @@ type Settings struct {
 
 	// MeetingNotes is the Meeting notes page's settings.
 	MeetingNotes MeetingNotes `yaml:"meetingNotes,omitempty" json:"-"`
+
+	// ComputerUse is Settings → Your computer's computer use: whether a
+	// QuickAgent may see and use windows on this computer at all, and
+	// whether what it saw is kept. SetComputerUse and SetKeepWhatAgentSaw
+	// are their one writers.
+	ComputerUse ComputerUse `yaml:"computerUse,omitempty" json:"-"`
+}
+
+// ComputerUse is computer use's two switches.
+type ComputerUse struct {
+	// On lets a run that declares computer use bind it; off refuses it.
+	On bool `yaml:"on,omitempty"`
+	// Keep saves each screenshot the agent took in the run's own folder.
+	Keep bool `yaml:"keep,omitempty"`
 }
 
 // MeetingNotes is Meeting notes' settings: the switch, the language
@@ -375,12 +389,13 @@ var saveMu sync.Mutex
 //
 // It never changes the Unsafe Mode switch, an application server's lifted
 // script screening, Meeting notes' switch, its automatic list or its sending to
-// the Assistant: whatever s says, the file keeps the values it has. Every
+// the Assistant, or computer use's switches: whatever s says, the file keeps the values it has. Every
 // other setting is saved by a binding that loads, changes one field and
 // saves, with no lock across the three; were the switch saved the same
 // way, a save that loaded it on before it was turned off would turn it
-// back on with no confirmation. SetUnsafeMode, SetScreeningOff and
-// SetMeetingNotesOn are their one writers.
+// back on with no confirmation. SetUnsafeMode, SetScreeningOff,
+// SetMeetingNotesOn, SetComputerUse and SetKeepWhatAgentSaw are their one
+// writers.
 func Save(s Settings) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()
@@ -396,6 +411,37 @@ func Save(s Settings) error {
 	if err == nil {
 		s.MeetingNotes.Automatic = cur.MeetingNotes.Automatic
 	}
+	s.ComputerUse = ComputerUse{}
+	if err == nil {
+		s.ComputerUse = cur.ComputerUse
+	}
+	return write(s)
+}
+
+// SetComputerUse writes computer use's switch, and nothing else. The caller
+// is the one binding that may: YourComputerAPI.SetComputerUse, after the
+// native confirmation when it turns it on.
+func SetComputerUse(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.ComputerUse.On = on
+	return write(s)
+}
+
+// SetKeepWhatAgentSaw writes whether screenshots are kept, and nothing
+// else.
+func SetKeepWhatAgentSaw(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.ComputerUse.Keep = on
 	return write(s)
 }
 

@@ -1157,7 +1157,7 @@ g.go = { app: {
       await new Promise((r) => setTimeout(r, 300));
       const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };
       return { token: "t-1", job: "design", name: made.name, view: { id: "", default: false, design: made, label: made.name, logo: rdPng },
-        looked: true, thumbnail: false, previews: 3, dir: "/home/me/Downloads/agentry-out/report-designer/design", documentPages: 4, logoFromDocument: true };
+        looked: true, thumbnail: false, previews: 3, dir: "/home/me/Downloads/agentry-out/report-designer/design", documentPages: 4, logoFromDocument: true, coverFromDocument: true, coverPicturesFromDocument: 1 };
     },
     SaveResult: async () => {
       const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };

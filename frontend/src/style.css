@@ -1951,3 +1951,34 @@ details.advanced[open] > summary { margin-bottom: 6px; }
    the size of the library's column rather than the dialog's width. */
 .report-design-result { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
 .report-design-result-pages { flex: 1; min-width: 0; max-width: 18rem; }
+
+/* The computer-use banner: a window of its own, one line high. */
+.computer-use-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 100vh;
+  padding: 0 0.9rem;
+  box-sizing: border-box;
+  background: var(--surface, #1d1f24);
+  color: var(--text, #f2f2f2);
+  border: 2px solid #e02424;
+  font-size: 0.9rem;
+  -webkit-app-region: drag;
+}
+.computer-use-banner button {
+  -webkit-app-region: no-drag;
+}
+.computer-use-banner-what {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.computer-use-banner-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #e02424;
+  flex: none;
+}

@@ -134,10 +134,24 @@ export function savePrompt(job: DesignerJob): string {
 
 /** What a run on this computer took from the person's document, or null
  *  for a run given none. */
-export function documentLine(r: { documentPages?: number; logoFromDocument?: boolean }): string | null {
+export function documentLine(r: {
+  documentPages?: number;
+  logoFromDocument?: boolean;
+  coverImageFromDocument?: boolean;
+  coverFromDocument?: boolean;
+  coverPicturesFromDocument?: number;
+}): string | null {
   const n = r.documentPages ?? 0;
-  if (n === 0 && !r.logoFromDocument) return null;
+  const took: string[] = [];
+  if (r.logoFromDocument) took.push("your logo");
+  if (r.coverImageFromDocument) took.push("a cover image");
+  const p = r.coverPicturesFromDocument ?? 0;
+  if (n === 0 && took.length === 0 && !r.coverFromDocument) return null;
   let s = n > 0 ? `It looked at ${n} ${n === 1 ? "page" : "pages"} of your document` : "It read your document";
-  if (r.logoFromDocument) s += ", and took your logo from it";
-  return s + ".";
+  if (took.length > 0) s += `, and took ${took.join(" and ")} from it`;
+  s += ".";
+  if (r.coverFromDocument) {
+    s += p > 0 ? ` Its cover is modelled on your cover page, with ${p === 1 ? "1 picture" : `${p} pictures`} from it.` : " Its cover is modelled on your cover page.";
+  }
+  return s;
 }

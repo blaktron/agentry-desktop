@@ -158,6 +158,13 @@ export class Bound {
     "state": string;
     "execForRun": boolean;
 
+    /**
+     * ComputerUse is the scope of the run's computer use, empty without
+     * it, and ComputerApps the applications it is held to.
+     */
+    "computerUse"?: string;
+    "computerApps"?: string[];
+
     /** Creates a new Bound instance. */
     constructor($$source: Partial<Bound> = {}) {
         if (!("run" in $$source)) {
@@ -184,9 +191,13 @@ export class Bound {
      */
     static createFrom($$source: any = {}): Bound {
         const $$createField3_0 = $$createType2;
+        const $$createField7_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("applications" in $$parsedSource) {
             $$parsedSource["applications"] = $$createField3_0($$parsedSource["applications"]);
+        }
+        if ("computerApps" in $$parsedSource) {
+            $$parsedSource["computerApps"] = $$createField7_0($$parsedSource["computerApps"]);
         }
         return new Bound($$parsedSource as Partial<Bound>);
     }
@@ -316,6 +327,51 @@ export class RecentServer {
             $$parsedSource["refused"] = $$createField6_0($$parsedSource["refused"]);
         }
         return new RecentServer($$parsedSource as Partial<RecentServer>);
+    }
+}
+
+/**
+ * Support is what computer use can do on this session.
+ */
+export class Support {
+    /**
+     * Session names the display: "X11", "Wayland (KDE)".
+     */
+    "session": string;
+
+    /**
+     * Ready says computer use can be bound here.
+     */
+    "ready": boolean;
+
+    /**
+     * Problem says why not, and what to do.
+     */
+    "problem"?: string;
+
+    /**
+     * Holds says what the window system holds of app scope here.
+     */
+    "holds"?: string;
+
+    /** Creates a new Support instance. */
+    constructor($$source: Partial<Support> = {}) {
+        if (!("session" in $$source)) {
+            this["session"] = "";
+        }
+        if (!("ready" in $$source)) {
+            this["ready"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Support instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Support {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Support($$parsedSource as Partial<Support>);
     }
 }
 

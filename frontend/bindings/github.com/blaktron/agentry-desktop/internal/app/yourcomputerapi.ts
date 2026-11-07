@@ -30,11 +30,36 @@ export function Applications(ids: string[]): $CancellablePromise<linkservice$0.A
 }
 
 /**
+ * ComputerBanner is the banner's line: who uses what, paused or not, and
+ * nothing when no run uses the computer.
+ */
+export function ComputerBanner(): $CancellablePromise<$models.BannerView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.ComputerBanner").then(($result: any) => {
+        return $$createType3($result)!;
+    });
+}
+
+/**
+ * ForgetComputerChoices drops what the desktop remembered of the windows
+ * and the control you allowed, so the next run asks again.
+ */
+export function ForgetComputerChoices(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.ForgetComputerChoices");
+}
+
+/**
  * Pause refuses a run's later calls to applications on this computer
  * until Resume.
  */
 export function Pause(run: string): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.Pause", run);
+}
+
+/**
+ * PauseComputerUse is the banner's Pause.
+ */
+export function PauseComputerUse(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.PauseComputerUse");
 }
 
 /**
@@ -47,13 +72,41 @@ export function Resume(run: string): $CancellablePromise<void> {
 }
 
 /**
+ * ResumeComputerUse is the banner's Resume, asked again natively.
+ */
+export function ResumeComputerUse(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.ResumeComputerUse");
+}
+
+/**
+ * SetComputerUse turns computer use on or off. Turning it on is asked
+ * again in a native dialog; turning it off asks nothing, and stops every
+ * run's computer use now.
+ */
+export function SetComputerUse(on: boolean): $CancellablePromise<$models.YourComputerView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.SetComputerUse", on).then(($result: any) => {
+        return $$createType5($result)!;
+    });
+}
+
+/**
+ * SetKeepWhatAgentSaw turns keeping each screenshot in the run's folder on
+ * or off, from the next run.
+ */
+export function SetKeepWhatAgentSaw(on: boolean): $CancellablePromise<$models.YourComputerView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.SetKeepWhatAgentSaw", on).then(($result: any) => {
+        return $$createType5($result)!;
+    });
+}
+
+/**
  * SetScreening turns an application server's own script screening on or off.
  * Lifting it is asked again in a native dialog; turning it on asks
  * nothing. It applies from the next run that binds the application.
  */
 export function SetScreening(id: string, on: boolean): $CancellablePromise<$models.YourComputerView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.SetScreening", id, on).then(($result: any) => {
-        return $$createType3($result)!;
+        return $$createType5($result)!;
     });
 }
 
@@ -62,7 +115,7 @@ export function SetScreening(id: string, on: boolean): $CancellablePromise<$mode
  */
 export function State(): $CancellablePromise<$models.YourComputerView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.State").then(($result: any) => {
-        return $$createType3($result)!;
+        return $$createType5($result)!;
     });
 }
 
@@ -74,8 +127,17 @@ export function Stop(run: string): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.Stop", run);
 }
 
+/**
+ * StopComputerUse is the banner's Stop.
+ */
+export function StopComputerUse(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.StopComputerUse");
+}
+
 // Private type creation functions
 const $$createType0 = linkservice$0.AppState.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.YourComputerView.createFrom;
+const $$createType2 = $models.BannerView.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = $models.YourComputerView.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
