@@ -5,7 +5,7 @@ import { EventsOn } from "../host";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
-import { baseURLFor, takesBaseURL } from "../providerForm";
+import { baseURLFor, parseContextWindow, takesBaseURL, windowKey } from "../providerForm";
 import {
   COPILOT_PLANS, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, creditsLines, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, modelOptionLabel, providerChoice, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn, type KeyGuide, type WayId,
@@ -68,6 +68,12 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const [model, setModel] = useState("");
   const [apiKeyEnv, setApiKeyEnv] = useState("");
   const [baseURL, setBaseURL] = useState("");
+  // The model's context window, for an endpoint of the person's own: the
+  // field's text, the model it was found or typed for (windowKey), and what
+  // the endpoint said about it. The field shows only the current model's.
+  const [contextWindow, setContextWindow] = useState("");
+  const [contextWindowFor, setContextWindowFor] = useState("");
+  const [windowNote, setWindowNote] = useState<string | null>(null);
   // The typed key lives in this component's state until Save or Get
   // models sends it to the backend (StoreModelKey / ListModels, each a
   // call of its own), and is cleared on the way out of Save.
@@ -123,6 +129,8 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         setModel(w === "key" ? s.model : startingModel(prov, w, { provider: s.provider, model: s.model, way: savedWay(prov, s.provider, s.apiKeyKind ?? "", k ?? []) }, []));
         setApiKeyEnv(s.apiKeyEnv);
         setBaseURL(s.baseUrl ?? "");
+        setContextWindow(s.contextWindow ? String(s.contextWindow) : "");
+        setContextWindowFor(windowKey(prov, s.baseUrl ?? "", s.model));
         // The keychain, unless this is Settings and the policy chose the
         // variable: a fresh machine has no source recorded, and the
         // welcome — which offers only the keychain — must not read that
@@ -274,6 +282,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   }
 
   const needsBaseURL = takesBaseURL(provider);
+  // The field holds the current model's window only; one found or typed for
+  // another model or endpoint is not shown, nor saved.
+  const windowShown = contextWindowFor === windowKey(provider, baseURL, model) ? contextWindow : "";
+  const { tokens: windowTokens, error: windowError } = needsBaseURL ? parseContextWindow(windowShown) : { tokens: 0, error: null };
 
   // Plain http off this machine is allowed and said out loud: the sentence is
   // the CLI's, asked as the URL changes, so both clients word it the same. It
@@ -313,11 +325,38 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         setModel(cat.models[0]?.id ?? model);
       }
       setNotice(`${cat.models.length} model${cat.models.length === 1 ? "" : "s"} listed — the endpoint and the key work.`);
+      // The window comes with the model on an endpoint of the person's own,
+      // unless one is already there for it.
+      const chosen = !typed && !cat.models.some((m) => m.id === model) ? (cat.models[0]?.id ?? model) : model;
+      if (needsBaseURL && chosen.trim() && !(contextWindowFor === windowKey(provider, baseURL, chosen) && contextWindow.trim())) {
+        await askWindow(chosen);
+      }
     } catch (e) {
       setCatalog(null);
       setError(`Could not list models: ${e instanceof Error ? e.message : e}. You can still type a model id and save.`);
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Ask the endpoint how large the model's window is, with the typed key or
+  // the one a run would use, and fill the field with the answer; an endpoint
+  // that does not say leaves it empty, with the CLI's sentence beside it.
+  async function askWindow(forModel: string = model) {
+    const key = windowKey(provider, baseURL, forModel);
+    try {
+      const w = await RunAPI.ProbeContextWindow(provider, baseURLFor(provider, baseURL), forModel.trim(), apiKey);
+      if (!w) return;
+      setContextWindowFor(key);
+      if (w.tokens > 0) {
+        setContextWindow(String(w.tokens));
+        setWindowNote(`As ${w.source} reports it.`);
+      } else {
+        setContextWindow("");
+        setWindowNote(w.unknown ? w.unknown.charAt(0).toUpperCase() + w.unknown.slice(1) + "." : null);
+      }
+    } catch (e) {
+      setWindowNote(`Could not ask the endpoint for the window: ${e instanceof Error ? e.message : e}.`);
     }
   }
 
@@ -333,7 +372,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       onBusy?.(true);
     }
     try {
-      const s = await RunAPI.ApplySetup("agentry", "", "", "", pullImages, "", false);
+      const s = await RunAPI.ApplySetup("agentry", "", "", "", pullImages, "", false, 0);
       takeStatus(s);
       setNotice(pullImages
         ? "Setup complete — QuickAgents on this computer run on your Agentry credits, and the images are ready."
@@ -376,7 +415,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           throw new Error(`${e} — the key you typed was cleared; type it again to retry.`);
         }
       }
-      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURLFor(provider, baseURL), pullImages, source, forgetKey);
+      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURLFor(provider, baseURL), pullImages, source, forgetKey, needsBaseURL ? windowTokens : 0);
       setForgetKey(false);
       takeStatus(s);
       setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
@@ -403,8 +442,8 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const signInHint = currentWay && way !== "key" ? signInSaveHint(currentWay, keptFor(currentWay, kept), model) : "";
   const needsKey = keyMode === "keyring" && !forgetKey && !hasKey;
   const needsVar = keyMode === "env" && !apiKeyEnv.trim();
-  const canSave = !busy && !(needsBaseURL && !baseURL.trim()) && !needsKey && !needsVar && !!model.trim();
-  const saveHint = needsKey ? "paste your API key first" : needsVar ? "name the variable" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL" : !model.trim() ? "pick or type a model" : "";
+  const canSave = !busy && !(needsBaseURL && !baseURL.trim()) && !needsKey && !needsVar && !!model.trim() && !windowError;
+  const saveHint = needsKey ? "paste your API key first" : needsVar ? "name the variable" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL" : !model.trim() ? "pick or type a model" : windowError ? `the context window must be ${windowError}` : "";
 
   return (
     <div>
@@ -632,6 +671,31 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
               <Input type="text" className="mono" placeholder="pick one with Get models, or type a model id" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
             )}
           </label>
+
+          {needsBaseURL && (
+            <label className="field">
+              <span className="field-label">Context window</span>
+              <div className="row">
+                <Input
+                  type="text" inputMode="numeric" className="grow mono" placeholder="tokens, as the server runs the model"
+                  value={windowShown}
+                  onChange={(e) => { setContextWindow(e.target.value); setContextWindowFor(windowKey(provider, baseURL, model)); setWindowNote(null); }}
+                  disabled={!!busy}
+                />
+                <Button
+                  disabled={!!busy || !baseURL.trim() || !model.trim()}
+                  title={!baseURL.trim() ? "enter the endpoint's URL first" : !model.trim() ? "pick or type a model first" : "ask the endpoint how large this model's context window is"}
+                  onClick={() => askWindow()}
+                >
+                  Ask the server
+                </Button>
+              </div>
+              <span className="muted small field-hint">
+                {windowError ? `The window must be ${windowError}. ` : contextWindowFor === windowKey(provider, baseURL, model) && windowNote ? `${windowNote} ` : null}
+                The window the server runs this model with, not the largest it was trained for: a long run compacts its conversation as it nears it. Leave it empty and saving asks the server.
+              </span>
+            </label>
+          )}
 
           {advanced && (
             <details className="advanced">
