@@ -611,6 +611,35 @@ export class ConnectView {
 }
 
 /**
+ * ContextWindowView is what an endpoint of the person's own reported as a
+ * model's context window: Tokens, and Source, the address that said so.
+ * Tokens 0 is an endpoint that did not say, and Unknown is then the sentence
+ * the form shows beside the empty field.
+ */
+export class ContextWindowView {
+    "tokens": number;
+    "source"?: string;
+    "unknown"?: string;
+
+    /** Creates a new ContextWindowView instance. */
+    constructor($$source: Partial<ContextWindowView> = {}) {
+        if (!("tokens" in $$source)) {
+            this["tokens"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ContextWindowView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ContextWindowView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ContextWindowView($$parsedSource as Partial<ContextWindowView>);
+    }
+}
+
+/**
  * CreatorBudgetView is how long a build on this computer may run, for the
  * review step's warning that a build takes a while.
  */
@@ -11283,6 +11312,12 @@ export class SetupStatusView {
     "apiKeyKind"?: string;
     "keyNotice"?: string;
     "baseUrl"?: string;
+
+    /**
+     * ContextWindow is the policy's model.contextWindow in tokens; absent
+     * when it records none.
+     */
+    "contextWindow"?: number;
     "imagesReady": boolean;
 
     /**

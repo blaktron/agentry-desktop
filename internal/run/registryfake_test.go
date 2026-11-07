@@ -32,6 +32,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/probe"
 	"github.com/blaktron/agentry-cli/runnerimage/sockfilter"
@@ -242,6 +243,13 @@ func isolateRunEnv(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", home)
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	// No test asks a real endpoint for a context window; one that means to
+	// sets probeContextWindow itself.
+	prev := probeContextWindow
+	probeContextWindow = func(context.Context, string, string, string) (setup.ContextWindow, error) {
+		return setup.ContextWindow{}, nil
+	}
+	t.Cleanup(func() { probeContextWindow = prev })
 	return home
 }
 

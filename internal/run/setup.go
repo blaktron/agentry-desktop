@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
 	"github.com/blaktron/agentry-cli/pkg/runner/claudesignin"
@@ -34,6 +35,9 @@ var (
 	keychainPresent = modelkey.Present
 	keychainLookup  = modelkey.Lookup
 	listModels      = setup.ListModels
+	// probeContextWindow asks an endpoint of the person's own for a model's
+	// context window.
+	probeContextWindow = setup.ProbeContextWindow
 )
 
 // Status is the setup state of this machine: can it run QuickAgents, and
@@ -72,10 +76,13 @@ type Status struct {
 	// for an Anthropic subscription token, which drives Claude Code alone;
 	// KeyNotice is the sentence to show beside the field for that kind, ""
 	// otherwise.
-	APIKeyKind  string
-	KeyNotice   string
-	BaseURL     string
-	ImagesReady bool
+	APIKeyKind string
+	KeyNotice  string
+	BaseURL    string
+	// ContextWindow is the policy's model.contextWindow, in tokens; 0 when it
+	// records none.
+	ContextWindow int64
+	ImagesReady   bool
 	// ModelReady: a run on this computer has a way to pay for its model
 	// (modelReadiness has the rule); ModelGap says in one sentence what is
 	// missing when it is not, so the run setup can offer the model setup
@@ -143,6 +150,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.ProviderSetUp = st.PolicyExists && !reflect.DeepEqual(pol.Model, policy.Default().Model)
 	st.ModelReady, st.ModelGap = modelReadiness(pol, st.KeysStored, st.KeyStoreErr)
 	st.BaseURL = pol.Model.BaseURL
+	st.ContextWindow = pol.Model.ContextWindow
 	st.TimeoutSeconds = pol.Budgets.TimeoutSeconds
 	st.MaxTurns = pol.Budgets.MaxTurns
 	st.KeepProfilesByDefault = pol.KeepProfilesByDefault()
@@ -295,6 +303,11 @@ type SetupOpts struct {
 	// CopilotPlan is the Copilot plan the account is on (individual,
 	// business, enterprise), which names the Copilot API host runs reach.
 	CopilotPlan string
+	// ContextWindow is the model's context window in tokens as the form
+	// shows it (what the endpoint reported, or what was typed), held to the
+	// CLI's bounds; 0 leaves it to setup: the policy's for the same model at
+	// the same endpoint, else what the endpoint reports now.
+	ContextWindow int64
 }
 
 // ApplySetup writes the LLM provider preference into the operator policy
@@ -393,6 +406,10 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		APIKeyKind:   kind,
 		BaseURL:      opts.BaseURL,
 		Yes:          true, // a form never mid-flight-prompts; gaps fill from the table
+		// An endpoint of the person's own is asked for the window, with the
+		// key the run would use.
+		ContextWindow:      opts.ContextWindow,
+		ProbeContextWindow: probeWithStoredKey(provider),
 	}); err != nil {
 		return err
 	}
@@ -564,6 +581,63 @@ func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, e
 		out.Notice = policy.SubscriptionTokenSentence
 	}
 	return out, nil
+}
+
+// probeWithStoredKey is the context-window probe for provider's endpoint, given
+// the key a run would use when setup has none in hand: setup knows only the
+// variable, and the form keeps the key in the keychain.
+func probeWithStoredKey(provider string) func(ctx context.Context, baseURL, model, key string) (setup.ContextWindow, error) {
+	return func(ctx context.Context, baseURL, model, key string) (setup.ContextWindow, error) {
+		if strings.TrimSpace(key) == "" {
+			key = storedKey(provider)
+		}
+		return probeContextWindow(ctx, baseURL, model, key)
+	}
+}
+
+// storedKey is the key a run resolves for provider, in the order it resolves
+// it (engine hostSecret): the variable the saved policy names, then the
+// keychain. "" when neither holds one or the keychain cannot be read; no
+// error, since the probe then asks without a key.
+func storedKey(provider string) string {
+	if v := keyFromPolicyVariable(provider); v != "" {
+		return v
+	}
+	if stored, err := keychainLookup(provider); err == nil {
+		return strings.TrimSpace(stored)
+	}
+	return ""
+}
+
+// contextProbeBudget bounds the whole of the form's context-window probe, as
+// setup bounds its own.
+const contextProbeBudget = 30 * time.Second
+
+// ContextWindow asks the endpoint of the person's own at baseURL how large
+// model's context window is, for the model form to show before it saves: with
+// key when one is typed, else the key a run would use. Only the custom
+// provider has such an endpoint; any other answers nothing. The answer is the
+// tokens and the address that reported them; zero tokens is an endpoint that
+// did not say.
+func ContextWindow(ctx context.Context, provider, baseURL, model, key string) (setup.ContextWindow, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if !(policy.Model{Provider: provider, BaseURL: baseURL}).OwnEndpoint() || strings.TrimSpace(model) == "" {
+		return setup.ContextWindow{}, nil
+	}
+	if err := checkBaseURL(provider, baseURL); err != nil {
+		return setup.ContextWindow{}, err
+	}
+	key = strings.TrimSpace(key)
+	ctx, cancel := context.WithTimeout(ctx, contextProbeBudget)
+	defer cancel()
+	found, err := probeWithStoredKey(provider)(ctx, strings.TrimSpace(baseURL), strings.TrimSpace(model), key)
+	if err != nil {
+		return setup.ContextWindow{}, err
+	}
+	if found.Tokens > 0 && policy.CheckContextWindow(found.Tokens) != nil {
+		return setup.ContextWindow{}, nil
+	}
+	return found, nil
 }
 
 // keyFromPolicyVariable is the value of the variable the policy names for

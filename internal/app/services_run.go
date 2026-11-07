@@ -24,6 +24,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
+	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -397,10 +398,13 @@ type SetupStatusView struct {
 	// APIKeyKind is "subscription" for a stored Anthropic subscription
 	// token, and KeyNotice the sentence to show beside the field for it;
 	// both empty for an API key.
-	APIKeyKind  string `json:"apiKeyKind,omitempty"`
-	KeyNotice   string `json:"keyNotice,omitempty"`
-	BaseURL     string `json:"baseUrl,omitempty"`
-	ImagesReady bool   `json:"imagesReady"`
+	APIKeyKind string `json:"apiKeyKind,omitempty"`
+	KeyNotice  string `json:"keyNotice,omitempty"`
+	BaseURL    string `json:"baseUrl,omitempty"`
+	// ContextWindow is the policy's model.contextWindow in tokens; absent
+	// when it records none.
+	ContextWindow int64 `json:"contextWindow,omitempty"`
+	ImagesReady   bool  `json:"imagesReady"`
 	// ModelReady: a run on this computer has a way to pay for its model
 	// (a working sign-in, a registry sign-in for Agentry credits, or a key
 	// in the named variable or the keychain); ModelGap says in a sentence
@@ -431,6 +435,7 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		APIKeyKind:            s.APIKeyKind,
 		KeyNotice:             s.KeyNotice,
 		BaseURL:               s.BaseURL,
+		ContextWindow:         s.ContextWindow,
 		ImagesReady:           s.ImagesReady,
 		ModelReady:            s.ModelReady,
 		ModelGap:              s.ModelGap,
@@ -456,9 +461,11 @@ func (r *RunAPI) SetupStatus() (*SetupStatusView, error) {
 // plane now. Image pulls/builds can take minutes; progress lines stream as
 // `runner:setup-progress` events. apiKeySource is "" (keep), "env" or
 // "keyring" (refused when no key is stored); forgetKey removes the stored
-// key and makes the source env. The key itself never rides this call: see
+// key and makes the source env. contextWindow is the model's window in
+// tokens as the form shows it, 0 to leave it to setup (which asks an endpoint
+// of the person's own). The key itself never rides this call: see
 // StoreModelKey.
-func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImages bool, apiKeySource string, forgetKey bool) (*SetupStatusView, error) {
+func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImages bool, apiKeySource string, forgetKey bool, contextWindow int64) (*SetupStatusView, error) {
 	if err := r.acquire(jobSetup, "the model and image setup"); err != nil {
 		return nil, err
 	}
@@ -466,13 +473,14 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	err := run.ApplySetup(r.app.ctx, run.SetupOpts{
-		Provider:     provider,
-		Model:        model,
-		APIKeyEnv:    apiKeyEnv,
-		APIKeySource: apiKeySource,
-		ForgetKey:    forgetKey,
-		BaseURL:      baseURL,
-		PullImages:   pullImages,
+		Provider:      provider,
+		Model:         model,
+		APIKeyEnv:     apiKeyEnv,
+		APIKeySource:  apiKeySource,
+		ForgetKey:     forgetKey,
+		BaseURL:       baseURL,
+		PullImages:    pullImages,
+		ContextWindow: contextWindow,
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -605,6 +613,32 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 	v := &CatalogView{Provider: cat.Provider, Models: make([]ModelView, 0, len(cat.Models)), Kind: cat.Kind, Notice: cat.Notice, Warning: cat.Warning}
 	for _, m := range cat.Models {
 		v.Models = append(v.Models, ModelView{ID: m.ID, DisplayName: m.DisplayName, InputUSD: m.InputUSD, OutputUSD: m.OutputUSD})
+	}
+	return v, nil
+}
+
+// ContextWindowView is what an endpoint of the person's own reported as a
+// model's context window: Tokens, and Source, the address that said so.
+// Tokens 0 is an endpoint that did not say, and Unknown is then the sentence
+// the form shows beside the empty field.
+type ContextWindowView struct {
+	Tokens  int64  `json:"tokens"`
+	Source  string `json:"source,omitempty"`
+	Unknown string `json:"unknown,omitempty"`
+}
+
+// ProbeContextWindow asks the custom endpoint at baseURL how large model's
+// context window is, for the model form to fill its field with: with key when
+// one is typed, else the key a run would use (the policy's variable, then the
+// keychain). Any other provider answers nothing; it never writes the policy.
+func (r *RunAPI) ProbeContextWindow(provider, baseURL, model, key string) (*ContextWindowView, error) {
+	found, err := run.ContextWindow(r.app.ctx, provider, baseURL, model, key)
+	if err != nil {
+		return nil, err
+	}
+	v := &ContextWindowView{Tokens: found.Tokens, Source: found.Source}
+	if found.Tokens == 0 {
+		v.Unknown = setup.UnknownWindowSentence(model)
 	}
 	return v, nil
 }

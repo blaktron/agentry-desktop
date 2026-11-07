@@ -58,6 +58,7 @@ export {
     ChangedInstallView,
     CodingAgentsView,
     ConnectView,
+    ContextWindowView,
     CreatorBudgetView,
     CreatorWebView,
     CreditsOfferView,
