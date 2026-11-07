@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.20",
+      "highlights": [
+        "QuickAgents can see and use the windows of the applications they name on your computer, on Linux.",
+        "Computer use stays off until you turn it on in Settings → Your computer, which asks you first.",
+        "The tray, a banner and Ctrl+Shift+Escape pause or stop it; Keep what the agent saw saves each screenshot.",
+        "On Wayland your desktop asks once which window to share; on KDE Plasma each input is checked with KWin."
+      ]
+    },
+    {
       "version": "0.7.19",
       "highlights": [
         "QuickAgents can use Blender on your computer: Agentry Desktop starts its MCP server and asks before code runs.",
