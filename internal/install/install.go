@@ -539,9 +539,10 @@ func needsCapabilityConfirm(c manifest.Capabilities) bool {
 // about, in the words of the CLI's install gate, so the desktop and the
 // CLI ask about the same things: the release's own network egress and
 // exec, a remote MCP server, a package MCP server's own egress, a target
-// host and a browser. A remote server is network reach to its vendor, and
-// a package server's egress network reach from its container, whatever
-// the release's own egress says.
+// host, a browser and an application on the person's computer. A remote
+// server is network reach to its vendor, and a package server's egress
+// network reach from its container, whatever the release's own egress
+// says.
 func confirmedCapabilities(c manifest.Capabilities) []string {
 	var what []string
 	if len(c.Network.Egress.Hosts) > 0 {
@@ -566,6 +567,19 @@ func confirmedCapabilities(c manifest.Capabilities) []string {
 	}
 	if c.Browser != nil {
 		what = append(what, "a web browser")
+	}
+	// An application on the person's computer, through Agentry Desktop;
+	// computer use is their screen.
+	if d := c.Desktop; d != nil {
+		switch n := len(d.Servers); {
+		case n == 1:
+			what = append(what, "an application on your computer")
+		case n > 1:
+			what = append(what, "applications on your computer")
+		}
+		if d.HasComputerUse() {
+			what = append(what, "your screen")
+		}
 	}
 	return what
 }

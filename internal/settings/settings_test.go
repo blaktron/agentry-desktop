@@ -388,3 +388,33 @@ func TestSaveNeverChangesSendingToTheAssistant(t *testing.T) {
 		t.Fatalf("after SetMeetingSendToAssistant(false): %+v", s.MeetingNotes)
 	}
 }
+
+// An application server's script screening turned off has one writer: a Save of a
+// settings value loaded before it changed keeps what the file holds.
+func TestScreeningOffHasOneWriter(t *testing.T) {
+	isolate(t)
+	stale, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SetScreeningOff("blender", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := Load()
+	if !s.IsScreeningOff("blender") {
+		t.Fatal("a stale Save put Blender's script screening back on")
+	}
+	stale = s
+	if err := SetScreeningOff("blender", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.IsScreeningOff("blender") {
+		t.Fatal("a stale Save lifted Blender's script screening again")
+	}
+}

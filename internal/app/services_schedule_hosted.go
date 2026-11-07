@@ -426,6 +426,9 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
 			return nil, err
 		}
+		if err := run.RefuseHostedDesktop(sig.Manifest); err != nil {
+			return nil, err
+		}
 		// A schedule's fire has no setup to send a one-run token from: it
 		// uses the key Agentry keeps for each source's host. A source given
 		// a token here has it saved there, with the person's leave, once the

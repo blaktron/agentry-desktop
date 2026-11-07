@@ -67,8 +67,13 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 		finishProfile(logw, p.prof, p.profDir, p.keep)
 		return nil, err
 	}
+	if err := p.bindDesktop(ctx, req.BindDesktop); err != nil {
+		finishProfile(logw, p.prof, p.profDir, p.keep)
+		return nil, err
+	}
 	inner, err := engine.StartSession(ctx, p.docker, p.params)
 	if err != nil {
+		p.unbindDesktop()
 		finishProfile(logw, p.prof, p.profDir, p.keep)
 		return nil, err
 	}
@@ -103,6 +108,7 @@ func (s *Session) End(ctx context.Context, finish bool) (*Result, error) {
 	}
 	s.ended = true
 	env, err := s.inner.End(ctx, finish)
+	s.prof.unbindDesktop()
 	finishProfile(s.logw, s.prof.prof, s.prof.profDir, s.prof.keep)
 	if env != nil {
 		s.result = resultFromEnvelope(env, s.prof.plan)

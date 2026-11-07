@@ -269,6 +269,9 @@ func RunhostCannotCarry(m *manifest.Manifest) string {
 	if len(m.Capabilities.TargetHosts) > 0 {
 		return "a target host"
 	}
+	if m.Capabilities.Desktop != nil {
+		return "an application on your computer"
+	}
 	for _, q := range m.Intake {
 		switch q.Type {
 		case manifest.IntakeFile:

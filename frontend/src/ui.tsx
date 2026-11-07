@@ -133,6 +133,18 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
     );
   }
 
+  // The applications on the person's computer it uses through Agentry
+  // Desktop, by catalogue id, and the screen where it declares computer use.
+  const apps: string[] = Array.isArray(c.desktop?.servers) ? c.desktop.servers.map((s: { id?: string }) => s?.id ?? "?") : [];
+  if (apps.length > 0 || c.desktop?.computerUse) {
+    const screen = c.desktop?.computerUse === "screen" ? "; your whole screen" : c.desktop?.computerUse ? "; their windows" : "";
+    badges.push(
+      <span key="desktop" className="badge bad" title="Uses applications on your computer through Agentry Desktop; a call that runs code inside one asks you first">
+        your computer: {apps.join(", ")}{screen}
+      </span>,
+    );
+  }
+
   // A persistent release's own capabilities, by key, and its subagents:
   // the coding toolchain runs any program and reaches the web.
   const keys = persistentKeys(c.persistent);

@@ -219,6 +219,11 @@ type ProfileInfo struct {
 	// test, an http or https address, never as an input source to fetch. Nil
 	// when it declares no browser.
 	BrowserSites []string
+	// Desktop are the application servers on this computer the release uses
+	// (capabilities.desktop.servers), by catalogue id: the run setup shows a
+	// card for each and starts no run until each is ready. Nil when it
+	// declares none.
+	Desktop []string
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -233,7 +238,7 @@ func Declared(ctx context.Context, regURL, ref string) (*Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest)}
+	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest), Desktop: DesktopIDs(sig.Manifest)}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		d.Modes = append(d.Modes, string(mode))
 	}
@@ -249,6 +254,9 @@ type Declaration struct {
 	Secrets, Optional []string
 	// TargetHosts are its host questions' ids.
 	TargetHosts []string
+	// Desktop are the application servers on this computer it uses, which
+	// only a run on this computer reaches.
+	Desktop []string
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -290,6 +298,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 	if b := sig.Manifest.Capabilities.Browser; b != nil {
 		info.BrowserSites = b.Sites
 	}
+	info.Desktop = DesktopIDs(sig.Manifest)
 	if k := sig.Manifest.Knowledge; k != nil {
 		info.AcceptsKnowledge = k.Accepts
 	}
@@ -485,6 +494,11 @@ type Request struct {
 	// own idle hint say; TimeoutSeconds does not apply to a chat. Run, which is
 	// not a chat, ignores it.
 	ChatIdleTimeoutSeconds int
+	// BindDesktop binds a run whose release declares the person's computer
+	// (capabilities.desktop) to Agentry Desktop's link service, last before
+	// the sandbox starts. nil is no link service: such a run is refused, exit
+	// 11, naming Agentry Desktop.
+	BindDesktop DesktopBinder
 	// PlanCompiled, when set, is called once the run holds its plan, just compiled
 	// or reused, before anything of it starts, with whether the run is in Unsafe
 	// Mode: its plan is compiled so, or Unsafe Mode let a declared server the gate
@@ -950,7 +964,13 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		finishProfile(logw, p.prof, p.profDir, p.keep)
 		return nil, err
 	}
+	// The applications on this computer, bound last before the sandbox.
+	if err := p.bindDesktop(ctx, req.BindDesktop); err != nil {
+		finishProfile(logw, p.prof, p.profDir, p.keep)
+		return nil, err
+	}
 	env, runErr := engine.Run(ctx, p.docker, p.params)
+	p.unbindDesktop()
 	// The run completed its lifecycle (success or failure): apply the
 	// profile's keep/remove choice exactly like the CLI.
 	finishProfile(logw, p.prof, p.profDir, p.keep)
