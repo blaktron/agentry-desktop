@@ -225,6 +225,15 @@ const buildCheck = {
   },
   problems: {}, first: null, warnings: [],
 };
+// The catalogue of application servers the form offers, as Go's
+// BuildAPI.DesktopApps answers.
+const desktopApps = [
+  { id: "blender", application: "Blender", platforms: ["linux", "darwin", "windows"], tools: [
+    { name: "execute_blender_code", class: "exec" }, { name: "generate_3d", class: "act", egress: true }, { name: "import_asset", class: "act", egress: true },
+    { name: "search_assets", class: "read", egress: true }, { name: "look", class: "read" }, { name: "get_scene_info", class: "read" }, { name: "get_addon_status", class: "read" }] },
+  { id: "unreal", application: "Unreal Engine", platforms: ["linux", "darwin", "windows"], tools: [
+    { name: "list_toolsets", class: "read" }, { name: "describe_toolset", class: "read" }, { name: "call_tool", class: "act" }] },
+];
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
 // The summary: #build-summary is a QuickAgent written in the form,
@@ -1271,6 +1280,22 @@ g.go = { app: {
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
     Summary: async (m: typeof buildModel, unmentioned: string[]) => summaryFor(m, unmentioned ?? []),
+    DesktopApps: async () => desktopApps,
+    // BuildAPI.DesktopConsent in the core's words, for the line the form holds.
+    DesktopConsent: async (m: { desktop?: { servers: { id: string; tools: string[] }[]; computerUse?: string } }) => {
+      const d = m.desktop;
+      if (!d) return [];
+      const lines = d.servers.map((s) => {
+        const app = desktopApps.find((a) => a.id === s.id);
+        if (!app) return `Can use ${s.id} on your computer through its MCP server.`;
+        const tools = s.tools.length > 0 ? app.tools.filter((t) => s.tools.includes(t.name)) : app.tools;
+        const exec = tools.filter((t) => t.class === "exec").length;
+        return `Can use ${app.application} on your computer through its MCP server (${tools.length} ${tools.length === 1 ? "tool" : "tools"}${exec > 0 ? `, ${exec} runs code inside ${app.application}` : ""}${tools.some((t) => t.egress) ? "; it reaches 12 hosts from your computer" : ""}).`;
+      });
+      if (d.computerUse === "screen") lines.push("Can see and use your whole screen.");
+      else if (d.computerUse === "app") lines.push(`Can see and use ${d.servers.map((s) => desktopApps.find((a) => a.id === s.id)?.application ?? s.id).join(" and ")}'s windows on your computer.`);
+      return lines;
+    },
     // Review Your QuickAgents locally: its flow's
     // states are reviews.html's; here only the action, with a key and
     // without (#build-summary-nokey).
