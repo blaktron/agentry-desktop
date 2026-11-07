@@ -42,6 +42,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
 )
 
@@ -106,6 +107,8 @@ type Options struct {
 	// Changed, when set, is told a binding started, changed state or
 	// ended, for the page to read the state again.
 	Changed func()
+	// Computer is computer use; its zero value refuses it.
+	Computer ComputerOptions
 }
 
 // Service is the link service. It implements desktop.Handler.
@@ -172,6 +175,10 @@ type binding struct {
 	// record is the run's entry in recent, which holds its lock.
 	record *RecentRun
 	recent *Recent
+	// computer is the run's computer use, if it bound it; computerMu
+	// holds one computer-use action at a time.
+	computer   *computerBinding
+	computerMu sync.Mutex
 }
 
 // boundServer is one application server a run bound.
@@ -194,8 +201,8 @@ func refusal(reason, server, format string, args ...any) *desktop.Refusal {
 // the tools each listed, narrowed to the ones the release was given; or
 // refuses with the step the person must take.
 func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bound, *desktop.Refusal) {
-	if req.Run == "" || len(req.Servers) == 0 {
-		return desktop.Bound{}, refusal(receipt.DesktopNotInstalled, "", "a bind names a run and at least one application server")
+	if req.Run == "" || (len(req.Servers) == 0 && req.ComputerUse == "") {
+		return desktop.Bound{}, refusal(receipt.DesktopNotInstalled, "", "a bind names a run and at least one application server or computer use")
 	}
 	s.mu.Lock()
 	_, taken := s.runs[req.Run]
@@ -226,6 +233,13 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 		b.servers[want.ID] = bs
 		b.order = append(b.order, want.ID)
 		bound.Servers[want.ID] = bs.tools
+	}
+	if req.ComputerUse != "" {
+		cb, r := s.bindComputer(ctx, req, b)
+		if r != nil {
+			return fail(r)
+		}
+		bound.Computer = cb
 	}
 	tok, err := newToken()
 	if err != nil {
@@ -330,6 +344,9 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 	b := s.binding(req.Run, req.Token)
 	if b == nil {
 		return desktoplink.Answer{}, refusal(receipt.DesktopUnavailable, req.Server, "Agentry Desktop has not bound this run: it was unbound, or Agentry Desktop was restarted")
+	}
+	if req.Server == spec.DesktopComputerID {
+		return s.callComputer(ctx, b, req)
 	}
 	bs, ok := b.servers[req.Server]
 	if !ok {
@@ -628,6 +645,15 @@ func (b *binding) count(server string, class appserver.Class, outcome string) {
 }
 
 func (b *binding) closeServers() {
+	if c := b.computer; c != nil {
+		// The action in flight was cut by the binding's context; the
+		// session closes once it has let go of every key and button.
+		go func() {
+			b.computerMu.Lock()
+			defer b.computerMu.Unlock()
+			c.close()
+		}()
+	}
 	for _, bs := range b.servers {
 		bs.mu.Lock()
 		sess := bs.sess
@@ -645,6 +671,9 @@ func (b *binding) summary() RecentRun {
 	for _, id := range b.order {
 		bs := b.servers[id]
 		r.Servers = append(r.Servers, RecentServer{ID: id, Application: bs.entry.Application, Package: bs.entry.Package.Ref(), Launch: bs.launch, Era: bs.era(), Calls: map[string]int{}, Refused: map[string]int{}})
+	}
+	if b.computer != nil {
+		r.Servers = append(r.Servers, RecentServer{ID: spec.DesktopComputerID, Application: "Computer use (" + b.computer.scope + " scope)", Calls: map[string]int{}, Refused: map[string]int{}})
 	}
 	return r
 }
@@ -666,6 +695,10 @@ type Bound struct {
 	Applications []string `json:"applications"`
 	State        string   `json:"state"`
 	ExecForRun   bool     `json:"execForRun"`
+	// ComputerUse is the scope of the run's computer use, empty without
+	// it, and ComputerApps the applications it is held to.
+	ComputerUse  string   `json:"computerUse,omitempty"`
+	ComputerApps []string `json:"computerApps,omitempty"`
 }
 
 // Runs are the runs bound now.
@@ -681,6 +714,9 @@ func (s *Service) Runs() []Bound {
 		v := Bound{Run: b.run, Ref: b.ref, Agent: b.agent}
 		for _, id := range b.order {
 			v.Applications = append(v.Applications, b.servers[id].entry.Application)
+		}
+		if b.computer != nil {
+			v.ComputerUse, v.ComputerApps = b.computer.scope, b.computerApps()
 		}
 		b.mu.Lock()
 		v.State, v.ExecForRun = b.state, b.execForRun

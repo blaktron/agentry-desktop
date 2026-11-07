@@ -134,7 +134,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "your-computer", title: "Your computer",
-    sentence: "The applications on this computer a QuickAgent may use through the MCP servers installed for them, each one's state here and what to do, its script screening, the runs using your computer now with Pause and Stop, and the runs that used it.",
+    sentence: "The applications on this computer a QuickAgent may use through the MCP servers installed for them, each one's state here and what to do, its script screening, computer use and what is kept of it, the runs using your computer now with Pause and Stop, and the runs that used it.",
     parts: [{ id: "applications", label: "Applications" }, { id: "using", label: "Using your computer now" }, { id: "recent-computer", label: "Runs that used your computer" }],
   },
   {

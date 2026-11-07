@@ -60,6 +60,40 @@ export function YourComputerSettings() {
         )}
         <button type="button" className="link small" onClick={read} disabled={busy}>Check again</button>
       </section>
+      <section id="settings-part-computer-use" className="settings-part" data-computer-use>
+        <h2>Computer use</h2>
+        <p className="muted small">
+          A QuickAgent that says it does computer use sees and uses the windows of the applications it names, on this computer,
+          while it runs: it takes screenshots of those windows and clicks and types in them. It never sees or uses another window
+          unless it asks for your whole screen and your policy, Unsafe Mode or the run&apos;s <span className="mono">--allow-screen</span>{" "}
+          allows that. While it works, Agentry Desktop shows it in the tray and in a banner with Pause and Stop
+          {view ? <>, and <span className="mono">{view.computer.stopKey}</span> stops it</> : null}.
+        </p>
+        {view && (
+          <>
+            <p className="small selectable" data-computer-support>
+              On this computer: {view.computer.support.session}. {view.computer.support.ready ? view.computer.support.holds : view.computer.support.problem}
+            </p>
+            <label className="check-row">
+              <input type="checkbox" role="switch" data-computer-use-on checked={view.computer.on} disabled={busy}
+                onChange={(e) => act(() => YourComputerAPI.SetComputerUse(e.target.checked))} />
+              Let QuickAgents do computer use on this computer
+            </label>
+            <label className="check-row">
+              <input type="checkbox" role="switch" data-computer-use-keep checked={view.computer.keep} disabled={busy}
+                onChange={(e) => act(() => YourComputerAPI.SetKeepWhatAgentSaw(e.target.checked))} />
+              Keep what the agent saw: save each screenshot in the run&apos;s folder, under <span className="mono">reports/desktop</span>
+            </label>
+            <p className="muted small">
+              Turning computer use on is asked again in a window of its own. Your desktop may also ask, the first time a run starts,
+              which window to share and whether to allow control of the pointer and the keyboard; it remembers your answer.{" "}
+              <button type="button" className="link small" disabled={busy} onClick={() => act(() => YourComputerAPI.ForgetComputerChoices())}>
+                Forget those answers
+              </button>
+            </p>
+          </>
+        )}
+      </section>
       <section id="settings-part-using" className="settings-part">
         <h2>Using your computer now</h2>
         {errorBox}
@@ -68,7 +102,7 @@ export function YourComputerSettings() {
           <Card key={b.run}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
               <span className="selectable">
-                <span className="mono">{b.agent || b.ref || b.run}</span> is using {b.applications.join(", ")}
+                <span className="mono">{b.agent || b.ref || b.run}</span> is using {usingWords(b)}
                 {b.state === "paused" ? " (paused)" : b.state === "stopped" ? " (stopped)" : ""}
                 {b.execForRun ? "; every exec call allowed for this run" : ""}
               </span>
@@ -139,4 +173,14 @@ function ApplicationCard({ s, busy, onScreening }: { s: linkservice.AppState; bu
       )}
     </Card>
   );
+}
+
+// usingWords is what a bound run uses: its applications through their
+// servers, and its computer use.
+export function usingWords(b: linkservice.Bound): string {
+  const parts: string[] = [];
+  if (b.applications?.length) parts.push(b.applications.join(", "));
+  if (b.computerUse === "screen") parts.push("your whole screen");
+  else if (b.computerUse === "app") parts.push(`computer use of ${b.computerApps?.length ? b.computerApps.join(", ") + "'s windows" : "the window you picked"}`);
+  return parts.join(" and ") || "your computer";
 }
