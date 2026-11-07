@@ -204,6 +204,58 @@ export class Bound {
 }
 
 /**
+ * Permission is one privacy permission of the system's.
+ */
+export class Permission {
+    /**
+     * Key names it to OpenComputerPrivacy: PermissionScreen or
+     * PermissionAccessibility.
+     */
+    "key": string;
+
+    /**
+     * Name is the system's own name for it, as its settings show it.
+     */
+    "name": string;
+
+    /**
+     * Granted says the system has granted it to Agentry Desktop.
+     */
+    "granted": boolean;
+
+    /**
+     * Why says what computer use needs it for.
+     */
+    "why": string;
+
+    /** Creates a new Permission instance. */
+    constructor($$source: Partial<Permission> = {}) {
+        if (!("key" in $$source)) {
+            this["key"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("granted" in $$source)) {
+            this["granted"] = false;
+        }
+        if (!("why" in $$source)) {
+            this["why"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Permission instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Permission {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Permission($$parsedSource as Partial<Permission>);
+    }
+}
+
+/**
  * RecentRun is one run that used the person's computer.
  */
 export class RecentRun {
@@ -354,6 +406,13 @@ export class Support {
      */
     "holds"?: string;
 
+    /**
+     * Permissions are the system's privacy permissions computer use needs
+     * here, each granted or not; none where the system asks for none
+     * ahead of a run.
+     */
+    "permissions"?: Permission[];
+
     /** Creates a new Support instance. */
     constructor($$source: Partial<Support> = {}) {
         if (!("session" in $$source)) {
@@ -370,7 +429,11 @@ export class Support {
      * Creates a new Support instance from a string or object.
      */
     static createFrom($$source: any = {}): Support {
+        const $$createField4_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("permissions" in $$parsedSource) {
+            $$parsedSource["permissions"] = $$createField4_0($$parsedSource["permissions"]);
+        }
         return new Support($$parsedSource as Partial<Support>);
     }
 }
@@ -411,3 +474,5 @@ const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = RecentServer.createFrom;
 const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = $Create.Map($Create.Any, $Create.Any);
+const $$createType6 = Permission.createFrom;
+const $$createType7 = $Create.Array($$createType6);

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !darwin && !windows
 
 package stopkey
 
@@ -8,5 +8,5 @@ import (
 )
 
 func bind(context.Context, func()) (Binding, error) {
-	return nil, errors.New("this version of Agentry Desktop binds the stop key on Linux only")
+	return nil, errors.New("this version of Agentry Desktop binds the stop key on Linux, macOS and Windows only")
 }

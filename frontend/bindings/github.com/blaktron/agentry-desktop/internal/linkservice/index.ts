@@ -4,6 +4,7 @@
 export {
     AppState,
     Bound,
+    Permission,
     RecentRun,
     RecentServer,
     Support,

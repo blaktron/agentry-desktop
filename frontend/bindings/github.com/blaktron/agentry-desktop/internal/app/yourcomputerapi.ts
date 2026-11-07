@@ -48,6 +48,14 @@ export function ForgetComputerChoices(): $CancellablePromise<void> {
 }
 
 /**
+ * OpenComputerPrivacy opens the macOS privacy settings pane of a permission
+ * computer use needs: Screen & System Audio Recording, or Accessibility.
+ */
+export function OpenComputerPrivacy(which: string): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.OpenComputerPrivacy", which);
+}
+
+/**
  * Pause refuses a run's later calls to applications on this computer
  * until Resume.
  */
