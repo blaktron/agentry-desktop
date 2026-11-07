@@ -62,3 +62,19 @@ func BrowserTools(b *manifest.Browser) []string {
 	}
 	return browser.Tools(len(b.Secrets) > 0)
 }
+
+// DesktopLines are a desktop line's consent lines, in the CLI's words: one
+// an application on the person's computer, and one for computer use.
+func DesktopLines(d *manifest.Desktop) []string {
+	if d == nil {
+		return nil
+	}
+	var lines []string
+	for _, srv := range d.Servers {
+		lines = append(lines, "desktop: "+manifest.DescribeDesktopServer(srv))
+	}
+	if words := manifest.DescribeComputerUse(d); words != "" {
+		lines = append(lines, "desktop.computerUse: "+words)
+	}
+	return lines
+}

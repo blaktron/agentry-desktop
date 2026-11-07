@@ -68,6 +68,10 @@ type Facts struct {
 	// SSH, which only a run on their own computer does, so no choice In
 	// Agentry appears for it.
 	TargetHosts bool
+	// Desktop is true when the release uses an application on the person's
+	// computer (capabilities.desktop), which only a run on that computer
+	// reaches through Agentry Desktop, so no choice In Agentry appears for it.
+	Desktop bool
 }
 
 // Offer is the answer: whether the choice appears at all, whether it can
@@ -92,7 +96,7 @@ type Offer struct {
 // host means the choice is absent and the local modes are
 // exactly as they were.
 func Decide(f Facts) Offer {
-	if !f.SignedIn || !f.Extension || !declares(f.Modes, "autonomous") || f.TargetHosts {
+	if !f.SignedIn || !f.Extension || !declares(f.Modes, "autonomous") || f.TargetHosts || f.Desktop {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
@@ -133,7 +137,7 @@ const (
 // (Standard) is told so, with the way up, before anything about the token.
 func DecideSession(f Facts) Offer {
 	if !f.SignedIn || !f.Extension || !declares(f.Modes, ModeInteractive) ||
-		!f.StatusKnown || !f.SessionsEnabled || f.SessionAllowed == nil || f.TargetHosts {
+		!f.StatusKnown || !f.SessionsEnabled || f.SessionAllowed == nil || f.TargetHosts || f.Desktop {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
@@ -168,7 +172,7 @@ const (
 // In Agentry at all is Decide's, and what a fire would lack is the create's
 // own check.
 func DecideSchedule(f Facts) Offer {
-	if !f.SignedIn || !f.Schedules || f.TargetHosts {
+	if !f.SignedIn || !f.Schedules || f.TargetHosts || f.Desktop {
 		return Offer{}
 	}
 	o := Offer{Offered: true}

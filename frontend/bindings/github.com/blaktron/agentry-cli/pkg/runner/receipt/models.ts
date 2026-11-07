@@ -233,6 +233,14 @@ export enum ReasonCode {
      * Never the host's name or address: those are the person's.
      */
     ReasonHostRefused = "host-refused",
+
+    /**
+     * ReasonDesktopRefused: an application on the person's computer the
+     * release declares (capabilities.desktop) was not reached, before the
+     * sandbox or during the run. Names: the application servers' catalogue
+     * ids; Detail: why (Desktop*).
+     */
+    ReasonDesktopRefused = "desktop-refused",
 };
 
 /**

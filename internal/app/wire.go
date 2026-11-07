@@ -37,6 +37,7 @@ type Services struct {
 	runhosts     *RunhostsAPI
 	persistent   *PersistentAPI
 	meeting      *MeetingAPI
+	yourComputer *YourComputerAPI
 	// notifications is the Notifications page's API, also the notifier the
 	// other services report endings to.
 	notifications *NotificationsAPI
@@ -65,6 +66,7 @@ func New(notices string) *Services {
 	links[assistantAgent].meetings = meetings.answerTool
 	notifications := newNotificationsAPI(app)
 	app.notifications = notifications
+	yourComputer := newYourComputerAPI(app, run)
 	return &Services{
 		app:           app,
 		settings:      &SettingsAPI{app: app},
@@ -86,6 +88,7 @@ func New(notices string) *Services {
 		runhosts:      &RunhostsAPI{app: app, run: run},
 		persistent:    persistentAPI,
 		meeting:       meetings,
+		yourComputer:  yourComputer,
 		notifications: notifications,
 	}
 }
@@ -124,6 +127,9 @@ func (s *Services) Startup(ctx context.Context) {
 	s.meeting.start(ctx)
 	// The schedules' fires that ended, and the version this copy moved to.
 	s.notifications.start(ctx)
+	// The link socket a run from the CLI on this computer binds over to use
+	// an application here.
+	s.yourComputer.start(ctx)
 }
 
 // BeforeClose runs as the window closes, and reports whether to keep the
@@ -180,6 +186,8 @@ func (s *Services) shutdown(ctx context.Context) {
 		defer wg.Done()
 		s.persistent.stopAll()
 	}()
+	// Every run's use of this computer stops, and its installed servers end.
+	s.yourComputer.shutdown()
 	// A meeting being recorded is kept for the next launch to transcribe.
 	s.meeting.shutdown()
 	s.run.shutdown()
@@ -213,6 +221,7 @@ func (s *Services) Bind() []application.Service {
 		application.NewService(s.runhosts),
 		application.NewService(s.persistent),
 		application.NewService(s.meeting),
+		application.NewService(s.yourComputer),
 		application.NewService(s.notifications),
 	}
 }

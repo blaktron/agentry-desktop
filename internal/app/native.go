@@ -13,6 +13,8 @@ import (
 	"net/http"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"github.com/blaktron/agentry-desktop/internal/linkservice"
 )
 
 // mainWindowName is the name main.go gives the one window.
@@ -135,6 +137,35 @@ func nativeConfirm(ctx context.Context, title, message string) (bool, error) {
 		return yes, nil
 	case <-ctx.Done():
 		return false, ctx.Err()
+	}
+}
+
+// nativeAskExec is an exec call's dialog: what would run, quoted, and its
+// three answers, of which declining is the default and the cancel.
+func nativeAskExec(ctx context.Context, q linkservice.ExecQuestion) (linkservice.ExecAnswer, error) {
+	wails := application.Get()
+	if wails == nil {
+		return linkservice.ExecDecline, errNoApplication
+	}
+	title, message := execDialogText(q)
+	answer := make(chan linkservice.ExecAnswer, 1)
+	d := wails.Dialog.Question().SetTitle(title).SetMessage(message)
+	d.AddButton(execRunIt).OnClick(func() { answer <- linkservice.ExecAllowOnce })
+	d.AddButton(execAllowRun).OnClick(func() { answer <- linkservice.ExecAllowRun })
+	no := d.AddButton(execDecline).OnClick(func() { answer <- linkservice.ExecDecline })
+	d.SetDefaultButton(no).SetCancelButton(no)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if w := mainWindow(); w != nil {
+		d.AttachToWindow(w)
+	}
+	d.Show()
+	select {
+	case a := <-answer:
+		return a, nil
+	case <-ctx.Done():
+		return linkservice.ExecDecline, ctx.Err()
 	}
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/linkservice"
 	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -75,6 +76,9 @@ type RunAPI struct {
 	images dockerimages.Docker
 	// session is the live interactive session, nil otherwise.
 	session localSession
+	// link is the link service a run that uses applications on this
+	// computer binds to; nil binds nothing, and such a run is refused.
+	link *linkservice.Service
 	// knowledgeEnv is the local knowledge store's wiring; nil is this
 	// app's (internal/knowledge.Default). A test passes its own.
 	knowledgeEnv *knowledge.Env
@@ -306,6 +310,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		PathPicked:             r.app.requirePicked,
 		Unsafe:                 unsafe,
 		PlanCompiled:           func(u bool) { r.setUnsafeLive(live, u) },
+		BindDesktop:            r.bindDesktop,
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -960,6 +965,10 @@ type ProfileStatusView struct {
 	// AcceptsKnowledge is the release's ask for a pack of the person's own,
 	// shown in the Knowledge step and never to the agent; nil when none.
 	AcceptsKnowledge *KnowledgeAcceptsView `json:"acceptsKnowledge,omitempty"`
+	// Desktop are the applications on this computer the release uses, by
+	// catalogue id: the run setup shows a card for each and starts no run
+	// here until each is ready.
+	Desktop []string `json:"desktop"`
 }
 
 // KnowledgeAcceptsView is the manifest's knowledge.accepts: one plain line
@@ -1009,6 +1018,7 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Modes:             emptyNotNil(p.Modes),
 		Opening:           p.Opening,
 		ShipsKnowledge:    emptyNotNil(p.ShipsKnowledge),
+		Desktop:           emptyNotNil(p.Desktop),
 	}
 	if a := p.AcceptsKnowledge; a != nil {
 		v.AcceptsKnowledge = &KnowledgeAcceptsView{Prompt: a.Prompt, Required: a.Required}
@@ -1266,6 +1276,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 		PathPicked:         pathPicked,
 		Unsafe:             unsafe,
 		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
+		BindDesktop:        r.bindDesktop,
 	}, logw)
 	// The run has returned: what it said reaches the log before its result.
 	agentLog.Close()

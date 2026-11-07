@@ -1094,6 +1094,12 @@ func TestTheConsentNamesWhatTheCLIAsksAbout(t *testing.T) {
 		"target host": {manifest.Capabilities{TargetHosts: []string{"server"}}, []string{"a target host"}},
 		"two hosts":   {manifest.Capabilities{TargetHosts: []string{"web", "db"}}, []string{"target hosts"}},
 		"browser":     {manifest.Capabilities{Browser: &manifest.Browser{Sites: []string{"site"}}}, []string{"a web browser"}},
+		"an application on your computer": {manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}}},
+			[]string{"an application on your computer"}},
+		"two applications": {manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}, {ID: "unreal"}}}},
+			[]string{"applications on your computer"}},
+		"computer use": {manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}, ComputerUse: manifest.ComputerUseApp}},
+			[]string{"an application on your computer", "your screen"}},
 		"remote": {manifest.Capabilities{MCPServers: []manifest.MCPServer{{URL: "https://mcp.deepwiki.com/mcp", Auth: "none"}}},
 			[]string{"a remote MCP server"}},
 		"server egress":         {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv("api.osv.dev")}}, []string{"network egress for MCP server npm:@acme/osv-mcp@1.2.3"}},
@@ -1105,9 +1111,10 @@ func TestTheConsentNamesWhatTheCLIAsksAbout(t *testing.T) {
 			MCPServers:  []manifest.MCPServer{osv("*"), {URL: "https://mcp.deepwiki.com/mcp", Auth: "none"}, osv("api.osv.dev")},
 			TargetHosts: []string{"server"},
 			Browser:     &manifest.Browser{Sites: []string{"site"}},
+			Desktop:     &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}},
 		}, []string{"network egress", "exec", "a remote MCP server",
 			"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3", "network egress for MCP server npm:@acme/osv-mcp@1.2.3",
-			"a target host", "a web browser"}},
+			"a target host", "a web browser", "an application on your computer"}},
 	} {
 		if got := confirmedCapabilities(tc.caps); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: names %q, want %q", name, got, tc.want)

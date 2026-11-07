@@ -39,6 +39,7 @@ import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
 import { RunhostsSettings } from "./Runhosts";
+import { YourComputerSettings } from "./SettingsYourComputer";
 import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { LicencesSettings } from "./SettingsLicences";
 import PersistentAgentsSettings from "./SettingsPersistentAgents";
@@ -62,7 +63,7 @@ import { rejectedLine } from "../signInState";
 // report design and its editor. Meeting notes follows Persistent Agents,
 // as in the sidebar, and is offered only where this copy records meetings:
 // the same settings as the Meeting notes page's.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "meeting-notes" | "run-defaults" | "runhosts" | "provider" | "connections" | "destinations" | "home" | "licences";
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "meeting-notes" | "run-defaults" | "runhosts" | "your-computer" | "provider" | "connections" | "destinations" | "home" | "licences";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -72,6 +73,7 @@ export type SettingsPart =
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients" | "destinations" | "runhosts"
+  | "applications" | "using" | "recent-computer"
   | "theme" | "home-agent" | "home-cards" | "pins" | "reset-home" | "licences";
 type Part = { id: SettingsPart; label: string };
 
@@ -129,6 +131,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     id: "runhosts", title: "Runhosts",
     sentence: "Your own Linux servers that run your QuickAgents: set one up over SSH, sign it in to a plan, choose it as where runs go, its Unsafe Mode, and its removal.",
     parts: [{ id: "runhosts", label: "Runhosts" }],
+  },
+  {
+    id: "your-computer", title: "Your computer",
+    sentence: "The applications on this computer a QuickAgent may use through the MCP servers installed for them, each one's state here and what to do, its script screening, the runs using your computer now with Pause and Stop, and the runs that used it.",
+    parts: [{ id: "applications", label: "Applications" }, { id: "using", label: "Using your computer now" }, { id: "recent-computer", label: "Runs that used your computer" }],
   },
   {
     id: "provider", title: "Provider settings",
@@ -295,6 +302,7 @@ export default function Settings({
       {section === "connections" && <ConnectionsSettings />}
       {section === "destinations" && <DestinationsSettings />}
       {section === "runhosts" && <RunhostsSettings />}
+      {section === "your-computer" && <YourComputerSettings />}
       {section === "home" && <HomeSettings />}
       {section === "licences" && <LicencesSettings />}
     </div>
@@ -377,6 +385,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     connections: st.connections ? connectionsStatus(st.connections) : null,
     destinations: st.destinations ? destinationsStatus(st.destinations) : null,
     runhosts: st.runhosts ? runhostsStatus(st.runhosts) : null,
+    "your-computer": null,
     home: st.home ? homeStatus(st.home) : null,
     licences: null,
   };

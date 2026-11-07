@@ -600,6 +600,8 @@ func TestOfferMatrix(t *testing.T) {
 		{"status unreadable", with(func(f *Facts) { f.StatusKnown = false }), true, false, "did not answer", "this machine"},
 		// A target host is reached only from this computer.
 		{"a target host", with(func(f *Facts) { f.TargetHosts = true }), false, false, "", ""},
+		// An application on the person's computer is reached only from it.
+		{"an application on your computer", with(func(f *Facts) { f.Desktop = true }), false, false, "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -787,5 +789,21 @@ func TestWorkersOnlineIsNotCounted(t *testing.T) {
 	st.HostsOnline = 2
 	if st.RunnersOnline() != 2 {
 		t.Fatalf("two hosts count as %d runners", st.RunnersOnline())
+	}
+}
+
+// A release that uses an application on the person's computer is offered
+// no run, session or schedule In Agentry, whatever else holds.
+func TestAnApplicationOnYourComputerIsOfferedNothingInAgentry(t *testing.T) {
+	yes := true
+	f := Facts{
+		SignedIn: true, Extension: true, Modes: []string{"autonomous", ModeInteractive}, Scopes: []string{ScopeRunRead, ScopeRunWrite},
+		ScopesKnown: true, Enabled: true, StatusKnown: true, SessionsEnabled: true, SessionAllowed: &yes, HostsOnline: 1,
+		Schedules: true, ScheduleAllowed: &yes, Desktop: true,
+	}
+	for name, o := range map[string]Offer{"run": Decide(f), "session": DecideSession(f), "schedule": DecideSchedule(f)} {
+		if o != (Offer{}) {
+			t.Errorf("%s: %+v, want no offer", name, o)
+		}
 	}
 }

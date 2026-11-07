@@ -57,6 +57,10 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
 import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from "../runReadiness";
+import { applicationBlockers, execCount, stateLine } from "../yourComputer";
+import { EventsOn } from "../host";
+import * as YourComputerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/yourcomputerapi";
+import type * as linkservice from "../../bindings/github.com/blaktron/agentry-desktop/internal/linkservice/models";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it. */
@@ -315,6 +319,28 @@ export default function RunPanel({
       .catch((e) => setProfileErr(String(e)));
   }, [registry, agentRef]);
 
+  // The applications on this computer the release uses: each one's state,
+  // read from this computer by Go, again whenever a run binds or ends and
+  // every few seconds while one is not ready, so opening Blender turns Run
+  // on without a reload.
+  const declaredApps = profile?.desktop ?? [];
+  const appsKey = declaredApps.join(",");
+  const [apps, setApps] = useState<linkservice.AppState[] | null>(null);
+  useEffect(() => {
+    if (!appsKey) {
+      setApps(null);
+      return;
+    }
+    let live = true;
+    const read = () => {
+      YourComputerAPI.Applications(appsKey.split(",")).then((a) => { if (live) setApps(a); }).catch(() => { if (live) setApps([]); });
+    };
+    read();
+    const off = EventsOn("yourcomputer:changed", read);
+    const every = window.setInterval(read, 5000);
+    return () => { live = false; off(); window.clearInterval(every); };
+  }, [appsKey]);
+
   // In Agentry: is the mode offered for this release, and does this
   // account already have a run the panel should reattach to?
   useEffect(() => {
@@ -568,6 +594,8 @@ export default function RunPanel({
   // In Agentry a site must be one a sandbox host can open, as the registry
   // checks it again.
   blockers.push(...siteBlockers(siteQs, intakeValues, inAgentry));
+  if (declaredApps.length > 0 && !inAgentry && apps === null) blockers.push("Checking the applications on your computer this QuickAgent uses.");
+  blockers.push(...applicationBlockers(apps, inAgentry));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
@@ -1302,6 +1330,27 @@ export default function RunPanel({
               )}
               {unscanned && hosted?.offered && (
                 <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
+              )}
+              {declaredApps.length > 0 && (
+                <>
+                  <h4>Your computer</h4>
+                  {(apps ?? []).map((a) => (
+                    <Card key={a.id}>
+                      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                        <strong>Can use {a.application} on your computer</strong>
+                        <span className={a.ready ? "small" : "small warn"}>{a.ready ? "Ready" : "Not ready"}</span>
+                      </div>
+                      <p className="small selectable" style={{ marginBottom: 0 }}>{stateLine(a)}</p>
+                      <p className="muted small" style={{ marginBottom: 0 }}>
+                        Agentry Desktop starts {a.application}&apos;s MCP server as you when the run starts{execCount(a) > 0 ? `, and asks you before each call that runs code inside ${a.application}` : ""}. Pause and Stop are in Settings → Your computer while it runs.
+                      </p>
+                    </Card>
+                  ))}
+                  {apps === null && <p className="muted small">Checking the applications on your computer…</p>}
+                </>
+              )}
+              {hosted?.desktop && (
+                <p className="muted small">A run In Agentry is not offered for this QuickAgent: it uses an application on your computer, which only a run on this computer reaches.</p>
               )}
               {/* A target host is reached only from this computer. */}
               {hosted?.targetHosts && (

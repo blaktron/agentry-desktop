@@ -173,6 +173,103 @@ export class CapabilityDiff {
 }
 
 /**
+ * ComputerUse says how much of the person's screen the agent sees and acts
+ * on.
+ */
+export enum ComputerUse {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * Computer-use scopes.
+     *
+     * ComputerUseApp holds the agent to the windows of the applications
+     * the run uses.
+     */
+    ComputerUseApp = "app",
+
+    /**
+     * ComputerUseScreen gives the agent the whole display, which the
+     * consent names in its own words.
+     */
+    ComputerUseScreen = "screen",
+};
+
+/**
+ * Desktop is capabilities.desktop (v2, V19).
+ */
+export class Desktop {
+    /**
+     * Servers are the application servers the run uses on the person's
+     * computer, by catalogue id.
+     */
+    "servers"?: DesktopServer[];
+
+    /**
+     * ComputerUse is ComputerUseApp or ComputerUseScreen; empty declares
+     * no computer use.
+     */
+    "computerUse"?: ComputerUse;
+
+    /** Creates a new Desktop instance. */
+    constructor($$source: Partial<Desktop> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Desktop instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Desktop {
+        const $$createField0_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("servers" in $$parsedSource) {
+            $$parsedSource["servers"] = $$createField0_0($$parsedSource["servers"]);
+        }
+        return new Desktop($$parsedSource as Partial<Desktop>);
+    }
+}
+
+/**
+ * DesktopServer is one application server a release uses.
+ */
+export class DesktopServer {
+    /**
+     * ID is the server's id in the catalogue of application servers.
+     */
+    "id": string;
+
+    /**
+     * Tools narrows the run to these of the catalogue's tools; absent,
+     * the run has every tool the catalogue gives.
+     */
+    "tools"?: string[];
+
+    /** Creates a new DesktopServer instance. */
+    constructor($$source: Partial<DesktopServer> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopServer instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopServer {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("tools" in $$parsedSource) {
+            $$parsedSource["tools"] = $$createField1_0($$parsedSource["tools"]);
+        }
+        return new DesktopServer($$parsedSource as Partial<DesktopServer>);
+    }
+}
+
+/**
  * MCPOAuth is a package server's OAuth sign-in: the authorization server
  * a connection is made with, the scopes consent asks for, and how the
  * access token reaches the server.
@@ -218,8 +315,8 @@ export class MCPOAuth {
      */
     static createFrom($$source: any = {}): MCPOAuth {
         const $$createField1_0 = $$createType0;
-        const $$createField2_0 = $$createType2;
-        const $$createField3_0 = $$createType3;
+        const $$createField2_0 = $$createType4;
+        const $$createField3_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scopes" in $$parsedSource) {
             $$parsedSource["scopes"] = $$createField1_0($$parsedSource["scopes"]);
@@ -424,6 +521,8 @@ export class Persona {
 
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = MCPOAuthFile.createFrom;
+const $$createType1 = DesktopServer.createFrom;
 const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = $Create.Map($Create.Any, $Create.Any);
+const $$createType3 = MCPOAuthFile.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $Create.Map($Create.Any, $Create.Any);

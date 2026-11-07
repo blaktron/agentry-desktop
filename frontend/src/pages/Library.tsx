@@ -170,6 +170,9 @@ export default function Library({
     // A browser, where it may go.
     const browser = browserCap(c.browser);
     if (browser) bits.push(`browser: ${browserReach(browser)}`);
+    // The applications on this computer it uses, by catalogue id.
+    const apps = (c.desktop?.servers ?? []).map((s) => s.id);
+    if (apps.length) bits.push(`your computer: ${apps.join(", ")}`);
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
   }
 
