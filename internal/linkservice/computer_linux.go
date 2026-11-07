@@ -101,3 +101,7 @@ func cmpOr(a, b string) string {
 	}
 	return b
 }
+
+// RequestComputerPermissions has nothing to ask ahead of a run here: the
+// desktop portal asks when a run starts.
+func RequestComputerPermissions() Support { return ComputerSupport() }

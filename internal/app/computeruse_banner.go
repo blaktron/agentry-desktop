@@ -13,7 +13,7 @@ import (
 
 // StopKeyName is the key that stops every run's computer use, as the
 // person is told it.
-const StopKeyName = "Ctrl+Shift+Escape"
+const StopKeyName = stopkey.Name
 
 // bannerName is the computer-use banner's window, and bannerTitle its
 // title.

@@ -110,6 +110,16 @@ func parseCombo(text string) ([]uint32, error) {
 	return keys, nil
 }
 
+// systemCombo says a combination is one the system takes rather than the
+// focused window, and clickModifierTaken a modifier whose click the window
+// manager takes: this system's, set per system.
+var (
+	systemCombo        = desktopCombo
+	clickModifierTaken = func(k uint32) bool {
+		return k == keySuperL || k == 0xffec || k == 0xffed || k == keyAltL || k == 0xffea
+	}
+)
+
 // desktopCombo says a combination is one the desktop itself takes rather
 // than the focused window: a key with the super key, switching or closing
 // windows, the run dialog, ctrl+alt with any key, and the print key. In app

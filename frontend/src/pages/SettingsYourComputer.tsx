@@ -74,6 +74,28 @@ export function YourComputerSettings() {
             <p className="small selectable" data-computer-support>
               On this computer: {view.computer.support.session}. {view.computer.support.ready ? view.computer.support.holds : view.computer.support.problem}
             </p>
+            {(view.computer.support.permissions ?? []).length > 0 && (
+              <div className="small" data-computer-permissions>
+                {(view.computer.support.permissions ?? []).map((p) => (
+                  <div key={p.key} className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span className="selectable">
+                      {p.name}: {p.granted ? "allowed" : "not allowed"} <span className="muted">({p.why})</span>
+                    </span>
+                    {!p.granted && (
+                      <button type="button" className="link small" disabled={busy} onClick={() => act(() => YourComputerAPI.OpenComputerPrivacy(p.key))}>
+                        Open System Settings
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {(view.computer.support.permissions ?? []).some((p) => !p.granted) && (
+                  <p className="muted small">
+                    Turning computer use on asks macOS for both. After you allow Screen &amp; System Audio Recording in System Settings,
+                    quit Agentry Desktop and open it again: macOS applies it only to a new start.
+                  </p>
+                )}
+              </div>
+            )}
             <label className="check-row">
               <input type="checkbox" role="switch" data-computer-use-on checked={view.computer.on} disabled={busy}
                 onChange={(e) => act(() => YourComputerAPI.SetComputerUse(e.target.checked))} />

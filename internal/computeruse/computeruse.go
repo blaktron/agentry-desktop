@@ -387,7 +387,7 @@ func (a *Agent) withModifiers(ctx context.Context, w Window, text string, act fu
 			if !modifierKeys[k] {
 				return fmt.Errorf("text holds modifier keys during the action (shift, ctrl, alt), and %q is not one", text)
 			}
-			if a.opt.Scope == ScopeApp && (k == keySuperL || k == 0xffec || k == 0xffed || k == keyAltL || k == 0xffea) {
+			if a.opt.Scope == ScopeApp && clickModifierTaken(k) {
 				return outside("the desktop takes a click with super or alt held (to move or resize windows), so it is not sent in this scope")
 			}
 		}
@@ -681,7 +681,7 @@ func (a *Agent) combo(ctx context.Context, text *string) ([]uint32, Window, erro
 	if err != nil {
 		return nil, Window{}, err
 	}
-	if a.opt.Scope == ScopeApp && desktopCombo(keys) {
+	if a.opt.Scope == ScopeApp && systemCombo(keys) {
 		return nil, Window{}, outside("%s is a key the desktop takes, not %s's window, so it is not sent in this scope", *text, w.App)
 	}
 	return keys, w, nil
