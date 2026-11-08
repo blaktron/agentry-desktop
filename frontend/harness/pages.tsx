@@ -138,7 +138,7 @@ const installedUpdateWarning = window.location.hash === "#installed-update-warni
 let updateApplied = false;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
-// Settings → Coding tools: the hash picks the
+// Settings → Updates and installs → Coding tools: the hash picks the
 // coding agent the policy records. #coding-codex has Codex alone, so the
 // export is AGENTS.md in the chosen project folder, and the switch on;
 // #coding-none has nothing chosen and no folder, so the switch cannot go
@@ -366,14 +366,14 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
   return { name: m.name, summary: m.summary, overview: m.guide.overview, keys, websites, servers, grants, knowledge,
     anyUnnamed: [...websites, ...servers.flatMap((sv) => sv.hosts)].some((h) => h.unnamed) };
 }
-// Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
+// Settings → Models and keys → AI Review key: saved by default; #aireview-none has none;
 // #aireview-env takes it from the variable; #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
   ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
   : window.location.hash === "#aireview-env"
     ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
-// Settings → Provider settings → Hybrid Analysis key:
+// Settings → Models and keys → Hybrid Analysis key:
 // saved by default; #hybrid-none has none; #hybrid-env takes it from the
 // variable; #hybrid-refused answers Test key with the service's refusal.
 const hybridKeyView = window.location.hash === "#hybrid-none"
@@ -381,7 +381,7 @@ const hybridKeyView = window.location.hash === "#hybrid-none"
   : window.location.hash === "#hybrid-env"
     ? { stored: false, envName: "HYBRID_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "HYBRID_API_KEY", envSet: false, ready: true };
-// Settings → Provider settings → Web search: Brave
+// Settings → Models and keys → Web search: Brave
 // saved by default; #search-none has no provider; #search-env takes the
 // key from the variable; #search-refused answers Test key with a 401.
 const searchProviders = [
@@ -401,7 +401,7 @@ const validateResult = {
   issues: [], inventory: [], findings: [], readErrors: [],
 };
 
-// Settings → Run defaults: the policy's budgets,
+// Settings → Runs: the policy's budgets,
 // runs on this computer, no folder saved.
 // Unsafe Mode: #unsafe-on is the switch on, with the
 // red edge round the window and the sidebar's badge on every page;
@@ -1373,7 +1373,7 @@ g.go = { app: {
   ValidateAPI: { Run: async () => validateResult },
   // Settings asks whether Meeting notes can run here: not on this preview,
   // unless ?meetings=on (or off) draws it on (or off), with its page and
-  // Settings → Meeting notes.
+  // the Meeting notes page.
   MeetingAPI: harnessMeetings ? meetingAPI : { Status: async () => ({ available: false }) },
   // The person's packs, for Describe it's Knowledge pick: only where a
   // knowledge state asks for them, so no other preview gains a list.
@@ -1385,7 +1385,7 @@ g.go = { app: {
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
     OpenTopUp: async () => undefined,
-    // Settings → Profile. The hash picks the account:
+    // Settings → Account. The hash picks the account:
     // #profile-pro a Pro person offered credit packs, #profile-suspended one
     // suspended for non-payment,
     // #profile-promo a Promo Pro trial, #profile-org a member of an
@@ -1397,7 +1397,7 @@ g.go = { app: {
       return profileView().user;
     },
     CodingAgents: async () => codingView(),
-    // Settings → Run defaults: the saves answer as Go
+    // Settings → Runs: the saves answer as Go
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
     SetBuiltinNoLimit: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoLimit: on }),
@@ -1568,7 +1568,7 @@ g.go = { app: {
         case "macos": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", engine: { ...noEngine, tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
         case "windows": return { ...base, os: "windows", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "error during connect: open //./pipe/docker_engine: The system cannot find the file specified.", engine: { ...noEngine, tried: ["the docker CLI's current context: error during connect: open //./pipe/docker_engine: The system cannot find the file specified."] } };
         case "emptysocket": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", warnings: [socketTrap], engine: { ...noEngine, warnings: [socketTrap], tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
-        case "chosenSilent": return { ...base, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "your chosen engine, the docker CLI's context colima, is not answering: Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?", engine: { ...noEngine, chosen: true, choice: "context:colima", tried: ["the docker CLI's context colima (your choice under Settings → Run defaults → Container engine): Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?"] } };
+        case "chosenSilent": return { ...base, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "your chosen engine, the docker CLI's context colima, is not answering: Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?", engine: { ...noEngine, chosen: true, choice: "context:colima", tried: ["the docker CLI's context colima (your choice under Settings → Runs → Container engine): Cannot connect to the Docker daemon at unix:///home/me/.colima/default/docker.sock. Is the docker daemon running?"] } };
         case "trap":
         case "podman": return { ...base, state: "ready", canInstall: false, engineInstalled: true, inDockerGroup: false, dockerOk: true, dockerErr: "", engine: engineFound(state), warnings: engineFound(state).warnings };
         default: return { ...base, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
@@ -1740,6 +1740,9 @@ import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 import MeetingNotes from "../src/pages/MeetingNotes";
+import Agents from "../src/pages/Agents";
+import Plugins from "../src/pages/Plugins";
+import ComputerUse from "../src/pages/ComputerUse";
 import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
 const settingsView = {
@@ -1838,7 +1841,7 @@ function Shell({ active, children, signedIn, section, onOpenSection }: { active:
   );
 }
 
-// Settings as five cards: the preview keeps its own
+// Settings as a landing of cards: the preview keeps its own
 // route, as App does, so a shot can open a card, follow a part's link, come
 // back by "← Settings", and follow each deep link App gives the places that
 // open Settings. ?settings=<section> opens on a section page; the hash keeps
@@ -1851,8 +1854,7 @@ function SettingsPreview() {
       {/* ?active=anon makes the anonymous registry the active one: the
           landing then has no Profile card. */}
       <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
-        onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })}
-        onOpenMeetings={() => { document.body.dataset.open = "meetings"; }} />
+        onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })} />
       <div className="harness-deeplinks muted small" style={{ marginTop: 24 }}>
         Deep links (harness only):{" "}
         {Object.entries(SETTINGS_FOR).map(([name, to]) => (
@@ -1928,6 +1930,9 @@ const render = () => createRoot(document.getElementById("root")!).render(
     {harnessMeetings && <div data-preview="meetings"><Shell active="meetings"><MeetingNotes /></Shell></div>}
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}
+    <div data-preview="agents"><Shell active="agents"><Agents registry={REG} onOpenAgent={(name) => { document.body.dataset.open = `persistent:${name}`; }} /></Shell></div>
+    <div data-preview="plugins"><Shell active="plugins"><Plugins onOpen={(page) => { document.body.dataset.open = page; }} /></Shell></div>
+    <div data-preview="computer"><Shell active="computer"><ComputerUse /></Shell></div>
     <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} onOpenRun={(id) => { document.body.dataset.open = `run:${id}`; }} /></div></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a

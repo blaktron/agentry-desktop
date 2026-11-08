@@ -1,6 +1,6 @@
 // Send deliverables to: the saved destinations a run on this computer (or each
 // fire of a schedule on it) sends its result and deliverables to once it
-// succeeds, chosen in the run setup. The list is Settings → Destinations',
+// succeeds, chosen in the run setup. The list is Settings → Connections → Destinations',
 // kept by the CLI; a destination without the credentials its kind needs is shown and cannot be
 // chosen. The QuickAgent's default set preselects its destinations, and the
 // choice can be kept as that default. Nothing here is a credential or an

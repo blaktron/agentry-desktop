@@ -16,7 +16,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 )
 
-// A runhost's persistent agents, as Settings → Runhosts shows them: they run
+// A runhost's persistent agents, as Settings → Runs → Runhosts shows them: they run
 // on the runhost under its service, on the runhost's own model, and this app
 // drives them over the run key (remote.AgentCommand) and talks to them
 // through the agent's owner socket there, relayed to a socket of this

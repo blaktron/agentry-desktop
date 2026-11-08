@@ -245,7 +245,7 @@ export function DesignWithAI({ registry, lib, initialJob, initialFrom, hosted, o
           </span>
         </label>
         {dockerBlock && (
-          <Notice tone="warn">The Report Designer runs in containers, and the container engine is not ready on this computer{setup?.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Run defaults sets it up.</Notice>
+          <Notice tone="warn">The Report Designer runs in containers, and the container engine is not ready on this computer{setup?.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Runs sets it up.</Notice>
         )}
       </Card>
 

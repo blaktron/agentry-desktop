@@ -85,7 +85,7 @@ export type HomeOpen = {
   scheduled: () => void;
   // The Meeting notes card's page.
   meetings: () => void;
-  // The agent card's title: Settings → Persistent Agents for Agentry Helper, any
+  // The agent card's title: the Agents page for Agentry Helper, any
   // other agent's own page, and Settings → Provider where no model is set
   // up.
   persistentAgents: () => void;

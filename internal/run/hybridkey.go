@@ -157,7 +157,7 @@ func TestHybridKey(ctx context.Context) (*HybridKeyTest, error) {
 		return nil, err
 	}
 	if key == "" {
-		return &HybridKeyTest{Message: "No Hybrid Analysis key is saved on this computer. Paste one under Settings → Provider settings → Hybrid Analysis key, then test it."}, nil
+		return &HybridKeyTest{Message: "No Hybrid Analysis key is saved on this computer. Paste one under Settings → Models and keys → Hybrid Analysis key, then test it."}, nil
 	}
 	res := &HybridKeyTest{From: "the keychain"}
 	if strings.TrimSpace(os.Getenv(pol.HybridAnalysis.KeyEnv())) != "" {

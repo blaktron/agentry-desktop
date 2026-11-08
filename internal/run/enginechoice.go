@@ -1,6 +1,6 @@
 // The engine a person chose, for a computer that offers more than one.
 // Without a choice, detection adopts the first engine that answers in its
-// order. Settings → Run defaults → Container engine lists every engine that
+// order. Settings → Runs → Container engine lists every engine that
 // answers on this computer and remembers the one chosen, by the place it
 // answers at (Agentry's engine, a docker context, a host socket, podman on
 // this computer), and from then on detection asks that place alone, at
@@ -293,7 +293,7 @@ func chosenSilent(choice string, err error) Engine {
 	label := ChoiceLabel(choice)
 	return Engine{Chosen: true, Choice: choice,
 		Err:   fmt.Sprintf("your chosen engine, %s, is not answering: %v", label, err),
-		Tried: []string{label + " (your choice under Settings → Run defaults → Container engine): " + err.Error()}}
+		Tried: []string{label + " (your choice under Settings → Runs → Container engine): " + err.Error()}}
 }
 
 // adoption is what detection had adopted and the variables it had set, for

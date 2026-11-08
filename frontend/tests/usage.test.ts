@@ -37,7 +37,7 @@ test("the terms before a run In Agentry give the hold in credits, the time and t
   [hold, line, runHoldSentence(0)].forEach(noTokens);
 });
 
-test("Settings → Profile states a hosted run's cap in credits, time and turns", () => {
+test("Settings → Account states a hosted run's cap in credits, time and turns", () => {
   const s = capsSentence({ holdCredits: 20, caps });
   assert.equal(s, "A hosted run holds 20 credits for its cap — up to 15 minutes and 60 turns — and settles from what it uses, never more than it holds.");
   const free = capsSentence({ holdCredits: 0, caps });

@@ -897,21 +897,42 @@ func (m *mainLink) scheduleRemove(id string) (string, error) {
 	return fmt.Sprintf("Deleted the schedule %s.", quoted(s.Name)), nil
 }
 
-// settingsSections are the Settings sections Main may open, by the id the
-// page knows them by (Settings.tsx's SECTIONS) and the title it shows.
-var settingsSections = []struct{ id, title string }{
-	{"profile", "Profile"}, {"report-design", "Report design"}, {"registry", "Registry settings"},
-	{"updates", "Update settings"}, {"coding-agents", "Coding tools"}, {"persistent-agents", "Persistent Agents"},
-	{"run-defaults", "Run defaults"}, {"provider", "Provider settings"}, {"connections", "Connections"},
-	{"destinations", "Destinations"}, {"home", "Home"}, {"licences", "Licences"},
+// settingsSections are the places in Settings Main may open: each by the id
+// the page knows it by (settingsSections.ts), what the answer calls it, and
+// the other names that mean it. A section merged into another, or moved out
+// of Settings, keeps its id: the page opens the section and part that holds
+// it now, or the page it moved to. listed marks the sections the error
+// names.
+var settingsSections = []struct {
+	id, title string
+	names     []string
+	listed    bool
+}{
+	{"account", "Settings → Account", []string{"account"}, true},
+	{"profile", "Settings → Account → Profile", []string{"profile", "subscription"}, false},
+	{"registry", "Settings → Account → Registries", []string{"registry", "registries", "registry settings", "sign in"}, false},
+	{"report-design", "Settings → Report design", []string{"report design"}, true},
+	{"provider", "Settings → Models and keys", []string{"models and keys", "provider", "provider settings", "model", "keys"}, true},
+	{"run-defaults", "Settings → Runs", []string{"runs", "run defaults"}, true},
+	{"runhosts", "Settings → Runs → Runhosts", []string{"runhosts"}, false},
+	{"connections", "Settings → Connections", []string{"connections"}, true},
+	{"destinations", "Settings → Connections → Destinations", []string{"destinations"}, false},
+	{"updates", "Settings → Updates and installs", []string{"updates and installs", "updates", "update settings"}, true},
+	{"coding-agents", "Settings → Updates and installs → Coding tools", []string{"coding tools", "coding agents"}, false},
+	{"home", "Settings → Home", []string{"home"}, true},
+	{"licences", "Settings → Licences", []string{"licences", "licenses"}, true},
+	{"persistent-agents", "the Agents page", []string{"agents", "persistent agents"}, false},
+	{"meeting-notes", "the Meeting notes page", []string{"meeting notes"}, false},
+	{"your-computer", "Plugins → Computer use", []string{"computer use", "your computer"}, false},
 }
 
-// settingsSection is the section a name means: its id or its title, in any
-// case.
+// settingsSection is the place a name means: its id, its title with or
+// without "Settings → ", or one of its other names, in any case.
 func settingsSection(name string) (id, title string, ok bool) {
 	n := strings.ToLower(strings.TrimSpace(name))
+	n = strings.TrimSpace(strings.TrimPrefix(n, "settings →"))
 	for _, s := range settingsSections {
-		if n == s.id || n == strings.ToLower(s.title) || n == strings.ToLower(strings.TrimSuffix(s.title, " settings")) {
+		if n == s.id || n == strings.ToLower(strings.TrimPrefix(s.title, "Settings → ")) || slices.Contains(s.names, n) {
 			return s.id, s.title, true
 		}
 	}
@@ -923,12 +944,14 @@ func (m *mainLink) settingsOpen(section string) (string, error) {
 	if !ok {
 		names := make([]string, 0, len(settingsSections))
 		for _, s := range settingsSections {
-			names = append(names, s.title)
+			if s.listed {
+				names = append(names, strings.TrimPrefix(s.title, "Settings → "))
+			}
 		}
 		return "", fmt.Errorf("there is no Settings section %s; the sections are %s", quoted(section), strings.Join(names, ", "))
 	}
 	emitEvent(m.app, eventOpenSettings, id)
-	return fmt.Sprintf("Opened Settings → %s for the person. Nothing was changed: any change there is theirs to make.", title), nil
+	return fmt.Sprintf("Opened %s for the person. Nothing was changed: any change there is theirs to make.", title), nil
 }
 
 // docsPage is a path on the docs site.

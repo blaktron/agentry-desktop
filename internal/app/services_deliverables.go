@@ -495,7 +495,7 @@ func (r *RunAPI) OpenDeliverablesFolder() error {
 		return err
 	}
 	if !on {
-		return errors.New("the Deliverables switch is off, so there is no folder to show: turn it on in Settings → Run defaults")
+		return errors.New("the Deliverables switch is off, so there is no folder to show: turn it on in Settings → Runs")
 	}
 	if !filepath.IsAbs(dir) {
 		return fmt.Errorf("%q is not a folder this app can show", dir)

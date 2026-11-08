@@ -19,7 +19,7 @@ test("with Unsafe Mode off the consent is not offered, and Run is held with the 
   assert.equal(s.showRefusal, true, "the registry's refusal, with its way through, is shown");
   assert.equal(s.send, false, "a consent left over from an earlier setup is never sent with the switch off");
   assert.match(s.blocker ?? "", /only in Unsafe Mode/);
-  assert.match(s.blocker ?? "", /Settings → Run defaults/);
+  assert.match(s.blocker ?? "", /Settings → Runs/);
 });
 
 test("in Unsafe Mode the consent is offered, holds Run until ticked, and is sent once ticked", () => {

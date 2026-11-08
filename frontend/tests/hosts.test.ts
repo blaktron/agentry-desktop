@@ -122,9 +122,9 @@ test("recent hosts offered are the others, newest first, at most five", () => {
   assert.deepEqual(recentOffers(recent, ""), ["a@1", "b@2", "c@3", "d@4", "e@5"]);
 });
 
-test("Run defaults' In Agentry says why a QuickAgent with a target host runs here", () => {
+test("Settings' In Agentry says why a QuickAgent with a target host runs here", () => {
   assert.equal(
     whereFallback("agentry", { offered: false, available: false, signedIn: true, targetHosts: true }, false),
-    "Your Run defaults say In Agentry, but it works a server you name over SSH, which only a run on this computer does, so this run starts on this computer.",
+    "Runs are set to go In Agentry (Settings → Runs), but it works a server you name over SSH, which only a run on this computer does, so this run starts on this computer.",
   );
 });

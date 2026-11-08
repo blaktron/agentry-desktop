@@ -2093,7 +2093,7 @@ func PublishWith(ctx context.Context, regURL, token, dir string, privateTold boo
 	}
 	draftRun := opts.DraftRun
 	if token == "" {
-		return nil, fmt.Errorf("publishing needs a signed-in registry — sign in under Settings → Registry settings")
+		return nil, fmt.Errorf("publishing needs a signed-in registry — sign in under Settings → Account")
 	}
 	client, err := registry.New(regURL, token)
 	if err != nil {

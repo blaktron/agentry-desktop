@@ -8,8 +8,8 @@
 // a meeting by its id and never a path, and the output folder comes from
 // the native picker alone. Giving transcripts to the Assistant is turned on
 // in Go's native dialog too; the windows the Assistant armed are listed
-// with Cancel. The settings sit above the list of meetings, and are also
-// Settings → Meeting notes (MeetingNotesSettings).
+// with Cancel. The settings sit above the list of meetings
+// (MeetingNotesSettingsCard).
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";

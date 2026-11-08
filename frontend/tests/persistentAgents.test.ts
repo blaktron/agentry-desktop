@@ -29,7 +29,6 @@ import {
   newAgentChat,
   pendingChange,
   notAppliedWords,
-  persistentAgentsStatus,
   coderRunning,
   enableOutcome,
   termBlocks,
@@ -277,10 +276,7 @@ test("the Main card's status line counts turns and tokens over Main's life, and 
     "Running · 1 turn");
 });
 
-test("Settings' card counts the enabled and the running agents", () => {
-  assert.equal(persistentAgentsStatus([agent({})]), "None enabled");
-  assert.equal(persistentAgentsStatus([agent({ state: "stopped" })]), "1 enabled, 0 running");
-  assert.equal(persistentAgentsStatus([agent({ state: "running" })]), "1 enabled, 1 running");
+test("an agent's state reads in words", () => {
   assert.equal(agentStateWords({ state: "elsewhere", holder: "the CLI (pid 42)" }), "Running in the CLI (pid 42)");
   assert.equal(agentStateWords({ state: "disabled" }), "Off");
 });

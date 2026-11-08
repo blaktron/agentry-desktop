@@ -117,7 +117,7 @@ export function cardStatus(c: CardFacts): string | null {
   if (c.error) return "Deliverables could not be read.";
   if (c.reading) return "Reading deliverables…";
   if (c.count > 0) return null;
-  if (!c.remember) return "Recent runs are not remembered, so there is nothing to list here. Turn on Remember recent runs in Run defaults.";
+  if (!c.remember) return "Recent runs are not remembered, so there is nothing to list here. Turn on Remember recent runs in Settings → Runs.";
   if (!c.on) return "Deliverables are off. Turn them on in Run defaults to have each run's files copied to a folder.";
   return "Nothing yet. The files a run was for are listed here, newest first.";
 }

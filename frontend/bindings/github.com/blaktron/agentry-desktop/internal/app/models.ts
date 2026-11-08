@@ -579,7 +579,7 @@ export class ChangedInstallView {
 }
 
 /**
- * CodingAgentsView is Settings → Coding tools: the coding agents the
+ * CodingAgentsView is Settings → Updates and installs → Coding tools: the coding agents the
  * operator policy records as chosen (read, never probed — the page has Look
  * for that), and the export they imply with its folder and the switch.
  */
@@ -617,7 +617,7 @@ export class CodingAgentsView {
 }
 
 /**
- * ComputerUseView is Settings → Your computer's computer use.
+ * ComputerUseView is Plugins → Computer use's computer use.
  */
 export class ComputerUseView {
     "on": boolean;
@@ -9711,7 +9711,7 @@ export class RevisionView {
 }
 
 /**
- * RunDefaultsView is Settings → Run defaults. The timeout and max turns are
+ * RunDefaultsView is Settings → Runs. The timeout and max turns are
  * the runner policy's budgets, which the CLI runs with too; where runs go,
  * the output folder and the Chat idle timeout are this app's own, in
  * desktop.yaml. A broken policy file is said, not hidden behind the
@@ -9729,7 +9729,7 @@ export class RunDefaultsView {
 
     /**
      * Runhost names the remote runhost runs go to by default, when one is
-     * (Settings → Runhosts); Where is then "here".
+     * (Settings → Runs → Runhosts); Where is then "here".
      */
     "runhost"?: string;
 
@@ -12621,7 +12621,7 @@ export class WhatsNewView {
 }
 
 /**
- * YourComputerView is Settings → Your computer.
+ * YourComputerView is Plugins → Computer use.
  */
 export class YourComputerView {
     /**

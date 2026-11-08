@@ -1088,7 +1088,7 @@ function ChosenSilent({ err, busy, onAutomatic }: { err?: string; busy: boolean;
     <>
       <p className="small">
         {err ? asSentence(err) : "The container engine you chose does not answer."} Start it and re-detect, or choose
-        another under <strong>Settings → Run defaults → Container engine</strong>. Runs on this computer wait for it: the
+        another under <strong>Settings → Runs → Container engine</strong>. Runs on this computer wait for it: the
         app does not switch to another engine on its own.
       </p>
       <div className="row" style={{ justifyContent: "flex-end" }}>

@@ -1,29 +1,31 @@
 // The sidebar's items as a tree of rows, worked out from the page that is
 // open. Pure, so the node tests can import it; nav.tsx draws the rows.
 //
-// From the top: Home; the persistent agents, one row each; Meeting notes,
-// where this copy can record; Library with
-// Browse and Publisher beneath it; Schedule; Build, a section that opens no
-// page, with QuickAgent (and Validate beneath it), Voice and Knowledge; and
-// Settings, which opens its landing and lists every section beneath it.
+// From the top: Home; Agents, which opens the page that manages the
+// persistent agents and always lists the enabled ones beneath it; Scheduled;
+// Build, a section that opens no page, with QuickAgent (and Validate beneath
+// it), Voice and Knowledge; Library, which opens what is installed, with
+// Installed, Browse and Publisher beneath it; Plugins, a landing of the
+// optional features, with Meeting notes (where this copy can record) and
+// Computer use beneath it; and Settings, which opens its landing and lists
+// every section beneath it.
 //
-// A page's sub-items show only while the page or one of them is open, the
-// site's sub-menu convention. Build's are shown while Build is expanded,
-// which the person decides and which opening one of its pages does too.
+// A group's rows show only while its landing or one of its pages is open,
+// the site's sub-menu convention, with two exceptions: the agents under
+// Agents are always listed, so each is one click away, and Build's are
+// shown while Build is expanded, which the person decides and which opening
+// one of its pages does too.
 
 // The pages a sidebar row can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "meetings" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings" | "notifications";
+export type NavPage = "home" | "agents" | "scheduled" | "run" | "library" | "browse" | "agent" | "persistent" | "plugins" | "meetings" | "computer" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings" | "notifications";
 
-/** A persistent agent's entry, after Home: the Assistant by the name the
+/** A persistent agent's entry, under Agents: the Assistant by the name the
  *  person gave it, with a dot for running or stopped. */
 export type NavAgent = { id: string; label: string; running: boolean };
 
-/** A Settings section's row: its id and its title on the landing.
- *  needsSignIn: listed only while the active registry is signed in, as the
- *  landing shows its card; needsMeetings, only where this copy records
- *  meetings. */
-export type NavSection = { id: string; title: string; needsSignIn?: boolean; needsMeetings?: boolean };
+/** A Settings section's row: its id and its title on the landing. */
+export type NavSection = { id: string; title: string };
 
 // What a row does when clicked.
 export type NavTarget =
@@ -53,17 +55,11 @@ export type NavRow = {
   childrenLabel?: string;
 };
 
-type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
+type Item = { label: string; page: NavPage; key?: string; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean; needsMeetings?: boolean };
 
-// The QuickAgents the person publishes are shown only while the active
-// registry is signed in: what Publisher lists is the signed-in person's own.
-const LIBRARY: Item = {
-  label: "Library", page: "library", also: ["agent"],
-  sub: [{ label: "Browse", page: "browse" }, { label: "Publisher", page: "publisher", needsSignIn: true }],
-};
 // A run page is opened from Home's Recent runs, so Home stays lit on it.
 const HOME: Item = { label: "Home", page: "home", also: ["run"] };
-const SCHEDULE: Item = { label: "Schedule", page: "scheduled" };
+const SCHEDULED: Item = { label: "Scheduled", page: "scheduled" };
 // Build's rows. QuickAgent is the page that builds one, with Validate
 // beneath it.
 const BUILD: Item[] = [
@@ -71,6 +67,27 @@ const BUILD: Item[] = [
   { label: "Voice", page: "voice" },
   { label: "Knowledge", page: "knowledge" },
 ];
+// Library opens Installed, its first row. The QuickAgents the person
+// publishes are shown only while the active registry is signed in: what
+// Publisher lists is the signed-in person's own. A QuickAgent's page keeps
+// Library lit, without its rows.
+const LIBRARY: Item = {
+  label: "Library", page: "library", also: ["agent"],
+  sub: [
+    { label: "Installed", page: "library", key: "installed" },
+    { label: "Browse", page: "browse" },
+    { label: "Publisher", page: "publisher", needsSignIn: true },
+  ],
+};
+// Plugins opens its landing; Meeting notes is listed only where this copy
+// records meetings.
+const PLUGINS: Item = {
+  label: "Plugins", page: "plugins",
+  sub: [
+    { label: "Meeting notes", page: "meetings", needsMeetings: true },
+    { label: "Computer use", page: "computer" },
+  ],
+};
 
 /** The pages Build's rows open, its own included: one of them open keeps
  *  Build lit and expands it. */
@@ -95,17 +112,21 @@ export type NavState = {
   buildOpen: boolean;
 };
 
-function itemRow(item: Item, page: NavPage, signedIn: boolean): NavRow {
-  const sub = (item.sub ?? []).filter((s) => !s.needsSignIn || signedIn);
+type Gates = { signedIn: boolean; meetings: boolean };
+
+function itemRow(item: Item, page: NavPage, g: Gates): NavRow {
+  const sub = (item.sub ?? []).filter((s) => (!s.needsSignIn || g.signedIn) && (!s.needsMeetings || g.meetings));
+  // A sub-item that opens the item's own page (Library's Installed) is the
+  // current one there, with the item lit above it.
   const subOpen = sub.some((s) => s.page === page);
   const own = item.page === page;
   const row: NavRow = {
-    key: item.page, label: item.label, target: { kind: "page", page: item.page },
+    key: item.key ?? item.page, label: item.label, target: { kind: "page", page: item.page },
     lit: own || (item.also?.includes(page) ?? false) || subOpen,
-    current: own, parent: subOpen,
+    current: own && !subOpen, parent: subOpen,
   };
   if (sub.length && (own || subOpen)) {
-    row.children = sub.map((s) => itemRow(s, page, signedIn));
+    row.children = sub.map((s) => itemRow(s, page, g));
     row.childrenLabel = `${item.label} sections`;
   }
   return row;
@@ -113,18 +134,24 @@ function itemRow(item: Item, page: NavPage, signedIn: boolean): NavRow {
 
 /** The sidebar's rows, top to bottom. */
 export function navRows(s: NavState): NavRow[] {
-  const signedIn = !!s.signedIn;
-  const rows: NavRow[] = [itemRow(HOME, s.page, signedIn)];
-  for (const a of s.agents ?? []) {
-    const open = s.page === "persistent" && s.agent === a.id;
-    rows.push({ key: `agent:${a.id}`, label: a.label, target: { kind: "agent", id: a.id }, lit: open, current: open, parent: false, running: a.running });
+  const g: Gates = { signedIn: !!s.signedIn, meetings: !!s.meetings };
+  const rows: NavRow[] = [itemRow(HOME, s.page, g)];
+
+  const agentOpen = s.page === "persistent" && (s.agents ?? []).some((a) => a.id === s.agent);
+  const agents: NavRow = {
+    key: "agents", label: "Agents", target: { kind: "page", page: "agents" },
+    lit: s.page === "agents" || s.page === "persistent", current: s.page === "agents", parent: agentOpen,
+  };
+  if (s.agents?.length) {
+    agents.children = s.agents.map((a) => {
+      const open = s.page === "persistent" && s.agent === a.id;
+      return { key: `agent:${a.id}`, label: a.label, target: { kind: "agent", id: a.id }, lit: open, current: open, parent: false, running: a.running };
+    });
+    agents.childrenLabel = "Agents";
   }
-  if (s.meetings) {
-    const open = s.page === "meetings";
-    rows.push({ key: "meetings", label: "Meeting notes", target: { kind: "page", page: "meetings" }, lit: open, current: open, parent: false });
-  }
-  rows.push(itemRow(LIBRARY, s.page, signedIn));
-  rows.push(itemRow(SCHEDULE, s.page, signedIn));
+  rows.push(agents);
+
+  rows.push(itemRow(SCHEDULED, s.page, g));
 
   const buildLit = inBuild(s.page);
   const build: NavRow = {
@@ -132,10 +159,13 @@ export function navRows(s: NavState): NavRow[] {
     lit: buildLit, current: false, parent: buildLit, expanded: s.buildOpen,
   };
   if (s.buildOpen) {
-    build.children = BUILD.map((i) => itemRow(i, s.page, signedIn));
+    build.children = BUILD.map((i) => itemRow(i, s.page, g));
     build.childrenLabel = "Build sections";
   }
   rows.push(build);
+
+  rows.push(itemRow(LIBRARY, s.page, g));
+  rows.push(itemRow(PLUGINS, s.page, g));
 
   const inSettings = s.page === "settings";
   const sectionOpen = inSettings && !!s.section;
@@ -144,7 +174,7 @@ export function navRows(s: NavState): NavRow[] {
     lit: inSettings, current: inSettings && !s.section, parent: sectionOpen,
   };
   if (inSettings && s.sections?.length) {
-    settings.children = s.sections.filter((x) => (!x.needsSignIn || signedIn) && (!x.needsMeetings || !!s.meetings)).map((x) => {
+    settings.children = s.sections.map((x) => {
       const open = sectionOpen && s.section === x.id;
       return { key: `section:${x.id}`, label: x.title, target: { kind: "section", id: x.id }, lit: open, current: open, parent: false };
     });

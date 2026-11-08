@@ -128,8 +128,8 @@ export function builtinPlace(kind: string): { label: string; page: BuiltinPage }
 export function emptyLine(view: { remember: boolean; signedIn: boolean }): string {
   if (!view.remember) {
     return view.signedIn
-      ? "No run In Agentry yet, and runs on this computer are not remembered: Remember recent runs is off in Run defaults."
-      : "Runs on this computer are not remembered: Remember recent runs is off in Run defaults.";
+      ? "No run In Agentry yet, and runs on this computer are not remembered: Remember recent runs is off in Settings → Runs."
+      : "Runs on this computer are not remembered: Remember recent runs is off in Settings → Runs.";
   }
   return "No runs yet. A QuickAgent you run, and a draft, review or build you make, will show here.";
 }

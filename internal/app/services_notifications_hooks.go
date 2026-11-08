@@ -214,9 +214,9 @@ func installEntry(reg, namespace, name, versionInstalled string) notifications.E
 
 // updateAvailableEntry is a newer Agentry Desktop found by the check.
 func updateAvailableEntry(newer string, retired bool) notifications.Entry {
-	body := "Install it from Update settings; the app closes and reopens on the new version."
+	body := "Install it from Settings → Updates and installs; the app closes and reopens on the new version."
 	if retired {
-		body = "It is signed with a key that has since been retired, so this copy will not install it; Update settings says more."
+		body = "It is signed with a key that has since been retired, so this copy will not install it; Settings → Updates and installs says more."
 	}
 	return notifications.Entry{
 		Kind: notifications.KindUpdate, Key: keyUpdateAvailable, Title: "Agentry Desktop " + newer + " is available", Body: body,
@@ -226,7 +226,7 @@ func updateAvailableEntry(newer string, retired bool) notifications.Entry {
 
 // updatedEntry is this copy running a newer version than it last ran.
 func updatedEntry(current string, first string) notifications.Entry {
-	body := "What's new in Update settings lists what it brings."
+	body := "What's new in Settings → Updates and installs lists what it brings."
 	if first != "" {
 		body = first
 	}

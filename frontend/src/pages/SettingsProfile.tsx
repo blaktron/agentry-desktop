@@ -8,7 +8,7 @@ import {
   topUpOffer,
 } from "../subscription";
 
-// Settings → Profile: what the site's /settings/profile shows in its Profile
+// Settings → Account: what the site's /settings/profile shows in its Profile
 // and Subscription cards, for the active registry's stored credential, in the
 // site's words. The landing offers the card only while that registry holds a
 // token. The app writes the display name and nothing else: buying, the billing

@@ -69,7 +69,7 @@ export class ChangedInstall {
 }
 
 /**
- * CodingAgentExport is Settings → Coding tools as the install reads it:
+ * CodingAgentExport is Settings → Updates and installs → Coding tools as the install reads it:
  * the coding-agent export the operator policy implies — the one rule the
  * runner home's export/ follows (installdir.StyleFor: a chosen Claude Code
  * → the Claude skill, else a chosen Codex → AGENTS.md, else an Anthropic

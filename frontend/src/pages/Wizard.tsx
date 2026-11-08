@@ -400,7 +400,7 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
 }
 
 // AgentsStep: the persistent agents as tiles, each turned on or off here
-// through the same Go calls Settings → Persistent Agents makes, at once:
+// through the same Go calls the Agents page makes, at once:
 // turning the Coding agent on raises its own native dialog first, and a No
 // leaves it off. Every agent starts off: the Assistant is recommended, and
 // turning it on turns Agentry Helper, its lite version, off. An agent that is
@@ -447,7 +447,7 @@ function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void
         <h2>Your agents</h2>
         <p className="page-sub">
           Persistent agents run on this computer with your model and keep their conversation between the times you talk
-          to them. Turn on the ones you want; you can change this later in Settings → Persistent Agents.
+          to them. Turn on the ones you want; you can change this later on the Agents page.
         </p>
         <p className="page-sub" data-wizard-personal-agents>
           The Assistant is your personal assistant. Agentry Helper is a lite version of it that works only with Agentry:
@@ -492,7 +492,7 @@ function AgentsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void
 }
 
 // ReviewKeyStep: the person's own AI Review key, asked for where setup is. It
-// is the card Settings → Provider settings shows, recommendation and link
+// is the card Settings → Models and keys shows, recommendation and link
 // included, so the two cannot drift. The step keeps nothing of the key: what
 // the card reports is where the key stands and whether a save is in flight, and
 // the key itself goes to the keychain through the card's one call. A step of
@@ -832,7 +832,7 @@ function RemoteDoneStep({ runhost, onBack, onFinish }: { runhost: app.RunhostVie
       <div className="wizard-body">
         <h1>{runhost.name} is ready</h1>
         <p className="page-sub">
-          Runs go to {runhost.name} unless a run&apos;s setup says otherwise. Settings → Runhosts shows its state, signs it
+          Runs go to {runhost.name} unless a run&apos;s setup says otherwise. Settings → Runs → Runhosts shows its state, signs it
           in to another plan, turns its Unsafe Mode on or off, and removes it.
         </p>
         <ErrorBox error={error} />

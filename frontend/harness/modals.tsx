@@ -398,7 +398,7 @@ const mcp = {
   secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
 };
 
-// Settings → Run defaults: #runpanel-default-agentry
+// Settings → Runs: #runpanel-default-agentry
 // has where to run saved as In Agentry, and the setup opens with it chosen;
 // #runpanel-default-agentry-unscanned the same for a release admitted without
 // a scan, which starts on this computer and says why; #runpanel-default-folder

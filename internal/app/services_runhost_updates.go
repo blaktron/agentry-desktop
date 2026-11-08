@@ -3,7 +3,7 @@ package app
 // A runhost runs the exact CLI version this app carries. After the app
 // updates itself, PostUpdate brings every paired runhost to the CLI the app
 // now carries, over each one's run key, with the signed release checked here
-// and checked again there, and records how each went; Settings → Runhosts
+// and checked again there, and records how each went; Settings → Runs → Runhosts
 // shows that, updates one again, pairs this computer with a runhost set up
 // from another, and takes this computer off one.
 

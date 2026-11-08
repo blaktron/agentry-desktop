@@ -1,4 +1,4 @@
-// What the run setup, Settings → Destinations and a run's result say of a
+// What the run setup, Settings → Connections → Destinations and a run's result say of a
 // destination, a place a run's result is sent. Pure and self-contained, so the
 // node tests can import it: Go decides what is saved, what a send reached and
 // whether a retry is on offer (DestinationsAPI, RunAPI.RunDeliverables); this

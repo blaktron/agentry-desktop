@@ -168,7 +168,7 @@ func prepare(registry, reads, task string) (*Plan, error) {
 	w, search, err := drafter.LocalWeb(pol, registry)
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads %s and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", reads, err)
+		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads %s and everything the draft reads with it before the model does. Add one under Settings → Models and keys → AI Review key: %w", reads, err)
 	case err != nil:
 		return nil, err
 	}

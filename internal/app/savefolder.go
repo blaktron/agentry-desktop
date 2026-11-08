@@ -17,7 +17,7 @@ import (
 // names no path: it passes the QuickAgent's name, and gets back a folder
 // that did not exist before the call.
 
-// saveRoot is the default output folder: Settings → Run defaults → Output
+// saveRoot is the default output folder: Settings → Runs → Output
 // folder when one is saved, else ~/Downloads/agentry-out, as for a run.
 func saveRoot() (string, error) {
 	if st, err := settings.Load(); err == nil && st.DefaultOutputDir != "" {
