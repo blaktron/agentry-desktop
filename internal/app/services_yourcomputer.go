@@ -19,7 +19,9 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -213,7 +215,7 @@ func computerUseView() ComputerUseView {
 func (y *YourComputerAPI) SetComputerUse(on bool) (*YourComputerView, error) {
 	if on {
 		msg := "A QuickAgent that says it does computer use will be able to see and use the windows of the applications it names on this computer, while it runs and while you watch: Agentry Desktop shows that it is working and lets you pause or stop it from the tray, the banner or " + StopKeyName + ". " +
-			"Your desktop may ask you, through its own dialog, which window to share and whether to allow control of the pointer and the keyboard.\n\nTurn computer use on?"
+			computerAskWords() + "\n\nTurn computer use on?"
 		if err := y.app.askConsent("Turn on computer use?", msg); err != nil {
 			return nil, err
 		}
@@ -221,11 +223,51 @@ func (y *YourComputerAPI) SetComputerUse(on bool) (*YourComputerView, error) {
 	if err := settings.SetComputerUse(on); err != nil {
 		return nil, err
 	}
+	if on {
+		// Where the system asks for permissions ahead of a run (macOS:
+		// Screen Recording and Accessibility), it is asked now, from this
+		// switch, never from a run.
+		_ = linkservice.RequestComputerPermissions()
+	}
 	if !on {
 		y.stopComputerUse()
 	}
 	nativeEmit(eventYourComputer)
 	return y.State(), nil
+}
+
+// computerAskWords say what the system itself asks when computer use is
+// turned on or first used.
+func computerAskWords() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macOS asks you to allow Agentry Desktop Screen & System Audio Recording and Accessibility in System Settings; after allowing the first, quit Agentry Desktop and open it again."
+	case "windows":
+		return "Windows asks nothing more; an application run as administrator cannot take Agentry Desktop's input, and a run that uses one is refused."
+	}
+	return "Your desktop may ask you, through its own dialog, which window to share and whether to allow control of the pointer and the keyboard."
+}
+
+// computerPrivacyPanes are the System Settings panes a computer-use
+// permission links to: the only addresses OpenComputerPrivacy opens.
+var computerPrivacyPanes = map[string]string{
+	linkservice.PermissionScreen:        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+	linkservice.PermissionAccessibility: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+}
+
+// OpenComputerPrivacy opens the macOS privacy settings pane of a permission
+// computer use needs: Screen & System Audio Recording, or Accessibility.
+func (y *YourComputerAPI) OpenComputerPrivacy(which string) error {
+	pane, ok := computerPrivacyPanes[which]
+	if !ok || runtime.GOOS != "darwin" {
+		return fmt.Errorf("no privacy settings named %q to open here", which)
+	}
+	cmd := exec.Command("/usr/bin/open", pane)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // SetKeepWhatAgentSaw turns keeping each screenshot in the run's folder on

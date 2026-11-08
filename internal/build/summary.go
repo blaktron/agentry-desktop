@@ -277,6 +277,8 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	if b := m.Browser; b != nil {
 		s.Grants = append(s.Grants, "Opens these in a headless browser it drives: "+mcpview.BrowserReach(b.manifest())+".")
 	}
+	// The install consent's words for the person's computer.
+	s.Grants = append(s.Grants, DesktopConsent(m)...)
 	// The site's words, with each pack's size where the form knows it, and
 	// the confirmation Submit will ask.
 	if ships := compact(m.KnowledgeShips); len(ships) > 0 {

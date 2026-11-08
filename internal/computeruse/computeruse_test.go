@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -221,6 +222,9 @@ func TestAppScopeRefusesAnInputOutsideTheWindow(t *testing.T) {
 // windows, ctrl+alt with a key) is refused in app scope and sent in screen
 // scope; a key combination is pressed in order and released in reverse.
 func TestDesktopKeysAreRefusedInAppScope(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS refuses its own combinations: TestMacOSRefusesOnlyItsOwnCombinations")
+	}
 	f := newFake()
 	a := New(f, Options{Scope: ScopeApp})
 	for _, k := range []string{"super", "super+e", "alt+Tab", "ctrl+alt+t", "alt+F2", "ctrl+alt+Delete", "Print"} {

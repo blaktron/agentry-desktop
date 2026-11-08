@@ -43,6 +43,7 @@ import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { RevisionView } from "./BuildRevision";
 import { BuildShips } from "./BuildShips";
+import { DesktopLine } from "./BuildDesktop";
 import { BUILD_TAGLINE, BuildWays } from "./BuildWays";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
@@ -1037,6 +1038,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <span className="mono">{(m.targetHosts ?? []).join(", ")}</span>. Kept as it was drafted or loaded.
           </p>
         )}
+        <DesktopLine m={m} set={set} />
       </>
     ),
     questions: (

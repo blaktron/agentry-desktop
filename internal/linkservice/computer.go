@@ -57,10 +57,13 @@ type ComputerOptions struct {
 	AskScreen func(ctx context.Context, who string) error
 }
 
-// computerWindows are the window classes of each catalogue application's
-// windows: its X11 WM_CLASS and its Wayland app id.
+// computerWindows name each catalogue application's windows on every
+// system, matched without regard to case against what the system gives: on
+// Linux its X11 WM_CLASS and its Wayland app id, on macOS its bundle
+// identifier and its process name, on Windows its executable's file name.
 var computerWindows = map[string][]string{
-	"blender": {"blender", "Blender", "org.blender.Blender"},
+	"blender": {"blender", "Blender", "org.blender.Blender", "org.blenderfoundation.blender", "blender.exe"},
+	"unreal":  {"UnrealEditor", "com.epicgames.UnrealEditor", "UnrealEditor.exe"},
 }
 
 // computerBinding is a run's bound computer use.
@@ -334,4 +337,27 @@ type Support struct {
 	Problem string `json:"problem,omitempty"`
 	// Holds says what the window system holds of app scope here.
 	Holds string `json:"holds,omitempty"`
+	// Permissions are the system's privacy permissions computer use needs
+	// here, each granted or not; none where the system asks for none
+	// ahead of a run.
+	Permissions []Permission `json:"permissions,omitempty"`
 }
+
+// Permission is one privacy permission of the system's.
+type Permission struct {
+	// Key names it to OpenComputerPrivacy: PermissionScreen or
+	// PermissionAccessibility.
+	Key string `json:"key"`
+	// Name is the system's own name for it, as its settings show it.
+	Name string `json:"name"`
+	// Granted says the system has granted it to Agentry Desktop.
+	Granted bool `json:"granted"`
+	// Why says what computer use needs it for.
+	Why string `json:"why"`
+}
+
+// The permissions macOS asks for.
+const (
+	PermissionScreen        = "screen"
+	PermissionAccessibility = "accessibility"
+)

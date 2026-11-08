@@ -163,10 +163,6 @@ var leftOut = map[string]bool{
 	"persona":                 true,
 	"capabilities.persistent": true,
 	"dependencies.agents.why": true,
-	// The applications on the person's computer a release uses: the form
-	// does not offer the line yet either, and a draft that carries it says
-	// so in its notes.
-	"capabilities.desktop": true,
 }
 
 // TestDraftFieldsCoverTheCoresSchema walks the core's manifest types and
