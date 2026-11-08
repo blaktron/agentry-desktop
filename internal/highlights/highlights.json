@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.27",
+      "highlights": [
+        "The sidebar is grouped like Settings: Agents, Scheduled, Build, Library and Plugins, under Home.",
+        "Meeting notes and Computer use now live under Plugins, and each persistent agent is listed under Agents.",
+        "Settings has eight sections instead of fifteen, so the settings that belong together sit together."
+      ]
+    },
+    {
       "version": "0.7.26",
       "highlights": [
         "The Assistant can run your installed QuickAgents without asking each time, once you switch that on in Settings.",
