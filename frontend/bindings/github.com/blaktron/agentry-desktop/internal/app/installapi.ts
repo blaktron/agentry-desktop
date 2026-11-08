@@ -73,7 +73,7 @@ export function Forget(k: installed$0.Key): $CancellablePromise<void> {
 /**
  * InstallRunner is the one-click install: the release resolved, verified and
  * laid down in the runner home — the directory a run reads — with no target
- * or directory to choose. With Settings → Coding tools' "also install into
+ * or directory to choose. With Settings → Updates and installs → Coding tools' "also install into
  * <coding agent>" on, the same verified bytes are also written where the
  * coding agent reads — the Claude skill or AGENTS.md, whichever the policy
  * implies — as an export with its own record. The gates are the only
