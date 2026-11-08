@@ -3,14 +3,17 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/managed"
 
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -54,6 +57,14 @@ func TestMain(m *testing.M) {
 	// No test looks a server's icon up in the MCP Registry.
 	findIcon = func(context.Context, manifest.MCPServer) ([]byte, string, error) {
 		return nil, "", errors.New("no network in tests")
+	}
+	// No test asks a registry for its managed settings unless it says so:
+	// a test's fake registry answers the sign-in's own requests only.
+	managedCalls.sync = func(context.Context, *http.Client, string, string, time.Duration) (*managed.State, error) {
+		return nil, nil
+	}
+	managedCalls.refresh = func(context.Context, *http.Client, string, string) (*managed.State, error) {
+		return nil, nil
 	}
 	code := m.Run()
 	_ = os.RemoveAll(dir)

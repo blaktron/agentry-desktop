@@ -78,8 +78,13 @@ type SettingsView struct {
 	// signed in.
 	Onboarded bool `json:"onboarded"`
 	// UnsafeMode is Run defaults' switch: the shell draws the red edge and
-	// the sidebar's badge from it.
+	// the sidebar's badge from it. It is off while managed settings refuse
+	// Unsafe Mode.
 	UnsafeMode bool `json:"unsafeMode"`
+	// Managed are the organizations' managed settings held here, verified;
+	// ManagedProblems the cached copies that do not verify.
+	Managed         []ManagedView `json:"managed"`
+	ManagedProblems []string      `json:"managedProblems"`
 }
 
 func settingsView() (*SettingsView, error) {
@@ -88,9 +93,12 @@ func settingsView() (*SettingsView, error) {
 		return nil, err
 	}
 	path, _ := settings.Path()
+	held := managedCalls.current()
 	v := &SettingsView{
-		DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded, UnsafeMode: s.UnsafeMode,
+		DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded,
+		UnsafeMode:            s.UnsafeMode && held.UnsafeModeRefusal() == "",
 		SecureAgentryRegistry: settings.SecureAgentryRegistry(), SelfHostedRegistry: s.SelfHostedRegistry(),
+		Managed: managedViews(held), ManagedProblems: managedProblems(held),
 	}
 	for _, r := range s.Registries {
 		src := settings.TokenSource(r.URL)
@@ -223,6 +231,7 @@ func (s *SettingsAPI) RemoveRegistry(url string) (*SettingsView, error) {
 		return nil, err
 	}
 	resealSchedules(s.app)
+	s.signedOutManaged(settings.Normalize(url))
 	cfg, err := settings.Load()
 	if err != nil {
 		return nil, err
@@ -337,6 +346,9 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	}
 	tokenAccepted(url)
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
+	// The managed settings held were whoever signed in before; the new
+	// account's are read with the keys just pinned.
+	s.signedInManaged(url, token)
 	// A schedule that runs signed out carries the registry token sealed
 	// beside it: the new one is sealed in its place.
 	resealSchedules(s.app)
@@ -355,6 +367,7 @@ func (s *SettingsAPI) SignOut(url string) (*SettingsView, error) {
 	}
 	tokenAccepted(url)
 	resealSchedules(s.app)
+	s.signedOutManaged(settings.Normalize(url))
 	return settingsView()
 }
 

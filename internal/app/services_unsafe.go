@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -34,10 +36,13 @@ const (
 )
 
 // unsafeModeOn reads the switch. A settings file that cannot be read is
-// off: nothing turns Unsafe Mode on by failing.
+// off: nothing turns Unsafe Mode on by failing. While managed settings
+// refuse Unsafe Mode it is off too, whatever desktop.yaml holds: the switch
+// shows off and locked, and no run here asks for what the runner would
+// refuse.
 func unsafeModeOn() bool {
 	st, err := settings.Load()
-	return err == nil && st.UnsafeMode
+	return err == nil && st.UnsafeMode && unsafeModeRefusal() == ""
 }
 
 // SetUnsafeMode turns Unsafe Mode on or off and returns Run defaults as
@@ -50,12 +55,19 @@ func unsafeModeOn() bool {
 // the run lock with its progress streamed as runner:unsafe-progress, and
 // writes the setting only once the image is here and its command index
 // reads. A No, a failed pull or a busy docker leaves the switch off.
+//
+// While the organization's managed settings forbid Unsafe Mode (or a cached
+// copy of them does not verify), On is refused with their reason before any
+// dialog or pull. Off is never refused.
 func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	if !on {
 		if err := settings.SetUnsafeMode(false); err != nil {
 			return nil, err
 		}
 		return runDefaultsView()
+	}
+	if reason := unsafeModeRefusal(); reason != "" {
+		return nil, errors.New(reason)
 	}
 	if unsafeModeOn() {
 		return runDefaultsView()

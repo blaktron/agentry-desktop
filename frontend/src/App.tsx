@@ -296,6 +296,9 @@ export default function App() {
   // A registry answered 401 to the sign-in this app holds: the settings
   // view now says so, and everything drawn from it reads as signed out.
   useEffect(() => EventsOn("auth:changed", () => { refreshSettings().catch(() => {}); }), [refreshSettings]);
+  // The organization's managed settings changed: the settings view (Unsafe
+  // Mode's edge among it) is read again.
+  useEffect(() => EventsOn("managed:changed", () => { refreshSettings().catch(() => {}); }), [refreshSettings]);
 
   useEffect(() => {
     refreshSettings()
