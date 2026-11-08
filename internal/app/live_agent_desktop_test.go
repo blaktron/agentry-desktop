@@ -91,9 +91,7 @@ func TestLiveAgentDesktop(t *testing.T) {
 			t.Log("holding the paired runhosts' agents links")
 		case linked && away:
 			stopLinks()
-			rh.links.mu.Lock()
-			rh.links.linked, rh.links.keeping = nil, nil
-			rh.links.mu.Unlock()
+			rh.stopAgentsLinks()
 			linked = false
 			t.Log("gave the runhosts' agents links up, as closing the app would")
 		}

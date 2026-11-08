@@ -11,6 +11,7 @@ package app
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -91,20 +92,35 @@ func (r *RunhostsAPI) keepAgentsLinks(ctx context.Context) {
 // keepAgentsLink holds runhost rec's agents link while ctx lives, opening
 // it again after it ends.
 func (r *RunhostsAPI) keepAgentsLink(ctx context.Context, rec runhost.Record) {
+	name := rec.Name
 	bind := func(ctx context.Context, req desktop.BindRequest) (*engine.DesktopLink, error) {
-		req.Agent += " on " + rec.Name
+		req.Agent += " on " + name
 		return r.run.bindDesktop(ctx, req)
 	}
+	var said string
 	for ctx.Err() == nil {
-		keys, err := runhost.LoadKeys(rec.Name)
+		// The record is read again each time: a runhost set up again under
+		// its name has a new address and host key.
+		if home, err := r.home(); err == nil {
+			if recs, err := runhost.LoadRecords(home); err == nil {
+				if fresh, ok := recs.Find(name); ok {
+					rec = *fresh
+				}
+			}
+		}
+		keys, err := runhost.LoadKeys(name)
 		if err == nil {
 			forward, closeAll := remote.AgentsForward(bind)
-			_ = remote.KeepLink(ctx, remote.LinkDialerFrom(nil, &rec, keys), remote.AgentsLinkID, forward, func() {
-				r.setAgentsLinked(rec.Name, true)
+			err = remote.KeepLink(ctx, remote.LinkDialerFrom(nil, &rec, keys), remote.AgentsLinkID, forward, func() {
+				r.setAgentsLinked(ctx, name, true)
 			})
 			closeAll()
 		}
-		r.setAgentsLinked(rec.Name, false)
+		if err != nil && ctx.Err() == nil && err.Error() != said {
+			said = err.Error()
+			log.Printf("agentry-desktop: the agents of runhost %s are not linked to this computer: %v", name, err)
+		}
+		r.setAgentsLinked(ctx, name, false)
 		select {
 		case <-ctx.Done():
 			return
@@ -113,12 +129,25 @@ func (r *RunhostsAPI) keepAgentsLink(ctx context.Context, rec runhost.Record) {
 	}
 }
 
-func (r *RunhostsAPI) setAgentsLinked(name string, on bool) {
+// setAgentsLinked records whether runhost name's agents are linked, for a
+// keeper still running: a keeper ended (its runhost removed) records
+// nothing over the one that replaced it.
+func (r *RunhostsAPI) setAgentsLinked(ctx context.Context, name string, on bool) {
 	r.links.mu.Lock()
-	if r.links.linked != nil {
+	if r.links.linked != nil && ctx.Err() == nil {
 		r.links.linked[name] = on
 	}
 	r.links.mu.Unlock()
+}
+
+// stopAgentsLinks gives every runhost's agents link up, as quitting does.
+func (r *RunhostsAPI) stopAgentsLinks() {
+	r.links.mu.Lock()
+	defer r.links.mu.Unlock()
+	for _, stop := range r.links.keeping {
+		stop()
+	}
+	r.links.linked, r.links.keeping = nil, nil
 }
 
 // agentsLinked says runhost name's agents are linked to this computer now.

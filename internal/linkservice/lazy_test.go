@@ -72,3 +72,17 @@ func TestAnAgentsExecAgreementSkipsTheAsk(t *testing.T) {
 		t.Fatalf("a run's exec call with the flag set: %+v, asked %d", ref, len(r2.asked))
 	}
 }
+
+// A bind that names an agent but is not lazy (a run over the link socket)
+// never carries the agreement.
+func TestOnlyALazyAgentBindCarriesTheExecAgreement(t *testing.T) {
+	r := newRig(t)
+	b, ref := r.s.Bind(context.Background(), desktop.BindRequest{Run: "R", Ref: "acme/scene@1.0.0", Agent: "Someone",
+		Servers: []desktop.BindServer{{ID: "blender", Tools: []string{"execute_blender_code"}, ExecAgreed: true}}})
+	if ref != nil {
+		t.Fatal(ref)
+	}
+	if _, ref := call(r, b.Token, "blender", "execute_blender_code", `{"code":"print(1)"}`); ref == nil || len(r.asked) != 1 {
+		t.Fatalf("a non-lazy agent bind's exec call: %+v, asked %d", ref, len(r.asked))
+	}
+}

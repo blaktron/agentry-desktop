@@ -240,7 +240,9 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 		if r != nil {
 			return fail(r)
 		}
-		bs.execAgreed = want.ExecAgreed && req.Agent != ""
+		// Only an agent's segment, bound lazily, carries the person's
+		// agreement: a run's code always asks.
+		bs.execAgreed = want.ExecAgreed && req.Lazy && req.Agent != ""
 		b.servers[want.ID] = bs
 		b.order = append(b.order, want.ID)
 		bound.Servers[want.ID] = bs.tools
@@ -312,13 +314,14 @@ func (s *Service) prepareLazy(ctx context.Context, want desktop.BindServer) (*bo
 
 // started readies a lazy server for a call: the application running, and
 // its installed server started when it has none; the step to take while
-// the application is not running.
-func (bs *boundServer) started(ctx context.Context, s *Service) *desktop.Refusal {
+// the application is not running. A server started for a binding that ends
+// meanwhile (a Stop) is closed, never kept.
+func (bs *boundServer) started(ctx context.Context, s *Service, b *binding) *desktop.Refusal {
 	if !bs.lazy {
 		return nil
 	}
-	// Whether the application is running is read at each call: its
-	// installed server may answer some tools without it.
+	// Whether the application is running is read before each call, even
+	// where the installed server is running already.
 	e := bs.entry
 	if st := s.check(ctx, e); !st.Ready {
 		return refusal(receipt.DesktopNotInstalled, e.ID, "%s", st.Sentence(e))
@@ -329,11 +332,15 @@ func (bs *boundServer) started(ctx context.Context, s *Service) *desktop.Refusal
 	if has {
 		return nil
 	}
-	sess, launch, err := s.open(ctx, e)
+	octx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(b.ctx, cancel)
+	defer stop()
+	sess, launch, err := s.open(octx, e)
 	if err != nil {
 		return refusal(receipt.DesktopNotInstalled, e.ID, "%s's installed server (%s) did not start on this computer: %v", e.Application, e.Package.Ref(), err)
 	}
-	listed, err := sess.Tools(ctx)
+	listed, err := sess.Tools(octx)
 	if err != nil {
 		_ = sess.Close()
 		return refusal(receipt.DesktopNotInstalled, e.ID, "%s's installed server did not list its tools: %v", e.Application, err)
@@ -346,12 +353,27 @@ func (bs *boundServer) started(ctx context.Context, s *Service) *desktop.Refusal
 	}
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	if bs.sess != nil {
+	if bs.sess != nil || b.ctx.Err() != nil {
 		_ = sess.Close()
+		if b.ctx.Err() != nil {
+			return refusal(receipt.DesktopStopped, e.ID, "the use of your computer ended")
+		}
 		return nil
 	}
 	bs.sess, bs.launch = sess, launch
 	return nil
+}
+
+// forget closes a lazy server's session after its application closed: the
+// next call that finds the application running starts a fresh one.
+func (bs *boundServer) forget() {
+	bs.mu.Lock()
+	sess := bs.sess
+	bs.sess = nil
+	bs.mu.Unlock()
+	if sess != nil {
+		_ = sess.Close()
+	}
 }
 
 // prepare is the pre-start check of one application server and its start:
@@ -465,7 +487,7 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 		return desktoplink.Answer{}, r
 	}
 	defer func() { <-b.slots }()
-	if r := bs.started(ctx, s); r != nil {
+	if r := bs.started(ctx, s, b); r != nil {
 		b.count(req.Server, tool.Class, r.Reason)
 		return desktoplink.Answer{}, r
 	}
@@ -493,6 +515,7 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 		// An application closed since the last call is the step to take,
 		// not a failure of the agent's.
 		if st := s.check(ctx, bs.entry); !st.Ready {
+			bs.forget()
 			r := refusal(receipt.DesktopNotInstalled, req.Server, "%s", st.Sentence(bs.entry))
 			b.count(req.Server, tool.Class, r.Reason)
 			return desktoplink.Answer{}, r
