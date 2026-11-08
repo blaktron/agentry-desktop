@@ -12,7 +12,7 @@ package app
 //	AGENTRY_RUNNER_HOME=<the scratch runner home, its policy.yaml naming the model> \
 //	AGENTRY_LIVE_DESKTOP_OUT=<a scratch folder> \
 //	AGENTRY_LIVE_DESKTOP_REGISTRY=<the registry, default https://dev.secureagentry.net> \
-//	AGENTRY_LIVE_DESKTOP_REF=<a release that declares blender> \
+//	AGENTRY_LIVE_DESKTOP_REF=<a release that declares blender, required> \
 //	go test -run TestLiveDesktopLinkOnARunhost -v -timeout 60m ./internal/app
 //
 // The model must make a second desktop call well after the first, so the
@@ -41,7 +41,10 @@ func TestLiveDesktopLinkOnARunhost(t *testing.T) {
 		t.Fatalf("set %s, %s and AGENTRY_LIVE_DESKTOP_OUT to scratch directories", configdir.EnvVar, policy.HomeEnv)
 	}
 	reg := cmp.Or(os.Getenv("AGENTRY_LIVE_DESKTOP_REGISTRY"), "https://dev.secureagentry.net")
-	ref := cmp.Or(os.Getenv("AGENTRY_LIVE_DESKTOP_REF"), "chris/desktop-link-check@1.3.0")
+	ref := os.Getenv("AGENTRY_LIVE_DESKTOP_REF")
+	if ref == "" {
+		t.Fatal("set AGENTRY_LIVE_DESKTOP_REF to a release that declares blender")
+	}
 	out := os.Getenv("AGENTRY_LIVE_DESKTOP_OUT")
 
 	old := emitEvent

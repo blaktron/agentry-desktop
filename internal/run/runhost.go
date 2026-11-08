@@ -210,11 +210,12 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	}
 	run.Model, run.ModelKey = job.ModelOf(pol.Model), modelKey
 	// The applications on this computer: the run is bound here before
-	// anything is sent, or refused as a run on this computer would be. This
-	// app unbinds once the job has ended: a job it lost goes on there, and
-	// a later attach links it again.
+	// anything is sent, or refused as a run on this computer would be. The
+	// binding is ended on every return but one: a job this app lost goes on
+	// there, and its binding stays while the app runs, so the job's calls are
+	// refused there until the app quits.
 	var link *engine.DesktopLink
-	ended := false
+	ended := true
 	if d := m.Capabilities.Desktop; d != nil {
 		link, err = bindRunhostDesktop(ctx, req.BindDesktop, d, pol, id, sig, req.OutDir)
 		if err != nil {
@@ -255,9 +256,9 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 		defer keepRunhostLink(ctx, c, rec, keys, j.ID, remote.BindingForward(link, id), say)()
 	}
 	res, started, next, err := remote.Start(ctx, c, j, archive, files, false, say, nil, nil)
+	ended = !started || err == nil
 	switch {
 	case err != nil && !started:
-		ended = true
 		remote.DropJob(home, j.ID)
 		return nil, ranOn, engine.Classify(remote.SendClass(err), err)
 	case err != nil:
