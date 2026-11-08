@@ -49,12 +49,16 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
   // kind for a run, a draft, a knowledge build, a scheduled run or an
   // install that ends (null until read).
   const [finishedNotes, setFinishedNotes] = useState<boolean | null>(null);
+  // Let the Assistant run QuickAgents without asking: off by default, and
+  // turned on only through Go's native confirmation (null until read).
+  const [unaskedRuns, setUnaskedRuns] = useState<boolean | null>(null);
 
   useEffect(() => {
     void refreshAgents();
     PersistentAPI.StartsAtSignIn().then(setAtSignIn).catch((e) => { setAtSignIn(false); setError(String(e)); });
     PersistentAPI.TaskNotifications().then(setTaskNotes).catch((e) => { setTaskNotes(true); setError(String(e)); });
     NotificationsAPI.FinishedNotifications().then(setFinishedNotes).catch((e) => { setFinishedNotes(true); setError(String(e)); });
+    PersistentAPI.AssistantRunsWithoutAsking().then(setUnaskedRuns).catch((e) => { setUnaskedRuns(false); setError(String(e)); });
   }, []);
 
   const act = async (name: string, f: () => Promise<app.PersistentAgentView>, asked = false) => {
@@ -238,6 +242,34 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           When a run, a draft, a knowledge build, a scheduled run or an install ends while another page is open or the window
           is hidden, your computer shows a notification that opens the result. Nothing shows while the result is already in
           front of you. Every ending is listed on the Notifications page either way.
+        </p>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            role="switch"
+            data-assistant-runs-without-asking
+            checked={!!unaskedRuns}
+            disabled={unaskedRuns === null}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setError(null);
+              setNote(null);
+              PersistentAPI.SetAssistantRunsWithoutAsking(on)
+                .then(setUnaskedRuns)
+                .catch((err) => {
+                  PersistentAPI.AssistantRunsWithoutAsking().then(setUnaskedRuns).catch(() => setUnaskedRuns(false));
+                  if (String(err).includes("not confirmed")) setNote("Nothing was changed.");
+                  else setError(String(err));
+                });
+            }}
+          />
+          Let the Assistant run QuickAgents without asking
+        </label>
+        <p className="small muted">
+          Off: the Assistant asks before its first run of each QuickAgent version, and again for each new repository or file
+          address a run fetches from. On: it runs any QuickAgent installed on this computer without asking, and anything it
+          reads, such as mail or a web page, can lead it to start one. Installs and schedules still ask, Agentry Helper still
+          asks, and every run is listed in Recent runs. Turning it on asks you to confirm.
         </p>
       </Card>
       {configuring && <AgentConfigModal name={configuring} registry={registry} onClose={() => setConfiguring(null)} />}

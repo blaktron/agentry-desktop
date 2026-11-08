@@ -199,6 +199,45 @@ func (p *PersistentAPI) SetTaskNotifications(on bool) (bool, error) {
 	return on, nil
 }
 
+// The confirmation's words for letting the Assistant run QuickAgents
+// without asking: what the agreed-run dialog stops guarding, what still
+// holds, and that text reaching the Assistant can now start a run.
+const (
+	unaskedRunsTitle   = "Let the Assistant run QuickAgents without asking?"
+	unaskedRunsMessage = "The Assistant can start a run of any QuickAgent installed on this computer without asking you first: any version, with any answers it gives the QuickAgent's questions, on any repository or file address, using the key saved in Agentry for each address's host, and with files from its share folder.\n\n" +
+		"Mail, documents and web pages the Assistant reads can lead it to start a run you did not ask for.\n\n" +
+		"What still holds: installing a QuickAgent and adding or removing a schedule still ask you. Each run is an ordinary run under what the QuickAgent was installed with, listed in Recent runs and writing to your output folder. Agentry Helper still asks before its runs.\n\n" +
+		"You can turn this off at any time in Settings → Persistent Agents.\n\nTurn it on?"
+)
+
+// assistantRunsWithoutAsking reads the switch. A settings file that cannot
+// be read is off: nothing stops asking by failing.
+func assistantRunsWithoutAsking() bool {
+	st, err := settings.Load()
+	return err == nil && st.AssistantRunsWithoutAsking
+}
+
+// AssistantRunsWithoutAsking reports whether the Assistant starts runs of
+// installed QuickAgents without the agreed-run dialog.
+func (p *PersistentAPI) AssistantRunsWithoutAsking() bool {
+	return assistantRunsWithoutAsking()
+}
+
+// SetAssistantRunsWithoutAsking turns that on or off, and answers how it now
+// stands. The renderer is not a principal, so on is a native confirmation
+// the page cannot answer, and a No leaves it off; off is immediate.
+func (p *PersistentAPI) SetAssistantRunsWithoutAsking(on bool) (bool, error) {
+	if on && !assistantRunsWithoutAsking() {
+		if err := p.app.askConsent(unaskedRunsTitle, unaskedRunsMessage); err != nil {
+			return false, err
+		}
+	}
+	if err := settings.SetAssistantRunsWithoutAsking(on); err != nil {
+		return assistantRunsWithoutAsking(), err
+	}
+	return on, nil
+}
+
 // PageView is the view a persistent agent's page is drawn in: one of
 // settings.AgentViews.
 func (p *PersistentAPI) PageView() (string, error) { return settings.AgentViewNow() }

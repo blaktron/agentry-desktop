@@ -102,6 +102,14 @@ export function AddSuggested(name: string, key: string): $CancellablePromise<$mo
 }
 
 /**
+ * AssistantRunsWithoutAsking reports whether the Assistant starts runs of
+ * installed QuickAgents without the agreed-run dialog.
+ */
+export function AssistantRunsWithoutAsking(): $CancellablePromise<boolean> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.AssistantRunsWithoutAsking");
+}
+
+/**
  * CancelCalendarSignIn ends a calendar sign-in waiting in a browser
  * window: the window closes and nothing is kept.
  */
@@ -391,6 +399,15 @@ export function SetAccount(name: string, f: $models.PersistentAccountForm): $Can
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.SetAccount", name, f).then(($result: any) => {
         return $$createType1($result)!;
     });
+}
+
+/**
+ * SetAssistantRunsWithoutAsking turns that on or off, and answers how it now
+ * stands. The renderer is not a principal, so on is a native confirmation
+ * the page cannot answer, and a No leaves it off; off is immediate.
+ */
+export function SetAssistantRunsWithoutAsking(on: boolean): $CancellablePromise<boolean> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.SetAssistantRunsWithoutAsking", on);
 }
 
 /**
