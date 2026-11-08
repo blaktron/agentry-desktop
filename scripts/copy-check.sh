@@ -34,6 +34,11 @@ WORDS='safe|safely|secure|securely|secured|guarantee|guarantees|guaranteed|trust
 # what holds the pack's key instead. Checked over its own files only, since "private" is the product's
 # word elsewhere (a private QuickAgent, a private organization agent).
 KNOWLEDGE_WORDS="$WORDS|private|privately"
+# Phrases that claim more than a check did: every version is scanned or
+# signed. The registry scans and signs what it publishes, but an installer can
+# be asked to accept an unscanned or unsigned release, so the copy says what a
+# version carries instead.
+PHRASES='(every|each) (published )?(version|release|quickagent|package) (is|gets) (scanned|signed)|all (published )?(versions|releases|quickagents|packages) are (scanned|signed)|scanned, signed quickagents'
 
 # The files this app's copy lives in: the frontend it ships (not the
 # dev-only harness, not the generated bindings) and its Go sources (not
@@ -98,12 +103,12 @@ check_tree() {
       # What is left once the allowed spans are gone must carry no word.
       # (>/dev/null, not -q: grep -q would cut the writer off and pipefail
       # would read its EPIPE as the answer.)
-      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($words)\\b" >/dev/null; then
+      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($words)\\b|$PHRASES" >/dev/null; then
         continue
       fi
       printf '%s:%s\n' "${file#"$ROOT"/}" "$hit" >&2
       status=1
-    done < <(grep -nIiE "\\b($words)\\b" "$file" || true)
+    done < <(grep -nIiE "\\b($words)\\b|$PHRASES" "$file" || true)
   done < <(copy_files)
   return $status
 }
@@ -120,6 +125,12 @@ if [ "${1:-}" = "--self-test" ]; then
   printf 'export const line = "This run wrote three reports.";\n' > "$tmp/frontend/src/Bad.tsx"
   if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
     echo "self-test FAILED: honest copy was refused" >&2
+    exit 1
+  fi
+  # A claim that every version is scanned fails like a never-word.
+  printf 'export const line = "Every published version is scanned.";\n' > "$tmp/frontend/src/Bad.tsx"
+  if COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
+    echo "self-test FAILED: a claim that every version is scanned passed the check" >&2
     exit 1
   fi
   # The Knowledge panel's files also refuse "private"; the rest do not.
@@ -167,7 +178,8 @@ cat >&2 <<'MSG'
 
 The lines above use a word this product's copy does not use: the app says
 what ran and what was enforced, never that something is safe, secure,
-guaranteed or trusted. Rewrite the sentence, or — if the word is there
+guaranteed or trusted, and never that every version is scanned or signed.
+Rewrite the sentence, or — if the word is there
 because the rule is what the sentence is about — add the span to
 scripts/copy-allow.txt with the reason.
 MSG
