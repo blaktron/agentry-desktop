@@ -42,6 +42,7 @@ func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, 
 		Runhost: name, Registry: reg, Ref: ref, Task: task, InputPaths: inputPaths, Intake: intakeAnswers,
 		OutDir: outDir, OutDirIsRoot: isSavedOutputDir(outDir), TimeoutSeconds: timeoutSec, MaxTurns: maxTurns,
 		AcceptUnsigned: acceptUnsigned, AcceptUnscanned: acceptUnscanned, CLIVersion: carriedCLIVersion(), Say: say,
+		BindDesktop: r.bindDesktop,
 	}, logw)
 	recordLocal(ctx, r.app, runhistory.KindRun, live, ref, res, err)
 	if err != nil {
