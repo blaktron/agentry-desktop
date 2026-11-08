@@ -509,6 +509,91 @@ func TestTheAssistantAsksInItsOwnName(t *testing.T) {
 	}
 }
 
+// While the person lets the Assistant run QuickAgents without asking, its
+// runs start with no dialog and record nothing, for any version and any
+// address; Agentry Helper's runs still ask.
+func TestTheAssistantRunsWithoutAskingOnlyWhileTheSwitchIsOn(t *testing.T) {
+	rig := newMainRig(t)
+	agreedFile, _ := rig.m.agreedPath()
+	rig.installedHere("acme", "pdf-summary", "1.0.0")
+	run := map[string]any{"ref": "acme/pdf-summary", "task": "summarise it"}
+
+	on := false
+	rig.m.unasked = func() bool { return on }
+	rig.answer = false
+	if a := rig.call(t, "quickagent_run", run); !a.IsError || len(rig.asked) != 1 || len(rig.ops.runs) != 0 {
+		t.Fatalf("with the switch off: %+v, dialogs %d, runs %d", a, len(rig.asked), len(rig.ops.runs))
+	}
+
+	on = true
+	if a := rig.call(t, "quickagent_run", run); a.IsError || len(rig.asked) != 1 || len(rig.ops.runs) != 1 {
+		t.Fatalf("with the switch on: %+v, dialogs %d, runs %d", a, len(rig.asked), len(rig.ops.runs))
+	}
+	if _, err := os.Stat(agreedFile); !os.IsNotExist(err) {
+		t.Errorf("a run started without asking was recorded as agreed: %v", err)
+	}
+
+	// The Helper's handler has no switch: its runs ask whatever the
+	// Assistant's says.
+	rig.m.unasked = nil
+	if a := rig.call(t, "quickagent_run", run); !a.IsError || len(rig.ops.runs) != 1 {
+		t.Fatalf("the Helper's run: %+v, runs %d", a, len(rig.ops.runs))
+	}
+}
+
+// The switch is the Assistant's alone: its handler reads it from the
+// settings file, the Helper's does not, and it is off until turned on.
+func TestOnlyTheAssistantsLinkReadsTheSwitch(t *testing.T) {
+	_, runnerHome := isolateHomes(t)
+	home := func() (string, error) { return runnerHome, nil }
+	app := &App{ctx: context.Background()}
+	helper, assistant := newAgentLink(app, &fakeMainOps{}, home, mainAgent), newAgentLink(app, &fakeMainOps{}, home, assistantAgent)
+	if helper.unasked != nil {
+		t.Fatal("the Helper's handler reads the switch")
+	}
+	if assistant.unasked == nil || assistant.unasked() {
+		t.Fatal("the Assistant runs without asking by default")
+	}
+	if err := settings.SetAssistantRunsWithoutAsking(true); err != nil {
+		t.Fatal(err)
+	}
+	if !assistant.unasked() {
+		t.Fatal("the switch is on and the Assistant still asks")
+	}
+}
+
+// The page cannot turn the switch on: on is a native dialog first, and a No
+// leaves it off; off is immediate and asks nothing.
+func TestTurningOnRunsWithoutAskingAsksNatively(t *testing.T) {
+	isolateHomes(t)
+	var asked []string
+	answer := false
+	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, msg string) (bool, error) {
+		asked = append(asked, title+"\n"+msg)
+		return answer, nil
+	}}
+	p := &PersistentAPI{app: app}
+	if p.AssistantRunsWithoutAsking() {
+		t.Fatal("on by default")
+	}
+	if on, err := p.SetAssistantRunsWithoutAsking(true); err == nil || on || p.AssistantRunsWithoutAsking() {
+		t.Fatalf("a No: on %v, err %v", on, err)
+	}
+	if len(asked) != 1 || !strings.Contains(asked[0], "without asking") || !strings.Contains(asked[0], "Mail, documents and web pages") {
+		t.Fatalf("the dialog: %v", asked)
+	}
+	answer = true
+	if on, err := p.SetAssistantRunsWithoutAsking(true); err != nil || !on || !p.AssistantRunsWithoutAsking() {
+		t.Fatalf("a Yes: on %v, err %v", on, err)
+	}
+	if on, err := p.SetAssistantRunsWithoutAsking(true); err != nil || !on || len(asked) != 2 {
+		t.Fatalf("turning on what is on asked again: on %v, err %v, dialogs %d", on, err, len(asked))
+	}
+	if on, err := p.SetAssistantRunsWithoutAsking(false); err != nil || on || p.AssistantRunsWithoutAsking() || len(asked) != 2 {
+		t.Fatalf("off: on %v, err %v, dialogs %d", on, err, len(asked))
+	}
+}
+
 // Reading the agents, as Home and Settings do on load, starts none, and
 // Agentry Helper is off until the person turns it on: a start while it is
 // off is refused rather than turning it on.

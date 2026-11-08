@@ -81,6 +81,13 @@ type Settings struct {
 	// while another page is open, or the window is hidden, raises a
 	// notification, and that is how the person learns it ended.
 	FinishedNotificationsOff bool `yaml:"finishedNotificationsOff,omitempty" json:"-"`
+	// AssistantRunsWithoutAsking is Settings → Persistent Agents' "Let the
+	// Assistant run QuickAgents without asking". A plain bool because it
+	// defaults OFF: while it is off, the Assistant's first run of each
+	// QuickAgent version, and each new address a run fetches, asks in a
+	// native dialog. Save does not write it: SetAssistantRunsWithoutAsking is
+	// its one writer, after the native confirmation when it turns it on.
+	AssistantRunsWithoutAsking bool `yaml:"assistantRunsWithoutAsking,omitempty" json:"-"`
 	// AgentView is the view a persistent agent's page is drawn in, chosen
 	// from that page's View menu for every agent: one of AgentViews, "" for
 	// Terminal. Read it through AgentViewNow.
@@ -389,7 +396,7 @@ var saveMu sync.Mutex
 //
 // It never changes the Unsafe Mode switch, an application server's lifted
 // script screening, Meeting notes' switch, its automatic list or its sending to
-// the Assistant, or computer use's switches: whatever s says, the file keeps the values it has. Every
+// the Assistant, computer use's switches, or whether the Assistant runs QuickAgents without asking: whatever s says, the file keeps the values it has. Every
 // other setting is saved by a binding that loads, changes one field and
 // saves, with no lock across the three; were the switch saved the same
 // way, a save that loaded it on before it was turned off would turn it
@@ -415,6 +422,7 @@ func Save(s Settings) error {
 	if err == nil {
 		s.ComputerUse = cur.ComputerUse
 	}
+	s.AssistantRunsWithoutAsking = err == nil && cur.AssistantRunsWithoutAsking
 	return write(s)
 }
 
@@ -516,6 +524,21 @@ func SetUnsafeMode(on bool) error {
 		return err
 	}
 	s.UnsafeMode = on
+	return write(s)
+}
+
+// SetAssistantRunsWithoutAsking writes whether the Assistant's runs start
+// without the agreed-run dialog, and nothing else. The caller is the one
+// binding that may: PersistentAPI.SetAssistantRunsWithoutAsking, after the
+// native confirmation when it turns it on.
+func SetAssistantRunsWithoutAsking(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.AssistantRunsWithoutAsking = on
 	return write(s)
 }
 

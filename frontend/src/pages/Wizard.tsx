@@ -131,8 +131,8 @@ function Welcome({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => void 
         <Mark size={56} />
         <h1>Welcome to Agentry Desktop</h1>
         <p className="page-sub">
-          Browse scanned, signed QuickAgents from a registry, install them with digest and
-          signature verification on this machine, and run them in isolated containers. This quick
+          Browse QuickAgents from a registry and read what their scans found, install them with
+          digest and signature verification on this machine, and run them in isolated containers. This quick
           setup signs you in, prepares the runtime and turns on the agents you want — you can skip it
           and do any of it later.
         </p>
