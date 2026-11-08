@@ -33,12 +33,17 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/voice"
 )
 
 // eventVoiceLog carries a Voice Writer run on this computer, line by line.
 const eventVoiceLog = "voice:write-log"
+
+// eventVoiceProgress carries how far a Voice Writer run on this computer has
+// got: its clock under its budgets, its turns and its tokens.
+const eventVoiceProgress = "voice:write-progress"
 
 // eventVoiceHosted carries a Voice Writer run In Agentry's every state
 // change and its final word.
@@ -417,6 +422,7 @@ func (v *VoiceAPI) Write(reg, job string, samples, urls []string, brief string) 
 		var err error
 		res, err = v.env().Build(ctx, voice.BuildRequest{
 			Registry: reg, Job: j, Samples: samples, URLs: urls, Brief: brief, RunID: runID, Build: v.build, Log: logw,
+			Progress: func(p progress.Report) { emitEvent(v.app, eventVoiceProgress, p) },
 		})
 		return err
 	})
