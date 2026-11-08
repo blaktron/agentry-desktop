@@ -1,9 +1,12 @@
 package run
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry/pkg/manifest"
@@ -29,6 +32,12 @@ func TestARunhostRunRefusesWhatTheAppDoesNotCarry(t *testing.T) {
 	m.Capabilities.MCPServers = []manifest.MCPServer{{URL: "https://mcp.example.com", Auth: manifest.AuthOAuth}}
 	if got := RunhostCannotCarry(m); !strings.Contains(got, "connection") {
 		t.Fatalf("a connection: %q", got)
+	}
+	// An application on this computer is carried: the app binds it here and
+	// answers the runhost's calls over the link session it keeps open.
+	d := &manifest.Manifest{Capabilities: manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}}}}
+	if got := RunhostCannotCarry(d); got != "" {
+		t.Fatalf("an application on this computer: %q", got)
 	}
 }
 
@@ -72,4 +81,39 @@ func TestARunhostRunsResultIsItsEnvelopes(t *testing.T) {
 	if resultFromRunhost(env).Unsafe {
 		t.Fatal("Unsafe Mode off read as on")
 	}
+}
+
+// A run for a runhost is bound to this app's link service as a run here
+// is: with none, or with its refusal, it is refused before anything is
+// sent, and the bind names the job's run and the release.
+func TestARunhostRunBindsHereFirst(t *testing.T) {
+	d := &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}}
+	sig := &Signature{Ref: "acme/blend@1.0.0", Digest: "sha256:aa"}
+	pol := policy.Default()
+	if _, err := bindRunhostDesktop(context.Background(), nil, d, pol, "job1", sig, ""); err == nil || detail(err) != receipt.DesktopUnavailable {
+		t.Fatalf("no link service: %v", err)
+	}
+	refuse := func(context.Context, desktop.BindRequest) (*engine.DesktopLink, error) {
+		return nil, &desktop.Refusal{Reason: receipt.DesktopNotInstalled, Server: "blender", Message: "start Blender"}
+	}
+	if _, err := bindRunhostDesktop(context.Background(), refuse, d, pol, "job1", sig, ""); err == nil || detail(err) != receipt.DesktopNotInstalled {
+		t.Fatalf("a refusal: %v", err)
+	}
+	var got desktop.BindRequest
+	bind := func(_ context.Context, req desktop.BindRequest) (*engine.DesktopLink, error) {
+		got = req
+		return &engine.DesktopLink{Token: "t"}, nil
+	}
+	link, err := bindRunhostDesktop(context.Background(), bind, d, pol, "job1", sig, "")
+	if err != nil || link.Token != "t" || got.Run != "job1" || got.Ref != sig.Ref || len(got.Servers) != 1 || got.Servers[0].ID != "blender" {
+		t.Fatalf("bound %+v %v from %+v", link, err, got)
+	}
+}
+
+// detail is a refusal's receipt detail.
+func detail(err error) string {
+	if r := receipt.ReasonOf(err); r != nil {
+		return r.Detail
+	}
+	return ""
 }

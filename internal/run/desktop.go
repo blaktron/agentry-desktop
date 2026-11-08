@@ -21,6 +21,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // DesktopBinder binds a run to the link service and hands back the binding
@@ -51,14 +52,7 @@ func (p *prepared) bindDesktop(ctx context.Context, bind DesktopBinder) error {
 	}
 	link, err := bind(ctx, req)
 	if err != nil {
-		var r *desktop.Refusal
-		switch {
-		case errors.As(err, &r):
-			return engine.DesktopBindRefusal(d, r)
-		case errors.Is(err, desktop.ErrNoService):
-			return engine.NoDesktopRefusal(d)
-		}
-		return engine.Classify(engine.ExitCLI, fmt.Errorf("bind the run to Agentry Desktop: %w", err))
+		return desktopBindError(d, err)
 	}
 	// The engine unbinds at teardown, and the run unbinds again once the
 	// engine has returned, for a run that ended before its teardown was
@@ -76,6 +70,19 @@ func (p *prepared) bindDesktop(ctx context.Context, bind DesktopBinder) error {
 	}
 	p.params.Desktop = link
 	return nil
+}
+
+// desktopBindError is a failed bind as the run's refusal: the link
+// service's own, no link service, or the bind's failure.
+func desktopBindError(d *spec.DesktopCap, err error) error {
+	var r *desktop.Refusal
+	switch {
+	case errors.As(err, &r):
+		return engine.DesktopBindRefusal(d, r)
+	case errors.Is(err, desktop.ErrNoService):
+		return engine.NoDesktopRefusal(d)
+	}
+	return engine.Classify(engine.ExitCLI, fmt.Errorf("bind the run to Agentry Desktop: %w", err))
 }
 
 // unbindDesktop ends the run's binding, if it has one and the engine did

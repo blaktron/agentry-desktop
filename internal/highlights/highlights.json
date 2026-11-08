@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.22",
+      "highlights": [
+        "A QuickAgent that uses an application on your computer can now run on one of your runhosts from the run setup.",
+        "The app answers the run's use of your computer while it runs; if you close the app, the run's later calls are refused."
+      ]
+    },
+    {
       "version": "0.7.21",
       "highlights": [
         "Computer use works on macOS and Windows too; on macOS, turning it on asks for the permissions it needs.",
