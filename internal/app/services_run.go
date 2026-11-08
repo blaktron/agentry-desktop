@@ -1558,7 +1558,7 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		return err
 	}
 	if allowVulnerableMCP && !unsafe {
-		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Run defaults, or run a release that pins a fixed version")
+		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or run a release that pins a fixed version")
 	}
 	var accepting []string
 	if acceptUnsigned {

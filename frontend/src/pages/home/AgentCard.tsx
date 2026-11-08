@@ -18,7 +18,7 @@ import { AgentTermBlocks } from "../AgentTerm";
 // Provider. The chat is the agents' store's, so it goes on while the person
 // is on another page.
 export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
-  // Agentry Helper's title: Settings → Persistent Agents, where it is listed.
+  // Agentry Helper's title: the Agents page, where it is listed.
   onOpenSettings: () => void;
   // Any other agent's title: its own page.
   onOpenAgent: (name: string) => void;

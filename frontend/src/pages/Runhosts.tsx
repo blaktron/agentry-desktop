@@ -1,6 +1,6 @@
 // Remote runhosts: the person's own Linux servers, set up from this app over
 // SSH, that run their QuickAgents. The Server form sets one up (the first-run
-// wizard's Remote path and Settings → Runhosts both use it); the plan
+// wizard's Remote path and Settings → Runs → Runhosts both use it); the plan
 // sign-ins sign one in to a Claude, ChatGPT or Copilot plan from this
 // computer's browser; Settings lists each one with its state, its last
 // update, its default, its Unsafe Mode setting, its unpairing and its
@@ -256,7 +256,7 @@ export function RunhostCredits({ runhost, onChange }: { runhost: app.RunhostView
   );
 }
 
-/** Settings → Runhosts. */
+/** Settings → Runs → Runhosts. */
 export function RunhostsSettings() {
   const [list, setList] = useState<app.RunhostView[] | null>(null);
   const [error, setError] = useState<string | null>(null);

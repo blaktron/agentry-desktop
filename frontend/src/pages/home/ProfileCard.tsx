@@ -7,7 +7,7 @@ import { nameOf } from "../../homeLines";
 import { hostOf } from "../Settings";
 
 // Home's Profile card: who is signed in, the tier and
-// the credit balance, read live from the registry as Settings → Profile
+// the credit balance, read live from the registry as Settings → Account
 // reads them (nothing is stored). It edits nothing: the card opens Settings
 // → Profile, and Top up credits opens the site, where the tier offers packs.
 // Signed out it is a Sign in card, and so is a sign-in the registry no

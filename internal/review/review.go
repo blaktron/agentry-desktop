@@ -85,7 +85,7 @@ var versionRE = regexp.MustCompile(`^[0-9A-Za-z.+-]{1,64}$`)
 
 // noKeySentence is what a review without the person's key says, with
 // where to add one.
-const noKeySentence = "Reviewing on this computer needs your own TypeSafe Jev key: AI Review is asked with it, and reads every file before the Examiner's model does. Add one under Settings → Provider settings → AI Review key"
+const noKeySentence = "Reviewing on this computer needs your own TypeSafe Jev key: AI Review is asked with it, and reads every file before the Examiner's model does. Add one under Settings → Models and keys → AI Review key"
 
 // Prepare checks a review before anything leaves this computer: the
 // folder holds a QuickAgent, the runner policy, and the person's own key,

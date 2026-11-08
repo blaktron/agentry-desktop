@@ -135,7 +135,7 @@ func TestReviewTakesOnlyAPickedFolder(t *testing.T) {
 func TestReviewWithoutAKeyIsRefusedBeforeAnyDialog(t *testing.T) {
 	f := newReviewFixture(t)
 	_, err := f.b.ReviewLocally(f.reg, f.dir)
-	if err == nil || !strings.Contains(err.Error(), "Settings → Provider settings → AI Review key") {
+	if err == nil || !strings.Contains(err.Error(), "Settings → Models and keys → AI Review key") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(f.asked) != 0 || len(f.runs) != 0 {

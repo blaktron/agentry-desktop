@@ -165,7 +165,7 @@ func Verdict(statuses []mcpinstall.VulnStatus, registry string, way WayThrough) 
 		}
 		return line + "; run allowed in Unsafe Mode with the person's consent for this run: " + strings.Join(allowed, "; "), nil
 	}
-	how := " — on this computer such a server runs only in Unsafe Mode (Settings → Run defaults), which asks your consent for each run; or run a release that pins a fixed version"
+	how := " — on this computer such a server runs only in Unsafe Mode (Settings → Runs), which asks your consent for each run; or run a release that pins a fixed version"
 	if way.Unsafe {
 		how = " — Unsafe Mode is on, and this run was not given your consent for it: tick \u201cAllow vulnerable MCP servers for this run\u201d and confirm the dialog; or run a release that pins a fixed version"
 	}

@@ -24,8 +24,8 @@ export function UnsafeBadge({ onOpen, running }: { onOpen?: () => void; running?
       className="badge bad unsafe-badge"
       title={
         running
-          ? "Unsafe Mode is off for the next run, but the run or chat that started while it was on keeps it until it ends. Run defaults has the switch."
-          : "Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Run defaults has the switch."
+          ? "Unsafe Mode is off for the next run, but the run or chat that started while it was on keeps it until it ends. Settings → Runs has the switch."
+          : "Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Settings → Runs has the switch."
       }
       onClick={onOpen}
     >

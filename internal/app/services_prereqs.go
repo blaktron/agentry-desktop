@@ -1,4 +1,4 @@
-// Prerequisite bindings (Settings → Run defaults, the container engine
+// Prerequisite bindings (Settings → Runs, the container engine
 // card): detection of the engine this computer offers and, on Linux with
 // polkit, a guided install of the distribution's own; on macOS the engine
 // the app installs and runs itself. The

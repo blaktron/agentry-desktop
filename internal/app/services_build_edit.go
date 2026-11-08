@@ -51,7 +51,7 @@ var errNotEditable = errors.New("you cannot add a version to this QuickAgent fro
 func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
-		return nil, fmt.Errorf("editing needs a signed-in registry (sign in under Settings → Registry settings): %w", err)
+		return nil, fmt.Errorf("editing needs a signed-in registry (sign in under Settings → Account): %w", err)
 	}
 	rel, err := readRelease(b.app.ctx, url, token, ns, name, "")
 	if err != nil {

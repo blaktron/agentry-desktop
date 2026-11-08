@@ -358,7 +358,7 @@ func (m *MeetingAPI) AskAssistant(id string) (*MeetingNotesView, error) {
 	}
 	switch a.where() {
 	case assistantNotEnabled:
-		return nil, errors.New("the Assistant is not enabled: enable it in Settings → Persistent Agents")
+		return nil, errors.New("the Assistant is not enabled: enable it on the Agents page")
 	case assistantStopped:
 		return nil, fmt.Errorf("%s is not running: start it first", a.name())
 	}

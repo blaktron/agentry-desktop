@@ -83,7 +83,7 @@ export function HybridAnalysisKeyCard() {
       </p>
       <p className="muted small">
         Your own CrowdStrike Hybrid Analysis API key. Before a run on this computer starts, the fingerprints of the
-        files the malware check covers (Run defaults → Malware check) are looked up: with the check on, the files you
+        files the malware check covers (Settings → Runs → Malware check) are looked up: with the check on, the files you
         give it that could carry malware (programs, scripts, PDF, RTF, older and macro Office files, disk images and
         shortcuts, inside archives too); with it off, only the programs of a QuickAgent that runs commands. A file
         Hybrid Analysis calls malicious stops a run whose QuickAgent runs commands, and is handed unopened to one that

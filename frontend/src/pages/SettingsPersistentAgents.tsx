@@ -1,4 +1,4 @@
-// Settings → Persistent Agents: each agent the app offers, with its Enable
+// the Agents page: each agent the app offers, with its Enable
 // switch, Start or Stop, Configure and Reset. Agentry Helper (main), the lite
 // personal agent, has no Open or Configure: what it is given is fixed, and
 // its switch is held off while the Assistant, which supersedes it, is on. Configure is a card over the

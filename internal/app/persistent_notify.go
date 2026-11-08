@@ -146,7 +146,7 @@ func (p *PersistentAPI) raiseTask(name, task, body string, logw *supervisorLog) 
 	}()
 }
 
-// taskNotificationsOn is Settings → Persistent Agents' "Notify me when a
+// taskNotificationsOn is the Agents page's "Notify me when a
 // task runs"; a settings file that cannot be read leaves it on.
 func taskNotificationsOn() bool {
 	st, err := settings.Load()
@@ -207,7 +207,7 @@ const (
 	unaskedRunsMessage = "The Assistant can start a run of any QuickAgent installed on this computer without asking you first: any version, with any answers it gives the QuickAgent's questions, on any repository or file address, using the key saved in Agentry for each address's host, and with files from its share folder.\n\n" +
 		"Mail, documents and web pages the Assistant reads can lead it to start a run you did not ask for.\n\n" +
 		"What still holds: installing a QuickAgent and adding or removing a schedule still ask you. Each run is an ordinary run under what the QuickAgent was installed with, listed in Recent runs and writing to your output folder. Agentry Helper still asks before its runs.\n\n" +
-		"You can turn this off at any time in Settings → Persistent Agents.\n\nTurn it on?"
+		"You can turn this off at any time on the Agents page.\n\nTurn it on?"
 )
 
 // assistantRunsWithoutAsking reads the switch. A settings file that cannot

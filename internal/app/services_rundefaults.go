@@ -12,7 +12,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// RunDefaultsView is Settings → Run defaults. The timeout and max turns are
+// RunDefaultsView is Settings → Runs. The timeout and max turns are
 // the runner policy's budgets, which the CLI runs with too; where runs go,
 // the output folder and the Chat idle timeout are this app's own, in
 // desktop.yaml. A broken policy file is said, not hidden behind the
@@ -24,7 +24,7 @@ type RunDefaultsView struct {
 	// Where is settings.RunWhereHere or settings.RunWhereAgentry.
 	Where string `json:"where"`
 	// Runhost names the remote runhost runs go to by default, when one is
-	// (Settings → Runhosts); Where is then "here".
+	// (Settings → Runs → Runhosts); Where is then "here".
 	Runhost string `json:"runhost,omitempty"`
 	// OutputDir is the saved output folder, "" for none.
 	OutputDir string `json:"outputDir,omitempty"`
@@ -87,7 +87,7 @@ func (s *SettingsAPI) SetMalwareCheck(on bool) (*RunDefaultsView, error) {
 // two words; anything else is refused and the file is left as it was.
 func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 	if where != settings.RunWhereHere && where != settings.RunWhereAgentry {
-		return nil, fmt.Errorf("where to run is %q or %q, not %q; a runhost is made the default in Settings → Runhosts", settings.RunWhereHere, settings.RunWhereAgentry, where)
+		return nil, fmt.Errorf("where to run is %q or %q, not %q; a runhost is made the default in Settings → Runs → Runhosts", settings.RunWhereHere, settings.RunWhereAgentry, where)
 	}
 	if err := setRunWhere(where); err != nil {
 		return nil, err
@@ -153,7 +153,7 @@ func chatIdleTimeout() (int, error) {
 		return 0, err
 	}
 	if err := settings.CheckChatIdleTimeout(st.ChatIdleTimeoutSeconds); err != nil {
-		return 0, fmt.Errorf("%w: set it again in Settings → Run defaults", err)
+		return 0, fmt.Errorf("%w: set it again in Settings → Runs", err)
 	}
 	return st.ChatIdleTimeoutSeconds, nil
 }

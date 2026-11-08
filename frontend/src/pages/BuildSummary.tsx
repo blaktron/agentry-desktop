@@ -234,7 +234,7 @@ export function SummaryView({
       </div>
       <ul className="muted small build-summary-actions">
         <li>
-          <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : <>a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder)</>}.
+          <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : <>a new folder named for it in your output folder (Settings → Runs, or <span className="mono">agentry-out</span> in your Downloads folder)</>}.
         </li>
         {!persistentOnly && <li>
           <strong>Install</strong> saves it there too, then puts it on this computer only, in your Library: private, unsigned, with no

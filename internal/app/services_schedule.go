@@ -463,7 +463,7 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 		return err
 	}
 	if req.AllowVulnerableMCP && !unsafe {
-		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Run defaults, or schedule a release that pins a fixed version")
+		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or schedule a release that pins a fixed version")
 	}
 	return nil
 }
@@ -502,7 +502,7 @@ func (s *ScheduleAPI) setDelivery(ctx context.Context, c *schedules.CLI, req *sc
 	}
 	for _, n := range req.Destinations {
 		if !destinations.CanSend(n) {
-			return fmt.Errorf("the destination %q is not saved with its credentials: set it up in Settings → Destinations", n)
+			return fmt.Errorf("the destination %q is not saved with its credentials: set it up in Settings → Connections → Destinations", n)
 		}
 	}
 	if req.DeliverTo == "" && len(req.Destinations) == 0 {

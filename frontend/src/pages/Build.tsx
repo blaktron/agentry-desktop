@@ -454,7 +454,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       // Submit sends to this tab's registry, so the release must be one of
       // its QuickAgents.
       if (!sameRegistry(r.registry, registry)) {
-        throw new Error(`${r.namespace}/${r.name} is on ${r.registry}, and the Build tab submits to ${registry}. Choose that registry in Settings → Registry settings, then press Edit again.`);
+        throw new Error(`${r.namespace}/${r.name} is on ${r.registry}, and the Build tab submits to ${registry}. Choose that registry in Settings → Account, then press Edit again.`);
       }
       takeEdit(await BuildAPI.EditRelease(r.registry, r.namespace, r.name));
     });
@@ -574,7 +574,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   // The folder is made at the first save, with no file dialog: Go makes a
   // new folder named for the QuickAgent under the default output folder
-  // (Settings → Run defaults, else ~/Downloads/agentry-out), so the page
+  // (Settings → Runs, else ~/Downloads/agentry-out), so the page
   // names no path and nothing already there is written over. Later saves
   // reuse it.
   async function ensureDir(): Promise<string> {
@@ -1235,7 +1235,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <Button variant="primary" disabled={!!busy} onClick={() => switchTo("summary")}>Continue to submit</Button>
       </div>
       <p className="muted small">
-        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : <>The first save writes it to a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder). To edit one you already have, open its folder.</>}
+        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : <>The first save writes it to a new folder named for it in your output folder (Settings → Runs, or <span className="mono">agentry-out</span> in your Downloads folder). To edit one you already have, open its folder.</>}
       </p>
       {result && <ValidateCard result={result} />}
     </>

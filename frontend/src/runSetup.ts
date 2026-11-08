@@ -133,13 +133,13 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
     : hosted === null
       ? "the app could not tell whether this registry offers a run In Agentry for it"
       : hosted.signedIn === false
-        ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
+        ? "a run In Agentry needs you signed in to this registry (Settings → Account)"
         : hosted.targetHosts
         ? "it works a server you name over SSH, which only a run on this computer does"
         : !hosted.offered
           ? "a run In Agentry is not offered for this QuickAgent on this registry"
           : "In Agentry is unavailable for it (the notice below says why)";
-  return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
+  return `Runs are set to go In Agentry (Settings → Runs), but ${why}, so this run starts on this computer.`;
 }
 
 /** The run setup's answers, as the person left them: kept with a run on
@@ -197,7 +197,7 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
       offerConsent: false,
       send: false,
       showRefusal: true,
-      blocker: "A declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode: turn it on in Settings → Run defaults, or run a release that pins a fixed version.",
+      blocker: "A declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode: turn it on in Settings → Runs, or run a release that pins a fixed version.",
     };
   }
   return {

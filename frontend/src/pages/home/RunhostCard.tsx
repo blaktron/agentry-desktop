@@ -29,7 +29,7 @@ export function RunhostCard({ runhost, named, status, error, statusError, onRetr
           : `Asking ${runhost.name}…`
       : named
         ? `Your runs go to ${named}, which is not set up on this computer.`
-        : "No runhost is set up. Settings → Runhosts sets one up on a server of yours.";
+        : "No runhost is set up. Settings → Runs → Runhosts sets one up on a server of yours.";
   return (
     <CardFrame title="Runhost" onOpen={onOpen} className="home-card" status={line}>
       {runhost && (

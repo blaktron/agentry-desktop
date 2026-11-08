@@ -86,7 +86,7 @@ type Options struct {
 	// Ask is the exec call's dialog.
 	Ask Asker
 	// ScreeningOff says the person turned off an application server's own
-	// script screening in Settings → Your computer; nil is never.
+	// script screening in Plugins → Computer use; nil is never.
 	ScreeningOff func(id string) bool
 	// Launch starts a stdio entry's server; nil is the process launcher.
 	Launch Launcher

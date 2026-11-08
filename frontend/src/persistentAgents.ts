@@ -341,14 +341,6 @@ export function agentStateWords(a: Pick<app.PersistentAgentView, "state" | "hold
   }
 }
 
-/** Settings → Persistent Agents' status line on its card. */
-export function persistentAgentsStatus(agents: Pick<app.PersistentAgentView, "state">[]): string {
-  const enabled = agents.filter((a) => a.state !== AGENT_STATES.disabled).length;
-  const running = agents.filter((a) => a.state === AGENT_STATES.running || a.state === AGENT_STATES.elsewhere).length;
-  if (enabled === 0) return "None enabled";
-  return `${enabled} enabled, ${running} running`;
-}
-
 /** The changes Retry makes, in order: the failed server switched off, which
  *  clears its failure, and on again, which installs it again. */
 export function retryChanges(id: string): { switch: { id: string; on: boolean } }[] {

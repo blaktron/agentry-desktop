@@ -1,4 +1,4 @@
-// Settings → Your computer: the applications a QuickAgent may use on this
+// Plugins → Computer use: the applications a QuickAgent may use on this
 // computer through the MCP servers installed for them, each with its state
 // here and the step to take; the per-application script-screening switch, whose
 // turning off Go asks about again in a native dialog; the runs using the

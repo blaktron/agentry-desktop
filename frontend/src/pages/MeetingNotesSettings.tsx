@@ -1,9 +1,7 @@
-// Meeting notes' settings, drawn in two places: on the Meeting notes page,
-// above the list of meetings, and as Settings → Meeting notes. Both read and
-// change the same settings through MeetingAPI, and each re-reads on
-// meeting:changed, so a change in one shows in the other. Turning it on, the
-// automatic list and giving transcripts to the Assistant stay confirmed in
-// Go's native dialog, whichever place asks.
+// Meeting notes' settings card, drawn on the Meeting notes page above the
+// list of meetings. It changes the settings through MeetingAPI; turning it
+// on, the automatic list and giving transcripts to the Assistant stay
+// confirmed in Go's native dialog.
 import { useCallback, useEffect, useState } from "react";
 import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
@@ -171,67 +169,5 @@ export function MeetingNotesSettingsCard({ view, busy, act }: { view: View; busy
         <Button variant="ghost" data-meeting-turn-off disabled={busy} onClick={() => act(MeetingAPI.TurnOff)}>Turn off Meeting notes</Button>
       </div>
     </Card>
-  );
-}
-
-/**
- * Settings → Meeting notes: the same card, read here, with a way to the
- * page. Off, it says so and leaves turning it on to the page, which
- * explains what that means first.
- */
-export function MeetingNotesSettings({ onOpenPage }: { onOpenPage?: () => void }) {
-  const [view, setView] = useState<View | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const read = useCallback(() => {
-    MeetingAPI.Status().then(setView).catch((e) => setError(String(e)));
-  }, []);
-  useEffect(() => {
-    read();
-    try {
-      return EventsOn("meeting:changed", read);
-    } catch {
-      return undefined;
-    }
-  }, [read]);
-
-  const act: Act = async (f) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const v = await f();
-      if (v) setView(v);
-      else read();
-    } catch (e) {
-      if (!isNo(e)) setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!view) return error ? <ErrorBox error={error} /> : <Spinner label="Reading Meeting notes" />;
-  if (!view.available) return <Notice tone="warn">{view.unavailable || "Meeting notes is not available on this computer."}</Notice>;
-  const open = onOpenPage && <Button variant="ghost" data-meeting-open-page onClick={onOpenPage}>Open Meeting notes</Button>;
-  if (!view.on) {
-    return (
-      <Card data-meeting-settings-off>
-        <p style={{ marginTop: 0 }}>
-          Meeting notes is off. Turn it on on the Meeting notes page, which says what it records first; its settings are here once it is on.
-        </p>
-        {open && <div className="row">{open}</div>}
-      </Card>
-    );
-  }
-  return (
-    <>
-      <ErrorBox error={error} />
-      <MeetingNotesSettingsCard view={view} busy={busy} act={act} />
-      {open && (
-        <p className="small muted">
-          These are also on the Meeting notes page, above your meetings. {open}
-        </p>
-      )}
-    </>
   );
 }

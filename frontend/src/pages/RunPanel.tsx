@@ -128,7 +128,7 @@ export default function RunPanel({
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
   const [sourceChecks, setSourceChecks] = useState<Record<string, { answer: string; key: SourceKey }>>({});
-  // The saved destinations (Settings → Destinations), and the ones this run, or
+  // The saved destinations (Settings → Connections → Destinations), and the ones this run, or
   // each fire of this schedule, sends its result to. The QuickAgent's default
   // set preselects them until the person chooses; choosing is theirs, so a
   // default read late never overwrites a choice made.
@@ -169,7 +169,7 @@ export default function RunPanel({
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [outDir, setOutDir] = useState(f0?.outDir ?? "");
-  // Settings → Run defaults: the saved output folder
+  // Settings → Runs: the saved output folder
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
   const [defaults, setDefaults] = useState<app.RunDefaultsView | null>(null);
@@ -185,7 +185,7 @@ export default function RunPanel({
       .then((v) => live && setUnsafeNotice(v))
       // Go words the line, and words one for a release it cannot read too;
       // a call that fails outright says only that the state is not known.
-      .catch(() => live && setUnsafeNotice({ on: true, line: "Whether Unsafe Mode is on could not be read. Run defaults shows the switch.", unplaced: [] }));
+      .catch(() => live && setUnsafeNotice({ on: true, line: "Whether Unsafe Mode is on could not be read. Settings → Runs shows the switch.", unplaced: [] }));
     return () => { live = false; };
   }, [registry, agentRef]);
   const modeChosen = useRef(!!f0);
@@ -516,7 +516,7 @@ export default function RunPanel({
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
     if (modeChosen.current || initialMode || !profile) return;
-    // A runhost made the default (Settings → Runhosts) is where an
+    // A runhost made the default (Settings → Runs → Runhosts) is where an
     // autonomous run starts, when it is still paired.
     if (defaults?.runhost && runhosts.some((r) => r.name === defaults.runhost) && (profile.modes ?? []).includes("autonomous")) {
       if (mode !== "runhost:" + defaults.runhost) setMode("runhost:" + defaults.runhost);
@@ -1324,7 +1324,7 @@ export default function RunPanel({
               {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
                 <Notice tone="warn">
                   The gateway/harness/runner images are not all present yet — this run will install
-                  them first (it can take a few minutes), or prepare them once in Settings → Provider settings.
+                  them first (it can take a few minutes), or prepare them once in Settings → Models and keys.
                 </Notice>
               )}
               {profile && profile.capabilityLines.length > 0 && (
@@ -1349,7 +1349,7 @@ export default function RunPanel({
                       </div>
                       <p className="small selectable" style={{ marginBottom: 0 }}>{stateLine(a)}</p>
                       <p className="muted small" style={{ marginBottom: 0 }}>
-                        Agentry Desktop starts {a.application}&apos;s MCP server as you when the run starts{execCount(a) > 0 ? `, and asks you before each call that runs code inside ${a.application}` : ""}. Pause and Stop are in Settings → Your computer while it runs.
+                        Agentry Desktop starts {a.application}&apos;s MCP server as you when the run starts{execCount(a) > 0 ? `, and asks you before each call that runs code inside ${a.application}` : ""}. Pause and Stop are in Plugins → Computer use while it runs.
                       </p>
                     </Card>
                   ))}
@@ -1931,7 +1931,7 @@ export default function RunPanel({
                   {mode === "interactive" && (
                     <p className="muted small" style={{ margin: "2px 0 6px" }} data-chat-limits>
                       A chat here has no time limit. It ends when you end it, or after the Chat idle timeout in
-                      Settings → Run defaults, if you set one.
+                      Settings → Runs, if you set one.
                     </p>
                   )}
                   <div className="row">

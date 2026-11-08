@@ -187,7 +187,7 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 func (b *BuildAPI) submit(reg, dir, draftRun string) (*build.PublishResult, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
-		return nil, fmt.Errorf("submitting needs a signed-in registry (sign in under Settings → Registry settings): %w", err)
+		return nil, fmt.Errorf("submitting needs a signed-in registry (sign in under Settings → Account): %w", err)
 	}
 	m, err := build.ReadManifest(dir)
 	if err != nil {

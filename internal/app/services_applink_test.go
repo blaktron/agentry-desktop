@@ -187,6 +187,48 @@ func TestSettingsOpenOpensThePageAndChangesNothing(t *testing.T) {
 	}
 }
 
+// settings_open takes a section by its title, its id or a name it had
+// before the sections were merged, and says where it opened; a section
+// that moved out of Settings opens the page that holds it now.
+func TestSettingsOpenTakesTodaysAndFormerNames(t *testing.T) {
+	rig := newMainRig(t)
+	var opened []any
+	old := emitEvent
+	emitEvent = func(_ *App, name string, data ...any) {
+		if name == eventOpenSettings {
+			opened = append(opened, data...)
+		}
+	}
+	t.Cleanup(func() { emitEvent = old })
+	for _, c := range []struct{ name, id, said string }{
+		{"Models and keys", "provider", "Opened Settings → Models and keys "},
+		{"Settings → Runs", "run-defaults", "Opened Settings → Runs "},
+		{"run-defaults", "run-defaults", "Opened Settings → Runs "},
+		{"Runhosts", "runhosts", "Opened Settings → Runs → Runhosts "},
+		{"Registry settings", "registry", "Opened Settings → Account → Registries "},
+		{"Update settings", "updates", "Opened Settings → Updates and installs "},
+		{"Destinations", "destinations", "Opened Settings → Connections → Destinations "},
+		{"Persistent Agents", "persistent-agents", "Opened the Agents page "},
+		{"computer use", "your-computer", "Opened Plugins → Computer use "},
+	} {
+		opened = nil
+		a := rig.call(t, "settings_open", map[string]string{"section": c.name})
+		if a.IsError || !strings.HasPrefix(a.Text, c.said) {
+			t.Fatalf("%s: answer %+v", c.name, a)
+		}
+		if len(opened) != 1 || opened[0] != c.id {
+			t.Fatalf("%s: the page was asked to open %v", c.name, opened)
+		}
+	}
+	a := rig.call(t, "settings_open", map[string]string{"section": "the keychain"})
+	if !a.IsError || !strings.Contains(a.Text, "Account, Report design, Models and keys, Runs, Connections, Updates and installs, Home, Licences") {
+		t.Fatalf("an unknown section's error: %+v", a)
+	}
+	if len(rig.asked) != 0 {
+		t.Fatalf("settings_open raised a dialog: %v", rig.asked)
+	}
+}
+
 // An install Main asks for goes through the app's install with Main named
 // as the one asking; one already installed is not installed again.
 func TestMainsInstallGoesThroughTheAppsInstall(t *testing.T) {

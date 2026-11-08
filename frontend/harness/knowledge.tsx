@@ -169,7 +169,7 @@ const hostedRunning = {
 const briefState = hash.includes("-brief") || hash.endsWith("-noweb");
 const brief = "How to look after the café's espresso machine, for new staff: daily cleaning, descaling, grind and dose, and what to do when a shot runs fast.";
 const localWeb = hash.endsWith("-noweb")
-  ? { ready: false, provider: "Brave", why: "no Brave key was found: add one under Settings → Provider settings → Web search" }
+  ? { ready: false, provider: "Brave", why: "no Brave key was found: add one under Settings → Models and keys → Web search" }
   : { ready: true, provider: "Brave" };
 const hostedDone = {
   ...hostedRunning, status: "finished", state: "done — pass", statusLine: "", outcome: "succeeded",

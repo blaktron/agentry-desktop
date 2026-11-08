@@ -380,7 +380,7 @@ func load() ([]Entry, error) {
 	}
 	var f file
 	if err := yaml.Unmarshal(raw, &f); err != nil {
-		return nil, fmt.Errorf("the run history (%s) cannot be read: %w; Clear run history in Settings → Run defaults starts it again", path, err)
+		return nil, fmt.Errorf("the run history (%s) cannot be read: %w; Clear run history in Settings → Runs starts it again", path, err)
 	}
 	if f.Version != version {
 		return nil, nil

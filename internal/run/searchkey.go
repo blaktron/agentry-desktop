@@ -221,9 +221,9 @@ func TestSearchKey(ctx context.Context) (*SearchKeyTest, error) {
 	}
 	switch state {
 	case drafter.SearchNoProvider:
-		return &SearchKeyTest{Message: "No search provider is chosen on this computer. Choose one under Settings → Provider settings → Web search, paste its key, then test it."}, nil
+		return &SearchKeyTest{Message: "No search provider is chosen on this computer. Choose one under Settings → Models and keys → Web search, paste its key, then test it."}, nil
 	case drafter.SearchNoKey:
-		return &SearchKeyTest{Message: fmt.Sprintf("No %s key is saved on this computer. Paste it under Settings → Provider settings → Web search, then test it.", pol.WebSearch.ProviderName())}, nil
+		return &SearchKeyTest{Message: fmt.Sprintf("No %s key is saved on this computer. Paste it under Settings → Models and keys → Web search, then test it.", pol.WebSearch.ProviderName())}, nil
 	}
 	res := &SearchKeyTest{From: "the keychain"}
 	if strings.TrimSpace(os.Getenv(pol.WebSearch.KeyEnv())) != "" {
