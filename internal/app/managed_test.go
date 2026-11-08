@@ -152,7 +152,7 @@ func TestUnsafeModeIsRefusedWhileTheManagedSettingsCannotBeVerified(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sv.ManagedProblems) != 1 || !strings.Contains(sv.ManagedProblems[0], "https://r.example") || !strings.Contains(sv.ManagedProblems[0], "no run starts") {
+	if len(sv.ManagedProblems) != 1 || !strings.Contains(sv.ManagedProblems[0], "https://r.example") || !strings.Contains(sv.ManagedProblems[0], "No run starts") {
 		t.Fatalf("the landing's problems: %q", sv.ManagedProblems)
 	}
 }
@@ -444,5 +444,45 @@ func TestTheLockNeverWritesDesktopYAML(t *testing.T) {
 	}
 	if string(before) != string(after) {
 		t.Fatalf("desktop.yaml changed under the lock:\n%s\n→\n%s", before, after)
+	}
+}
+
+// A runhost's Unsafe Mode is refused on as this computer's is, before its
+// record is read or anything is asked, while the managed settings held here
+// forbid it.
+func TestARunhostsUnsafeModeIsRefusedOnWhileManagedSettingsForbidIt(t *testing.T) {
+	u := newUnsafeApp(t)
+	u.answer = true
+	holdManaged(t, forbidding("acme"))
+	rh := &RunhostsAPI{app: u.r.app, run: u.r}
+	err := rh.SetUnsafeMode("lab", true, RunhostAdmin{})
+	if err == nil || !strings.Contains(err.Error(), "Unsafe Mode is forbidden by acme's managed settings") {
+		t.Fatalf("err = %v, want the managed settings' refusal", err)
+	}
+	if len(u.asked) != 0 {
+		t.Fatalf("dialogs %d; want none", len(u.asked))
+	}
+	if err := rh.SetUnsafeMode("lab", false, RunhostAdmin{}); err != nil && strings.Contains(err.Error(), "managed settings") {
+		t.Fatalf("turning it off was refused by the managed settings: %v", err)
+	}
+}
+
+// While managed settings are held here, only an agentry that applies them
+// may schedule a run, since a schedule fires through it; with none held,
+// any agentry the app otherwise accepts may.
+func TestSchedulingWhileManagedNeedsAnAgentryThatAppliesThem(t *testing.T) {
+	old, current := "agentry v0.7.34 (abc)", "agentry v0.7.35-dev.1 (def)"
+	if why := managedCLITooOld(old, managed.Effective{}); why != "" {
+		t.Fatalf("nothing held refused an older agentry: %s", why)
+	}
+	if why := managedCLITooOld(old, forbidding("acme")); !strings.Contains(why, "v0.7.35") {
+		t.Fatalf("an older agentry under managed settings: %q", why)
+	}
+	unverified := managed.Effective{Problems: []managed.Problem{{Registry: "https://r.example", Err: errors.New("signature does not verify")}}}
+	if why := managedCLITooOld(old, unverified); why == "" {
+		t.Fatal("an older agentry was accepted while held settings cannot be applied")
+	}
+	if why := managedCLITooOld(current, forbidding("acme")); why != "" {
+		t.Fatalf("a current agentry was refused: %s", why)
 	}
 }

@@ -53,6 +53,12 @@ func unsafeModeRefusal() string {
 	return managedCalls.current().UnsafeModeRefusal()
 }
 
+// unsafeModeHeldOn is whether Unsafe Mode is on: saved on in desktop.yaml
+// and not refused by the managed settings held here.
+func unsafeModeHeldOn(saved bool, held managed.Effective) bool {
+	return saved && held.UnsafeModeRefusal() == ""
+}
+
 // UnsafeLockView is Unsafe Mode's switch while managed settings refuse it:
 // shown off and disabled, with the organization and the reason.
 type UnsafeLockView struct {
@@ -124,7 +130,7 @@ func managedProblems(e managed.Effective) []string {
 		if where == "" {
 			where = "this computer"
 		}
-		out = append(out, fmt.Sprintf("The managed settings held for %s cannot be verified (%v), so no run starts on this computer until they are read again.", where, p.Err))
+		out = append(out, fmt.Sprintf("The managed settings held for %s cannot be applied: %v. No run starts on this computer until they are read again.", where, p.Err))
 	}
 	return out
 }

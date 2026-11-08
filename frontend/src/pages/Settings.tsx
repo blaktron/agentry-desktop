@@ -227,6 +227,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     licences: null,
   };
 
+  const managedText = managedLine(settings.managed);
   return (
     <div data-settings-section="landing">
       <PageHeader
@@ -234,8 +235,8 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         sub="Each card opens one group of settings."
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
-      {managedLine(settings.managed) && (
-        <p className="small" role="status" data-settings-managed><LockGlyph /> {managedLine(settings.managed)}</p>
+      {managedText && (
+        <p className="small" role="status" data-settings-managed><LockGlyph /> {managedText}</p>
       )}
       {(settings.managedProblems ?? []).map((p) => <Notice key={p} tone="warn">{p}</Notice>)}
       <div className="settings-cards">

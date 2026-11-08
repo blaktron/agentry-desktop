@@ -46,6 +46,11 @@ var MinTargetHostsCLI = [3]int{0, 6, 111}
 // and checks a runhost's schedule with --check.
 var MinRunhostScheduleCLI = [3]int{0, 7, 12}
 
+// MinManagedCLI is the oldest agentry that applies an organization's managed
+// settings: an older one fires a schedule without them, so while this
+// computer holds managed settings only it schedules.
+var MinManagedCLI = [3]int{0, 7, 35}
+
 // MinDeliverCLI is the oldest agentry whose schedule add keeps where its fires
 // deliver (--deliver-to, --destination).
 var MinDeliverCLI = [3]int{0, 6, 139}

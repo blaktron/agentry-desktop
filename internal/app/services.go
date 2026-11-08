@@ -96,7 +96,7 @@ func settingsView() (*SettingsView, error) {
 	held := managedCalls.current()
 	v := &SettingsView{
 		DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded,
-		UnsafeMode:            s.UnsafeMode && held.UnsafeModeRefusal() == "",
+		UnsafeMode:            unsafeModeHeldOn(s.UnsafeMode, held),
 		SecureAgentryRegistry: settings.SecureAgentryRegistry(), SelfHostedRegistry: s.SelfHostedRegistry(),
 		Managed: managedViews(held), ManagedProblems: managedProblems(held),
 	}

@@ -42,7 +42,7 @@ const (
 // refuse.
 func unsafeModeOn() bool {
 	st, err := settings.Load()
-	return err == nil && st.UnsafeMode && unsafeModeRefusal() == ""
+	return err == nil && unsafeModeHeldOn(st.UnsafeMode, managedCalls.current())
 }
 
 // SetUnsafeMode turns Unsafe Mode on or off and returns Run defaults as
