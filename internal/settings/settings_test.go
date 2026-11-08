@@ -418,3 +418,40 @@ func TestScreeningOffHasOneWriter(t *testing.T) {
 		t.Fatal("a stale Save lifted Blender's script screening again")
 	}
 }
+
+// Letting the Assistant run QuickAgents without asking is off by default and
+// has one writer: a Save of a settings value loaded before it changed keeps
+// what the file holds, either way.
+func TestAssistantRunsWithoutAskingIsOffAndHasOneWriter(t *testing.T) {
+	isolate(t)
+	stale, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stale.AssistantRunsWithoutAsking {
+		t.Fatal("on by default")
+	}
+	stale.AssistantRunsWithoutAsking = true
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.AssistantRunsWithoutAsking {
+		t.Fatal("Save turned it on")
+	}
+	if err := SetAssistantRunsWithoutAsking(true); err != nil {
+		t.Fatal(err)
+	}
+	stale.AssistantRunsWithoutAsking = false
+	if err := Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); !s.AssistantRunsWithoutAsking {
+		t.Fatal("Save turned it off")
+	}
+	if err := SetAssistantRunsWithoutAsking(false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := Load(); s.AssistantRunsWithoutAsking {
+		t.Fatal("still on after SetAssistantRunsWithoutAsking(false)")
+	}
+}

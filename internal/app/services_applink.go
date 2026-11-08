@@ -8,7 +8,10 @@
 // What an agent asks for is a claim, as a page's is: an install, a first
 // run of a QuickAgent, a schedule and a schedule's removal are each put to
 // the person in the app's native dialog, which names the agent asking, and a
-// No does nothing. Each agent has a handler of its own: a run it starts
+// No does nothing. The one exception is the person's own: while Settings →
+// Persistent Agents lets the Assistant run QuickAgents without asking, its
+// runs start without that dialog, and Main's still ask. Each agent has a
+// handler of its own: a run it starts
 // takes its files from its own share folder alone, and the runs the person
 // agreed to let it start are its own, so a Yes for one agent is never a Yes
 // for another. A run is an ordinary local run under the run lock: it is in
@@ -119,6 +122,9 @@ type mainLink struct {
 	agreedPath func() (string, error)
 	// asks is how a dialog names the agent asking; nil is Main's name.
 	asks func() string
+	// unasked reports whether the person lets this agent start runs
+	// without the agreed-run dialog; nil is never, as for Main.
+	unasked func() bool
 	// meetings answers the Assistant's meeting tools; nil where this link
 	// does not.
 	meetings func(ctx context.Context, tool string, raw json.RawMessage, who string) (string, error)
@@ -623,7 +629,14 @@ type agreed struct {
 // version, and records a Yes; a later run of the same version asks nothing.
 // A run that fetches a repository or a file is agreed to with its
 // addresses, so the same version fetching from another address asks again.
+// While the person lets this agent run QuickAgents without asking, nothing
+// is asked or recorded; the checks before it (an installed, autonomous
+// QuickAgent, files from the share folder alone, answers that pass) hold
+// either way.
 func (m *mainLink) agreeToRun(exact, task string, files []string, given *checkedAnswers) error {
+	if m.unasked != nil && m.unasked() {
+		return nil
+	}
 	path, err := m.agreedPath()
 	if err != nil {
 		return err
@@ -1312,6 +1325,9 @@ func newAgentLink(app *App, ops mainOps, home func() (string, error), agent stri
 			}
 			return filepath.Join(filepath.Dir(p), agent+"-runs.json"), nil
 		},
+	}
+	if agent == assistantAgent {
+		l.unasked = assistantRunsWithoutAsking
 	}
 	if agent != mainAgent {
 		l.asks = func() string {

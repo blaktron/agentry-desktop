@@ -1062,6 +1062,8 @@ g.go = { app: {
     PageView: async () => harnessAgentView,
     SetPageView: async (v: string) => { harnessAgentView = v; document.body.dataset.agentView = v; return v; },
     SetTaskNotifications: async (on: boolean) => on,
+    AssistantRunsWithoutAsking: async () => false,
+    SetAssistantRunsWithoutAsking: async (on: boolean) => on,
     SetViewing: async () => {},
     SetGoogleClient: async () => harnessAssistant,
     // As Go answers: a disabled provider's cards leave the roster, and it
