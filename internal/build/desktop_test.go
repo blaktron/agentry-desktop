@@ -82,6 +82,57 @@ func TestADesktopLineRoundTripsThroughTheForm(t *testing.T) {
 	}
 }
 
+// An entry that asks the person to choose an application, and one that
+// says what of its application the run uses, are carried from a load to the
+// next save unchanged.
+func TestAChooseEntryAndAUseRoundTripThroughTheForm(t *testing.T) {
+	m, _, err := FromDraft([]byte(desktopDraft), "# Scene helper\n\nTidy the scene.\n", "blaktron")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Desktop = &DesktopRow{Servers: []DesktopServerRow{
+		{ID: "blender", Tools: []string{}, Use: "mcp"},
+		{Tools: []string{}, Choose: true, Use: "computer"},
+	}, ComputerUse: "app"}
+	dir := t.TempDir()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	first, err := os.ReadFile(dir + "/agent.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := manifest.Parse(first)
+	if err != nil {
+		t.Fatalf("the saved manifest does not parse: %v\n%s", err, first)
+	}
+	want := []manifest.DesktopServer{{ID: "blender", Use: manifest.DesktopUseMCP}, {Choose: true, Use: manifest.DesktopUseComputer}}
+	if d := parsed.Capabilities.Desktop; d == nil || !reflect.DeepEqual(d.Servers, want) {
+		t.Fatalf("saved desktop = %+v\n%s", d, first)
+	}
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded.Desktop, m.Desktop) {
+		t.Fatalf("loaded desktop = %+v, want %+v", loaded.Desktop, m.Desktop)
+	}
+	again := t.TempDir()
+	if err := Save(again, loaded); err != nil {
+		t.Fatal(err)
+	}
+	second, err := os.ReadFile(again + "/agent.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(first) != string(second) {
+		t.Fatalf("a load and save changed the manifest:\n%s\n---\n%s", first, second)
+	}
+	if got := DesktopConsent(m); len(got) != 3 || !strings.Contains(got[2], "an application you choose") {
+		t.Fatalf("consent = %q", got)
+	}
+}
+
 // A server without a narrowing is written with no tools, every tool the
 // catalogue gives, and read back the same; a line with nothing in it writes
 // nothing, and a model without the line writes no desktop key.
@@ -111,15 +162,15 @@ func TestTheDesktopConsentIsTheInstallsWords(t *testing.T) {
 	m := &Model{Desktop: &DesktopRow{Servers: []DesktopServerRow{{ID: "blender"}}, ComputerUse: "app"}}
 	got := DesktopConsent(m)
 	srv := manifest.DescribeDesktopServer(manifest.DesktopServer{ID: "blender"})
-	want := []string{"Can use " + srv + ".", "Can see and use Blender's windows on your computer."}
+	want := []string{"Can use " + srv + ".", "Can see and use the windows of blender on your computer."}
 	if !slices.Equal(got, want) {
 		t.Fatalf("consent = %q, want %q", got, want)
 	}
-	if !strings.HasPrefix(srv, "Blender on your computer through its MCP server (") || !strings.Contains(srv, "1 runs code inside Blender") {
+	if srv != "the application blender on your computer, through its MCP server (every tool it lists)" {
 		t.Fatalf("the core's words moved: %q", srv)
 	}
 	narrowed := DesktopConsent(&Model{Desktop: &DesktopRow{Servers: []DesktopServerRow{{ID: "blender", Tools: []string{"look"}}}}})
-	if len(narrowed) != 1 || !strings.Contains(narrowed[0], "(1 tool)") {
+	if len(narrowed) != 1 || !strings.Contains(narrowed[0], "(tools look)") {
 		t.Fatalf("a narrowed server's consent: %q", narrowed)
 	}
 	if DesktopConsent(&Model{}) != nil || DesktopConsent(&Model{Desktop: &DesktopRow{}}) != nil {

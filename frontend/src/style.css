@@ -470,6 +470,8 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-ac
 }
 /* An accent badge's text is accent-hover: plain accent on its own tint
    measures 4.14-4.40. */
+/* The padlock beside a locked setting's words. */
+.lock-glyph { vertical-align: -1px; }
 .badge.kind { color: var(--color-accent-hover); border-color: color-mix(in srgb, var(--color-accent) 22%, transparent); background: color-mix(in srgb, var(--color-accent) var(--badge-tint), transparent); }
 .badge.ok { color: var(--color-ok); border-color: color-mix(in srgb, var(--color-ok) 22%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), transparent); }
 .badge.warn { color: var(--color-sev-medium); border-color: color-mix(in srgb, var(--color-sev-medium) 22%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), transparent); }

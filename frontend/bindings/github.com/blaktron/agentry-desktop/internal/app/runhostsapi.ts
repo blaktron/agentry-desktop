@@ -172,7 +172,9 @@ export function SetDefault(name: string): $CancellablePromise<void> {
 
 /**
  * SetUnsafeMode turns runhost name's Unsafe Mode on or off with the server's
- * admin sign-in, after a native confirmation when turning it on.
+ * admin sign-in, after a native confirmation when turning it on. Turning it
+ * on is refused before anything is asked while the managed settings held
+ * here forbid Unsafe Mode; turning it off never is.
  */
 export function SetUnsafeMode(name: string, on: boolean, admin: $models.RunhostAdmin): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.SetUnsafeMode", name, on, admin);

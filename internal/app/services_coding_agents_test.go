@@ -319,15 +319,15 @@ func TestContractDialogNamesATargetHostAndABrowser(t *testing.T) {
 }
 
 // The consent dialog names each application on the person's computer in the
-// core's words, which the CLI's consent uses too: the application, its tool
-// count, the tools that run code inside it and the hosts it reaches.
+// core's words, which the CLI's consent uses too: the application's id, what
+// of it the run uses, and its tools.
 func TestContractDialogNamesAnApplicationOnYourComputer(t *testing.T) {
 	srv := manifest.DesktopServer{ID: "blender"}
 	plan := &install.Plan{Namespace: "acme", Name: "scene", Version: "1.0.0", NeedsCapabilityConfirm: true,
 		Capabilities: installed.Snapshot(manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{srv}}})}
 	got := contractConsentText(plan, nil)
 	want := "• desktop: " + manifest.DescribeDesktopServer(srv)
-	if !strings.Contains(got, want) || !strings.Contains(want, "Blender on your computer through its MCP server (7 tools, 1 runs code inside Blender; it reaches 12 hosts from your computer)") {
+	if !strings.Contains(got, want) || !strings.Contains(want, "the application blender on your computer, through its MCP server (every tool it lists)") {
 		t.Fatalf("dialog:\n%s\nwant %q", got, want)
 	}
 }

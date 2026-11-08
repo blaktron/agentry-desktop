@@ -42,6 +42,8 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
+import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus } from "../managed";
+import { LockGlyph } from "../unsafe";
 
 // Settings as a landing of cards, one per section, each card the whole of
 // a link to its section page, with one sentence, a status line and its
@@ -225,6 +227,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     licences: null,
   };
 
+  const managedText = managedLine(settings.managed);
   return (
     <div data-settings-section="landing">
       <PageHeader
@@ -232,6 +235,10 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         sub="Each card opens one group of settings."
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
+      {managedText && (
+        <p className="small" role="status" data-settings-managed><LockGlyph /> {managedText}</p>
+      )}
+      {(settings.managedProblems ?? []).map((p) => <Notice key={p} tone="warn">{p}</Notice>)}
       <div className="settings-cards">
         {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)) })).map((s) => (
           <div key={s.id} className="card settings-card">
@@ -298,7 +305,8 @@ export function codingStatus(v: app.CodingAgentsView): string {
 export function runDefaultsStatus(d: app.RunDefaultsView, s: app.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
   const builtins = d.builtinNoLimit ? " The built-in agents have no time or turn limit here." : "";
-  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
+  const unsafe = d.unsafeMode ? " Unsafe Mode is on." : d.unsafeLock ? ` ${unsafeLockStatus(d.unsafeLock)}` : "";
+  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${unsafe}`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} The container engine is not ready yet.` : line;
 }
 
@@ -381,6 +389,11 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
     read();
     SettingsAPI.RunDefaults().then((v) => { show(v, true); setIdleText(idleField(v.chatIdleTimeoutSeconds)); }).catch((e) => setErr(String(e)));
   }, []);
+  // The organization's managed settings changed (a sign-in, a sign-out, the
+  // hourly read): Unsafe Mode's lock is read again.
+  useEffect(() => EventsOn("managed:changed", () => {
+    SettingsAPI.RunDefaults().then((v) => show(v, false)).catch(() => undefined);
+  }), []);
 
   // act returns Run defaults as Go now holds them, or null when it refused.
   async function act(fn: () => Promise<app.RunDefaultsView>, said?: string): Promise<app.RunDefaultsView | null> {
@@ -627,13 +640,29 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
           <PartSection id="unsafe" title="Unsafe Mode">
             <Card>
               <label className="check-row" style={{ margin: 0 }}>
-                <input type="checkbox" role="switch" checked={defaults.unsafeMode} disabled={busy || unsafeBusy}
+                <input type="checkbox" role="switch" checked={defaults.unsafeMode} disabled={busy || unsafeBusy || !!defaults.unsafeLock}
                   onChange={(e) => void setUnsafeMode(e.target.checked)} />
                 <span>
                   <strong>Unsafe Mode</strong>{" "}
                   <span className={`badge ${defaults.unsafeMode ? "bad" : ""}`} data-unsafe-state>{defaults.unsafeMode ? "On" : "Off"}</span>
+                  {defaults.unsafeLock && (
+                    <>
+                      {" "}
+                      <span className="badge" data-unsafe-managed><LockGlyph /> {unsafeLockBadge(defaults.unsafeLock)}</span>
+                    </>
+                  )}
                 </span>
               </label>
+              {defaults.unsafeLock && (
+                <div role="status" data-unsafe-lock>
+                  {unsafeLockLines(defaults.unsafeLock).map((l) => <p key={l} className="small">{l}</p>)}
+                  {defaults.unsafeLock.savedOn && (
+                    <p className="small">
+                      <Button variant="link" disabled={busy || unsafeBusy} onClick={() => void setUnsafeMode(false)}>Keep it off</Button>
+                    </p>
+                  )}
+                </div>
+              )}
               <p className="small">
                 While this is on, a QuickAgent run on this computer can use commands this computer has not approved. Each
                 command the QuickAgent declares is installed from Kali Linux&apos;s repository when it first runs, or from

@@ -180,12 +180,17 @@ type DesktopRow struct {
 	ComputerUse string `json:"computerUse,omitempty"`
 }
 
-// DesktopServerRow is one application server the line uses: its catalogue
-// id and the tools the release narrows it to, empty for every tool the
-// catalogue gives.
+// DesktopServerRow is one application the line uses: its id and the tools
+// the release narrows it to, empty for every tool its server lists. Choose
+// marks the entry that asks the person for an application of their own when
+// the run starts, which names no id and no tools; Use is "mcp", "computer",
+// "both" or empty for the core's default. The form has no editor for Choose
+// or Use and carries both unchanged from a load to the next save.
 type DesktopServerRow struct {
-	ID    string   `json:"id"`
-	Tools []string `json:"tools"`
+	ID     string   `json:"id"`
+	Tools  []string `json:"tools"`
+	Choose bool     `json:"choose,omitempty"`
+	Use    string   `json:"use,omitempty"`
 }
 
 // manifest is the row as the core's type, for the consent's words.
@@ -195,8 +200,12 @@ func (d *DesktopRow) manifest() *manifest.Desktop {
 	}
 	out := &manifest.Desktop{ComputerUse: manifest.ComputerUse(strings.TrimSpace(d.ComputerUse))}
 	for _, s := range d.Servers {
-		if id := strings.TrimSpace(s.ID); id != "" {
-			out.Servers = append(out.Servers, manifest.DesktopServer{ID: id, Tools: compact(s.Tools)})
+		use := manifest.DesktopUse(strings.TrimSpace(s.Use))
+		switch id := strings.TrimSpace(s.ID); {
+		case s.Choose:
+			out.Servers = append(out.Servers, manifest.DesktopServer{Choose: true, Use: use})
+		case id != "":
+			out.Servers = append(out.Servers, manifest.DesktopServer{ID: id, Use: use, Tools: compact(s.Tools)})
 		}
 	}
 	return out
@@ -1200,7 +1209,14 @@ func (m *Model) desktopLines() []string {
 	if len(d.Servers) > 0 {
 		out = append(out, "    servers:")
 		for _, s := range d.Servers {
-			out = append(out, "      - id: "+q(s.ID))
+			if s.Choose {
+				out = append(out, "      - choose: true")
+			} else {
+				out = append(out, "      - id: "+q(s.ID))
+			}
+			if s.Use != "" {
+				out = append(out, "        use: "+q(string(s.Use)))
+			}
 			if len(s.Tools) > 0 {
 				out = append(out, "        tools: "+seq(s.Tools))
 			}
@@ -1817,7 +1833,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 	if d := doc.Capabilities.Desktop; d != nil {
 		m.Desktop = &DesktopRow{Servers: []DesktopServerRow{}, ComputerUse: string(d.ComputerUse)}
 		for _, s := range d.Servers {
-			m.Desktop.Servers = append(m.Desktop.Servers, DesktopServerRow{ID: s.ID, Tools: orEmpty(s.Tools)})
+			m.Desktop.Servers = append(m.Desktop.Servers, DesktopServerRow{ID: s.ID, Tools: orEmpty(s.Tools), Choose: s.Choose, Use: string(s.Use)})
 		}
 	}
 	for i, srv := range doc.Capabilities.MCPServers {

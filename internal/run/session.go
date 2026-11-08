@@ -37,6 +37,11 @@ var ErrNotInteractive = errors.New("this release does not declare the interactiv
 // StartSession prepares the run exactly as Run does and starts the
 // interactive plan's harness. The task text, if any, is the opening turn.
 func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, error) {
+	// Managed settings that refuse every run refuse this chat before the
+	// release is resolved.
+	if err := managedRunRefusal(currentManaged()); err != nil {
+		return nil, err
+	}
 	sig, err := resolveForRun(ctx, req.Registry, req.Ref, true)
 	if err != nil {
 		return nil, err

@@ -26,6 +26,7 @@ import (
 	cliknowledge "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-desktop/internal/cliinstall"
 	"github.com/blaktron/agentry-desktop/internal/destinations"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -129,7 +130,21 @@ func installedCLI(ctx context.Context) (*schedules.CLI, error) {
 	if why := schedules.TooOld(line); why != "" {
 		return nil, errors.New(why)
 	}
+	if why := managedCLITooOld(line, managedCalls.current()); why != "" {
+		return nil, errors.New(why)
+	}
 	return c, nil
+}
+
+// managedCLITooOld is why the agentry of versionLine may not schedule while
+// managed settings are held here, or "" when it may: a schedule fires
+// through it, and one older than schedules.MinManagedCLI would fire without
+// them.
+func managedCLITooOld(versionLine string, held managed.Effective) string {
+	if len(held.Documents) == 0 && len(held.Problems) == 0 {
+		return ""
+	}
+	return schedules.OlderThan(versionLine, schedules.MinManagedCLI, "scheduling a run while an organization manages this computer's settings")
 }
 
 func (s *ScheduleAPI) cli() (*schedules.CLI, error) {

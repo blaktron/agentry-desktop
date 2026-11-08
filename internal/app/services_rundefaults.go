@@ -36,6 +36,10 @@ type RunDefaultsView struct {
 	// installed on, the runner policy's images.unsafe or the pinned default.
 	UnsafeMode  bool   `json:"unsafeMode"`
 	UnsafeImage string `json:"unsafeImage,omitempty"`
+	// UnsafeLock is set while managed settings refuse Unsafe Mode: the
+	// switch shows off and disabled, and UnsafeMode is false whatever
+	// desktop.yaml holds.
+	UnsafeLock *UnsafeLockView `json:"unsafeLock,omitempty"`
 	// BuiltinNoLimit is the no-limit switch for the built-in agents
 	// (desktop.yaml's builtinNoLimit), on unless turned off: the built-in
 	// agents' runs on this computer have no timeout and no turn cap the app
@@ -226,6 +230,9 @@ func runDefaultsView() (*RunDefaultsView, error) {
 		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(), MalwareCheck: pol.MalwareCheckOn(),
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 		Deliverables: dOn, DeliverablesDir: dDir, DeliverablesDefault: dDefault,
+	}
+	if lock := unsafeLock(managedCalls.current(), st.UnsafeMode); lock != nil {
+		v.UnsafeMode, v.UnsafeLock = false, lock
 	}
 	if dErr != nil && dDir == "" {
 		v.DeliverablesError = dErr.Error()

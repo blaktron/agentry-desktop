@@ -33,3 +33,14 @@ export function UnsafeBadge({ onOpen, running }: { onOpen?: () => void; running?
     </button>
   );
 }
+
+/** A padlock, beside the words that say what is locked; it carries no
+ *  meaning of its own. */
+export function LockGlyph() {
+  return (
+    <svg className="lock-glyph" width="11" height="12" viewBox="0 0 11 12" aria-hidden="true" focusable="false">
+      <rect x="1" y="5" width="9" height="6.5" rx="1.5" fill="currentColor" />
+      <path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}

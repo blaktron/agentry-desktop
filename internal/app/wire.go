@@ -122,6 +122,8 @@ func (s *Services) Startup(ctx context.Context) {
 	s.startBackground(ctx)
 	// Agents another client starts or stops are seen within seconds.
 	go s.persistent.watchElsewhere(ctx)
+	// The organization's managed settings read now and kept current.
+	go s.settings.watchManaged(ctx)
 	// Meeting notes' leftovers recovered and its old audio swept; no
 	// audio device is opened until the person presses Record.
 	s.meeting.start(ctx)
