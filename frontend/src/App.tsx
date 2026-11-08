@@ -7,6 +7,7 @@ import * as WhatsNewAPI from "../bindings/github.com/blaktron/agentry-desktop/in
 import * as RunhostsAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/selfupdateapi";
 import { UpdatesStatus } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as RunAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { UnsafeLive } from "../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import * as PersistentAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import * as MeetingAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
@@ -42,6 +43,8 @@ import Agents from "./pages/Agents";
 import Plugins from "./pages/Plugins";
 import ComputerUse from "./pages/ComputerUse";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
+import { skippedItems, type SkippedItem } from "./firstRun";
+import type { WizardStep } from "./wizardPath";
 import WhatsNew from "./pages/WhatsNew";
 import type { WhatsNewData } from "./whatsNew";
 import { Recover } from "./Recover";
@@ -193,6 +196,10 @@ export default function App() {
   // trip), and never persisted — the next launch starts clean, and the onboarding
   // flag keeps the wizard closed.
   const [setupMissing, setSetupMissing] = useState<string[] | null>(null);
+  // What a skipped wizard left undone, each with the step that does it.
+  const [skipped, setSkipped] = useState<SkippedItem[] | null>(null);
+  // The step the wizard opens at: a banner's item opens its own.
+  const [wizardStep, setWizardStep] = useState<WizardStep>("welcome");
   // A run or chat compiled in Unsafe Mode that is still live on this computer:
   // turning the switch off changes the next run, not
   // this one, so the edge and the badge stay until Go says it has ended.
@@ -356,9 +363,20 @@ export default function App() {
     } catch {
       // Non-fatal: the flag is a convenience, not a gate on functionality.
     }
-    await refreshSettings().catch(() => {});
+    const s = await refreshSettings().catch(() => null);
     setShowWizard(false);
+    setWizardStep("welcome");
     setSetupMissing(outcome.kind === "later" ? outcome.missing : null);
+    setSkipped(null);
+    if (outcome.kind === "skipped") {
+      const signedIn = !!s?.registries.some((r) => r.hasToken);
+      // A read that fails is "not set up": the banner says what to check.
+      const status = await RunAPI.SetupStatus().catch(() => null);
+      const where = await SettingsAPI.RunDefaults().then((d) => d.where).catch(() => "");
+      const chosenInAgentry = where === "agentry" && signedIn;
+      const items = skippedItems({ signedIn, providerSetUp: !!status?.providerSetUp || chosenInAgentry });
+      setSkipped(items.length > 0 ? items : null);
+    }
     // Every ending lands on Home, whose cards the place runs go now picks.
     setRoute({ page: "home" });
   }, [refreshSettings]);
@@ -374,12 +392,36 @@ export default function App() {
     }
     setRoute(r as Route);
   }
+  // A banner item opens the wizard at its own step.
+  function openSetupStep(step: WizardStep) {
+    setSkipped(null);
+    setSetupMissing(null);
+    setWizardStep(step);
+    setShowWizard(true);
+  }
   // Home shows it.
-  const setupBanner = setupMissing && (
+  const setupBanner = skipped ? (
+    <div className="setup-banner">
+      <Notice tone="info">
+        <strong>Setup was skipped.</strong> You can browse public QuickAgents now. Still to do:
+        <ul className="setup-banner-list">
+          {skipped.map((m) => (
+            <li key={m.step}>
+              {m.text}{" "}
+              <Button variant="ghost" onClick={() => openSetupStep(m.step)}>{m.action}</Button>
+            </li>
+          ))}
+        </ul>
+        <div className="row">
+          <Button variant="ghost" onClick={() => setSkipped(null)}>Dismiss</Button>
+        </div>
+      </Notice>
+    </div>
+  ) : setupMissing && (
     <div className="setup-banner">
       <Notice tone="warn">
-        <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
-        it cannot sign in, run or build anything until it is:
+        <strong>Setup isn't finished.</strong> You can browse public QuickAgents now. To run or
+        build one, these are still to do:
         <ul className="setup-banner-list">
           {setupMissing.map((m) => <li key={m}>{m}</li>)}
         </ul>
@@ -725,6 +767,7 @@ export default function App() {
             onChanged={refreshSettings}
             onSelectRegistry={setRegistry}
             onFinish={finishWizard}
+            initialStep={wizardStep}
           />
         )}
         <div className="corner-cards" ref={setCorner} />

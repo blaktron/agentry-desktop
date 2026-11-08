@@ -44,6 +44,7 @@ import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from
 import { rejectedLine } from "../signInState";
 import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus } from "../managed";
 import { LockGlyph } from "../unsafe";
+import { PLACES } from "../firstRun";
 
 // Settings as a landing of cards, one per section, each card the whole of
 // a link to its section page, with one sentence, a status line and its
@@ -535,7 +536,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
           <PartSection id="where" title="Where to run">
             <Card>
               <div className="row" style={{ gap: 14 }}>
-                {([["here", "This computer"], ["agentry", "In Agentry"]] as [RunWhere, string][]).map(([w, label]) => (
+                {([["here", PLACES.local], ["agentry", PLACES.cloud]] as [RunWhere, string][]).map(([w, label]) => (
                   <label key={w} className="check-row" style={{ margin: 0 }}>
                     <input type="radio" name="run-where" checked={defaults.where === w} disabled={busy}
                       onChange={() => act(() => SettingsAPI.SetRunWhere(w))} />
