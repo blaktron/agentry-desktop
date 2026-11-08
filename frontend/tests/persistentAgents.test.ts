@@ -10,6 +10,8 @@ import {
   installsPersistent,
   publishedLine,
   subagentRunWords,
+  subagentRunsShown,
+  SUBAGENT_RUNS_SHOWN,
   agentNavEntries,
   viewingAgent,
   agentCalled,
@@ -530,6 +532,17 @@ test("a subagent run reads running until it ends, then how it ended", () => {
   assert.match(subagentRunWords({ started, ended: "", outcome: "", error: "" }), /^running since /);
   assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "ok", error: "" }), /^finished /);
   assert.match(subagentRunWords({ started, ended: "2026-11-02T09:01:00Z", outcome: "error", error: "x" }), /^did not run /);
+});
+
+test("the usage panel lists the five newest subagent runs and offers the rest", () => {
+  const runs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}` }));
+  assert.equal(SUBAGENT_RUNS_SHOWN, 5);
+  assert.deepEqual(subagentRunsShown(null), { shown: [], more: false });
+  assert.deepEqual(subagentRunsShown(runs(3)), { shown: runs(3), more: false });
+  assert.deepEqual(subagentRunsShown(runs(5)), { shown: runs(5), more: false });
+  const six = subagentRunsShown(runs(6));
+  assert.deepEqual(six.shown.map((r) => r.id), ["r0", "r1", "r2", "r3", "r4"]);
+  assert.equal(six.more, true);
 });
 
 test("a change the running agent could not start with is named with why", () => {

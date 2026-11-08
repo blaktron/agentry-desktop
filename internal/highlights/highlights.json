@@ -1,6 +1,12 @@
 {
   "versions": [
     {
+      "version": "0.7.23",
+      "highlights": [
+        "A persistent agent's page lists its five newest subagent runs; See more… opens all of them in a card."
+      ]
+    },
+    {
       "version": "0.7.22",
       "highlights": [
         "A QuickAgent that uses an application on your computer can now run on one of your runhosts from the run setup.",

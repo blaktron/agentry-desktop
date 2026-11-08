@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, notAppliedWords, pendingChange, runningInBackground, showsStop, subagentRunWords, termBlocks } from "../persistentAgents";
+import { AGENT_STATES, agentStateWords, isLive, notAppliedWords, pendingChange, runningInBackground, showsStop, subagentRunsShown, subagentRunWords, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { AGENT_VIEWS, agentView, DEFAULT_AGENT_VIEW, usageLine, type AgentViewId } from "../agentView";
 import { Button, ErrorBox, Modal } from "../ui";
@@ -48,6 +48,7 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
   const [viewId, setViewId] = useState<AgentViewId>(DEFAULT_AGENT_VIEW);
   const [showRoster, setShowRoster] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
+  const [showAllRuns, setShowAllRuns] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const blocks = termBlocks(rec.chat);
   const inBackground = runningInBackground(blocks);
@@ -144,6 +145,22 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
   }, now);
   const headerUsage = view.id === "compact" || view.id === "focus" ? usageLine(usage, HEADER_USAGE) : "";
   const roster = (withAdds: boolean) => <ConfigCards agent={agent} onChanged={updateAgent} onError={setError} withAdds={withAdds} />;
+  // The usage panel lists the newest few subagent runs; "See more…" opens
+  // every one the app read in a dialog. A run's name opens its run, and
+  // opening one from the dialog closes it.
+  const runs = subagentRunsShown(agent.subagentRuns);
+  const subagentRunList = (list: app.PersistentSubagentRunView[], onOpened?: () => void) => (
+    <ul className="agent-subagent-runs">
+      {list.map((r) => (
+        <li key={r.id}>
+          {r.runId && onOpenRun
+            ? <Button variant="link" onClick={() => { onOpened?.(); onOpenRun(r.runId!); }}>{r.subagent}</Button>
+            : <span className="mono">{r.subagent}</span>}
+          <span className="small muted"> · {subagentRunWords(r)}</span>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <div className={`agent-screen view-${view.id}`} data-agent-view={view.id}>
@@ -228,19 +245,11 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
             ))}
             <div className="agent-usage-row"><dt>Volumes</dt><dd title={`${agent.volumes.session}\n${agent.volumes.data}`}>its conversation and its files, kept between segments</dd></div>
           </dl>
-          {(agent.subagentRuns ?? []).length > 0 && (
+          {runs.shown.length > 0 && (
             <div data-subagent-runs>
               <h2>Subagent runs</h2>
-              <ul className="agent-subagent-runs">
-                {agent.subagentRuns.map((r) => (
-                  <li key={r.id}>
-                    {r.runId && onOpenRun
-                      ? <Button variant="link" onClick={() => onOpenRun(r.runId!)}>{r.subagent}</Button>
-                      : <span className="mono">{r.subagent}</span>}
-                    <span className="small muted"> · {subagentRunWords(r)}</span>
-                  </li>
-                ))}
-              </ul>
+              {subagentRunList(runs.shown)}
+              {runs.more && <Button variant="link" className="agent-subagent-runs-more" onClick={() => setShowAllRuns(true)}>See more…</Button>}
             </div>
           )}
         </aside>
@@ -258,6 +267,12 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
         <Modal title={`What ${agent.displayName} has`} wide onClose={() => setShowRoster(false)}>
           <div className="agent-roster-modal">{roster(false)}</div>
           <div className="row gap" style={{ marginTop: 12 }}><Button onClick={() => setShowRoster(false)}>Close</Button></div>
+        </Modal>
+      )}
+      {showAllRuns && (
+        <Modal title={`${agent.displayName}'s subagent runs`} onClose={() => setShowAllRuns(false)}>
+          <div className="agent-subagent-runs-all" data-subagent-runs-all>{subagentRunList(agent.subagentRuns ?? [], () => setShowAllRuns(false))}</div>
+          <div className="row gap" style={{ marginTop: 12 }}><Button onClick={() => setShowAllRuns(false)}>Close</Button></div>
         </Modal>
       )}
       {showTasks && <TasksView agent={agent} onClose={() => setShowTasks(false)} />}
