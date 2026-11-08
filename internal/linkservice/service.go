@@ -310,18 +310,24 @@ func (s *Service) prepareLazy(ctx context.Context, want desktop.BindServer) (*bo
 	return bs, nil
 }
 
-// started is a lazy server's session, started now when it has none: nil
-// with the step to take while its application is not running.
+// started readies a lazy server for a call: the application running, and
+// its installed server started when it has none; the step to take while
+// the application is not running.
 func (bs *boundServer) started(ctx context.Context, s *Service) *desktop.Refusal {
-	bs.mu.Lock()
-	has := bs.sess != nil
-	bs.mu.Unlock()
-	if has || !bs.lazy {
+	if !bs.lazy {
 		return nil
 	}
+	// Whether the application is running is read at each call: its
+	// installed server may answer some tools without it.
 	e := bs.entry
 	if st := s.check(ctx, e); !st.Ready {
 		return refusal(receipt.DesktopNotInstalled, e.ID, "%s", st.Sentence(e))
+	}
+	bs.mu.Lock()
+	has := bs.sess != nil
+	bs.mu.Unlock()
+	if has {
+		return nil
 	}
 	sess, launch, err := s.open(ctx, e)
 	if err != nil {

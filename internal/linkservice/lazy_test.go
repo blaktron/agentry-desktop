@@ -41,6 +41,12 @@ func TestAnAgentsBindReadsTheApplicationAtEachCall(t *testing.T) {
 	if len(r.launches) != 1 {
 		t.Fatalf("the installed server was launched %d times", len(r.launches))
 	}
+	// Closed again: the next call is refused with the step, though the
+	// installed server still runs.
+	running = false
+	if _, ref := call(r, b.Token, "blender", "get_scene_info", `{}`); ref == nil || ref.Reason != receipt.DesktopNotInstalled {
+		t.Fatalf("a call after Blender closed: %+v", ref)
+	}
 }
 
 // An exec call asks unless the person agreed to the agent's code for that
