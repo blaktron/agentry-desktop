@@ -14,6 +14,7 @@ import { PdfViewer } from "../PdfViewer";
 import * as DesignerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/designerapi";
 import { EventsOn } from "../host";
 import { DesignWithAI } from "./DesignWithAI";
+import { followDesignerHosted, showDesignerHosted, takeDesignerAsk, useDesignerAsk, useDesignerRun } from "../designerRun";
 import type { DesignerJob } from "../designer";
 
 // Settings → Report design: the account's library of report designs and the
@@ -92,11 +93,35 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
 
   // A Report Designer run In Agentry: followed through its events, and
   // found again when the page opens while one is under way.
+  // Found under way, it is also followed in its run window, as its card.
   useEffect(() => EventsOn("designer:hosted", (v: app.DesignerHostedView) => setHosted(v)), []);
   useEffect(() => {
     if (!signedIn) return;
-    DesignerAPI.AttachHosted(registry).then((r) => { if (r.run) setHosted(r.run); }).catch(() => {});
+    DesignerAPI.AttachHosted(registry).then((r) => {
+      if (!r.run) return;
+      setHosted(r.run);
+      if (!r.run.final) followDesignerHosted(hostedMeta(registry, r.run), r.run, true);
+    }).catch(() => {});
   }, [registry, signedIn]);
+  // The run window's ask: Edit it opens a design the run made in the
+  // editor; Try again opens Design with AI for the same job.
+  const designerAsk = useDesignerAsk();
+  useEffect(() => {
+    // Only once the page draws the library: before then this render
+    // returned early, and the editor's open is not there to call.
+    if (!designerAsk || !signedIn || !opts || !lib?.available) return;
+    const a = takeDesignerAsk();
+    if (!a) return;
+    if ("edit" in a) void open(a.edit);
+    else setDesignAI({ job: a.again, from: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designerAsk, signedIn, opts, lib?.available]);
+  // A Report Designer run that lands, or a design it made added from its
+  // run window, changes the library.
+  const designerLanded = useDesignerRun().landed;
+  useEffect(() => {
+    if (designerLanded > 0 && signedIn) void SettingsAPI.ReportDesignLibrary(registry).then(setLib).catch(() => {});
+  }, [designerLanded, registry, signedIn]);
   const hostedSaved = hosted?.final && hosted.applied ? hosted.designId : "";
   useEffect(() => {
     if (hostedSaved && signedIn) void SettingsAPI.ReportDesignLibrary(registry).then(setLib).catch(() => {});
@@ -195,7 +220,8 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
           kitName={kitName} kitOf={kitOf}
           onOpen={(id) => void open(id)} onUse={(id) => void use(id)} onDuplicate={(id) => void duplicate(id)}
           onDelete={setConfirmDelete} onNew={() => setNewKit({ id: opts.defaultKitId, name: "", makeDefault: lib.designs.length === 0 })}
-          hosted={designAI ? null : hosted} onDesignAI={() => setDesignAI({ job: "design", from: "" })} />
+          hosted={designAI ? null : hosted} onDesignAI={() => setDesignAI({ job: "design", from: "" })}
+          onShowHosted={() => { if (hosted) showDesignerHosted(hostedMeta(registry, hosted), hosted); }} />
       ) : (
         <Editor registry={registry} opts={opts} lib={lib} view={view} d={d} setD={setD} check={check} busy={busy} err={err} said={said}
           suggestion={suggestion} setSuggestion={setSuggestion} kitName={kitName}
@@ -205,11 +231,8 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
       )}
 
       {designAI && (
-        <DesignWithAI registry={registry} lib={lib} opts={opts} initialJob={designAI.job} initialFrom={designAI.from}
+        <DesignWithAI registry={registry} lib={lib} initialJob={designAI.job} initialFrom={designAI.from}
           hosted={hosted} onHosted={setHosted}
-          onUse={(id) => void use(id)}
-          onEdit={(id) => { setDesignAI(null); void open(id); }}
-          onSaved={() => void readLibrary(registry).catch((e) => setErr(String(e)))}
           onClose={() => setDesignAI(null)} />
       )}
 
@@ -274,7 +297,7 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
 }
 
 // Library is the cards.
-function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf, onOpen, onUse, onDuplicate, onDelete, onNew, hosted, onDesignAI }: {
+function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf, onOpen, onUse, onDuplicate, onDelete, onNew, hosted, onDesignAI, onShowHosted }: {
   lib: app.ReportDesignLibrary;
   opts: app.ReportDesignOptions;
   busy: string;
@@ -292,6 +315,8 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
   /** The Report Designer run In Agentry the page follows, while its dialog is closed. */
   hosted: app.DesignerHostedView | null;
   onDesignAI: () => void;
+  /** Brings up the run window of the run In Agentry under way. */
+  onShowHosted: () => void;
 }) {
   const hostedRunning = !!hosted && !hosted.final;
   return (
@@ -313,7 +338,7 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
         {hostedRunning && (
           <Notice tone="info">
             The Report Designer is running In Agentry: {hosted.statusLine}{" "}
-            <Button variant="link" onClick={onDesignAI}>Show it</Button>
+            <Button variant="link" onClick={onShowHosted}>Show it</Button>
           </Notice>
         )}
         {hosted?.final && (
@@ -852,4 +877,10 @@ function Radios({ legend, field, value, values, labels, onChange, inline = false
       ))}
     </fieldset>
   );
+}
+
+// hostedMeta is what the run window says of a Report Designer run In
+// Agentry the page found: its job and what it was given.
+function hostedMeta(registry: string, h: app.DesignerHostedView) {
+  return { registry, job: (h.op === "cover" ? "cover" : "design") as DesignerJob, images: 0, urls: h.urls?.length ?? 0, document: !!h.document };
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -478,6 +479,9 @@ type BuildRequest struct {
 	Build   Builder
 	Log     io.Writer
 	OnUsage func(receipt.Usage)
+	// Progress, when set, is told how far the run has got: at its start,
+	// under the Voice Writer's budgets, then at every usage report.
+	Progress func(progress.Report)
 }
 
 // BuildResult is what a Voice Writer run on this computer did.
@@ -565,11 +569,13 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	if b == nil {
 		b = build.Build
 	}
-	budgets := settings.BuiltinBudgets(localrun.VoiceWriter(), pol.Budgets).Run
+	limits := settings.BuiltinBudgets(localrun.VoiceWriter(), pol.Budgets)
+	budgets := limits.Run
+	prog := progress.StartMeter(req.Progress, limits.Shown.TimeoutSeconds, limits.Shown.MaxTurns)
 	res, err := b(ctx, dockerx.New(), build.Options{
 		Job: req.Job, Samples: req.Samples, URLs: urls, Review: review, Web: web, Brief: strings.TrimSpace(req.Brief), Current: current,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
-		OutDir: outDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: req.OnUsage,
+		OutDir: outDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: progress.UsageTo(prog, req.OnUsage),
 	})
 	if res != nil {
 		for _, p := range res.Pages {

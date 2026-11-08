@@ -15,11 +15,13 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/voice/build"
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
 	"github.com/blaktron/agentry-cli/pkg/voice/writer"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -291,5 +293,39 @@ func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeOrTurnLimitByDefault(t *
 	}
 	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < writer.LocalTimeoutFloorSeconds || seen.Budgets.MaxTurns == settings.BuiltinFailsafeTurns {
 		t.Fatalf("with the switch off the Writer ran under %+v, want at least its floor and the policy's turns", seen.Budgets)
+	}
+}
+
+// A Voice Writer run reports its progress as the other built-ins do: once
+// at its start under the budgets it shows, then at every usage report, with
+// the caller's own usage hook still told.
+func TestTheVoiceWriterReportsItsProgress(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	e, reg := testEnv(t, false)
+	home, _ := e.Home()
+	t.Setenv(policy.HomeEnv, home)
+	fake := func(_ context.Context, _ dockerx.Client, o build.Options) (*build.Result, error) {
+		o.OnUsage(receipt.Usage{Turns: 2, InputTokens: 300, OutputTokens: 40})
+		return &build.Result{Text: []byte("# Voice by the Writer\n\nKeep it plain.\n"), Samples: []string{"a.txt"}}, nil
+	}
+	var reports []progress.Report
+	var told int
+	_, err := e.Build(context.Background(), BuildRequest{
+		Registry: reg.URL, Job: build.Create, Samples: []string{"a.txt"}, Build: fake,
+		Progress: func(p progress.Report) { reports = append(reports, p) },
+		OnUsage:  func(receipt.Usage) { told++ },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reports) != 2 || told != 1 {
+		t.Fatalf("reports %+v, usage hook told %d times", reports, told)
+	}
+	first, last := reports[0], reports[1]
+	if first.StartedAt == 0 || first.Turns != 0 || first.MaxTurns != 0 || first.TimeoutSeconds != 0 {
+		t.Fatalf("the first report %+v: want the start under the shown budgets (no limit by default)", first)
+	}
+	if last.Turns != 2 || last.InputTokens != 300 || last.OutputTokens != 40 || last.StartedAt != first.StartedAt {
+		t.Fatalf("the usage report %+v", last)
 	}
 }

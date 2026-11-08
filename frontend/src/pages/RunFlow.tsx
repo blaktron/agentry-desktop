@@ -1,31 +1,29 @@
-// A run on this computer, followed above the pages, as a draft and a
-// knowledge build are: App mounts this, the run setup hands the
-// run over at Run and closes once it has begun, and the dialog shows the time
-// used against the run's limit, its turns and tokens over its log folded
-// beneath. Run in the background, or closing the dialog while the run goes,
-// shrinks it to a card in the bottom-right corner that keeps the progress,
-// stops the run (RunAPI.StopRun, which stops only a run) and opens the dialog
-// again. Once the run is over the dialog is its result (the result first,
-// Run details beneath) and the card says how it ended; Dismiss
-// makes the app forget it, and Back to the setup reopens the setup on that
-// QuickAgent with the answers as they were.
+// A run on this computer, followed above the pages in its run window
+// (RunWindow.tsx), as every built-in's job is: App mounts this, the run
+// setup hands the run over at Run and closes once it has begun, and the
+// window shows the time used against the run's limit, its turns and tokens,
+// an image pull's or build's progress while it prepares, and its Run log.
+// Stop stops only a run (RunAPI.StopRun). Once the run is over the dialog is
+// its result (the result first, Run details with the log beneath); Back to
+// the setup reopens the setup on that QuickAgent with the answers as they
+// were.
 //
 // The run lock is unchanged: this run is the one local job. A run started
 // meanwhile waits its turn in a card of its own, "Waiting to start", with
 // Cancel, and takes this card over when it begins; any other job started
 // meanwhile is refused with what is running. Every string the run wrote
 // (the log, the error, the result) is drawn as text.
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { failureOf, localFailureInput, reportText } from "../failedRun";
 import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, shownLog } from "../localRun";
-import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
+import { BytesBar, CornerCard, ProgressView, StepBar } from "../progress";
 import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
-import { Button, ErrorBox, Modal } from "../ui";
-import { BytesBar, StepBar } from "../progress";
+import { Button } from "../ui";
 import { bytesProgress, stepProgress } from "../bytesProgress";
 import { FailedRunView } from "./FailedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
+import { RunWindow, useFollowed } from "./RunWindow";
 
 export type RunFlowActions = {
   /** Opens the run's setup again, with the answers as they were. */
@@ -109,73 +107,12 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
   initialMinimized?: boolean;
 }) {
   const s = useLocalRun();
+  const followed = useFollowed({ raised: s.raised, initialMinimized });
   const r = s.run;
-  // The card is shown for the ask it was minimized under; a new ask (Open,
-  // or a new run) opens the dialog again, with no frame of the card first.
-  const [cardFor, setCardFor] = useState<number | null>(null);
-  const minimized = cardFor === s.raised;
-  const minimize = () => setCardFor(s.raised);
-  // Harness-only: the first ask to open, when the run begins, is shown as
-  // the card.
-  const firstAsCard = useRef(!!initialMinimized);
-  useEffect(() => {
-    if (firstAsCard.current && s.raised > 0) {
-      firstAsCard.current = false;
-      setCardFor(s.raised);
-    }
-  }, [s.raised]);
   if (!s.shown || !r) return null;
 
   const running = !r.over;
   const { line, tone } = outcome(r);
-  const title = running ? `Running ${r.ref}` : `${r.ref}: the run is over`;
-  const stop = () => void stopLocalRun();
-
-  if (minimized) {
-    return (
-      <CornerCard
-        label={`Run of ${r.ref}`}
-        running={running}
-        title={title}
-        line={running ? "" : line}
-        tone={tone}
-        actions={<>
-          {running && <StopButton stopping={r.stopping} onStop={stop} />}
-          {!running && <Button onClick={dismissLocalRun}>Dismiss</Button>}
-          <Button variant="primary" onClick={showLocalRun}>Open</Button>
-        </>}
-      >
-        {running && <RunProgressView r={r} compact />}
-      </CornerCard>
-    );
-  }
-
-  if (running) {
-    return (
-      <Modal title={title} onClose={minimize} wide>
-        <RunningView
-          spinner={r.stopping ? "Stopping the run…" : r.progress?.prepared ? "The QuickAgent is running…" : "Preparing the run…"}
-          about={<>
-            The QuickAgent runs on this computer in its containers, under the contract you accepted. Preparing takes longer the
-            first time: the release is installed and the images it needs are pulled or built.
-          </>}
-          actions={<>
-            <StopButton stopping={r.stopping} onStop={stop} label="Stop the run" />
-            <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </>}
-          background={<>
-            In the background, the run goes on in a card in the corner and the rest of the app stays usable. Stop ends it, and
-            its receipts are written as far as it got.
-          </>}
-        >
-          <RunProgressView r={r} />
-          {!r.progress?.prepared && <PrepareBars log={r.log} />}
-          <FoldedLog label="Run log" lines={shownLog(r)} reveal />
-        </RunningView>
-      </Modal>
-    );
-  }
-
   const res = r.result;
   const back = () => {
     const s = backToSetup();
@@ -188,22 +125,44 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
   } : undefined;
   // A run that failed: its facts and actions stand where the headline was,
   // for a run with a result and one that ended before it had one alike.
-  const failure = res ? failureOf(localFailureInput(res, r.stopped)) : r.stopped ? null : failureOf({ where: "here", status: "error", cause: r.error ?? "", ref: r.ref });
+  const failure = running ? null : res ? failureOf(localFailureInput(res, r.stopped)) : r.stopped ? null : failureOf({ where: "here", status: "error", cause: r.error ?? "", ref: r.ref });
   const runId = res?.runId ?? r.runId ?? "";
+  // Report shrinks the dialog to its card first, so the Report bug card it
+  // opens is the one in front.
   const failed = failure && (
     <FailedRunView
       failure={failure}
       runAgain={again && { label: "Run again with the same answers", onClick: again }}
       openFolder={res?.outDir ? () => void RunAPI.ShowRunFolder(res.runId).catch(() => undefined) : undefined}
-      report={onReport ? () => { minimize(); onReport(reportText(failure, runId)); } : undefined}
+      report={onReport ? () => { followed.minimize(); onReport(reportText(failure, runId)); } : undefined}
     />
   );
-  // Closing the dialog of a run that is over keeps its card: only Dismiss
-  // makes the app forget the run. Report shrinks the dialog to its card
-  // first, so the Report bug card it opens is the one in front.
   return (
-    <Modal title={`Run ${r.ref}`} onClose={minimize} wide>
-      {res ? (
+    <RunWindow
+      {...followed}
+      onOpen={showLocalRun}
+      onDismiss={dismissLocalRun}
+      label={`Run of ${r.ref}`}
+      title={running ? `Running ${r.ref}` : `Run ${r.ref}`}
+      cardTitle={running ? `Running ${r.ref}` : `${r.ref}: the run is over`}
+      running={running}
+      spinner={r.stopping ? "Stopping the run…" : r.progress?.prepared ? "The QuickAgent is running…" : "Preparing the run…"}
+      about={<>
+        The QuickAgent runs on this computer in its containers, under the contract you accepted. Preparing takes longer the
+        first time: the release is installed and the images it needs are pulled or built.
+      </>}
+      progress={(compact) => <RunProgressView r={r} compact={compact} />}
+      prepare={!r.progress?.prepared && <PrepareBars log={r.log} />}
+      background={<>
+        In the background, the run goes on in a card in the corner and the rest of the app stays usable. Stop ends it, and
+        its receipts are written as far as it got.
+      </>}
+      stop={{ label: "Stop the run", cardLabel: "Stop", stopping: r.stopping, onStop: () => void stopLocalRun() }}
+      log={shownLog(r)}
+      line={line}
+      tone={tone}
+      error={failed ? null : r.error}
+      outcome={res ? (
         <RunResultView
           runId={res.runId}
           headline={headlineOf(res, r.stopped).line}
@@ -217,18 +176,10 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
         >
           <LocalRunDetails result={res} log={shownLog(r)} />
         </RunResultView>
-      ) : (
-        <>
-          {failed ?? <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>}
-          {!failed && <ErrorBox error={r.error} />}
-          {r.log.length > 0 && <LogPane label="Run log" lines={shownLog(r)} reveal />}
-        </>
-      )}
-      <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-        <Button onClick={back}>Back to the setup</Button>
-        <Button variant="primary" onClick={dismissLocalRun}>Dismiss</Button>
-      </div>
-    </Modal>
+      ) : failed || undefined}
+      logInOutcome={!!res}
+      actions={<Button onClick={back}>Back to the setup</Button>}
+    />
   );
 }
 

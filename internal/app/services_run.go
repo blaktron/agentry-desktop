@@ -1599,7 +1599,8 @@ func knowledgeEnv(e *knowledge.Env) knowledge.Env {
 // asRun runs f as the run in flight under the run lock, as a local run
 // runs (a knowledge build is one): refused while another holds the lock;
 // its context cancelled, its run id's containers swept and waited for when
-// the app quits (services_quit.go); f's log streamed as event.
+// the app quits (services_quit.go); f's log streamed as event and kept, as
+// a run's is, for the history.
 func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context.Context, runID string, logw io.Writer) error) error {
 	if err := r.acquire(kind, what); err != nil {
 		return err
@@ -1613,8 +1614,9 @@ func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context
 	}
 	defer r.endRun(live)
 	logw := r.eventWriter(event)
-	defer logw.Flush()
+	logw.also = live.keep
 	err = f(ctx, live.id, logw)
+	logw.Flush()
 	recordBuiltin(ctx, r.app, live, err)
 	return err
 }

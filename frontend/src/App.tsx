@@ -18,7 +18,9 @@ import AgentPage from "./pages/AgentPage";
 import Library from "./pages/Library";
 import Publisher, { type FollowFork } from "./pages/Publisher";
 import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
-import Voice from "./pages/Voice";
+import Voice, { type VoiceView } from "./pages/Voice";
+import VoiceFlow from "./pages/VoiceFlow";
+import DesignerFlow from "./pages/DesignerFlow";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import { stageRecordedDraft } from "./drafts";
@@ -77,7 +79,9 @@ export type Route =
   // What the app noticed, and the account's notices: the bell's page.
   | { page: "notifications" }
   | { page: "knowledge" }
-  | { page: "voice" }
+  // view: the Local or Cloud Voice page, as a Voice Writer run's window
+  // opens it.
+  | { page: "voice"; view?: VoiceView }
   | { page: "validate" }
   // view: the start page, or Describe it (Home's Draft a QuickAgent).
   | { page: "build"; view?: "describe" }
@@ -594,6 +598,8 @@ export default function App() {
             )}
             {route.page === "voice" && (
               <Voice
+                key={route.view ?? "start"}
+                initialPage={route.view}
                 registry={registry}
                 onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
               />
@@ -646,6 +652,8 @@ export default function App() {
         <HostedRunFlow onBackToSetup={setReopened} onRunAgain={runAgain} onReport={setReportingBug} />
         <ChatFlow onBackToSetup={setReopened} />
         <ReviewFlow />
+        <VoiceFlow onOpenVoice={(view) => nav({ page: "voice", view })} />
+        <DesignerFlow onOpenDesigns={() => nav({ page: "settings", section: "report-design" })} />
         {reopened && (
           <RunPanel
             {...reopened.panel}

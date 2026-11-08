@@ -29,6 +29,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -88,6 +89,9 @@ type Request struct {
 	Build   Builder
 	Log     io.Writer
 	OnUsage func(receipt.Usage)
+	// Progress, when set, is told how far the run has got: at its start,
+	// under the Report Designer's budgets, then at every usage report.
+	Progress func(progress.Report)
 }
 
 // Result is what a run made: the design, never anyone's default, and what
@@ -259,11 +263,13 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if b == nil {
 		b = build.Run
 	}
-	budgets := settings.BuiltinBudgets(localrun.ReportDesigner(), pol.Budgets).Run
+	limits := settings.BuiltinBudgets(localrun.ReportDesigner(), pol.Budgets)
+	budgets := limits.Run
+	prog := progress.StartMeter(req.Progress, limits.Shown.TimeoutSeconds, limits.Shown.MaxTurns)
 	res, err := b(ctx, dockerx.New(), build.Options{
 		Job: build.Job(req.Job), Brief: req.Brief, From: req.From, Logo: logo, Images: images, URLs: urls, Document: doc, Review: review, Web: web,
 		Home: req.Home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol),
-		OutDir: req.OutDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: req.OnUsage,
+		OutDir: req.OutDir, Budgets: &budgets, RunID: req.RunID, Stderr: logw, OnUsage: progress.UsageTo(prog, req.OnUsage),
 	})
 	var pages []voice.Page
 	if res != nil {

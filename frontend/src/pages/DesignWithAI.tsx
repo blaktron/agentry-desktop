@@ -2,13 +2,12 @@
 // from a brief (Design) or a custom cover page for one of the library's
 // designs (Cover), In Agentry or on this computer, chosen in the dialog as
 // Edit with AI chooses. In Agentry it runs at the registry's flat price and
-// saves what it made to the library itself, a new design never the
-// default: the dialog shows that design read back from the library by the
-// id the run names, or why nothing was saved, refunded. On this computer it
-// runs against the person's own model for no credits, and the dialog shows
-// the result before anything is saved: only Add to my library puts it in the
-// library, under a free name, never the default. Use, here or on the card,
-// is what makes a design the default.
+// saves what it made to the library itself, a new design never the default.
+// On this computer it runs against the person's own model for no credits,
+// and only Add to my library puts what it made in the library, under a free
+// name, never the default. Either way this dialog hands the run to its run
+// window (DesignerFlow) once it has begun and closes. Use, on the library's
+// card, is what makes a design the default.
 //
 // The images come only from the system's picker (Go marks what it returns,
 // and a run takes nothing else). The brief, the counts and the addresses are
@@ -21,8 +20,8 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { EventsOn } from "../host";
-import { Button, Card, ErrorBox, Modal, Notice, Select, Spinner, Textarea } from "../ui";
-import { FoldedLog, StopButton } from "../progress";
+import { Button, Card, ErrorBox, Modal, Notice, Select, Textarea } from "../ui";
+import { followDesignerHosted, startDesignerHere } from "../designerRun";
 import {
   addressLines, briefBytes, designerPriceLine, designerProblem, documentLine, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,
   type DesignerJob, type DesignerWhere,
@@ -30,19 +29,14 @@ import {
 import { isImageSrc, startFrom } from "../reportDesign";
 import { ReportDesignPreview } from "./ReportDesignPreview";
 
-export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hosted, onHosted, onUse, onEdit, onSaved, onClose }: {
+export function DesignWithAI({ registry, lib, initialJob, initialFrom, hosted, onHosted, onClose }: {
   registry: string;
   lib: app.ReportDesignLibrary;
-  opts: app.ReportDesignOptions;
   initialJob: DesignerJob;
   initialFrom: string;
   /** The run In Agentry the page follows, null for none. */
   hosted: app.DesignerHostedView | null;
   onHosted: (v: app.DesignerHostedView | null) => void;
-  onUse: (id: string) => void;
-  onEdit: (id: string) => void;
-  /** A design was added to the library: the page reads it again. */
-  onSaved: () => void;
   onClose: () => void;
 }) {
   const [job, setJob] = useState<DesignerJob>(initialJob);
@@ -57,21 +51,7 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
   const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  // On this computer: the run, its log, and the result kept until the yes.
-  const [running, setRunning] = useState(false);
-  const [stopping, setStopping] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  const [result, setResult] = useState<app.DesignerResultView | null>(null);
-  const [saving, setSaving] = useState(false);
-  // The design the run saved, read from the library: In Agentry's, or the
-  // one Add to my library made here.
-  const [saved, setSaved] = useState<app.ReportDesignView | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  // Whether the run In Agentry the page follows was started by this dialog,
-  // so a finished one from before it opened is not taken for its result.
-  const [followed, setFollowed] = useState(!!hosted && !hosted.final);
 
-  useEffect(() => EventsOn("designer:log", (line: string) => setLog((p) => [...p.slice(-199), line])), []);
   useEffect(() => { RunAPI.SetupStatus().then(setSetup).catch(() => setSetup(null)); }, []);
   useEffect(() => {
     let live = true;
@@ -84,138 +64,10 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
   const urls = job === "design" ? addressLines(urlsText) : [];
   const addrCheck = useAddressCheck(job === "design" ? urlsText : "");
 
-  // A run In Agentry that saved a design: its card is the library's own read
-  // of the id the run names.
-  const savedID = followed && hosted?.final && hosted.applied ? hosted.designId ?? "" : "";
-  useEffect(() => {
-    if (!savedID) return;
-    onSaved();
-    SettingsAPI.OpenReportDesign(registry, savedID).then(setSaved).catch((e) => setError(String(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, savedID]);
-
   const designs = lib.designs;
   const fromName = designs.find((d) => d.id === from)?.name ?? "";
   const hostedRunning = !!hosted && !hosted.final;
   const title = job === "cover" ? "Design a cover page with AI" : "Design with AI";
-
-  // The design made, shown with Use and Edit: Use makes it the default.
-  if (saved) {
-    const card = designs.find((d) => d.id === saved.id);
-    return (
-      <Modal title={title} wide onClose={onClose}>
-        <Notice tone="ok">
-          “{saved.design?.name ?? "The design"}” is in your library as a new design.{saved.default ? " The registry made it your default." : " It is not your default: Use makes it so."}
-        </Notice>
-        {followed && hosted?.document && <p className="small" data-designer-document-line>It was built around your document {hosted.document}.</p>}
-        <ResultCard view={saved} opts={opts} />
-        <div className="row gap mt" style={{ justifyContent: "flex-end" }}>
-          <Button onClick={onClose}>Close</Button>
-          <Button onClick={() => onEdit(saved.id)}>Edit it</Button>
-          <Button variant="primary" disabled={saved.default || card?.default} onClick={() => { onUse(saved.id); onClose(); }}>Use it as my default</Button>
-        </div>
-      </Modal>
-    );
-  }
-
-  // On this computer, before the yes.
-  if (result) {
-    const looked = lookedLine(result.looked);
-    return (
-      <Modal title={title} wide onClose={() => { DesignerAPI.DiscardResult(result.token).catch(() => {}); onClose(); }}>
-        <p>
-          The Report Designer made “{result.name}”{result.previews > 0 ? `, after ${result.previews} ${result.previews === 1 ? "render" : "renders"} it looked at` : ""}.
-        </p>
-        {looked && <Notice tone="warn">{looked}</Notice>}
-        {documentLine(result) && <p className="small" data-designer-document-line>{documentLine(result)}</p>}
-        {result.job === "cover" && !result.thumbnail && <p className="muted small">Its last render was not of the cover it kept, so the design has no thumbnail of it.</p>}
-        {result.view && <ResultCard view={result.view} opts={opts} />}
-        <p className="muted small selectable">It is written to <span className="mono">{result.dir}</span>, with the run&apos;s reports and receipts beside it.</p>
-        {result.pages && result.pages.length > 0 && (
-          <ul className="small">
-            {result.pages.map((p) => <li key={p.url}><span className="mono">{p.url}</span>: {p.withheld ? `withheld by AI Review (${p.withheld})` : p.rendered ? "read, rendered first" : "read"}</li>)}
-          </ul>
-        )}
-        <p className="small">{savePrompt(result.job as DesignerJob)}</p>
-        <ErrorBox error={error} />
-        <div className="row gap" style={{ justifyContent: "flex-end" }}>
-          <Button disabled={saving} onClick={() => { DesignerAPI.DiscardResult(result.token).catch(() => {}); onClose(); }}>Not now</Button>
-          <Button
-            variant="primary"
-            busy={saving}
-            busyLabel="Adding…"
-            disabled={lib.designs.length >= lib.max}
-            onClick={() => {
-              setSaving(true);
-              setError(null);
-              DesignerAPI.SaveResult(registry, result.token)
-                .then((v) => { setSaved(v); onSaved(); })
-                .catch((e) => setError(String(e)))
-                .finally(() => setSaving(false));
-            }}
-          >
-            Add to my library
-          </Button>
-        </div>
-        {lib.designs.length >= lib.max && <p className="muted small">Your library holds {lib.max} designs, the most it can: delete one to add this.</p>}
-      </Modal>
-    );
-  }
-
-  // On this computer, while it runs.
-  if (running) {
-    return (
-      <Modal title={title} wide onClose={() => {}}>
-        <Spinner label="The Report Designer is running on this computer…" />
-        <p className="muted small">
-          It reads your brief{images.length > 0 ? " and your images" : ""}{urls.length > 0 ? ", and the pages at your web addresses once AI Review has read them" : ""}, writes
-          the {job === "cover" ? "cover page in Typst" : "design"}, renders it and looks at what it made. Nothing reaches your library until you say so.
-        </p>
-        {log.length > 0 && <FoldedLog label="The Report Designer's log" lines={log} />}
-        <div className="row" style={{ justifyContent: "flex-end" }}>
-          <StopButton stopping={stopping} onStop={() => { setStopping(true); DesignerAPI.StopHere().catch(() => setStopping(false)); }} />
-        </div>
-      </Modal>
-    );
-  }
-
-  // In Agentry, while it runs, and when it ended without a design.
-  if (followed && hosted && (hostedRunning || !hosted.applied)) {
-    return (
-      <Modal title={title} wide onClose={onClose}>
-        {hostedRunning ? (
-          <>
-            <Spinner label="The Report Designer is running In Agentry…" />
-            <p className="small" role="status">{hosted.statusLine}</p>
-            <p className="muted small">
-              When it ends, what it made is saved to your library as a new design, never your default. You can close this: the page keeps following
-              the run.
-            </p>
-          </>
-        ) : (
-          <Notice tone="warn">{hostedOutcome(hosted)}</Notice>
-        )}
-        {hosted.pagesLine && <p className="muted small">{hosted.pagesLine}</p>}
-        <ErrorBox error={error} />
-        <div className="row gap" style={{ justifyContent: "flex-end" }}>
-          {hostedRunning && (
-            <Button
-              busy={cancelling || hosted.cancelRequested}
-              busyLabel="Cancelling…"
-              onClick={() => {
-                setCancelling(true);
-                DesignerAPI.CancelHosted().then(onHosted).catch((e) => setError(String(e))).finally(() => setCancelling(false));
-              }}
-            >
-              Cancel run
-            </Button>
-          )}
-          {!hostedRunning && <Button onClick={() => { setFollowed(false); onHosted(null); }}>Try again</Button>}
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </Modal>
-    );
-  }
 
   const limits = avail ?? null;
   const w: DesignerWhere = where ?? "here";
@@ -229,28 +81,30 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
   async function start() {
     setError(null);
     const req = app.DesignerRequest.createFrom({ ...inputs, urls });
-    if (w === "agentry") {
-      setStarting(true);
-      try {
+    const meta = { registry, job, images: images.length, urls: urls.length, document: inputs.document !== "" };
+    setStarting(true);
+    try {
+      if (w === "agentry") {
         const r = await DesignerAPI.StartHosted(registry, req);
         if (r.refusal) setError(r.detail || r.refusal);
-        else if (r.run) { setFollowed(true); onHosted(r.run); }
-      } catch (e) {
-        setError(String(e));
-      } finally {
-        setStarting(false);
+        else if (r.run) {
+          // The run goes on in its run window (DesignerFlow); the page
+          // follows it too, for its own lines.
+          onHosted(r.run);
+          followDesignerHosted(meta, r.run);
+          onClose();
+        }
+        return;
       }
-      return;
-    }
-    setLog([]);
-    setStopping(false);
-    setRunning(true);
-    try {
-      setResult(await DesignerAPI.RunHere(registry, req));
+      // On this computer the dialog closes once the run has begun, and
+      // what it made waits in its run window for Add to my library.
+      await startDesignerHere(meta, req);
+      onClose();
     } catch (e) {
-      setError(String(e));
+      const s = String(e);
+      if (!s.includes("not confirmed")) setError(s);
     } finally {
-      setRunning(false);
+      setStarting(false);
     }
   }
 
@@ -396,7 +250,6 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
       </Card>
 
       <ErrorBox error={error} />
-      {log.length > 0 && <FoldedLog label="The last run's log" lines={log} />}
       <div className="row gap mt" style={{ justifyContent: "flex-end" }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={problem !== null || dockerBlock || hostedRunning} busy={starting} busyLabel="Starting…" onClick={() => void start()}>
@@ -404,7 +257,7 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
         </Button>
       </div>
       {problem && typed && <p className="muted small" data-designer-problem>{problem}</p>}
-      {hostedRunning && !followed && <p className="muted small">A Report Designer run In Agentry is already under way: wait for it to finish, or cancel it.</p>}
+      {hostedRunning && <p className="muted small">A Report Designer run In Agentry is already under way: wait for it to finish, or cancel it.</p>}
     </Modal>
   );
 }
@@ -412,7 +265,7 @@ export function DesignWithAI({ registry, lib, opts, initialJob, initialFrom, hos
 // ResultCard is a design as the library's card and the editor's preview draw
 // it: its name, its custom cover's thumbnail when it has one, and the
 // likeness of its pages.
-function ResultCard({ view, opts }: { view: app.ReportDesignView; opts: app.ReportDesignOptions }) {
+export function ResultCard({ view, opts }: { view: app.ReportDesignView; opts: app.ReportDesignOptions }) {
   if (!view.design) return null;
   const d = startFrom(view.design);
   return (
