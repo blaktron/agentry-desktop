@@ -1,5 +1,5 @@
-// A run In Agentry, followed above the pages, as a run on this
-// computer is (RunFlow): App mounts this, the run setup hands the run over
+// A run In Agentry, followed above the pages in its run window
+// (RunWindow.tsx), as a run on this computer is (RunFlow): App mounts this, the run setup hands the run over
 // once the registry has created it and closes, and App attaches a run
 // already in flight when it starts, as its card. The dialog says where the
 // run stands in the registry's words, its place in the queue, the time it
@@ -11,103 +11,42 @@
 //
 // The desktop follows a run In Agentry and never drives it: every
 // sentence here is the registry's, or says what the registry said.
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { failureOf, hostedFailureInput, reportText } from "../failedRun";
 import { hostedActive, hostedHeadline, hostedProgress, hostedTone, lostTouch } from "../hostedRun";
-import { CornerCard, ProgressView, RunningView } from "../progress";
+import { ProgressView } from "../progress";
 import {
   type RunSetup, backToHostedSetup, cancelHostedRun, dismissHostedRun, followHostedRunAgain, showHostedRun, useHostedRun,
 } from "../runs";
-import { Button, ErrorBox, Modal } from "../ui";
+import { Button, ErrorBox } from "../ui";
 import { FailedRunView } from "./FailedRun";
 import { HostedResult, StarAsk } from "./HostedRun";
 import type { RunFlowActions } from "./RunFlow";
 import { RunResultView } from "./RunResult";
+import { RunWindow, useFollowed } from "./RunWindow";
 
 export default function HostedRunFlow({ onBackToSetup, onRunAgain, onReport, initialMinimized }: RunFlowActions & {
   /** Harness-only: open as the corner card. */
   initialMinimized?: boolean;
 }) {
   const s = useHostedRun();
-  const r = s.run;
-  // The card is shown for the ask it was minimized under, or when the ask
-  // itself was for the card (an attach at start); Open, a new run, or
-  // Follow it again is a new ask, so it opens as the dialog.
-  const [cardFor, setCardFor] = useState<number | null>(null);
-  const minimized = s.asCard || cardFor === s.raised;
-  const minimize = () => setCardFor(s.raised);
-  // Harness-only: the first ask to open, when the run is followed, is
-  // shown as the card.
-  const firstAsCard = useRef(!!initialMinimized);
-  useEffect(() => {
-    if (firstAsCard.current && s.raised > 0) {
-      firstAsCard.current = false;
-      setCardFor(s.raised);
-    }
-  }, [s.raised]);
+  // An attach at start asks for the card; Open, a new run, or Follow it
+  // again is a new ask, so it opens as the dialog.
+  const followed = useFollowed({ raised: s.raised, asCard: s.asCard, initialMinimized });
   const [following, setFollowing] = useState(false);
+  const r = s.run;
   if (!s.shown || !r) return null;
 
   const moving = !r.final;
   const lost = lostTouch(r);
   const canCancel = moving && hostedActive(r) && !r.cancelRequested;
-  const title = moving ? `Running ${r.ref} In Agentry` : `${r.ref} In Agentry: ${lost ? "lost touch" : "the run is over"}`;
-  const cancel = () => void cancelHostedRun();
   const again = () => {
     setFollowing(true);
     void followHostedRunAgain().finally(() => setFollowing(false));
   };
-  const followAgain = <Button onClick={again} disabled={following}>{following ? "Following…" : "Follow it again"}</Button>;
-
-  if (minimized) {
-    return (
-      <CornerCard
-        label={`Run of ${r.ref} In Agentry`}
-        running={moving}
-        title={title}
-        line={moving ? (r.cancelRequested ? "Cancel asked for." : "") : hostedHeadline(r)}
-        tone={moving ? "" : hostedTone(r)}
-        actions={<>
-          {canCancel && <Button onClick={cancel}>Cancel run</Button>}
-          {lost && followAgain}
-          {!moving && <Button onClick={dismissHostedRun}>Dismiss</Button>}
-          <Button variant="primary" onClick={showHostedRun}>Open</Button>
-        </>}
-      >
-        {moving && <HostedProgressView r={r} compact />}
-      </CornerCard>
-    );
-  }
-
-  if (moving) {
-    return (
-      <Modal title={title} onClose={minimize} wide>
-        <RunningView
-          spinner={r.cancelRequested ? "Cancel asked for: Agentry is stopping the run…" : (r.statusLine || r.state)}
-          about={<>
-            The QuickAgent runs In Agentry, on one of Agentry&apos;s hosts, under the contract you accepted. This app follows it
-            and never drives it: what shows here is what Agentry reports. When it ends, its outputs come down into{" "}
-            <span className="mono">{r.outDir}</span>.
-          </>}
-          actions={<>
-            {canCancel && <Button onClick={cancel}>Cancel run</Button>}
-            <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </>}
-          background={<>
-            In the background, the run goes on In Agentry and this app follows it in a card in the corner. Quitting the app
-            does not stop it; a run still going when the app starts again is followed again. Cancel asks Agentry to stop it and
-            settle what it used.
-          </>}
-        >
-          <HostedProgressView r={r} />
-          <ErrorBox error={s.note} />
-        </RunningView>
-      </Modal>
-    );
-  }
-
+  const followAgain = lost && <Button onClick={again} disabled={following}>{following ? "Following…" : "Follow it again"}</Button>;
   const back = () => {
     const setup = backToHostedSetup();
     if (setup) onBackToSetup(setup);
@@ -118,22 +57,43 @@ export default function HostedRunFlow({ onBackToSetup, onRunAgain, onReport, ini
   } : undefined;
   // A run that failed In Agentry: the registry's class and error line, the
   // run page as the evidence, and the outputs that came down.
-  const failure = lost ? null : failureOf(hostedFailureInput(r));
+  const failure = moving || lost ? null : failureOf(hostedFailureInput(r));
   const failed = failure && (
     <FailedRunView
       failure={failure}
       runAgain={runAgainNow && { label: "Run again with the same answers", onClick: runAgainNow }}
       openRun={() => void RunAPI.OpenHostedRunPage(s.registry, r.id).catch(() => undefined)}
       openFolder={r.outputs.length > 0 && r.outDir ? () => void RunAPI.ShowRunFolder(r.id).catch(() => undefined) : undefined}
-      report={onReport ? () => { minimize(); onReport(reportText(failure, r.id)); } : undefined}
+      report={onReport ? () => { followed.minimize(); onReport(reportText(failure, r.id)); } : undefined}
     />
   );
-  // Closing the dialog of a run that is over keeps its card: only Dismiss
-  // makes the app forget the run. Report shrinks the dialog to its card
-  // first, so the Report bug card it opens is the one in front.
   return (
-    <Modal title={`Run ${r.ref} In Agentry`} onClose={minimize} wide>
-      {lost ? (
+    <RunWindow
+      {...followed}
+      onOpen={showHostedRun}
+      onDismiss={dismissHostedRun}
+      label={`Run of ${r.ref} In Agentry`}
+      title={moving ? `Running ${r.ref} In Agentry` : `Run ${r.ref} In Agentry`}
+      cardTitle={moving ? `Running ${r.ref} In Agentry` : `${r.ref} In Agentry: ${lost ? "lost touch" : "the run is over"}`}
+      running={moving}
+      spinner={r.cancelRequested ? "Cancel asked for: Agentry is stopping the run…" : (r.statusLine || r.state)}
+      about={<>
+        The QuickAgent runs In Agentry, on one of Agentry&apos;s hosts, under the contract you accepted. This app follows it
+        and never drives it: what shows here is what Agentry reports. When it ends, its outputs come down into{" "}
+        <span className="mono">{r.outDir}</span>.
+      </>}
+      progress={(compact) => <HostedProgressView r={r} compact={compact} />}
+      background={<>
+        In the background, the run goes on In Agentry and this app follows it in a card in the corner. Quitting the app
+        does not stop it; a run still going when the app starts again is followed again. Cancel asks Agentry to stop it and
+        settle what it used.
+      </>}
+      stop={canCancel ? { label: "Cancel run", stopping: false, onStop: () => void cancelHostedRun() } : null}
+      log={null}
+      line={moving ? (r.cancelRequested ? "Cancel asked for." : "") : hostedHeadline(r)}
+      tone={moving ? "" : hostedTone(r)}
+      error={moving ? s.note : null}
+      outcome={lost ? (
         <>
           <h3 className="run-outcome run-outcome-warn">{hostedHeadline(r)}</h3>
           <p>
@@ -157,12 +117,12 @@ export default function HostedRunFlow({ onBackToSetup, onRunAgain, onReport, ini
           <HostedResult run={r} />
         </RunResultView>
       )}
-      <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-        {lost && followAgain}
+      actions={<>
+        {followAgain}
         {s.setup && <Button onClick={back}>Back to the setup</Button>}
-        <Button variant="primary" onClick={dismissHostedRun}>Dismiss</Button>
-      </div>
-    </Modal>
+      </>}
+      cardActions={!moving && followAgain}
+    />
   );
 }
 

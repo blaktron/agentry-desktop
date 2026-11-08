@@ -1,8 +1,7 @@
-// What a long run of the app's own shows while it goes: the time it has used
-// against its limit as a bar, the facts of how far it has got, its log folded
-// beneath, its Stop, and the corner card a running flow shrinks to so the rest
-// of the app stays usable. Create knowledge and Describe it both draw through
-// these, so the long runs look the same, and a run and a chat will too.
+// The parts a job's run window (pages/RunWindow.tsx) and a chat are drawn
+// from: the time a job has used against its limit as a bar, the facts of how
+// far it has got, its log, its Stop, and the corner card a running flow
+// shrinks to so the rest of the app stays usable.
 //
 // The cards stack: App provides the corner they go in (CornerHost), and a
 // card rendered with no corner, as the design harness renders one, places
@@ -11,7 +10,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JobProgress, Tone, fmtClock } from "./jobProgress";
 import { progressTokens } from "./usage";
-import { Button, Spinner } from "./primitives";
+import { Button } from "./primitives";
 import { RevealText } from "./reveal";
 import { bytesShare, bytesWords, type BytesProgress } from "./bytesProgress";
 
@@ -190,27 +189,11 @@ export function FoldedLog({ label, ...pane }: { lines: string[]; label: string; 
 }
 
 /** Stop, and "Stopping…" once it is asked for. */
-export function StopButton({ stopping, onStop, label = "Stop" }: { stopping: boolean; onStop: () => void; label?: string }) {
-  return <Button onClick={onStop} disabled={stopping}>{stopping ? "Stopping…" : label}</Button>;
-}
-
-/** The progress dialog while a job runs: what it is doing, what it is,
- *  how far it has got with its log (children), its actions, and what
- *  running it in the background means. */
-export function RunningView({ spinner, about, children, actions, background }: {
-  spinner: string;
-  about: React.ReactNode;
-  children: React.ReactNode;
-  actions: React.ReactNode;
-  background: React.ReactNode;
+export function StopButton({ stopping, onStop, label = "Stop", stoppingLabel = "Stopping…" }: {
+  stopping: boolean;
+  onStop: () => void;
+  label?: string;
+  stoppingLabel?: string;
 }) {
-  return (
-    <>
-      <Spinner label={spinner} />
-      <p className="muted small">{about}</p>
-      {children}
-      <div className="row" style={{ justifyContent: "flex-end" }}>{actions}</div>
-      <p className="muted small">{background}</p>
-    </>
-  );
+  return <Button onClick={onStop} disabled={stopping}>{stopping ? stoppingLabel : label}</Button>;
 }

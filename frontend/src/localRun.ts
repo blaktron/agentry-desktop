@@ -4,6 +4,7 @@
 // another run, or of this run after it ended, changes nothing.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress, Tone } from "./jobProgress";
+import { MAX_RUN_LOG_LINES, addLine, droppedNote, logLines } from "./runLog";
 
 /** How far a run on this computer has got, as Go reports it
  *  (runner:run-progress, RunAPI's RunProgress): the report every job carries,
@@ -62,28 +63,19 @@ export function withProgress(r: LocalRun, p: RunProgress): LocalRun {
   return { ...r, runId: p.runId, progress: p };
 }
 
-/** How many lines of a run's log the app keeps: a run whose agent calls
- *  tools for an hour writes more than a page should hold. */
-export const MAX_RUN_LOG_LINES = 5000;
-
-/** The note that stands first in a log that has let earlier lines go. */
-export function droppedNote(n: number): string {
-  return `(${n} earlier ${n === 1 ? "line is" : "lines are"} not shown here.)`;
-}
+export { MAX_RUN_LOG_LINES, droppedNote };
 
 /** A line of this run's log; past MAX_RUN_LOG_LINES the oldest go. */
 export function withLine(r: LocalRun, l: RunLine): LocalRun {
   if (r.over || r.runId === null || l.runId !== r.runId) return r;
-  const log = [...r.log, l.line];
-  if (log.length <= MAX_RUN_LOG_LINES) return { ...r, log };
-  const over = log.length - MAX_RUN_LOG_LINES;
-  return { ...r, log: log.slice(over), logDropped: (r.logDropped ?? 0) + over };
+  const { lines, dropped } = addLine(r.log, r.logDropped ?? 0, l.line);
+  return dropped ? { ...r, log: lines, logDropped: dropped } : { ...r, log: lines };
 }
 
 /** The log as the page shows it: the note of the lines let go, then the
  *  lines kept. */
 export function shownLog(r: LocalRun): string[] {
-  return r.logDropped ? [droppedNote(r.logDropped), ...r.log] : r.log;
+  return logLines(r.log, r.logDropped);
 }
 
 /** The run's result: it is over. */

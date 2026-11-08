@@ -6,6 +6,7 @@
 // being followed as it is.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress, Tone } from "./jobProgress";
+import { addLine } from "./runLog";
 
 /** How far a review has got, as Go reports it (build:review-progress,
  *  ReviewProgressView): the report every job carries, the stage and the
@@ -17,7 +18,10 @@ export type Review = {
   dir: string;
   runId: string | null;
   progress: ReviewProgress | null;
+  /** The log's newest lines (runLog.ts); logDropped counts the earlier
+   *  ones let go. */
   log: string[];
+  logDropped?: number;
   view: app.ReviewView | null;
   /** Why it ended with no report, in Go's words. */
   error: string | null;
@@ -39,7 +43,8 @@ export function withProgress(r: Review, p: ReviewProgress): Review {
 /** A line of the review's log, once it has begun. */
 export function withLine(r: Review, line: string): Review {
   if (r.over || r.runId === null) return r;
-  return { ...r, log: [...r.log, line] };
+  const { lines, dropped } = addLine(r.log, r.logDropped ?? 0, line);
+  return dropped ? { ...r, log: lines, logDropped: dropped } : { ...r, log: lines };
 }
 
 export function finished(r: Review, view: app.ReviewView): Review {

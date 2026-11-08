@@ -80,7 +80,9 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
 import { buildHoldLine, creatorUseLine } from "../usage";
-import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
+import { ProgressView } from "../progress";
+import { EMPTY_LOG, type RunLog, logLines, withLogLine } from "../runLog";
+import { type RunStop, RunWindow } from "./RunWindow";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 import {
   MAX_BRIEF_BYTES, addressLines, addressesRecap, agentryWebLine, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches,
@@ -161,7 +163,7 @@ export default function KnowledgeCreate({
   const [model, setModel] = useState("");
   const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [building, setBuilding] = useState(initialBuilding ?? false);
-  const [log, setLog] = useState<string[]>([]);
+  const [log, setLog] = useState<RunLog>(EMPTY_LOG);
   const [budget, setBudget] = useState<app.CreatorBudgetView | null>(null);
   const [size, setSize] = useState<app.DocumentsView | null>(null);
   const [progress, setProgress] = useState<BuildProgress | null>(null);
@@ -272,7 +274,7 @@ export default function KnowledgeCreate({
     if (!addTo && where === "agentry" && availRead && !agentryChoosable) setWhere("local");
   }, [addTo, where, availRead, agentryChoosable]);
   const fellBack = place === "agentry" && where === "local" && availRead && !agentryChoosable;
-  useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
+  useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => withLogLine(p, line))), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
     if (moved.current) heading.current?.focus();
@@ -373,7 +375,7 @@ export default function KnowledgeCreate({
     setBuilding(true);
     setStopping(false);
     setError(null);
-    setLog([]);
+    setLog(EMPTY_LOG);
     setProgress(null);
     try {
       setResult(
@@ -389,15 +391,17 @@ export default function KnowledgeCreate({
   }
 
   const title = addTo ? `Add documents to ${addTo}` : "Create knowledge";
-  const running = building || result || error || hosted || refusal;
+  // started: the steps are done and the build is the dialog, in its run
+  // window, from the start until it is dismissed or the person goes Back.
+  const started = building || result || error || hosted || refusal;
   const minimize = onMinimize ?? (() => {});
 
-  if (minimized) {
+  if (started) {
     const packName = hosted?.name || addTo || name;
-    let line: string;
+    const hostedMoving = !!hosted && !hosted.final;
+    let line = "";
     let tone: Tone = "";
-    if (building) line = "";
-    else if (hosted && !hosted.final) line = hosted.statusLine || hosted.state;
+    if (hostedMoving) line = hosted.statusLine || hosted.state;
     else if (hosted) {
       line = hosted.applied ? `${hosted.name}: ${pagesOf(hosted.pages)}` : hosted.outcomeLine || hosted.state;
       tone = hosted.outcome === "succeeded" ? "ok" : hosted.canContinue ? "warn" : "bad";
@@ -410,38 +414,74 @@ export default function KnowledgeCreate({
     } else if (refusal) {
       line = "The registry did not start the build";
       tone = "bad";
-    } else line = "";
+    }
+    // The build In Agentry stops on Cancel; one the registry says is
+    // finished or cancelled but has not ended here stops being waited on.
+    const hostedEnding = hostedMoving && (hosted.status === "finished" || hosted.status === "cancelled");
+    const stop: RunStop | null = building
+      ? { label: "Stop the build", cardLabel: "Stop", stopping, onStop: () => void stopLocal() }
+      : hostedMoving && hostedEnding ? { label: "Stop waiting", stopping: false, onStop: () => void cancelHosted() }
+      : hostedMoving && !hosted.cancelRequested ? { label: "Cancel the build", stopping: false, onStop: () => void cancelHosted() }
+      : null;
+    const preview = !inFlight && (result ? result.name : hosted?.final && hosted.downloaded ? hosted.name : "");
+    const offers = <>
+      {preview && <Button onClick={() => onPreview(preview)}>Preview</Button>}
+      {hosted?.final && hosted.canContinue && <Button onClick={() => void continueHosted(hosted.id)}>Continue</Button>}
+    </>;
     return (
-      <CornerCard
+      <RunWindow
+        minimized={!!minimized}
+        minimize={minimize}
+        onOpen={onRestore ?? (() => {})}
+        onDismiss={onClose}
         label={`Knowledge build: ${packName}`}
+        title={title}
+        cardTitle={inFlight
+          ? `${addTo ? `Adding documents to ${addTo}` : `Creating ${packName}`}${hostedMoving ? " In Agentry" : ""}`
+          : `${packName}: the build is over`}
         running={inFlight}
-        title={<>
-          {inFlight ? (addTo ? `Adding documents to ${addTo}` : `Creating ${packName}`) : `${packName}: the build is over`}
-          {inFlight && hosted ? " In Agentry" : ""}
+        spinner={building ? (addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`) : hosted ? hosted.statusLine || hosted.state : ""}
+        about={building ? <>
+          The Knowledge Creator is reading {readsLine(inputs, hasBrief)} and writing the pages. This can take a long time; the pages it has
+          written count up as it goes, and are checked when it finishes, which may drop some.
+        </> : hosted && <>
+          The Knowledge Creator runs In Agentry on {readsLine((hosted.documents?.length ?? 0) + (hosted.repos?.length ?? 0) + (hosted.urls?.length ?? 0), !!hosted.brief)}.
         </>}
+        status={hostedMoving && <p className="small">{buildCreditsLine(hosted)}</p>}
+        progress={building ? (compact) => <BuildProgressView progress={progress} compact={compact} /> : undefined}
+        background={building ? <>
+          In the background, the build goes on in a card in the corner and the rest of the app stays usable. Stop keeps
+          the pages written so far that pass their checks.
+        </> : <>
+          In the background, the build goes on In Agentry and this app follows it in a card in the corner; it goes on in
+          Agentry either way.
+        </>}
+        stop={stop}
+        log={hosted ? null : logLines(log.lines, log.dropped)}
         line={line}
         tone={tone}
+        error={!inFlight && !result && !hosted ? error ?? refusal : null}
+        outcome={result ? (
+          <BuildDone
+            result={result}
+            added={!!addTo}
+            copyToCloud={place === "agentry" && !addTo ? () => KnowledgeAPI.Upload(registry, result.name) : undefined}
+          />
+        ) : hosted?.final ? <HostedDone v={hosted} /> : undefined}
         actions={<>
-          {building && <StopButton stopping={stopping} onStop={stopLocal} />}
-          {hosted && !hosted.final && !hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
-            <Button onClick={cancelHosted}>Cancel the build</Button>
+          {offers}
+          {!hosted && !result && (error || refusal) && (
+            <Button onClick={() => { setError(null); setRefusal(null); setLog(EMPTY_LOG); }}>Back</Button>
           )}
-          {!inFlight && result && <Button onClick={() => onPreview(result.name)}>Preview</Button>}
-          {hosted?.final && hosted.downloaded && <Button onClick={() => onPreview(hosted.name)}>Preview</Button>}
-          {hosted?.final && hosted.canContinue && <Button onClick={() => continueHosted(hosted.id)}>Continue</Button>}
-          {!inFlight && <Button onClick={onClose}>Dismiss</Button>}
-          <Button variant="primary" onClick={onRestore}>Open</Button>
         </>}
-      >
-        {building && <BuildProgressView progress={progress} compact />}
-      </CornerCard>
+        cardActions={!inFlight && offers}
+      />
     );
   }
 
   return (
-    <Modal title={title} onClose={inFlight ? minimize : onClose} wide>
-      {!running && (
-        <>
+    <Modal title={title} onClose={onClose} wide>
+      <>
           <StepList labels={steps.map((s) => LABEL[s])} at={at} />
           <section aria-labelledby="knowledge-step-heading">
             <StepHeading ref={heading} id="knowledge-step-heading" at={at} total={steps.length} label={LABEL[step]} />
@@ -632,91 +672,7 @@ export default function KnowledgeCreate({
               <Button variant="primary" onClick={next}>Next: {LABEL[steps[at + 1]]}</Button>
             )}
           </StepFoot>
-        </>
-      )}
-
-      {building && (
-        <RunningView
-          spinner={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`}
-          about={<>
-            The Knowledge Creator is reading {readsLine(inputs, hasBrief)} and writing the pages. This can take a long time; the pages it has
-            written count up as it goes, and are checked when it finishes, which may drop some.
-          </>}
-          actions={<>
-            <StopButton stopping={stopping} onStop={stopLocal} label="Stop the build" />
-            {onMinimize && <Button variant="primary" onClick={onMinimize}>Run in the background</Button>}
-          </>}
-          background={<>
-            In the background, the build goes on in a card in the corner and the rest of the app stays usable. Stop keeps
-            the pages written so far that pass their checks.
-          </>}
-        >
-          <BuildProgressView progress={progress} />
-          <FoldedLog label="Build log" lines={log} />
-        </RunningView>
-      )}
-
-      {!building && error && (
-        <>
-          <h3 className="run-outcome run-outcome-bad">{addTo ? `Nothing was added to ${addTo}` : "No pack was made"}</h3>
-          <ErrorBox error={error} />
-          {log.length > 0 && <LogPane label="Build log" lines={log} />}
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button onClick={() => { setError(null); setLog([]); }}>Back</Button>
-            <Button onClick={onClose}>Close</Button>
-          </div>
-        </>
-      )}
-
-      {!building && result && (
-        <BuildDone
-          result={result}
-          added={!!addTo}
-          onClose={onClose}
-          onPreview={() => onPreview(result.name)}
-          copyToCloud={place === "agentry" && !addTo ? () => KnowledgeAPI.Upload(registry, result.name) : undefined}
-        />
-      )}
-
-      {refusal && !hosted && (
-        <>
-          <h3 className="run-outcome run-outcome-bad">The registry did not start the build</h3>
-          <ErrorBox error={refusal} />
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button onClick={() => setRefusal(null)}>Back</Button>
-            <Button onClick={onClose}>Close</Button>
-          </div>
-        </>
-      )}
-
-      {hosted && !hosted.final && (
-        <>
-          <Spinner label={hosted.statusLine || hosted.state} />
-          <p className="muted small">
-            The Knowledge Creator runs In Agentry on {readsLine((hosted.documents?.length ?? 0) + (hosted.repos?.length ?? 0) + (hosted.urls?.length ?? 0), !!hosted.brief)}. Run in the background keeps it in a card
-            in the corner while you use the rest of the app; the build goes on in Agentry either way.
-          </p>
-          <p className="small">{buildCreditsLine(hosted)}</p>
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            {!hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
-              <Button onClick={cancelHosted}>Cancel the build</Button>
-            )}
-            {(hosted.status === "finished" || hosted.status === "cancelled") && (
-              <Button onClick={cancelHosted}>Stop waiting</Button>
-            )}
-            {onMinimize ? <Button variant="primary" onClick={onMinimize}>Run in the background</Button> : <Button onClick={onClose}>Close</Button>}
-          </div>
-        </>
-      )}
-
-      {hosted && hosted.final && (
-        <HostedDone
-          v={hosted}
-          onContinue={() => continueHosted(hosted.id)}
-          onClose={onClose}
-          onPreview={() => onPreview(hosted.name)}
-        />
-      )}
+      </>
     </Modal>
   );
 }
@@ -819,12 +775,8 @@ function HostedCost({ avail }: { avail: app.KnowledgeHostedAvailabilityView }) {
 
 // HostedDone is a build In Agentry's last word: how it ended, what it did
 // to the pack, what it cost, and — once the pack is downloaded — its scan.
-function HostedDone({ v, onContinue, onClose, onPreview }: {
-  v: app.KnowledgeHostedBuildView;
-  onContinue: () => void;
-  onClose: () => void;
-  onPreview: () => void;
-}) {
+// Continue and Preview are the run window's.
+function HostedDone({ v }: { v: app.KnowledgeHostedBuildView }) {
   const tone = v.outcome === "succeeded" ? "ok" : v.canContinue ? "warn" : "bad";
   return (
     <div>
@@ -854,20 +806,15 @@ function HostedDone({ v, onContinue, onClose, onPreview }: {
           {continuedFrom(v.documents?.length ?? 0, !!v.brief)}{v.webLine ? ", searching the web as this one could" : ""}.
         </Notice>
       )}
-      <div className="row" style={{ justifyContent: "flex-end" }}>
-        {v.canContinue && <Button onClick={onContinue}>Continue</Button>}
-        {v.downloaded && <Button onClick={onPreview}>Preview</Button>}
-        <Button variant="primary" onClick={onClose}>Done</Button>
-      </div>
     </div>
   );
 }
 
-function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
+// BuildDone is a build on this computer's last word; Preview is the run
+// window's, and Copy to Cloud is offered here, beside what it copies.
+function BuildDone({ result, added, copyToCloud }: {
   result: knowledge.BuildResult;
   added: boolean;
-  onClose: () => void;
-  onPreview: () => void;
   /** Offered when the Cloud page opened the flow and the pack was made
    *  here: keeps a copy in the account. */
   copyToCloud?: () => Promise<string>;
@@ -939,13 +886,11 @@ function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
       </dl>
       {copied && <Notice tone="ok">{copied}</Notice>}
       <ErrorBox error={copyError} />
-      <div className="row" style={{ justifyContent: "flex-end" }}>
-        <Button onClick={onPreview}>Preview</Button>
-        {copyToCloud && !copied && (
+      {copyToCloud && !copied && (
+        <div className="row" style={{ justifyContent: "flex-end" }}>
           <Button busy={copying} busyLabel="Copying…" onClick={copy}>Copy to Cloud</Button>
-        )}
-        <Button variant="primary" onClick={onClose}>Done</Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
