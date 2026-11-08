@@ -30,6 +30,12 @@ func TestARunhostRunRefusesWhatTheAppDoesNotCarry(t *testing.T) {
 	if got := RunhostCannotCarry(m); !strings.Contains(got, "connection") {
 		t.Fatalf("a connection: %q", got)
 	}
+	// An application on this computer is carried: the app binds it here and
+	// answers the runhost's calls over the link session it keeps open.
+	d := &manifest.Manifest{Capabilities: manifest.Capabilities{Desktop: &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}}}}}
+	if got := RunhostCannotCarry(d); got != "" {
+		t.Fatalf("an application on this computer: %q", got)
+	}
 }
 
 // The job carries the intake's answers, a secret answer as the secret it

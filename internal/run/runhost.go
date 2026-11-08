@@ -31,6 +31,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runhost/job"
 	"github.com/blaktron/agentry-cli/pkg/runhost/payload"
 	"github.com/blaktron/agentry-cli/pkg/runhost/remote"
+	"github.com/blaktron/agentry-cli/pkg/runner/compile"
+	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/intake"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
@@ -65,6 +67,11 @@ type RunhostRequest struct {
 	CLIVersion string
 	// Say takes each line of the runhost's narration.
 	Say func(string)
+	// BindDesktop binds a release that uses applications on this computer
+	// to this app's link service before the job is sent; the binding
+	// travels in the job, and the runhost's calls come back over the link
+	// session this app keeps open while the run lasts.
+	BindDesktop DesktopBinder
 }
 
 // RanOn is the runhost a run ran on, for its result.
@@ -202,6 +209,26 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 		run.MaxTurns = -1
 	}
 	run.Model, run.ModelKey = job.ModelOf(pol.Model), modelKey
+	// The applications on this computer: the run is bound here before
+	// anything is sent, or refused as a run on this computer would be. This
+	// app unbinds once the job has ended: a job it lost goes on there, and
+	// a later attach links it again.
+	var link *engine.DesktopLink
+	ended := false
+	if d := m.Capabilities.Desktop; d != nil {
+		link, err = bindRunhostDesktop(ctx, req.BindDesktop, d, pol, id, sig, req.OutDir)
+		if err != nil {
+			return nil, ranOn, err
+		}
+		defer func() {
+			if ended {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				_ = link.Unbind(ctx)
+			}
+		}()
+		run.Desktop = &job.Desktop{Run: id, Bound: desktop.Bound{Token: link.Token, Servers: link.Servers, Computer: link.Computer}}
+	}
 	j := &job.Job{V: job.Version, ID: id, Device: rec.DeviceID, Release: rel, Run: run}
 	if err := j.Validate(); err != nil {
 		return nil, ranOn, engine.Classify(engine.ExitUsage, err)
@@ -218,12 +245,19 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	say(fmt.Sprintf("running %s on %s (%s, host key %s)", sig.Ref, rec.Name, rec.Host, rec.HostKeyFingerprint))
 	lj := remote.LocalJob{Job: j.ID, Runhost: rec.Name, Ref: sig.Ref, Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version,
 		Digest: sig.Digest, Out: req.OutDir, StartedAt: time.Now().UTC().Format(time.RFC3339)}
+	if link != nil {
+		lj.Desktop = id
+	}
 	if err := remote.PutJob(home, lj); err != nil {
 		return nil, ranOn, err
+	}
+	if link != nil {
+		defer keepRunhostLink(ctx, c, rec, keys, j.ID, remote.BindingForward(link, id), say)()
 	}
 	res, started, next, err := remote.Start(ctx, c, j, archive, files, false, say, nil, nil)
 	switch {
 	case err != nil && !started:
+		ended = true
 		remote.DropJob(home, j.ID)
 		return nil, ranOn, engine.Classify(remote.SendClass(err), err)
 	case err != nil:
@@ -235,6 +269,7 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 		defer func() { _ = c2.Close() }()
 		c = c2
 	}
+	ended = true
 	env, ferr := remote.Finish(ctx, c, rec, keys, lj, res.ExitCode, remote.FinishOptions{
 		Home: home,
 		OutDir: func(runID string) (string, error) {
@@ -268,9 +303,6 @@ func RunhostCannotCarry(m *manifest.Manifest) string {
 	}
 	if len(m.Capabilities.TargetHosts) > 0 {
 		return "a target host"
-	}
-	if m.Capabilities.Desktop != nil {
-		return "an application on your computer"
 	}
 	for _, q := range m.Intake {
 		switch q.Type {
@@ -431,4 +463,39 @@ func CollectScheduledRun(ctx context.Context, name, jobID, ref string, code int,
 		return nil, err
 	}
 	return resultFromRunhost(env), nil
+}
+
+// bindRunhostDesktop binds a run of sig for a runhost to this app's link
+// service, as a run on this computer binds, with the release's desktop line
+// as this computer's policy holds it.
+func bindRunhostDesktop(ctx context.Context, bind DesktopBinder, m *manifest.Desktop, pol *policy.Policy, id string, sig *Signature, outDir string) (*engine.DesktopLink, error) {
+	d, err := compile.DesktopCapFor(m, pol, false)
+	if err != nil {
+		return nil, engine.Classify(engine.ExitPolicy, err)
+	}
+	if bind == nil {
+		return nil, engine.NoDesktopRefusal(d)
+	}
+	link, err := bind(ctx, engine.DesktopBindRequest(d, id, sig.Ref, sig.Digest, outDir))
+	if err != nil {
+		return nil, desktopBindError(d, err)
+	}
+	return link, nil
+}
+
+// keepRunhostLink keeps job id's desktop link open while the job runs, and
+// returns what ends it.
+func keepRunhostLink(ctx context.Context, c *runhost.Client, rec *runhost.Record, keys *runhost.DeviceKeys, id string, forward remote.LinkForward, say func(string)) func() {
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := remote.KeepLink(ctx, remote.LinkDialerFrom(c, rec, keys), id, forward, nil); err != nil && ctx.Err() == nil {
+			say(fmt.Sprintf("the run's use of this computer is no longer linked to %s (%v): its later calls are refused there", rec.Name, err))
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
