@@ -55,6 +55,8 @@ type RunhostsAPI struct {
 	busy   sync.Mutex
 	cmu    sync.Mutex
 	cancel context.CancelFunc
+	// links are the runhosts' agents links this app holds.
+	links agentsLinks
 }
 
 // RunhostSignInView names a model sign-in a runhost keeps: never a token.
@@ -81,6 +83,9 @@ type RunhostView struct {
 	Default bool `json:"default"`
 	// Update is the runhost's last update by this app, when there was one.
 	Update *RunhostUpdateView `json:"update,omitempty"`
+	// LinkedHere says the runhost's agents are linked to this computer:
+	// their use of an application here is answered by this app.
+	LinkedHere bool `json:"linkedHere"`
 }
 
 // RunhostStatusView is what a runhost says of itself over the run key.
@@ -182,6 +187,7 @@ func (r *RunhostsAPI) List() ([]RunhostView, error) {
 		if up, ok := u.Runhosts[rec.Name]; ok {
 			v.Update = &up
 		}
+		v.LinkedHere = r.agentsLinked(rec.Name)
 		out = append(out, v)
 	}
 	return out, nil

@@ -350,3 +350,22 @@ test("a change on a card reaches a running or starting agent at its next turn, a
   assert.match(nextTurnWords({ ...who, state: "running" }, true) ?? "", /waits between turns while the set-up writes its sign-in/);
   assert.match(nextTurnWords({ displayName: "Robin", title: "Assistant", state: "running" }) ?? "", /^Robin is running/);
 });
+
+test("the applications on the person's computer are apps, switched while the agent runs and never asking it to stop", () => {
+  const blender = entry({ id: "desktop:blender", kind: "desktop", name: "Blender on your computer", state: "pending", on: true });
+  const exec = entry({ id: "desktop:blender:exec", kind: "desktop-exec", name: "Blender: code without asking", state: "off", on: false });
+  const computer = entry({ id: "desktop:computer", kind: "desktop", name: "Computer use", state: "off", on: false });
+  for (const e of [blender, exec, computer]) assert.equal(gridOf(e), "apps");
+  assert.deepEqual(cardIcon({ ...blender, icon: "", iconKey: "" }), { kind: "glyph", key: "plug" });
+  assert.deepEqual(cardIcon({ ...exec, icon: "", iconKey: "" }), { kind: "glyph", key: "terminal" });
+  assert.deepEqual(cardIcon({ ...computer, icon: "", iconKey: "" }), { kind: "glyph", key: "browser" });
+  const running = { state: "running" } as Pick<app.PersistentAgentView, "state">;
+  assert.equal(cardState(running, blender).words, "On at the next turn");
+  const away = entry({ id: "desktop:blender", kind: "desktop", state: "needs-set-up", on: true, reason: "Agentry Desktop is not running on this computer" });
+  assert.equal(cardState(running, away).words, "Needs setting up");
+  assert.equal(cardSwitches(away), true);
+  for (const e of [blender, exec, computer, away]) {
+    const s = cardState(running, e);
+    assert.doesNotMatch(`${s.words} ${s.reason ?? ""}`, /\bstop\b/i);
+  }
+});

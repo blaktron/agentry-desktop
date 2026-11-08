@@ -130,6 +130,9 @@ func (s *Services) Startup(ctx context.Context) {
 	// The link socket a run from the CLI on this computer binds over to use
 	// an application here.
 	s.yourComputer.start(ctx)
+	// The paired runhosts' agents reach the applications here through the
+	// link sessions this app holds open to each.
+	s.runhosts.startAgentsLinks(ctx)
 	// Computer use shows in the tray and the banner while a run has it.
 	s.yourComputer.onComputer = func() {
 		s.followAgents(ctx)

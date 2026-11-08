@@ -27,6 +27,7 @@ import (
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/persistent"
@@ -1143,7 +1144,21 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
 		Contents: persistent.Contents{Pack: p.packDigest},
 		Helper:   p.helper(), Subagents: p.subagents(),
+		BindDesktop: p.bindDesktop(home, a),
 	}, nil
+}
+
+// bindDesktop binds an agent's segments to this app's own link service, in
+// process, with the name the person knows the agent by in the dialogs and
+// the indicator.
+func (p *PersistentAPI) bindDesktop(home string, a persistent.Agent) engine.DesktopBinder {
+	return func(ctx context.Context, req desktop.BindRequest) (*engine.DesktopLink, error) {
+		req.Agent = a.Title
+		if c, err := persistent.LoadConfig(home, a.Name); err == nil {
+			req.Agent = a.DisplayName(c)
+		}
+		return p.run.bindDesktop(ctx, req)
+	}
 }
 
 // appLink is the handler of the agent's app link calls the supervisor does

@@ -34,7 +34,8 @@ export function providerOf(e: { id?: string }, agent: Providers): app.Persistent
 
 /** gridOf is the grid an entry is drawn in: a mail provider's server and
  *  its switches, and a calendar feed, are mail and calendar; other servers and what they may
- *  change (an offered server's writes, an image server's switches) are apps; accounts and secrets are what the agent signs in with;
+ *  change (an offered server's writes, an image server's switches), and the applications
+ *  on the person's computer with their code agreement and computer use, are apps; accounts and secrets are what the agent signs in with;
  *  skills are skills; the rest (folders, memory, the heartbeat, commands,
  *  egress, the browser, the dev server, ports, knowledge packs) are its
  *  abilities. A kind this build does not know is an ability. */
@@ -46,6 +47,8 @@ export function gridOf(e: Pick<app.PersistentRosterEntry, "kind"> & { id?: strin
     case "server":
     case "server-writes":
     case "server-switch":
+    case "desktop":
+    case "desktop-exec":
       return "apps";
     case "account":
     case "secret":
@@ -107,9 +110,9 @@ const IMAGE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 export function cardIcon(e: Pick<app.PersistentRosterEntry, "id" | "kind" | "name" | "icon" | "iconKey">): CardIcon {
   if (e.icon && IMAGE.test(e.icon)) return { kind: "image", src: e.icon };
   if (e.iconKey && GLYPHS.has(e.iconKey)) return { kind: "glyph", key: e.iconKey };
-  const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser" };
+  const byID: Record<string, string> = { share: "folder", data: "box", memory: "memory", heartbeat: "clock", "dependency-scan": "scan", commands: "terminal", egress: "globe", browser: "browser", "desktop:computer": "browser" };
   if (Object.hasOwn(byID, e.id)) return { kind: "glyph", key: byID[e.id] };
-  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic", calendar: "calendar", subagent: "box", voice: "person" };
+  const byKind: Record<string, string> = { files: "folder", memory: "memory", tasks: "clock", host: "host", port: "plug", knowledge: "book", skill: "skill", secret: "key", account: "person", meetings: "mic", calendar: "calendar", subagent: "box", voice: "person", desktop: "plug", "desktop-exec": "terminal" };
   if (Object.hasOwn(byKind, e.kind)) return { kind: "glyph", key: byKind[e.kind] };
   return { kind: "monogram", text: monogram(e.name) };
 }
