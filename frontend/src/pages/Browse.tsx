@@ -9,6 +9,16 @@ import {
 const MODES = ["", "autonomous", "interactive", "persistent"];
 const CAPABILITIES = ["", "network", "filesystem", "exec", "secrets", "dataAccess"];
 const SORTS = ["relevance", "installs", "newest", "updated"];
+/** Results asked for at a time; Show more asks for the next page. */
+export const BROWSE_PAGE = 30;
+
+/** Whether the registry has results past those shown: by its total when it
+ *  sends one, else by a full last page. */
+export function hasMore(view: app.SearchView | null, lastPage: number): boolean {
+  if (!view) return false;
+  if (typeof view.total === "number") return view.results.length < view.total;
+  return lastPage === BROWSE_PAGE;
+}
 
 export default function Browse({
   registry,
@@ -26,6 +36,8 @@ export default function Browse({
   const [sort, setSort] = useState("relevance");
   const [results, setResults] = useState<app.SearchView | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastPage, setLastPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const search = useCallback(async () => {
@@ -36,8 +48,10 @@ export default function Browse({
     setLoading(true);
     setError(null);
     try {
-      const query = new app.SearchQuery({ q, mode, capability, sort, limit: 30, offset: 0 });
-      setResults(await BrowseAPI.Search(registry, query));
+      const query = new app.SearchQuery({ q, mode, capability, sort, limit: BROWSE_PAGE, offset: 0 });
+      const view = await BrowseAPI.Search(registry, query);
+      setResults(view);
+      setLastPage(view?.results.length ?? 0);
     } catch (e) {
       setResults(null);
       setError(String(e));
@@ -45,6 +59,26 @@ export default function Browse({
       setLoading(false);
     }
   }, [registry, q, mode, capability, sort]);
+
+  // The next page of the same search, appended. A result already shown (the
+  // registry's order moved between pages) is not shown twice.
+  const more = useCallback(async () => {
+    if (!results) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const query = new app.SearchQuery({ q, mode, capability, sort, limit: BROWSE_PAGE, offset: results.results.length });
+      const page = await BrowseAPI.Search(registry, query);
+      const seen = new Set(results.results.map((h) => `${h.namespace}/${h.name}`));
+      const fresh = (page?.results ?? []).filter((h) => !seen.has(`${h.namespace}/${h.name}`));
+      setResults(new app.SearchView({ ...results, total: page?.total ?? results.total, results: [...results.results, ...fresh] }));
+      setLastPage(page?.results.length ?? 0);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [registry, q, mode, capability, sort, results]);
 
   // First render and registry/facet changes trigger a search; typing wants
   // the button or Enter.
@@ -90,7 +124,11 @@ export default function Browse({
               total gets a list without a number, not
               "0 results" above a full list. */}
           {typeof results.total === "number" && (
-            <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
+            <p className="muted small">
+              {results.results.length < results.total
+                ? `Showing ${results.results.length} of ${results.total} results`
+                : `${results.total} result${results.total === 1 ? "" : "s"}`}
+            </p>
           )}
           {results.results.length === 0 && (
             <EmptyState title="Nothing matched">Try a broader query, or clear the mode and capability filters.</EmptyState>
@@ -105,6 +143,13 @@ export default function Browse({
               onClick={() => onOpenAgent(hit.namespace, hit.name)}
             />
           ))}
+          {hasMore(results, lastPage) && (
+            <div className="browse-more">
+              {loadingMore
+                ? <Spinner label="Loading more…" />
+                : <Button onClick={more}>Show more</Button>}
+            </div>
+          )}
         </div>
       )}
     </div>
