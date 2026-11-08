@@ -125,14 +125,7 @@ func recordLocal(ctx context.Context, app *App, kind string, l *liveRun, ref str
 	if !historyOn() {
 		return
 	}
-	if lines := l.kept(); len(lines) > 0 {
-		path, kerr := runhistory.KeepLog(l.id, lines)
-		if kerr != nil {
-			log.Printf("agentry-desktop: run history: %v", kerr)
-		} else {
-			e.Log = path
-		}
-	}
+	keepLog(&e, l)
 	record(e)
 }
 
@@ -153,8 +146,9 @@ func builtinKind(ref string) string {
 }
 
 // recordBuiltin records a built-in's job on this computer as asRun ends it:
-// stopped when its context was cancelled, failed when it returned an error,
-// else ok; its folder is the one its flow kept (keepFolder).
+// stopped when its context was cancelled, failed when it returned an error
+// (its cause), else ok; its folder is the one its flow kept (keepFolder),
+// and its log is kept beside the history as a run's is.
 func recordBuiltin(ctx context.Context, app *App, l *liveRun, err error) {
 	kind := builtinKind(l.ref)
 	if kind == "" {
@@ -171,8 +165,30 @@ func recordBuiltin(ctx context.Context, app *App, l *liveRun, err error) {
 		ID: l.id, Kind: kind, Where: runhistory.WhereHere,
 		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, Folder: cleanAbs(l.folder),
 	}
+	if outcome == runhistory.OutcomeError {
+		e.Cause = err.Error()
+	}
 	app.noticed(localEntry(e, ""), ended(e.Outcome), shownAt(kind)...)
+	if !historyOn() {
+		return
+	}
+	keepLog(&e, l)
 	record(e)
+}
+
+// keepLog writes the job's log beside the history and names it in e, when
+// the job logged anything; a log that cannot be written is left out.
+func keepLog(e *runhistory.Entry, l *liveRun) {
+	lines := l.kept()
+	if len(lines) == 0 {
+		return
+	}
+	path, err := runhistory.KeepLog(l.id, lines)
+	if err != nil {
+		log.Printf("agentry-desktop: run history: %v", err)
+		return
+	}
+	e.Log = path
 }
 
 // keepFolder is a built-in's flow naming the folder its job wrote, from

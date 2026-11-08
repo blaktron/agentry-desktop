@@ -102,3 +102,26 @@ func (m *Meter[T, P]) Set(set func(*T) bool) {
 		m.report(m.p)
 	}
 }
+
+// StartMeter is the meter of a job whose progress is the shared report
+// alone, started now under its budgets and reported at once, so the page
+// knows the job has begun. With no report function it reports nothing.
+func StartMeter(report func(Report), timeoutSeconds, maxTurns int) *Meter[Report, *Report] {
+	m := NewMeter(report, Start(timeoutSeconds, maxTurns))
+	m.Emit()
+	return m
+}
+
+// UsageTo is an engine usage hook that tells the meter, then also, when
+// set: a job's own meter beside the caller's hook.
+func UsageTo[T any, P interface {
+	*T
+	shared() *Report
+}](m *Meter[T, P], also func(receipt.Usage)) func(receipt.Usage) {
+	return func(u receipt.Usage) {
+		m.Usage(u)
+		if also != nil {
+			also(u)
+		}
+	}
+}

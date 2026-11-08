@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.24",
+      "highlights": [
+        "The Voice Writer and the Report Designer can run in the background, in a card in the corner, like a QuickAgent's run.",
+        "Every run, draft, review and build shows the same Run log, with its time, turns and tokens as it goes.",
+        "Recent runs keeps a built-in agent's log and why it failed, as it does for a QuickAgent's run."
+      ]
+    },
+    {
       "version": "0.7.23",
       "highlights": [
         "A persistent agent's page lists its five newest subagent runs; See more… opens all of them in a card."

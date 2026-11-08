@@ -1177,6 +1177,14 @@ g.go = { app: {
     ChooseDocument: async () => "/home/me/Documents/northwind-annual-report.pdf",
     CheckAddresses: async (urls: string[]) => ({ check: { max: 2, lines: urls.map((u) => ({ address: u, shown: u, host: new URL(u).host })) }, reviewReady: true }),
     RunHere: async () => {
+      // #report-ai-running: a run that has begun and goes on.
+      if (window.location.hash === "#report-ai-running") {
+        setTimeout(() => {
+          emitPage("designer:progress", { startedAt: Date.now() - 140_000, timeoutSeconds: 0, maxTurns: 0, turns: 5, inputTokens: 42_000, outputTokens: 6_300 });
+          for (const line of ["Its reports, receipts and the design it makes are written to /home/me/Downloads/agentry-out/report-designer.", "Tool call: render_design", "Tool result (render_design):", "  rendered 4 pages"]) emitPage("designer:log", line);
+        }, 50);
+        return new Promise(() => {});
+      }
       await new Promise((r) => setTimeout(r, 300));
       const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };
       return { token: "t-1", job: "design", name: made.name, view: { id: "", default: false, design: made, label: made.name, logo: rdPng },
@@ -1205,6 +1213,15 @@ g.go = { app: {
     DeleteLocal: async () => undefined,
     Write: async () => new Promise(() => {}),
     WriteWithAI: async () => {
+      // #voice-running: a run that has begun and goes on, reporting its
+      // clock, its turns and its tokens, with a log.
+      if (voiceHash === "#voice-running") {
+        setTimeout(() => {
+          emitPage("voice:write-progress", { startedAt: Date.now() - 95_000, timeoutSeconds: 0, maxTurns: 0, turns: 3, inputTokens: 18_400, outputTokens: 2_100 });
+          for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 2 files", "Tool call: read_file", "Tool result (read_file):", "  # Launch email"]) emitPage("voice:write-log", line);
+        }, 50);
+        return new Promise(() => {});
+      }
       if (voiceHash !== "#voice-failed") return new Promise(() => {});
       for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 1 files"]) emitPage("voice:write-log", line);
       throw new Error("the Voice Writer wrote no VOICE.md");
@@ -1715,6 +1732,8 @@ import Build from "../src/pages/Build";
 import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
+import VoiceFlow from "../src/pages/VoiceFlow";
+import DesignerFlow from "../src/pages/DesignerFlow";
 import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
@@ -1891,7 +1910,10 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
-    <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
+    {/* The Voice Writer's run window, as App mounts it above the pages:
+        a run started from the page's Edit with AI goes on in it. */}
+    <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} />
+      <VoiceFlow onOpenVoice={(view) => { document.body.dataset.open = `voice:${view}`; }} /></Shell></div>
     {/* The Publisher section: what an action and a row
         open are marked on the body (data-open) for a shot to see. */}
     <div data-preview="publisher"><Shell active="publisher" signedIn={publisherHash !== "#publisher-signed-out"}><Publisher registry={REG}
@@ -1899,7 +1921,8 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }}
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
-    <div data-preview="settings"><SettingsPreview /></div>
+    <div data-preview="settings"><SettingsPreview />
+      <DesignerFlow onOpenDesigns={() => { document.body.dataset.open = "report-design"; }} /></div>
     {harnessMeetings && <div data-preview="meetings"><Shell active="meetings"><MeetingNotes /></Shell></div>}
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}

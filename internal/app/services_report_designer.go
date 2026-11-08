@@ -42,12 +42,17 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/voice"
 )
 
 // eventDesignerLog carries a Report Designer run on this computer, line by
 // line.
 const eventDesignerLog = "designer:log"
+
+// eventDesignerProgress carries how far a Report Designer run on this
+// computer has got: its clock under its budgets, its turns and its tokens.
+const eventDesignerProgress = "designer:progress"
 
 // eventDesignerHosted carries a Report Designer run In Agentry's every state
 // change and its final word.
@@ -373,6 +378,7 @@ func (a *DesignerAPI) RunHere(reg string, req DesignerRequest) (*DesignerResultV
 		res, err = designer.Run(ctx, designer.Request{
 			Job: req.Job, Brief: req.Brief, From: from, Logo: req.Logo, Images: req.Images, URLs: req.URLs,
 			Document: req.Document, Home: home, OutDir: out, RunID: runID, Build: a.build, Log: logw,
+			Progress: func(p progress.Report) { emitEvent(a.app, eventDesignerProgress, p) },
 		})
 		return err
 	})

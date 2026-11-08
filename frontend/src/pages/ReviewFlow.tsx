@@ -1,12 +1,11 @@
-// A review by the Examiner, followed above the pages, as a run, a draft and
-// a knowledge build are: App mounts this, and the dialog opens once Go
-// reports that the review has begun (after its native dialog, inside the run
-// lock). While it runs, the dialog shows the stage (the registry's rules
-// here, the Examiner, the report), the time against its limit, its turns and
-// tokens over its log folded beneath; Run in the background, or closing the
-// dialog, shrinks it to a card in the bottom-right corner with its own Stop
-// (BuildAPI.StopReview, which stops only a review). Once it is over the
-// dialog is its report, and Dismiss makes the app forget its folder.
+// A review by the Examiner, followed above the pages in its run window
+// (RunWindow.tsx), as a QuickAgent's run is: App mounts this, and the window
+// opens once Go reports that the review has begun (after its native dialog,
+// inside the run lock). While it runs, it shows the stage (the registry's
+// rules here, the Examiner, the report), the time against its limit, its
+// turns and tokens and its Run log; Stop stops only a review
+// (BuildAPI.StopReview). Once it is over the dialog is its report, and
+// Dismiss makes the app forget its folder.
 //
 // The report (ReviewReport) shows the outcome the pipeline would be expected
 // to reach, every finding under the kind it belongs to with its file and
@@ -15,14 +14,16 @@
 // anything but what was found. Every string the QuickAgent or the
 // Examiner's model could have written is drawn as text, with its invisible
 // characters shown.
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
+import { FoldedLog, ProgressView } from "../progress";
 import { RevealText } from "../reveal";
 import { type ReviewProgress, outcome, outcomeTone } from "../review";
 import { dismissReview, showReview, stopReview, useReview } from "../reviews";
-import { Button, Card, ErrorBox, Excerpt, Modal, Notice, Sev } from "../ui";
+import { Button, Card, ErrorBox, Excerpt, Notice, Sev } from "../ui";
+import { logLines } from "../runLog";
+import { RUN_LOG, RunWindow, useFollowed } from "./RunWindow";
 
 const STAGE: Record<Exclude<ReviewProgress["stage"], "">, string> = {
   rules: "The registry's rules are running here",
@@ -39,87 +40,47 @@ export default function ReviewFlow({ initialMinimized }: {
   initialMinimized?: boolean;
 }) {
   const s = useReview();
+  const followed = useFollowed({ raised: s.raised, initialMinimized });
   const r = s.review;
-  const [cardFor, setCardFor] = useState<number | null>(null);
-  const minimized = cardFor === s.raised;
-  const minimize = () => setCardFor(s.raised);
-  const firstAsCard = useRef(!!initialMinimized);
-  useEffect(() => {
-    if (firstAsCard.current && s.raised > 0) {
-      firstAsCard.current = false;
-      setCardFor(s.raised);
-    }
-  }, [s.raised]);
   if (!s.shown || !r) return null;
 
   const running = !r.over;
   const { line, tone } = outcome(r);
   const name = r.view?.ref ?? r.dir;
-  const stop = () => void stopReview();
-
-  if (minimized) {
-    return (
-      <CornerCard
-        label="Review Your QuickAgents locally"
-        running={running}
-        title={running ? "Reviewing a QuickAgent here" : "The review is over"}
-        line={running ? stageLine(r.progress) : line}
-        tone={tone}
-        actions={<>
-          {running && <StopButton stopping={r.stopping} onStop={stop} />}
-          {!running && <Button onClick={dismissReview}>Dismiss</Button>}
-          <Button variant="primary" onClick={showReview}>Open</Button>
-        </>}
-      >
-        {running && <ReviewProgressView progress={r.progress} compact />}
-      </CornerCard>
-    );
-  }
-
-  if (running) {
-    return (
-      <Modal title="Reviewing a QuickAgent on this computer" onClose={minimize} wide>
-        <RunningView
-          spinner={r.stopping ? "Stopping the review…" : `${stageLine(r.progress)}…`}
-          about={<>
-            The Examiner reviews <span className="mono"><RevealText text={name} /></span> on this computer: the registry&apos;s
-            rules run here, then AI Review reads every file with your key before the Examiner&apos;s model does. Nothing of the
-            QuickAgent runs, and nothing is submitted. A review takes a few minutes.
-          </>}
-          actions={<>
-            <StopButton stopping={r.stopping} onStop={stop} label="Stop the review" />
-            <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </>}
-          background={<>
-            In the background, the review goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
-            and the report says what of it ran.
-          </>}
-        >
-          <ReviewProgressView progress={r.progress} />
-          <FoldedLog label="Review log" lines={r.log} reveal />
-        </RunningView>
-      </Modal>
-    );
-  }
-
+  const log = logLines(r.log, r.logDropped);
   return (
-    <Modal title="Review Your QuickAgents locally" onClose={minimize} wide>
-      {r.view ? (
+    <RunWindow
+      {...followed}
+      onOpen={showReview}
+      onDismiss={dismissReview}
+      label="Review Your QuickAgents locally"
+      title={running ? "Reviewing a QuickAgent on this computer" : "Review Your QuickAgents locally"}
+      cardTitle={running ? "Reviewing a QuickAgent here" : "The review is over"}
+      running={running}
+      spinner={r.stopping ? "Stopping the review…" : `${stageLine(r.progress)}…`}
+      about={<>
+        The Examiner reviews <span className="mono"><RevealText text={name} /></span> on this computer: the registry&apos;s
+        rules run here, then AI Review reads every file with your key before the Examiner&apos;s model does. Nothing of the
+        QuickAgent runs, and nothing is submitted. A review takes a few minutes.
+      </>}
+      progress={(compact) => <ReviewProgressView progress={r.progress} compact={compact} />}
+      background={<>
+        In the background, the review goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
+        and the report says what of it ran.
+      </>}
+      stop={{ label: "Stop the review", cardLabel: "Stop", stopping: r.stopping, onStop: () => void stopReview() }}
+      log={log}
+      line={running ? stageLine(r.progress) : line}
+      tone={tone}
+      error={r.view ? null : r.error}
+      outcome={r.view ? (
         <>
           {r.stopped && <Notice tone="warn">You stopped the review. The report says what of it ran.</Notice>}
-          <ReviewReport v={r.view} log={r.log} />
+          <ReviewReport v={r.view} log={log} />
         </>
-      ) : (
-        <>
-          <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>
-          {r.error && <div className="error-box selectable"><RevealText text={r.error} /></div>}
-          {r.log.length > 0 && <LogPane label="Review log" lines={r.log} reveal />}
-        </>
-      )}
-      <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-        <Button variant="primary" onClick={dismissReview}>Dismiss</Button>
-      </div>
-    </Modal>
+      ) : undefined}
+      logInOutcome={!!r.view}
+    />
   );
 }
 
@@ -275,7 +236,7 @@ export function ReviewReport({ v, log }: { v: app.ReviewView; log: string[] }) {
         <Button variant="link" onClick={showFolder}>Show the folder</Button>
       </p>
       <ErrorBox error={err} />
-      {log.length > 0 && <FoldedLog label="Review log" lines={log} reveal />}
+      {log.length > 0 && <FoldedLog label={RUN_LOG} lines={log} reveal />}
     </div>
   );
 }
