@@ -375,6 +375,11 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
         <span className="selectable">
           <strong className="mono">{runhost.name}</strong>{" "}
           <span className="muted small">{runhost.host}{runhost.port && runhost.port !== 22 ? `:${runhost.port}` : ""} · {runhost.os || "Linux"} · CLI {status?.cliVersion || runhost.cliVersion}</span>
+          {runhost.linkedHere && (
+            <span className="muted small" data-runhost-linked title="Its agents' use of the applications on this computer is answered by this app while it runs">
+              {" "}· Linked to this computer
+            </span>
+          )}
         </span>
         <span className="row nowrap">
           {runhost.default

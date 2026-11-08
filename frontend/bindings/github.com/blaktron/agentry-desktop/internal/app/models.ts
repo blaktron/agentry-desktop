@@ -10458,6 +10458,12 @@ export class RunhostView {
      */
     "update"?: RunhostUpdateView | null;
 
+    /**
+     * LinkedHere says the runhost's agents are linked to this computer:
+     * their use of an application here is answered by this app.
+     */
+    "linkedHere": boolean;
+
     /** Creates a new RunhostView instance. */
     constructor($$source: Partial<RunhostView> = {}) {
         if (!("name" in $$source)) {
@@ -10492,6 +10498,9 @@ export class RunhostView {
         }
         if (!("default" in $$source)) {
             this["default"] = false;
+        }
+        if (!("linkedHere" in $$source)) {
+            this["linkedHere"] = false;
         }
 
         Object.assign(this, $$source);
