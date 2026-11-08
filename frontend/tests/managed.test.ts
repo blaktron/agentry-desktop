@@ -8,10 +8,10 @@ import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus } from 
 test("the landing names each organization with its version, and nothing when none apply", () => {
   assert.equal(managedLine([]), null);
   assert.equal(managedLine(null), null);
-  assert.equal(managedLine([{ organization: "acme", version: 3 }]), "Some settings are managed by acme (version 3).");
+  assert.equal(managedLine([{ summary: "managed by acme (version 3)" }]), "Some settings are managed by acme (version 3).");
   assert.equal(
-    managedLine([{ organization: "acme", version: 3 }, { organization: "globex", version: 1 }]),
-    "Some settings are managed by acme (version 3) and globex (version 1).",
+    managedLine([{ summary: "managed by acme (version 3)" }, { summary: "managed by globex (version 1)" }]),
+    "Some settings are managed by acme (version 3) and managed by globex (version 1).",
   );
 });
 
@@ -29,8 +29,8 @@ test("a switch that was on says it is held off, and comes back unless kept off",
   assert.match(lines[1], /no run on this computer uses it/);
 });
 
-test("a cached copy that does not verify locks the switch with no organization", () => {
-  const lock = { reason: "Unsafe Mode is refused while the managed settings cached for https://r.example do not verify (bad signature).", savedOn: false };
+test("managed settings that cannot be verified lock the switch with no organization", () => {
+  const lock = { reason: "Unsafe Mode is refused while the managed settings held for https://r.example cannot be verified (bad signature).", savedOn: false };
   assert.equal(unsafeLockBadge(lock), "Locked");
   assert.equal(unsafeLockStatus(lock), "Unsafe Mode is off and locked.");
   assert.equal(unsafeLockLines(lock)[0], lock.reason);

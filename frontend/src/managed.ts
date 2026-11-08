@@ -4,8 +4,9 @@
 // Unsafe Mode under the lock, and the runner refuses a run the settings
 // forbid.
 
-/** One organization's managed settings held on this computer. */
-export type ManagedHeld = { organization: string; version: number };
+/** One organization's managed settings held on this computer; summary is
+ *  Go's one-line name for them, "managed by acme (version 7)". */
+export type ManagedHeld = { summary: string };
 
 /** What Unsafe Mode's switch carries while managed settings refuse it. */
 export type UnsafeLock = { managedBy?: string; reason: string; savedOn: boolean };
@@ -17,8 +18,9 @@ const asSentence = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.tri
 /** The Settings landing's line: the organizations whose managed settings
  *  apply here, each with its version; null when none do. */
 export function managedLine(held: ManagedHeld[] | null | undefined): string | null {
-  if (!held?.length) return null;
-  return `Some settings are managed by ${joinAnd(held.map((d) => `${d.organization} (version ${d.version})`))}.`;
+  const named = (held ?? []).map((d) => d.summary).filter(Boolean);
+  if (!named.length) return null;
+  return `Some settings are ${joinAnd(named)}.`;
 }
 
 /** The badge beside Unsafe Mode's switch under the lock. */

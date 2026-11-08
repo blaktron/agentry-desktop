@@ -4781,6 +4781,12 @@ export class ManagedView {
     "version": number;
 
     /**
+     * Summary names the document in one line: "managed by acme (version
+     * 7)".
+     */
+    "summary": string;
+
+    /**
      * FetchedAt is when this computer last read them from the registry,
      * RFC 3339.
      */
@@ -4796,6 +4802,9 @@ export class ManagedView {
         }
         if (!("version" in $$source)) {
             this["version"] = 0;
+        }
+        if (!("summary" in $$source)) {
+            this["summary"] = "";
         }
 
         Object.assign(this, $$source);
@@ -12029,7 +12038,8 @@ export class TopUpView {
 export class UnsafeLockView {
     /**
      * ManagedBy is the organization whose managed settings forbid Unsafe
-     * Mode; "" when the refusal is a cached copy that does not verify.
+     * Mode; "" when the refusal is managed settings held here that cannot be
+     * verified.
      */
     "managedBy"?: string;
 

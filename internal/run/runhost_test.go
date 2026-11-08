@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -53,7 +54,7 @@ func TestARunhostRunCarriesTheAnswersAndTheSecrets(t *testing.T) {
 	pol := policy.Default()
 	t.Setenv("OTHER_TOKEN", "from-the-environment")
 	pol.SecretSource = policy.SecretSource{Mode: "env"}
-	run, err := runhostCarry(home, sig, m, pol, RunhostRequest{Intake: map[string]string{"topic": "birds", "api_key": "sk-answered"}})
+	run, err := runhostCarry(home, sig, m, pol, RunhostRequest{Intake: map[string]string{"topic": "birds", "api_key": "sk-answered"}}, managed.Effective{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestARunhostRunCarriesTheAnswersAndTheSecrets(t *testing.T) {
 		t.Fatalf("secrets %v", run.Secrets)
 	}
 	t.Setenv("OTHER_TOKEN", "")
-	if _, err := runhostCarry(home, sig, m, pol, RunhostRequest{Intake: map[string]string{"api_key": "sk"}}); err == nil || !strings.Contains(err.Error(), "OTHER_TOKEN") {
+	if _, err := runhostCarry(home, sig, m, pol, RunhostRequest{Intake: map[string]string{"api_key": "sk"}}, managed.Effective{}); err == nil || !strings.Contains(err.Error(), "OTHER_TOKEN") {
 		t.Fatalf("a missing secret: %v", err)
 	}
 }

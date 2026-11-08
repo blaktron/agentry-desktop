@@ -127,14 +127,15 @@ func TestUnsafeModeSavedOnIsHeldOffByTheLock(t *testing.T) {
 	}
 }
 
-// A cached copy that does not verify might forbid Unsafe Mode, so it is
-// refused too, with the reason and no organization.
-func TestUnsafeModeIsRefusedWhileTheCachedCopyDoesNotVerify(t *testing.T) {
+// Managed settings held here that cannot be verified might forbid Unsafe
+// Mode, so it is refused too, with the reason and no organization, and the
+// landing warns that no run starts.
+func TestUnsafeModeIsRefusedWhileTheManagedSettingsCannotBeVerified(t *testing.T) {
 	u := newUnsafeApp(t)
 	u.answer = true
 	holdManaged(t, managed.Effective{Problems: []managed.Problem{{Registry: "https://r.example", Err: errors.New("signature does not verify")}}})
 
-	if _, err := u.r.SetUnsafeMode(true); err == nil || !strings.Contains(err.Error(), "do not verify") {
+	if _, err := u.r.SetUnsafeMode(true); err == nil || !strings.Contains(err.Error(), "cannot be verified") {
 		t.Fatalf("err = %v, want the unverified copy's refusal", err)
 	}
 	if len(u.asked) != 0 || u.pulls != 0 {
@@ -144,14 +145,14 @@ func TestUnsafeModeIsRefusedWhileTheCachedCopyDoesNotVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.UnsafeLock == nil || v.UnsafeLock.ManagedBy != "" || !strings.Contains(v.UnsafeLock.Reason, "do not verify") {
+	if v.UnsafeLock == nil || v.UnsafeLock.ManagedBy != "" || !strings.Contains(v.UnsafeLock.Reason, "cannot be verified") {
 		t.Fatalf("the lock: %+v", v.UnsafeLock)
 	}
 	sv, err := settingsView()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sv.ManagedProblems) != 1 || !strings.Contains(sv.ManagedProblems[0], "https://r.example") {
+	if len(sv.ManagedProblems) != 1 || !strings.Contains(sv.ManagedProblems[0], "https://r.example") || !strings.Contains(sv.ManagedProblems[0], "no run starts") {
 		t.Fatalf("the landing's problems: %q", sv.ManagedProblems)
 	}
 }
@@ -188,7 +189,7 @@ func TestSettingsViewNamesTheManagedSettingsHeld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := ManagedView{Registry: "https://r.example", Organization: "acme", Version: 3, FetchedAt: "2026-11-08T09:00:00Z"}
+	want := ManagedView{Registry: "https://r.example", Organization: "acme", Version: 3, Summary: "managed by acme (version 3)", FetchedAt: "2026-11-08T09:00:00Z"}
 	if len(sv.Managed) != 1 || sv.Managed[0] != want {
 		t.Fatalf("held: %+v, want %+v", sv.Managed, want)
 	}
@@ -231,6 +232,10 @@ func recordManaged(t *testing.T) *managedLog {
 		l.add("refresh " + reg + " " + token)
 		return nil, nil
 	}
+	managedCalls.signedIn = func(reg, accountID string) error {
+		l.add("signedIn " + reg + " " + accountID)
+		return nil
+	}
 	managedCalls.forget = func(reg string) error {
 		l.add("forget " + reg)
 		return nil
@@ -268,9 +273,11 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// A sign-in deletes the copy held for that registry, which was whoever
-// signed in before, and then reads the new account's with its token; a
-// sign-out, and removing the registry, delete it.
+// A sign-in records the account (which deletes another account's copy and
+// keeps this one's) and then reads the settings with its token; it never
+// forgets the copy itself, so the same account signing in again while the
+// registry cannot answer keeps its organization's lock. A sign-out, and
+// removing the registry, delete it.
 func TestSignInAndSignOutReplaceTheManagedSettings(t *testing.T) {
 	s := twoSignInApp(t)
 	self := newRegistryServer(t, "agy_selfhosted")
@@ -281,7 +288,8 @@ func TestSignInAndSignOutReplaceTheManagedSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg := settings.Normalize(self.URL)
-	if want := []string{"forget " + reg, "refresh " + reg + " agy_selfhosted"}; !equalStrings(l.list(), want) {
+	const account = "00000000-0000-0000-0000-000000000002"
+	if want := []string{"signedIn " + reg + " " + account, "refresh " + reg + " agy_selfhosted"}; !equalStrings(l.list(), want) {
 		t.Fatalf("at sign-in: %q, want %q", l.list(), want)
 	}
 	if got := events(); len(got) == 0 || got[len(got)-1] != eventManagedChanged {
@@ -295,10 +303,15 @@ func TestSignInAndSignOutReplaceTheManagedSettings(t *testing.T) {
 		t.Fatalf("at sign-out: %q, want the copy forgotten", got)
 	}
 
+	// Signed in again: recorded and read, never forgotten.
+	n := len(l.list())
 	if _, err := s.SignIn(self.URL, "agy_selfhosted"); err != nil {
 		t.Fatal(err)
 	}
-	n := len(l.list())
+	if got := l.list()[n:]; !equalStrings(got, []string{"signedIn " + reg + " " + account, "refresh " + reg + " agy_selfhosted"}) {
+		t.Fatalf("signing in again: %q", got)
+	}
+	n = len(l.list())
 	if _, err := s.RemoveRegistry(self.URL); err != nil {
 		t.Fatal(err)
 	}

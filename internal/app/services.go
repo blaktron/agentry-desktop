@@ -325,10 +325,11 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	if url, err = cfg.Resolve(url); err != nil {
 		return nil, err
 	}
-	user, err := whoami(s.app, url, token)
+	account, err := whoamiUser(s.app, url, token)
 	if err != nil {
 		return nil, err
 	}
+	user := userViewOf(account)
 	// Sign-in implies "keep it": the registry joins the list before its
 	// token is stored, which is what makes it the self-hosted sign-in.
 	if cfg.Find(url) == nil {
@@ -346,9 +347,10 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	}
 	tokenAccepted(url)
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
-	// The managed settings held were whoever signed in before; the new
-	// account's are read with the keys just pinned.
-	s.signedInManaged(url, token)
+	// The managed settings: another account's copy goes, this account's
+	// stays until the registry answers, and they are read now with the keys
+	// just pinned.
+	s.signedInManaged(url, account.Id.String(), token)
 	// A schedule that runs signed out carries the registry token sealed
 	// beside it: the new one is sealed in its place.
 	resealSchedules(s.app)
@@ -399,6 +401,16 @@ func storedCredential(url string) (string, string, error) {
 // whoami's errors name the registry by origin, never by a URL someone may
 // have typed a credential into, since Settings renders them.
 func whoami(app *App, url, token string) (*UserView, error) {
+	u, err := whoamiUser(app, url, token)
+	if err != nil {
+		return nil, err
+	}
+	return userViewOf(u), nil
+}
+
+// whoamiUser is the registry's answer to the token: the account it belongs
+// to.
+func whoamiUser(app *App, url, token string) (*apiclient.User, error) {
 	client, err := registry.New(url, token)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
@@ -410,7 +422,7 @@ func whoami(app *App, url, token string) (*UserView, error) {
 	if resp.JSON200 == nil {
 		return nil, registry.Problem("sign in", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 	}
-	return userViewOf(resp.JSON200), nil
+	return resp.JSON200, nil
 }
 
 // userViewOf is the registry's user as Settings shows it.

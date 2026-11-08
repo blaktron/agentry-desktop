@@ -599,6 +599,11 @@ func (p *prepared) openCredits(ctx context.Context, logw io.Writer) error {
 // prepare does the install → plan → images → profile → intake steps for
 // the run mode; it is Run without the run.
 func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mode) (*prepared, error) {
+	// Managed settings that refuse every run refuse this one before anything
+	// is read or installed.
+	if err := managedRunRefusal(currentManaged()); err != nil {
+		return nil, err
+	}
 	// Where the run sends its result is read first, so a name that is not
 	// saved, or has no signing secret, refuses before anything is installed.
 	dests, err := destination.Resolve(req.Destinations)

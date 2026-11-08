@@ -32,11 +32,12 @@ const eventManagedChanged = "managed:changed"
 // managedCalls are pkg/managed's calls, a package variable purely as a test
 // seam. Production code never reassigns it.
 var managedCalls = struct {
-	current func() managed.Effective
-	sync    func(ctx context.Context, hc *http.Client, registryURL, token string, maxAge time.Duration) (*managed.State, error)
-	refresh func(ctx context.Context, hc *http.Client, registryURL, token string) (*managed.State, error)
-	forget  func(registryURL string) error
-}{managed.Current, managed.Sync, managed.Refresh, managed.Forget}
+	current  func() managed.Effective
+	sync     func(ctx context.Context, hc *http.Client, registryURL, token string, maxAge time.Duration) (*managed.State, error)
+	refresh  func(ctx context.Context, hc *http.Client, registryURL, token string) (*managed.State, error)
+	signedIn func(registryURL, accountID string) error
+	forget   func(registryURL string) error
+}{managed.Current, managed.Sync, managed.Refresh, managed.SignedIn, managed.Forget}
 
 // managedCheckEvery is how often the app looks whether its copy is due;
 // Sync asks the registry only when the last answer is over
@@ -56,7 +57,8 @@ func unsafeModeRefusal() string {
 // shown off and disabled, with the organization and the reason.
 type UnsafeLockView struct {
 	// ManagedBy is the organization whose managed settings forbid Unsafe
-	// Mode; "" when the refusal is a cached copy that does not verify.
+	// Mode; "" when the refusal is managed settings held here that cannot be
+	// verified.
 	ManagedBy string `json:"managedBy,omitempty"`
 	// Reason is the refusal in the runner's words.
 	Reason string `json:"reason"`
@@ -89,6 +91,9 @@ type ManagedView struct {
 	Registry     string `json:"registry"`
 	Organization string `json:"organization"`
 	Version      int64  `json:"version"`
+	// Summary names the document in one line: "managed by acme (version
+	// 7)".
+	Summary string `json:"summary"`
 	// FetchedAt is when this computer last read them from the registry,
 	// RFC 3339.
 	FetchedAt string `json:"fetchedAt,omitempty"`
@@ -99,7 +104,7 @@ func managedViews(e managed.Effective) []ManagedView {
 	out := []ManagedView{}
 	for i := range e.Documents {
 		d := &e.Documents[i]
-		v := ManagedView{Registry: d.Registry, Organization: d.Document.Org, Version: d.Document.Version}
+		v := ManagedView{Registry: d.Registry, Organization: d.Document.Org, Version: d.Document.Version, Summary: d.Summary()}
 		if !d.FetchedAt.IsZero() {
 			v.FetchedAt = d.FetchedAt.UTC().Format(time.RFC3339)
 		}
@@ -108,7 +113,10 @@ func managedViews(e managed.Effective) []ManagedView {
 	return out
 }
 
-// managedProblems say which cached copies do not verify.
+// managedProblems say which managed settings held here cannot be applied: a
+// copy that does not verify, one older than a version already applied, or
+// one that was accepted and is no longer there. While there is one, no run
+// starts on this computer.
 func managedProblems(e managed.Effective) []string {
 	out := []string{}
 	for _, p := range e.Problems {
@@ -116,7 +124,7 @@ func managedProblems(e managed.Effective) []string {
 		if where == "" {
 			where = "this computer"
 		}
-		out = append(out, fmt.Sprintf("The managed settings cached for %s do not verify: %v", where, p.Err))
+		out = append(out, fmt.Sprintf("The managed settings held for %s cannot be verified (%v), so no run starts on this computer until they are read again.", where, p.Err))
 	}
 	return out
 }
@@ -179,13 +187,14 @@ func (s *SettingsAPI) watchManaged(ctx context.Context) {
 	}
 }
 
-// signedInManaged replaces the registry's managed settings at sign-in: the
-// copy held was whoever signed in before, and the new account's are read
-// now, after its signing keys are pinned. A registry that cannot answer is
-// not a failed sign-in; the next look asks again.
-func (s *SettingsAPI) signedInManaged(reg, token string) {
-	if err := managedCalls.forget(reg); err != nil {
-		slog.Warn("managed settings: the copy held at sign-in was not deleted", "registry", originOf(reg), "err", err)
+// signedInManaged reads the registry's managed settings at sign-in, after
+// its signing keys are pinned. Another account's copy is deleted first; the
+// same account's stays until the registry answers, so a sign-in the registry
+// cannot answer at that moment does not lift a lock. A registry that cannot
+// answer is not a failed sign-in; the next look asks again.
+func (s *SettingsAPI) signedInManaged(reg, accountID, token string) {
+	if err := managedCalls.signedIn(reg, accountID); err != nil {
+		slog.Warn("managed settings: the sign-in was not recorded", "registry", originOf(reg), "err", err)
 	}
 	ctx, cancel := context.WithTimeout(s.app.ctxOrBackground(), managedAskTimeout)
 	defer cancel()
