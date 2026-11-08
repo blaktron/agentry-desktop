@@ -7,6 +7,7 @@ import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { PageHeader } from "../ui";
 import { meetingNotesStatus } from "../meetingNotes";
+import { asSentence } from "../signIns";
 
 export type PluginPage = "meetings" | "computer";
 
@@ -26,7 +27,7 @@ export default function Plugins({ onOpen }: { onOpen: (page: PluginPage) => void
       page: "meetings", title: "Meeting notes",
       sentence: "Records your meetings on this computer, transcribes them here, and gives the Assistant what was said: the language and model, telling speakers apart in the room and on calls, the transcripts folder and the meeting apps.",
       status: meetings?.available ? meetingNotesStatus(meetings) : null,
-      unavailable: meetingsOff ? (meetings?.unavailable || "Not offered on this computer.") : undefined,
+      unavailable: meetingsOff ? asSentence(meetings?.unavailable || "not offered on this computer.") : undefined,
     },
     {
       page: "computer", title: "Computer use",

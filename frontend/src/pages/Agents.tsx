@@ -9,7 +9,7 @@ export default function Agents({ registry, onOpenAgent }: { registry: string; on
     <div data-page="agents">
       <PageHeader
         title="Agents"
-        sub="The agents that keep their conversation and their own files between the times you talk to them: turn them on, start and stop them, and configure what each is given."
+        sub="Turn your persistent agents on, start and stop them, and configure what each is given."
       />
       <PersistentAgentsSettings registry={registry} onOpenAgent={onOpenAgent} />
     </div>
