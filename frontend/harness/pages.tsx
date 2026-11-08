@@ -963,6 +963,20 @@ const harnessMain = {
   volumes: { session: "agentry-persistent-main-session", data: "agentry-persistent-main-data" },
 };
 if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state = "disabled";
+// ?subagentruns=<n> gives the Assistant n subagent runs, newest first: the
+// newest still running, the third failed to start, the rest finished, every
+// other one with a run of its own to open.
+const harnessSubagentRuns = Number(new URLSearchParams(window.location.search).get("subagentruns") ?? 0);
+Object.assign(harnessAssistant, {
+  subagentRuns: Array.from({ length: harnessSubagentRuns }, (_, i) => {
+    const started = new Date(Date.UTC(2026, 10, 7, 12, 0) - i * 47 * 60_000).toISOString();
+    const ended = new Date(Date.parse(started) + 3 * 60_000).toISOString();
+    const subagent = ["acme/pdf-summary@1.2.0", "acme/web-digest@0.4.1", "acme/expense-sorter@2.0.3"][i % 3];
+    if (i === 0) return { id: `sr${i}`, subagent, started, runId: `run-${i}` };
+    if (i === 2) return { id: `sr${i}`, subagent, started, ended: started, outcome: "error", error: "the image did not pull" };
+    return { id: `sr${i}`, subagent, started, ended, outcome: "ok", runId: i % 2 ? `run-${i}` : undefined };
+  }),
+});
 
 g.go = { app: {
   ScheduleAPI: {
@@ -1889,7 +1903,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
     {harnessMeetings && <div data-preview="meetings"><Shell active="meetings"><MeetingNotes /></Shell></div>}
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}
-    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
+    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} onOpenRun={(id) => { document.body.dataset.open = `run:${id}`; }} /></div></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
         shot can tell when it was not. Outside every

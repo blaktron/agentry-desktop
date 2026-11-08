@@ -581,6 +581,17 @@ export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger"
 
 /** A subagent run as the agent page lists it: running since when, or how
  *  it ended and when. */
+// SUBAGENT_RUNS_SHOWN is how many subagent runs the agent page's usage panel
+// lists before "See more…" opens the rest in a dialog.
+export const SUBAGENT_RUNS_SHOWN = 5;
+
+/** The runs the usage panel lists (the newest first, as Go orders them) and
+ * whether there are more than it lists. */
+export function subagentRunsShown<T>(runs: T[] | null | undefined, limit = SUBAGENT_RUNS_SHOWN): { shown: T[]; more: boolean } {
+  const all = runs ?? [];
+  return { shown: all.slice(0, limit), more: all.length > limit };
+}
+
 export function subagentRunWords(r: Pick<app.PersistentSubagentRunView, "started" | "ended" | "outcome" | "error">): string {
   const when = (t: string) => new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   if (!r.outcome) return `running since ${when(r.started)}`;
