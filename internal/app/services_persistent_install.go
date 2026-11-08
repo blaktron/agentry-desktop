@@ -128,7 +128,7 @@ func (p *PersistentAPI) persistentInstallable(home string, m *manifest.Manifest)
 		return fmt.Errorf("%s is not a persistent QuickAgent: install it and run it from its page", ref)
 	}
 	if persistent.IsBuiltinRef(ref) {
-		return fmt.Errorf("%s is built into Agentry: turn it on in Settings → Persistent Agents", ref)
+		return fmt.Errorf("%s is built into Agentry: turn it on from the Agents page", ref)
 	}
 	if !persistentReleasesAllowed() {
 		return errors.New(policy.PersistentReleasesRefused)
@@ -305,7 +305,7 @@ func persistentAgentsRelease(ref string) error {
 		return nil
 	}
 	if _, err := persistent.LoadRelease(home, persistent.Key(r.Namespace, r.Name)); err == nil {
-		return fmt.Errorf("%s/%s is installed as a persistent agent: update it in Settings → Persistent Agents", r.Namespace, r.Name)
+		return fmt.Errorf("%s/%s is installed as a persistent agent: update it on the Agents page", r.Namespace, r.Name)
 	}
 	return nil
 }

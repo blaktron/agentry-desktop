@@ -127,7 +127,7 @@ export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): stri
   const limit =
     timeoutSeconds > 0
       ? `This build may run for up to ${minutes} minutes${maxTurns > 0 ? ` and ${maxTurns} turns` : ""}, `
-      : "This build has no time or turn limit (Settings → Run defaults), runs until it finishes or you stop it, ";
+      : "This build has no time or turn limit (Settings → Runs), runs until it finishes or you stop it, ";
   return (
     "Creating knowledge is a big job. A few short documents take a few minutes; a large set, a model running on this " +
     "computer, or a frontier model at high reasoning can take more than 20 minutes. " +

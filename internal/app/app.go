@@ -253,7 +253,7 @@ func (a *App) ChooseDirectory(title string) (string, error) {
 }
 
 // chooseDirectory is the picker behind ChooseDirectory and behind the
-// bindings that store a directory themselves (Settings → Coding tools'
+// bindings that store a directory themselves (Settings → Updates and installs → Coding tools'
 // project directory), through the seam a test substitutes: what it
 // returns is the picker's by construction, never a path the page passed.
 func (a *App) chooseDirectory(title string) (string, error) {

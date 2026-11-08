@@ -37,7 +37,10 @@ import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import BugReportDialog from "./pages/BugReportDialog";
-import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
+import Settings, { SECTIONS, SETTINGS_FOR, settingsPlace, SettingsPart, SettingsSection } from "./pages/Settings";
+import Agents from "./pages/Agents";
+import Plugins from "./pages/Plugins";
+import ComputerUse from "./pages/ComputerUse";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import WhatsNew from "./pages/WhatsNew";
 import type { WhatsNewData } from "./whatsNew";
@@ -69,10 +72,16 @@ export type Route =
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled" | "notifications"; run?: boolean; schedule?: boolean }
   // The schedules on this computer; focus: one just made.
   | { page: "scheduled"; focus?: string }
+  // The persistent agents: turn them on, start, stop and configure them.
+  | { page: "agents" }
   // A persistent agent's page, by its name.
   | { page: "persistent"; id: string }
+  // The optional features, a card each.
+  | { page: "plugins" }
   // Meeting notes: record a meeting, transcribe it here.
   | { page: "meetings" }
+  // Computer use: the applications a QuickAgent may use on this computer.
+  | { page: "computer" }
   // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).
   | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" | "notifications" }
@@ -89,12 +98,12 @@ export type Route =
   // follow: a fork just made from an agent page, which the section opens on
   // and follows.
   | { page: "publisher"; follow?: FollowFork }
-  // section: one of Settings' five section pages, or the landing's cards
-  // when absent; part: the anchor within it.
+  // section: one of Settings' section pages, or the landing's cards when
+  // absent; part: the anchor within it.
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
-const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Schedule", notifications: "← back to Notifications" } as const;
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Scheduled", notifications: "← back to Notifications" } as const;
 
 // Tells Go what results are on screen (NotificationsAPI.SetShowing), so an
 // ending whose result is already in front raises no desktop notification:
@@ -213,8 +222,8 @@ export default function App() {
     window.addEventListener(SCHEDULED_EVENT, opened);
     return () => window.removeEventListener(SCHEDULED_EVENT, opened);
   }, []);
-  // Main's settings_open: Go names a section of SECTIONS, and the page opens
-  // it; a name the page does not know opens nothing.
+  // Main's settings_open: Go names a section, and the page opens where it
+  // is now; a name the page does not know opens nothing.
   // The tray's item for a running agent, and a click on one of its task's
   // notifications, open its page.
   useEffect(() => EventsOn("tray:open-agent", (name: string) => {
@@ -256,7 +265,8 @@ export default function App() {
   useEffect(() => EventsOn("notifications:changed", readUnread), [readUnread]);
   useEffect(() => EventsOn("auth:changed", readUnread), [readUnread]);
   useEffect(() => EventsOn("applink:open-settings", (section: string) => {
-    if (SECTIONS.some((x) => x.id === section)) setRoute({ page: "settings", section: section as SettingsSection });
+    const at = settingsPlace(typeof section === "string" ? section : undefined);
+    if (at) setRoute(at);
   }), []);
   useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => {
     unsafeEvents.current++;
@@ -303,7 +313,7 @@ export default function App() {
       .catch(() => setSettings(null));
     AppVersion().then(setVersion).catch(() => {});
     // After an update of the app, each runhost is brought to the CLI it now
-    // carries; Settings → Runhosts shows how each went.
+    // carries; Settings → Runs → Runhosts shows how each went.
     RunhostsAPI.PostUpdate().catch(() => {});
   }, [refreshSettings]);
 
@@ -351,11 +361,12 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
-  // Opens what a notification is about. A Settings section the app does
-  // not have opens the landing.
+  // Opens what a notification is about. A section a notification kept from
+  // an older app names opens where it is now; one the app never had opens
+  // the landing.
   function openNotice(r: NoticeRoute) {
     if (r.page === "settings") {
-      setRoute(SECTIONS.some((x) => x.id === r.section) ? { page: "settings", section: r.section as SettingsSection, part: r.part as SettingsPart | undefined } : { page: "settings" });
+      setRoute(settingsPlace(r.section, r.part) ?? { page: "settings" });
       return;
     }
     setRoute(r as Route);
@@ -496,7 +507,7 @@ export default function App() {
                   settings: () => nav({ page: "settings", ...SETTINGS_FOR.homeSettings }),
                   scheduled: () => nav({ page: "scheduled" }),
                   meetings: () => nav({ page: "meetings" }),
-                  persistentAgents: () => nav({ page: "settings", ...SETTINGS_FOR.homeMain }),
+                  persistentAgents: () => nav({ page: "agents" }),
                   persistentAgent: (id) => nav({ page: "persistent", id }),
                   provider: () => nav({ page: "settings", ...SETTINGS_FOR.mainModel }),
                   draft: () => nav({ page: "build", view: "describe" }),
@@ -542,7 +553,10 @@ export default function App() {
               />
             )}
             {route.page === "persistent" && <PersistentAgentPage key={route.id} name={route.id} registry={registry} onOpenRun={(id) => nav({ page: "run", source: "local", id })} />}
+            {route.page === "agents" && <Agents registry={registry} onOpenAgent={(id) => nav({ page: "persistent", id })} />}
+            {route.page === "plugins" && <Plugins onOpen={(page) => nav({ page })} />}
             {route.page === "meetings" && <MeetingNotes />}
+            {route.page === "computer" && <ComputerUse />}
             {route.page === "notifications" && <Notifications registry={registry} onOpen={openNotice} />}
             {route.page === "browse" && (
               // Browse takes its query only when it mounts, so the key gives
@@ -635,8 +649,6 @@ export default function App() {
                 section={route.section}
                 part={route.part}
                 onOpen={(section, part) => nav({ page: "settings", section, part })}
-                onOpenAgent={(id) => nav({ page: "persistent", id })}
-                onOpenMeetings={() => nav({ page: "meetings" })}
               />
             )}
           </Recover>

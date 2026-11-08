@@ -123,7 +123,7 @@ func storeKey(t *testing.T) {
 func TestNoKeyNoReview(t *testing.T) {
 	isolate(t)
 	_, err := Prepare(quickAgent(t))
-	if !errors.Is(err, examiner.ErrNoJevKey) || !strings.Contains(err.Error(), "Settings → Provider settings → AI Review key") {
+	if !errors.Is(err, examiner.ErrNoJevKey) || !strings.Contains(err.Error(), "Settings → Models and keys → AI Review key") {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := Prepare(t.TempDir()); err == nil {

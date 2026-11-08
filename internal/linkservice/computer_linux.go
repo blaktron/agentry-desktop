@@ -62,7 +62,7 @@ func openComputer(ctx context.Context, req ComputerRequest) (computeruse.Backend
 }
 
 // ComputerSupport says what computer use can do on this session, for
-// Settings → Your computer: the display, whether it is ready, what is
+// Plugins → Computer use: the display, whether it is ready, what is
 // missing, and what the window system holds.
 func ComputerSupport() Support {
 	wl := os.Getenv("WAYLAND_DISPLAY") != "" && !strings.EqualFold(os.Getenv(DisplayVariable), "x11")

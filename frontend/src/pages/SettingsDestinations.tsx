@@ -1,4 +1,4 @@
-// Settings → Destinations: the places a run's result and deliverables may be
+// Settings → Connections → Destinations: the places a run's result and deliverables may be
 // sent once it succeeds. A webhook is saved by name with its address, the *On
 // my network* tick, a signing secret and, if the receiver wants one, an
 // Authorization value. An S3 bucket (Amazon's, or any service that speaks its

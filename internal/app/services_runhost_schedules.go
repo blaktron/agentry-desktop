@@ -1,6 +1,6 @@
 package app
 
-// A runhost's schedules from the app: Settings → Runhosts lists what each
+// A runhost's schedules from the app: Settings → Runs → Runhosts lists what each
 // runhost's store keeps (never a value) and removes a schedule there; and
 // CollectSchedules, which the app calls at its start and then while it runs,
 // opens each finished run of a runhost schedule into the output folder and

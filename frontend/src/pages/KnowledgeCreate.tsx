@@ -321,8 +321,8 @@ export default function KnowledgeCreate({
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
     if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
     if (agentrySources) blockers.push(agentrySources);
-  } else if (setup && !setup.dockerOk) blockers.push(`The container engine is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
-  if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
+  } else if (setup && !setup.dockerOk) blockers.push(`The container engine is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Runs says how to set it up.`);
+  if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Models and keys.");
 
   async function startHosted() {
     setError(null);

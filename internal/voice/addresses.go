@@ -44,7 +44,7 @@ type AddressCheck struct {
 // NoReviewKey is why addresses are refused on this computer without the
 // person's own TypeSafe key, in the words the step and the build use.
 const NoReviewKey = "AI Review reads every page from a web address before the Voice Writer does, and that takes your own TypeSafe key: " +
-	"add one under Settings → Provider settings → AI Review key, or give the samples as files"
+	"add one under Settings → Models and keys → AI Review key, or give the samples as files"
 
 // CheckAddresses reads the addresses as the Voice Writer's build would,
 // with the CLI's own parse, so the step refuses what the build would.

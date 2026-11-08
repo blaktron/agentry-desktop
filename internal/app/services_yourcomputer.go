@@ -2,7 +2,7 @@
 // through, and what the page shows and does about it. The link service
 // serves the link socket in the runner home while the app runs, for a run
 // from the CLI on this computer, and binds the app's own runs in process.
-// Settings → Your computer lists the catalogue's applications with their
+// Plugins → Computer use lists the catalogue's applications with their
 // state here and the step to take, the per-application script-screening switch,
 // the runs using the computer now with Pause and Stop, and the runs that
 // used it. The run setup reads the same state for each application a
@@ -40,7 +40,7 @@ import (
 // eventYourComputer tells the page a run bound, changed state or ended.
 const eventYourComputer = "yourcomputer:changed"
 
-// YourComputerAPI is Settings → Your computer and the run setup's cards.
+// YourComputerAPI is Plugins → Computer use and the run setup's cards.
 type YourComputerAPI struct {
 	app  *App
 	run  *RunAPI
@@ -163,7 +163,7 @@ const (
 	execDecline  = "Don't run it"
 )
 
-// YourComputerView is Settings → Your computer.
+// YourComputerView is Plugins → Computer use.
 type YourComputerView struct {
 	// Applications are the catalogue's, with their state on this computer.
 	Applications []linkservice.AppState `json:"applications"`
@@ -179,7 +179,7 @@ type YourComputerView struct {
 	Computer ComputerUseView `json:"computer"`
 }
 
-// ComputerUseView is Settings → Your computer's computer use.
+// ComputerUseView is Plugins → Computer use's computer use.
 type ComputerUseView struct {
 	On      bool                `json:"on"`
 	Keep    bool                `json:"keep"`
@@ -187,7 +187,7 @@ type ComputerUseView struct {
 	Support linkservice.Support `json:"support"`
 }
 
-// State is Settings → Your computer.
+// State is Plugins → Computer use.
 func (y *YourComputerAPI) State() *YourComputerView {
 	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 10*time.Second)
 	defer cancel()

@@ -4,7 +4,7 @@ import { fmtDuration } from "../../usage";
 
 // Home's Run defaults card: where runs go, their time
 // and turn limits, the output folder, and Unsafe Mode while it is on, as
-// Settings → Run defaults keeps them. It edits nothing; the card opens that
+// Settings → Runs keeps them. It edits nothing; the card opens that
 // page.
 export function RunDefaultsCard({ defaults, error, onRetry, onOpen }: {
   defaults: app.RunDefaultsView | null;

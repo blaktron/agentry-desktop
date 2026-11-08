@@ -36,7 +36,7 @@ export function capsPhrase(caps: HostedCaps): string {
   return `up to ${fmtDuration(caps.timeoutSeconds)} and ${fmtNumber(caps.maxTurns)} ${caps.maxTurns === 1 ? "turn" : "turns"}`;
 }
 
-/** Settings → Profile's reading of a hosted run's terms: the hold for its cap
+/** Settings → Account's reading of a hosted run's terms: the hold for its cap
  *  in credits, the time and the turns. The rates a settlement is computed at
  *  are the registry's and are not stated. */
 export function capsSentence(c: { holdCredits: number; caps: HostedCaps }): string {

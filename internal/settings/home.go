@@ -48,7 +48,7 @@ const (
 	// lacks for the place runs go, and the first things to try.
 	HomeGetStarted = "get-started"
 	// HomeRunhost is the runhost runs go to: whether it answers, its model
-	// sign-ins, and Settings → Runhosts.
+	// sign-ins, and Settings → Runs → Runhosts.
 	HomeRunhost = "runhost"
 	// HomeKnowledge lists the knowledge packs on this computer and In
 	// Agentry, with Create.

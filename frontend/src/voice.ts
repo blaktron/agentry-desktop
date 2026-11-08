@@ -284,7 +284,7 @@ export function editWithAIProblem(hasVoice: boolean, text: string, samples: numb
 // The Cloud Voice page: the site's Voice settings page in the desktop, in
 // its words.
 
-/** The Cloud Voice page's switch: the same setting as Settings → Profile. */
+/** The Cloud Voice page's switch: the same setting as Settings → Account. */
 export const CLOUD_SWITCH_LABEL = "Use this voice for every run In Agentry";
 
 /** A voice not live yet (the site's NOT_LIVE_SENTENCE). */

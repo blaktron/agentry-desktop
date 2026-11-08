@@ -70,18 +70,18 @@ type Settings struct {
 	// running in the tray or menu bar when its window closes while a
 	// persistent agent is enabled.
 	BackgroundNoted bool `yaml:"backgroundNoted,omitempty" json:"-"`
-	// TaskNotificationsOff is Settings → Persistent Agents' "Notify me when
+	// TaskNotificationsOff is the Agents page's "Notify me when
 	// a task runs" switched off. Absent is on: a persistent agent's task runs
 	// while nobody is looking at the window, and the notification is how the
 	// person learns it ran.
 	TaskNotificationsOff bool `yaml:"taskNotificationsOff,omitempty" json:"-"`
-	// FinishedNotificationsOff is Settings → Persistent Agents' "Notify me
+	// FinishedNotificationsOff is the Agents page's "Notify me
 	// when something I started finishes" switched off. Absent is on: a run,
 	// a draft, a knowledge build, a scheduled run or an install that ends
 	// while another page is open, or the window is hidden, raises a
 	// notification, and that is how the person learns it ended.
 	FinishedNotificationsOff bool `yaml:"finishedNotificationsOff,omitempty" json:"-"`
-	// AssistantRunsWithoutAsking is Settings → Persistent Agents' "Let the
+	// AssistantRunsWithoutAsking is the Agents page's "Let the
 	// Assistant run QuickAgents without asking". A plain bool because it
 	// defaults OFF: while it is off, the Assistant's first run of each
 	// QuickAgent version, and each new address a run fetches, asks in a
@@ -108,7 +108,7 @@ type Settings struct {
 	// false mean the same thing, and it is off by default so that nothing
 	// replaces the application without the person having said so at least once.
 	InstallUpdatesOnQuit bool `yaml:"installUpdatesOnQuit,omitempty" json:"installUpdatesOnQuit,omitempty"`
-	// InstallIntoCodingAgent is Settings → Coding tools → "Also install
+	// InstallIntoCodingAgent is Settings → Updates and installs → Coding tools → "Also install
 	// into <coding agent>": with it on, a one-click Install also writes
 	// the coding-agent export — the Claude skill or AGENTS.md, whichever
 	// the operator policy implies — beside the runner-home install. A
@@ -121,29 +121,29 @@ type Settings struct {
 	// yet. The Claude skill has no such setting: it lives in
 	// ~/.claude/skills, where Claude Code reads.
 	CodingAgentProjectDir string `yaml:"codingAgentProjectDir,omitempty" json:"codingAgentProjectDir,omitempty"`
-	// RunWhere is Settings → Run defaults → Where to run: RunWhereHere or
+	// RunWhere is Settings → Runs → Where to run: RunWhereHere or
 	// RunWhereAgentry, "" meaning this computer. It only pre-selects the run
 	// setup's Where step; the credit hold and every consent are still asked
 	// on each run.
 	RunWhere string `yaml:"runWhere,omitempty" json:"runWhere,omitempty"`
-	// EngineChoice is Settings → Run defaults → Container engine: the
+	// EngineChoice is Settings → Runs → Container engine: the
 	// engine detection asks alone, by the place it answers at ("managed",
 	// "podman", "context:<name>", "socket:<path>"); "" for automatic, the
 	// first that answers in detection's order.
 	EngineChoice string `yaml:"engineChoice,omitempty" json:"engineChoice,omitempty"`
-	// DefaultOutputDir is Settings → Run defaults → Output folder, chosen
+	// DefaultOutputDir is Settings → Runs → Output folder, chosen
 	// through the native picker on that page and nowhere else, "" for none.
 	// A run's gate admits it as an output folder because it is read from
 	// this file, never as an input root.
 	DefaultOutputDir string `yaml:"defaultOutputDir,omitempty" json:"defaultOutputDir,omitempty"`
-	// ChatIdleTimeoutSeconds is Settings → Run defaults → Chat idle timeout:
+	// ChatIdleTimeoutSeconds is Settings → Runs → Chat idle timeout:
 	// a chat on this computer ends after this much silence from the person.
 	// 0, the default, is none: such a chat has no idle timeout, wall clock
 	// or count of the person's turns, and ends when the person ends it or
 	// quits. It lives here, not in the runner policy, which the CLI's chats
 	// read and which keeps their limits.
 	ChatIdleTimeoutSeconds int `yaml:"chatIdleTimeoutSeconds,omitempty" json:"chatIdleTimeoutSeconds,omitempty"`
-	// UnsafeMode is Settings → Run defaults → Unsafe Mode: while it is on, a
+	// UnsafeMode is Settings → Runs → Unsafe Mode: while it is on, a
 	// run on this computer is compiled without this machine's exec
 	// catalogue, its declared commands installed from the Unsafe Mode image
 	// instead. A plain bool because it defaults OFF. It lives in this file
@@ -153,7 +153,7 @@ type Settings struct {
 	// after a native confirmation and the image's pull (the page
 	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
-	// BuiltinNoLimit is Settings → Run defaults → Timeout and turns → "No time
+	// BuiltinNoLimit is Settings → Runs → Timeout and turns → "No time
 	// or turn limit for the built-in agents" (on by default, and over the turns
 	// too): while it is on, a run on this computer of a built-in package (the
 	// Drafter, the Knowledge Creator, the Examiner and the Voice Writer) has no
@@ -164,13 +164,13 @@ type Settings struct {
 	// QuickAgent's run and a run In Agentry cannot read it, and no installed
 	// package can claim it. Read it through BuiltinBudgets.
 	BuiltinNoLimit *bool `yaml:"builtinNoLimit,omitempty" json:"builtinNoLimit,omitempty"`
-	// RememberRuns is Settings → Run defaults → Remember recent runs:
+	// RememberRuns is Settings → Runs → Remember recent runs:
 	// while it is on, Go keeps the last 50 runs on this computer in
 	// runs.yaml (internal/runhistory) for Home's Recent runs and the run
 	// page. A POINTER because the default is on: absent means on. Read it
 	// through RememberRunsEnabled. Turning it off clears the history.
 	RememberRuns *bool `yaml:"rememberRuns,omitempty" json:"rememberRuns,omitempty"`
-	// Deliverables is Settings → Run defaults → Deliverables: while it is on,
+	// Deliverables is Settings → Runs → Deliverables: while it is on,
 	// every QuickAgent run and chat on this computer copies the files it was
 	// for into DeliverablesDir, and a run In Agentry that is brought down
 	// does the same. A POINTER because the default is on: absent means on.
@@ -192,7 +192,7 @@ type Settings struct {
 	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`
 
 	// ScreeningOff are the application servers (catalogue ids) whose own
-	// script screening the person turned off in Settings → Your computer,
+	// script screening the person turned off in Plugins → Computer use,
 	// after a native confirmation: Agentry Desktop launches them without
 	// the variable that turns it on. Absent is screening on.
 	// SetScreeningOff is its one writer, as SetUnsafeMode is the switch's.
@@ -201,7 +201,7 @@ type Settings struct {
 	// MeetingNotes is the Meeting notes page's settings.
 	MeetingNotes MeetingNotes `yaml:"meetingNotes,omitempty" json:"-"`
 
-	// ComputerUse is Settings → Your computer's computer use: whether a
+	// ComputerUse is Plugins → Computer use's computer use: whether a
 	// QuickAgent may see and use windows on this computer at all, and
 	// whether what it saw is kept. SetComputerUse and SetKeepWhatAgentSaw
 	// are their one writers.

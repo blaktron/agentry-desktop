@@ -404,7 +404,7 @@ func sameRunhostVersion(ctx context.Context, c *runhost.Client, name, want strin
 		return fmt.Errorf("%s did not say its version", name)
 	}
 	if v.Version != want {
-		return fmt.Errorf("%s runs CLI %s and this app %s; a run needs the same version on both: update the runhost from Settings → Runhosts", name, v.Version, want)
+		return fmt.Errorf("%s runs CLI %s and this app %s; a run needs the same version on both: update the runhost from Settings → Runs → Runhosts", name, v.Version, want)
 	}
 	return nil
 }

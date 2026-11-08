@@ -1,6 +1,6 @@
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 
-// The subscription's words, shared by Settings → Profile and its test: pure
+// The subscription's words, shared by Settings → Account and its test: pure
 // functions of the billing account view, so node's own test runner can check
 // them without a browser. The import above is type-only and erased, which is
 // what lets node load this file.

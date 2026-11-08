@@ -1,6 +1,6 @@
 package linkservice
 
-// The runs that used the person's computer, as Settings → Your computer
+// The runs that used the person's computer, as Plugins → Computer use
 // lists them: which run, which applications through which launch, the calls
 // by class and outcome, the exec questions and their answers, and how the
 // run's use ended. Kept in a file of the app's own beside its settings,

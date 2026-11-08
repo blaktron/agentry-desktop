@@ -22,7 +22,7 @@ import (
 
 // Computer use. A run whose release declares computer use asks for it at
 // bind, in the release's scope. The link service binds it only when the
-// person has turned computer use on in Settings → Your computer, opens the
+// person has turned computer use on in Plugins → Computer use, opens the
 // window system's capture and input for the bound applications' windows
 // (asking the person through the system's own dialogs where it asks), and
 // answers each computer-use call through package computeruse, refused like

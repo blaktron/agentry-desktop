@@ -255,7 +255,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   return (
     <div className="page scheduled-page" data-scheduled-page>
       <PageHeader
-        title="Schedule"
+        title="Scheduled"
         sub="Runs for later, or on repeat like a calendar entry: on this computer, and In Agentry."
         actions={<>
           {menu.length > 0 && <OptionsMenu items={menu} />}

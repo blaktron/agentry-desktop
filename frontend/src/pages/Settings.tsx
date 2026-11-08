@@ -6,8 +6,6 @@ import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import * as HomeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/homeapi";
 import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
-import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
-import * as MeetingAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/meetingapi";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 import { EventsOn } from "../host";
@@ -31,6 +29,7 @@ import WhatsNew from "./WhatsNew";
 import type { WhatsNewData } from "../whatsNew";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
+import { partsShown, SECTIONS, type SettingsPart, type SettingsSection } from "../settingsSections";
 import { BytesBar } from "../progress";
 import { bytesProgress, updateStageWords } from "../bytesProgress";
 import { HomeSettings } from "./SettingsHome";
@@ -39,176 +38,21 @@ import { settingsLine as deliverablesLine } from "../deliverables";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 import { DestinationsSettings, destinationsStatus } from "./SettingsDestinations";
 import { RunhostsSettings } from "./Runhosts";
-import { YourComputerSettings } from "./SettingsYourComputer";
 import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { LicencesSettings } from "./SettingsLicences";
-import PersistentAgentsSettings from "./SettingsPersistentAgents";
-import { MeetingNotesSettings } from "./MeetingNotesSettings";
-import { meetingNotesStatus } from "../meetingNotes";
-import { persistentAgentsStatus } from "../persistentAgents";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
 
-// Settings as five cards: the landing is a card per section, each card the
-// whole of a link to its section page, with one sentence, a status line
-// and its parts as links; each section page holds that section's cards,
-// under a "← Settings" link back.
-// Profile is a sixth, offered only while the active
-// registry holds a token. Home is the last: which
-// cards Home shows, its pins, and Reset Home. Connections
-// sits before Home: the OAuth connections kept on this
-// computer, with Disconnect, and the person's own OAuth clients.
-//
-// Report design comes second, after Profile, as on the site: the account's
-// report design and its editor. Meeting notes follows Persistent Agents,
-// as in the sidebar, and is offered only where this copy records meetings:
-// the same settings as the Meeting notes page's.
-export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "persistent-agents" | "meeting-notes" | "run-defaults" | "runhosts" | "your-computer" | "provider" | "connections" | "destinations" | "home" | "licences";
-
-// The parts a landing link or a deep link can name; each section page
-// renders its part under the anchor settings-part-<id>.
-export type SettingsPart =
-  | "profile" | "subscription" | "account-voice"
-  | "library" | "design-editor" | "design-preview" | "design-images"
-  | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
-  | "connections" | "own-clients" | "destinations" | "runhosts"
-  | "applications" | "using" | "recent-computer"
-  | "theme" | "home-agent" | "home-cards" | "pins" | "reset-home" | "licences";
-type Part = { id: SettingsPart; label: string };
-
-// SECTIONS is the landing's order and each section's parts. A part's id is
-// the anchor its section page scrolls to when the landing's link names it.
-// needsSignIn: the landing offers the card, and the sidebar the row, only
-// while the active registry is signed in; needsMeetings, only where this
-// copy records meetings.
-export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[]; needsSignIn?: boolean; needsMeetings?: boolean }[] = [
-  {
-    id: "profile", title: "Profile", needsSignIn: true,
-    sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
-    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
-  },
-  {
-    id: "report-design", title: "Report design",
-    sentence: "How the PDFs your runs export look: your library of designs, each a whole brand with its header, footer and cover page, kept on your account.",
-    parts: [{ id: "library", label: "Library" }],
-  },
-  {
-    id: "registry", title: "Registry settings",
-    sentence: "The registries this app talks to, your sign-in to each, and the secrets runs In Agentry use where a registry keeps them.",
-    parts: [{ id: "registries", label: "Registries" }, { id: "add-registry", label: "Add a registry" }],
-  },
-  {
-    id: "updates", title: "Update settings",
-    sentence: "Whether this app looks for a newer Agentry Desktop, the agentry command it carries on a Mac, and how QuickAgents installed here are updated.",
-    parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "quickagents", label: "QuickAgents" }],
-  },
-  {
-    id: "coding-agents", title: "Coding tools",
-    sentence: "The coding tool on this computer (Claude Code or Codex), and whether Install also puts a QuickAgent where it reads.",
-    parts: [],
-  },
-  {
-    id: "persistent-agents", title: "Persistent Agents",
-    sentence: "The agents that keep their conversation and their own files between the times you talk to them: turn them on, start and stop them, and configure what each is given.",
-    parts: [],
-  },
-  {
-    id: "meeting-notes", title: "Meeting notes", needsMeetings: true,
-    sentence: "How meetings are recorded and transcribed on this computer: the language and model, telling speakers apart in the room and on calls, the transcripts folder, the meeting apps, and giving transcripts to the Assistant.",
-    parts: [],
-  },
-  {
-    id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, where the files a run was for are copied, which runs are remembered, and the container engine runs on this computer use, with Agentry's images on it.",
-    parts: [
-      { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
-      { id: "output", label: "Output folder" }, { id: "deliverables", label: "Deliverables" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
-      { id: "malware", label: "Malware check" }, { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
-    ],
-  },
-  {
-    id: "runhosts", title: "Runhosts",
-    sentence: "Your own Linux servers that run your QuickAgents: set one up over SSH, sign it in to a plan, choose it as where runs go, its Unsafe Mode, and its removal.",
-    parts: [{ id: "runhosts", label: "Runhosts" }],
-  },
-  {
-    id: "your-computer", title: "Your computer",
-    sentence: "The applications on this computer a QuickAgent may use through the MCP servers installed for them, each one's state here and what to do, its script screening, computer use and what is kept of it, the runs using your computer now with Pause and Stop, and the runs that used it.",
-    parts: [{ id: "applications", label: "Applications" }, { id: "using", label: "Using your computer now" }, { id: "recent-computer", label: "Runs that used your computer" }],
-  },
-  {
-    id: "provider", title: "Provider settings",
-    sentence: "The AI provider and model runs use, your own AI Review key, your own web search key, and your own Hybrid Analysis key.",
-    parts: [
-      { id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" },
-      { id: "web-search", label: "Web search" }, { id: "hybrid-analysis-key", label: "Hybrid Analysis key" },
-    ],
-  },
-  {
-    id: "connections", title: "Connections",
-    sentence: "The sign-ins to MCP servers kept on this computer, one per QuickAgent version, with Disconnect, and your own OAuth clients.",
-    parts: [{ id: "connections", label: "Connections" }, { id: "own-clients", label: "Your OAuth clients" }],
-  },
-  {
-    id: "destinations", title: "Destinations",
-    sentence: "The webhooks and S3 buckets a run may send its result and deliverables to, each with its credentials kept in the system keychain.",
-    parts: [{ id: "destinations", label: "Destinations" }],
-  },
-  {
-    id: "home", title: "Home",
-    sentence: "Which cards Home shows, the QuickAgents pinned to it, Reset Home, and the theme Agentry Desktop is drawn in.",
-    parts: [{ id: "theme", label: "Theme" }, { id: "home-agent", label: "Agent on Home" }, { id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
-  },
-  {
-    id: "licences", title: "Licences",
-    sentence: "The licences of the open-source software, fonts and logos inside Agentry Desktop.",
-    parts: [],
-  },
-];
-
-// Where each place that opens Settings goes: straight
-// to the section it means rather than to the landing.
-export const SETTINGS_FOR = {
-  // the sidebar's line for a newer Agentry Desktop
-  selfUpdate: { section: "updates", part: "desktop" },
-  // the "Setup isn't finished" notice on Home
-  setupNotice: { section: "provider" },
-  // Home's Profile, Sign in and Run defaults cards
-  homeProfile: { section: "profile" },
-  homeSignIn: { section: "registry", part: "registries" },
-  homeRunDefaults: { section: "run-defaults" },
-  // Home's Deliverables card
-  homeDeliverables: { section: "run-defaults", part: "deliverables" },
-  // Home's Recent runs card
-  homeRunHistory: { section: "run-defaults", part: "history" },
-  // Home's own Home settings link, and the line when every card is hidden
-  //
-  homeSettings: { section: "home" },
-  // Knowledge's "Not signed in" notice
-  knowledgeSignIn: { section: "registry", part: "registries" },
-  // the Publisher section's Sign in, and its "sign in again" notice for a
-  // sign-in without agent:manage
-  publisherSignIn: { section: "registry", part: "registries" },
-  // the Report bug card's Sign in, signed out or refused
-  bugReportSignIn: { section: "registry", part: "registries" },
-  // Build's Describe it, whose drafting needs the AI Review key
-  describeKey: { section: "provider", part: "ai-review-key" },
-  // Review Your QuickAgents locally, which needs the AI Review key
-  reviewKey: { section: "provider", part: "ai-review-key" },
-  // the sidebar's Unsafe Mode badge
-  unsafeMode: { section: "run-defaults", part: "unsafe" },
-  // Home's Main card's title, and its "Set up a model" link
-  homeMain: { section: "persistent-agents" },
-  // Home's Runhost card, and Get started's runhost rows
-  homeRunhosts: { section: "runhosts" },
-  mainModel: { section: "provider", part: "provider" },
-} satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
-
-export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
+// Settings as a landing of cards, one per section, each card the whole of
+// a link to its section page, with one sentence, a status line and its
+// parts as links; each section page holds that section's parts, under a
+// "← Settings" link back. The sections and their parts are
+// settingsSections.ts's.
+export { SECTIONS, SETTINGS_FOR, sectionTitle, settingsPlace } from "../settingsSections";
+export type { SettingsPart, SettingsPlace, SettingsSection } from "../settingsSections";
 
 export default function Settings({
-  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen, onOpenAgent, onOpenMeetings,
+  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen,
 }: {
   settings: app.SettingsView | null;
   activeRegistry: string;
@@ -223,10 +67,6 @@ export default function Settings({
   part?: SettingsPart;
   // Opens a section (and a part of it), or the landing with none.
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
-  // Opens a persistent agent's page.
-  onOpenAgent?: (name: string) => void;
-  // Opens the Meeting notes page.
-  onOpenMeetings?: () => void;
 }) {
   // A part named by a link is scrolled to once its section has rendered, and
   // followed while the section's own reads fill it in;
@@ -245,23 +85,26 @@ export default function Settings({
   }
 
   const meta = SECTIONS.find((s) => s.id === section);
+  const signedIn = signedInTo(settings, activeRegistry);
   return (
     <div data-settings-section={section}>
       <p className="small settings-back"><Button variant="link" onClick={() => onOpen()}>← Settings</Button></p>
       <PageHeader title={meta?.title ?? "Settings"} sub={meta?.sentence} />
-      {section === "profile" && (
+      {section === "account" && (
         <>
-          <ProfileSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry")} />
-          {signedInTo(settings, activeRegistry) && (
-            <PartSection id="account-voice" title="Writing Voice"><VoiceSwitch registry={activeRegistry} place="account" /></PartSection>
+          {/* Signed in, the profile comes first; signed out, the
+              registries, where the sign-in is, are the whole page. */}
+          {signedIn && (
+            <>
+              <ProfileSettings registry={activeRegistry} signedIn onOpenRegistry={() => onOpen("account", "registries")} />
+              <PartSection id="account-voice" title="Writing Voice"><VoiceSwitch registry={activeRegistry} place="account" /></PartSection>
+            </>
           )}
+          <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} onOpenProfile={() => onOpen("account", "profile")} />
         </>
       )}
       {section === "report-design" && (
-        <ReportDesignSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry", "registries")} />
-      )}
-      {section === "registry" && (
-        <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} onOpenProfile={() => onOpen("profile")} />
+        <ReportDesignSettings registry={activeRegistry} signedIn={signedIn} onOpenRegistry={() => onOpen("account", "registries")} />
       )}
       {section === "updates" && (
         <>
@@ -278,14 +121,12 @@ export default function Settings({
               </div>
             </Card>
           </PartSection>
+          <PartSection id="coding-tools" title="Coding tools"><CodingAgentsCard /></PartSection>
         </>
       )}
-      {section === "coding-agents" && <CodingAgentsCard />}
-      {section === "persistent-agents" && <PersistentAgentsSettings registry={activeRegistry} onOpenAgent={(name) => onOpenAgent?.(name)} />}
-      {section === "meeting-notes" && <MeetingNotesSettings onOpenPage={onOpenMeetings} />}
       {section === "run-defaults" && (
         <>
-          <RunDefaultsSettings onChanged={onChanged} />
+          <RunDefaultsSettings onChanged={onChanged} runhosts={<RunhostsSettings />} />
           <PartSection id="voice" title="Writing Voice"><VoiceSwitch registry={activeRegistry} place="here" /></PartSection>
         </>
       )}
@@ -299,10 +140,12 @@ export default function Settings({
           <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>
         </>
       )}
-      {section === "connections" && <ConnectionsSettings />}
-      {section === "destinations" && <DestinationsSettings />}
-      {section === "runhosts" && <RunhostsSettings />}
-      {section === "your-computer" && <YourComputerSettings />}
+      {section === "connections" && (
+        <>
+          <ConnectionsSettings />
+          <DestinationsSettings />
+        </>
+      )}
       {section === "home" && <HomeSettings />}
       {section === "licences" && <LicencesSettings />}
     </div>
@@ -333,12 +176,11 @@ type Statuses = {
   home?: app.HomeLayoutView | null;
   connections?: app.KeptConnectionsView | null;
   destinations?: destinations.Status | null;
-  agents?: app.PersistentAgentView[] | null;
   runhosts?: app.RunhostView[] | null;
-  meetings?: app.MeetingNotesView | null;
 };
 
-// runhostsStatus is the Runhosts card's line: how many, and the default.
+// runhostsStatus is the runhosts' part of the Runs card's line: how many,
+// and the default.
 function runhostsStatus(list: app.RunhostView[]): string {
   if (list.length === 0) return "No runhosts yet.";
   const def = list.find((r) => r.default);
@@ -365,27 +207,20 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     // the line, not the landing.
     Promise.resolve().then(() => RunAPI.Connections()).then(put("connections")).catch(() => put("connections")(null));
     Promise.resolve().then(() => DestinationsAPI.List()).then(put("destinations")).catch(() => put("destinations")(null));
-    Promise.resolve().then(() => PersistentAPI.List()).then(put("agents")).catch(() => put("agents")(null));
     Promise.resolve().then(() => RunhostsAPI.List()).then(put("runhosts")).catch(() => put("runhosts")(null));
-    // Whether this copy records meetings, which offers the Meeting notes card.
-    Promise.resolve().then(() => MeetingAPI.Status()).then(put("meetings")).catch(() => put("meetings")(null));
     return () => { live = false; };
   }, []);
 
+  // A merged section's line joins its parts' lines, each dropped when its
+  // read failed.
+  const joined = (...lines: (string | null | undefined)[]) => lines.filter(Boolean).join(" ") || null;
   const status: Record<SettingsSection, React.ReactNode> = {
-    profile: null,
+    account: registryStatus(settings, activeRegistry),
     "report-design": null,
-    registry: registryStatus(settings, activeRegistry),
-    updates: st.update ? updateStatus(st.update) : null,
-    "coding-agents": st.coding ? codingStatus(st.coding) : null,
-    "persistent-agents": st.agents ? persistentAgentsStatus(st.agents) : null,
-    "meeting-notes": st.meetings?.available ? meetingNotesStatus(st.meetings) : null,
-    "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
+    updates: joined(st.update && updateStatus(st.update), st.coding && codingStatus(st.coding)),
+    "run-defaults": joined(st.defaults && runDefaultsStatus(st.defaults, st.setup ?? null), st.runhosts && runhostsStatus(st.runhosts)),
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
-    connections: st.connections ? connectionsStatus(st.connections) : null,
-    destinations: st.destinations ? destinationsStatus(st.destinations) : null,
-    runhosts: st.runhosts ? runhostsStatus(st.runhosts) : null,
-    "your-computer": null,
+    connections: joined(st.connections && connectionsStatus(st.connections), st.destinations && destinationsStatus(st.destinations)),
     home: st.home ? homeStatus(st.home) : null,
     licences: null,
   };
@@ -398,7 +233,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
       <div className="settings-cards">
-        {SECTIONS.filter((s) => (!s.needsSignIn || signedInTo(settings, activeRegistry)) && (!s.needsMeetings || !!st.meetings?.available)).map((s) => (
+        {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)) })).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}
@@ -511,7 +346,7 @@ export function providerStatus(s: app.SetupStatusView | null, k: app.JevKeyView 
   return parts.join(" · ") + ".";
 }
 
-// RunDefaultsSettings is Settings → Run defaults: the timeout and max turns the
+// RunDefaultsSettings is Settings → Runs: the timeout and max turns the
 // runner policy holds, which the CLI runs with too; where the run setup starts;
 // the output folder it fills in; and the container engine's prerequisites. None of
 // them is a consent: every run still asks what it asks. Unsafe Mode's switch is
@@ -519,7 +354,9 @@ export function providerStatus(s: app.SetupStatusView | null, k: app.JevKeyView 
 // dialog and pulls the image before it reads on. The built-in agents' switch
 // (on by default) sits with the timeout and turns it lifts, for drafts, builds,
 // reviews and voices on this computer.
-function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
+// runhosts: the Runhosts part, drawn after Where to run since a runhost is
+// one more place runs go.
+function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise<unknown>; runhosts?: React.ReactNode }) {
   const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<app.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
@@ -700,6 +537,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               </p>
             </Card>
           </PartSection>
+          {runhosts}
           <PartSection id="output" title="Output folder">
             <Card>
               <div className="row">
@@ -990,7 +828,7 @@ function EnginePicker({ choices, busy, onChoose }: { choices: app.EngineChoicesV
   );
 }
 
-// RegistrySettings is Settings → Registry settings: the registries with
+// RegistrySettings is Settings → Account: the registries with
 // their sign-in, account and organizations lines, the account's secrets,
 // and Add a registry — the cards that opened the one Settings page before.
 function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistry, onOpenProfile }: {

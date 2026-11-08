@@ -22,7 +22,7 @@ export type HomeCardDescriptor = {
 };
 
 // The three starting Homes, one per place runs go: Go picks one from
-// Settings → Run defaults → Where to run (HomeAPI's start).
+// Settings → Runs → Where to run (HomeAPI's start).
 export type HomeStart = "local" | "remote" | "cloud";
 
 export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
@@ -45,7 +45,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   // Pinned from the Scheduled page's options menu. Not a default:
   // Reset Home removes it.
   scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
-    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Schedule page adds it." },
+    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Scheduled page adds it." },
   // Added when Meeting notes is turned on, where this copy records. Not a
   // default: Reset Home removes it.
   meetings: { kind: "meetings", title: "Meeting notes", multiple: false,
@@ -63,7 +63,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   "shortcut-knowledge": { kind: "shortcut-knowledge", title: "Create knowledge", multiple: false, line: "Starts a knowledge pack from your documents." },
   "shortcut-meetings": { kind: "shortcut-meetings", title: "Meeting notes", multiple: false, line: "Opens Meeting notes, to record a meeting and transcribe it here." },
   "shortcut-voice": { kind: "shortcut-voice", title: "Writing Voice", multiple: false, line: "Opens Writing Voice, so what your runs write sounds like you." },
-  "shortcut-agent": { kind: "shortcut-agent", title: "Persistent agent", multiple: false, line: "Opens Settings → Persistent Agents, to turn on the Assistant." },
+  "shortcut-agent": { kind: "shortcut-agent", title: "Persistent agent", multiple: false, line: "Opens the Agents page, to turn on the Assistant." },
   "shortcut-setup": { kind: "shortcut-setup", title: "Setup", multiple: false, line: "Opens the setup you saw on the first start, to change where runs go or what they use." },
 };
 

@@ -21,7 +21,7 @@ const retryTimeout = 20 * time.Minute
 // substitutes it.
 var redeliver = run.Redeliver
 
-// DestinationsAPI is Settings → Destinations: the places a run's result may be
+// DestinationsAPI is Settings → Connections → Destinations: the places a run's result may be
 // sent, the CLI's own (its destinations.yaml and the system keychain), so a
 // run, a schedule's fire and the command line all read what is saved here. A
 // signing secret, an Authorization value, or a bucket's access key id and
@@ -109,7 +109,7 @@ func (r *RunAPI) RetryDelivery(runID, destination string) (*RunDeliverablesView,
 		return nil, fmt.Errorf("this run has no failed delivery to %q to try again", destination)
 	}
 	if !destinations.CanSend(destination) {
-		return nil, errors.New("that destination is no longer saved with its credentials: add it again in Settings → Destinations")
+		return nil, errors.New("that destination is no longer saved with its credentials: add it again in Settings → Connections → Destinations")
 	}
 	// The run lock, as every job that builds an image or starts a container
 	// holds it: no delivery beside a live run, and one at a time.

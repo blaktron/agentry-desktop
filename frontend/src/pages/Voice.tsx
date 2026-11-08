@@ -268,7 +268,7 @@ function LocalVoice({ view, registry, busy, act, messages, onBack }: {
           />
           <span>
             {LOCAL_SWITCH_LABEL}
-            <span className="muted small"> — the same switch as Settings → Run defaults. Every run's setup shows Write in my voice, ticked from it.</span>
+            <span className="muted small"> — the same switch as Settings → Runs. Every run's setup shows Write in my voice, ticked from it.</span>
           </span>
         </label>
       )}
@@ -578,7 +578,7 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
             />
             <span>
               {CLOUD_SWITCH_LABEL}
-              <span className="muted small"> — the same switch as Settings → Profile. Every run's setup shows Write in my voice, ticked from it, and you can untick it for one run.</span>
+              <span className="muted small"> — the same switch as Settings → Account. Every run's setup shows Write in my voice, ticked from it, and you can untick it for one run.</span>
             </span>
           </label>
           {!live && <p className="muted small">{NOT_LIVE}</p>}

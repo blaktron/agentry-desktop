@@ -329,7 +329,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	if shown.TimeoutSeconds > 0 {
 		logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", shown.TimeoutSeconds/60, turns)
 	} else {
-		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time or turn limit, so it runs until it is done or you stop it.")
+		logf(req.Log, "A build takes a while: Settings → Runs gives the built-in agents no time or turn limit, so it runs until it is done or you stop it.")
 	}
 	if total := DocumentsBytes(req.Documents); total > kn.MaxBytes {
 		logf(req.Log, "The documents come to %.1f MB. A build that size can take a very long time, and the pack will stay on this computer: Agentry keeps packs of at most %s.",
@@ -424,11 +424,11 @@ func WebReason(pol *policy.Policy, jev bool, search drafter.SearchState) string 
 	case WebUnavailable(pol) != "":
 		return WebUnavailable(pol)
 	case !jev:
-		return "AI Review reads every result first, and that takes your own AI Review key: add one under Settings → Provider settings → AI Review key"
+		return "AI Review reads every result first, and that takes your own AI Review key: add one under Settings → Models and keys → AI Review key"
 	case search == drafter.SearchNoProvider:
-		return "no search provider is set up: choose one under Settings → Provider settings → Web search"
+		return "no search provider is set up: choose one under Settings → Models and keys → Web search"
 	case search == drafter.SearchNoKey:
-		return fmt.Sprintf("no %s key was found ($%s): add one under Settings → Provider settings → Web search", pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
+		return fmt.Sprintf("no %s key was found ($%s): add one under Settings → Models and keys → Web search", pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
 	}
 	return ""
 }

@@ -1068,10 +1068,10 @@ func (p *PersistentAPI) launch(ctx context.Context, home string, a persistent.Ag
 		}
 	}
 	if !cfg.Enabled && a.Name == mainAgent {
-		return nil, errors.New("turn Agentry Helper on in Settings → Persistent Agents first: it is not enabled")
+		return nil, errors.New("turn on Agentry Helper on the Agents page first: it is not enabled")
 	}
 	if !cfg.Enabled {
-		return nil, fmt.Errorf("the %s is not enabled: enable it in Settings → Persistent Agents", a.Title)
+		return nil, fmt.Errorf("the %s is not enabled: enable it on the Agents page", a.Title)
 	}
 	if n := p.othersRunning(a.Name); n >= quietRunning {
 		if err := p.app.askConsent("Start another persistent agent?", runningCountText(n, called(a, cfg))); err != nil {

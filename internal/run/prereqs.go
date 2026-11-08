@@ -100,7 +100,7 @@ const (
 	// (DockerErr says what). The engine the app manages itself adds two
 	// more (managed.go): StateManagedOffer and StateManagedStopped.
 	StateManual = "manual"
-	// StateChosenSilent: an engine is chosen under Settings → Run defaults
+	// StateChosenSilent: an engine is chosen under Settings → Runs
 	// → Container engine and does not answer; nothing else is offered in
 	// its place but the way back to automatic detection (DockerErr says
 	// what the chosen place said). Agentry's engine, chosen and stopped,

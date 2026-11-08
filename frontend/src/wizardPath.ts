@@ -65,10 +65,10 @@ export function cloudOpen(registries: { url: string; hasToken: boolean }[], acti
   return registries.some((r) => norm(r.url) === active && r.hasToken);
 }
 
-// Where each path leaves Settings → Run defaults → Where to run, written
+// Where each path leaves Settings → Runs → Where to run, written
 // through the same SetRunWhere that page uses, so the choice still means
 // something after the wizard closes. Remote's runhost is made the default by
-// its Done step, through Settings → Runhosts' own call.
+// its Done step, through Settings → Runs → Runhosts' own call.
 export function runWhereFor(path: Exclude<WizardPath, "remote">): "here" | "agentry" {
   return path === "cloud" ? "agentry" : "here";
 }

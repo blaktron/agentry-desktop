@@ -55,7 +55,7 @@ const (
 // NoReviewKey is why web addresses are refused on this computer without the
 // person's own TypeSafe key, in the words the dialog and the run use.
 const NoReviewKey = "AI Review reads every page from a web address before the Report Designer does, and that takes your own TypeSafe key: " +
-	"add one under Settings → Provider settings → AI Review key, or leave the addresses out"
+	"add one under Settings → Models and keys → AI Review key, or leave the addresses out"
 
 // Builder is the Report Designer's run: agentry-cli's pkg/reportdesigner/build,
 // or a test's.

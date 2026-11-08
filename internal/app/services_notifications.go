@@ -14,7 +14,7 @@ package app
 // run, a draft, a knowledge build, a scheduled fire and an install that
 // ended: it is raised unless the result is already on screen (the page
 // reports what it shows through SetShowing) or the person has switched it
-// off in Settings → Persistent Agents, beside the switch for a task's
+// off on the Agents page, beside the switch for a task's
 // answer. A click opens the result in the app. A persistent agent's task
 // and Meeting notes keep their own notifications; this page only lists
 // them.
@@ -423,7 +423,7 @@ func (n *NotificationsAPI) SetFinishedNotifications(on bool) (bool, error) {
 	return on, nil
 }
 
-// finishedNotificationsOn is Settings → Persistent Agents' "Notify me when
+// finishedNotificationsOn is the Agents page's "Notify me when
 // something I started finishes"; a settings file that cannot be read leaves
 // it on.
 func finishedNotificationsOn() bool {
