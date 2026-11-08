@@ -1275,6 +1275,13 @@ export default function RunPanel({
                       computer; <span className="mono">agentry run --on {onRunhost}</span> in a terminal carries them too.
                     </p>
                   )}
+                  {onRunhost && apps && apps.length > 0 && (
+                    <p className="muted small" style={{ margin: "4px 0" }} data-runhost-desktop-note>
+                      {apps.map((a) => a.application).join(" and ")} on this computer answer{apps.length === 1 ? "s" : ""} the run
+                      on {onRunhost} through this app while the run lasts: keep Agentry Desktop open until it ends, or its later
+                      calls are refused there.
+                    </p>
+                  )}
                   {hosted && <HostedUnavailable hosted={hosted} />}
                   {hosted && <SessionUnavailable registry={registry} hosted={hosted} />}
                   {sessionInAgentry && hosted && (
