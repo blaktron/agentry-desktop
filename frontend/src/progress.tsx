@@ -178,10 +178,11 @@ export function LogPane({ lines, label, reveal }: { lines: string[]; label: stri
   return <pre ref={ref} className="run-log selectable" aria-label={label}>{reveal ? <RevealText text={text} /> : text}</pre>;
 }
 
-/** The log folded beneath a running job's progress. */
-export function FoldedLog({ label, ...pane }: { lines: string[]; label: string; reveal?: boolean }) {
+/** The log folded beneath a job's progress or outcome; open, for a job
+ *  that did not succeed. */
+export function FoldedLog({ label, open, ...pane }: { lines: string[]; label: string; reveal?: boolean; open?: boolean }) {
   return (
-    <details className="knowledge-log">
+    <details className="knowledge-log" open={open}>
       <summary>{label}</summary>
       <LogPane label={label} {...pane} />
     </details>

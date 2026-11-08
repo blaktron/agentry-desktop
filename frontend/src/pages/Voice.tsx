@@ -36,7 +36,7 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import * as voice from "../../bindings/github.com/blaktron/agentry-desktop/internal/voice/models";
 import { EventsOn } from "../host";
 import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
-import { FoldedLog, StopButton } from "../progress";
+import { followVoiceHosted, showVoiceHosted, startVoiceHere, useVoiceRun } from "../voiceRun";
 import { WayCard } from "./BuildWays";
 import type { VoiceWysiwygHandle } from "../VoiceWysiwyg";
 import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
@@ -48,14 +48,16 @@ import {
 
 export type VoiceView = "start" | "local" | "cloud";
 
-export default function Voice({ registry, onOpenSettings }: {
+export default function Voice({ registry, initialPage, onOpenSettings }: {
   registry: string;
+  /** The page to open on: the start page when unset. */
+  initialPage?: VoiceView;
   /** Opens Registry settings, to sign in. The two default switches are on
    *  the Local and Cloud pages themselves,
    *  so the page links to neither Settings copy. */
   onOpenSettings: () => void;
 }) {
-  const [page, setPage] = useState<VoiceView>("start");
+  const [page, setPage] = useState<VoiceView>(initialPage ?? "start");
   const [view, setView] = useState<app.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -74,6 +76,12 @@ export default function Voice({ registry, onOpenSettings }: {
       .catch((e) => setError(String(e)));
   }, [registry]);
   useEffect(refresh, [refresh]);
+  // A Voice Writer run that lands, followed in its run window, changes a
+  // voice this page shows.
+  const landed = useVoiceRun().landed;
+  useEffect(() => {
+    if (landed > 0) refresh();
+  }, [landed, refresh]);
   useEffect(() => EventsOn("voice:hosted", (v: app.VoiceHostedView) => {
     setHosted(v);
     if (!v.final) return;
@@ -137,7 +145,6 @@ export default function Voice({ registry, onOpenSettings }: {
         act={act}
         messages={messages}
         onBack={() => open("start")}
-        onDone={(msg) => { setError(null); setNotice(msg); refresh(); }}
       />
     );
   }
@@ -180,14 +187,13 @@ export default function Voice({ registry, onOpenSettings }: {
 // LocalVoice is the Local Voice page: this computer's voice,
 // Download Cloud version, Upload to Cloud and Edit with AI above its
 // editor, the switch, and Delete at the foot.
-function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
+function LocalVoice({ view, registry, busy, act, messages, onBack }: {
   view: app.VoiceView;
   registry: string;
   busy: string | null;
   act: (what: string, call: () => Promise<string | void>) => void;
   messages: ReactNode;
   onBack: () => void;
-  onDone: (msg: string) => void;
 }) {
   const [dialog, setDialog] = useState(false);
   const local = view.local;
@@ -297,7 +303,6 @@ function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
           hasVoice={exists}
           model={view.model}
           onClose={() => setDialog(false)}
-          onDone={(msg) => { setDialog(false); onDone(msg); }}
         />
       )}
     </div>
@@ -307,55 +312,40 @@ function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
 // EditWithAI is the one dialog on this computer: what
 // should change and optional samples from the native pickers for an AI
 // Edit, or samples and an optional brief for a Create where there is no
-// voice here. It shows the run's progress and Stop, and the page reloads
-// the voice into the editor when it ends.
-function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
+// voice here. Start hands the run to its run window (VoiceFlow) once it has
+// begun and closes; the page reads the voice again when the run lands.
+function EditWithAI({ registry, hasVoice, model, onClose }: {
   registry: string;
   hasVoice: boolean;
   model: string;
   onClose: () => void;
-  onDone: (msg: string) => void;
 }) {
   const [text, setText] = useState("");
   const [samples, setSamples] = useState<string[]>([]);
   const [urlsText, setUrlsText] = useState("");
   const urls = voiceAddressLines(urlsText);
   const addrCheck = useAddressCheck(urlsText);
-  const [running, setRunning] = useState(false);
-  const [stopping, setStopping] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => EventsOn("voice:write-log", (line: string) => setLog((p) => [...p.slice(-199), line])), []);
 
   async function start() {
     setError(null);
-    setLog([]);
-    setStopping(false);
-    setRunning(true);
+    setStarting(true);
     try {
-      const res = await VoiceAPI.WriteWithAI(registry, text, samples, urls);
-      onDone(res.created ? `The Voice Writer kept your voice on this computer. ${VOICE_ON}` : "The Voice Writer kept your new voice on this computer.");
+      await startVoiceHere({ registry, hasVoice, samples: samples.length, urls: urls.length }, text, samples, urls);
+      onClose();
     } catch (e) {
-      setRunning(false);
       const s = String(e);
       if (!s.includes("not confirmed")) setError(s);
+    } finally {
+      setStarting(false);
     }
   }
 
   const problem = editWithAIProblem(hasVoice, text, samples.length + urls.length) ?? addressesProblem(urls.length, addrCheck, "local");
   return (
-    <Modal title={hasVoice ? "Edit with AI" : "Write with AI"} onClose={running ? () => {} : onClose}>
-      {running ? (
-        <>
-          <Spinner label="The Voice Writer is running on this computer…" />
-          <p className="muted small">It reads {hasVoice ? "your voice, what should change" : "your samples"}{hasVoice && samples.length > 0 ? " and your samples" : ""}{urls.length > 0 ? ", and the pages at your web addresses once AI Review has read them" : ""}, then writes VOICE.md. When it ends, the voice here is replaced with what it wrote.</p>
-          {log.length > 0 && <FoldedLog label="The Voice Writer's log" lines={log} />}
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <StopButton stopping={stopping} onStop={() => { setStopping(true); VoiceAPI.StopWrite().catch(() => setStopping(false)); }} />
-          </div>
-        </>
-      ) : (
-        <>
+    <Modal title={hasVoice ? "Edit with AI" : "Write with AI"} onClose={onClose}>
+      <>
           <p className="muted small">
             {hasVoice
               ? "Tell the Voice Writer what should change in your voice. Add samples of your writing if they help it."
@@ -386,15 +376,12 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
             {hasVoice && " When it ends, it replaces the voice on this computer."}
           </p>
           <ErrorBox error={error} />
-          {/* A run that failed keeps its log, so the person can see why. */}
-          {log.length > 0 && <FoldedLog label="The last run's log" lines={log} />}
           <div className="row gap" style={{ justifyContent: "flex-end" }}>
             <Button onClick={onClose}>Cancel</Button>
-            <Button variant="primary" disabled={problem !== null} onClick={start}>Start</Button>
+            <Button variant="primary" disabled={problem !== null} busy={starting} busyLabel="Starting…" onClick={start}>Start</Button>
           </div>
           {problem && (text.trim() !== "" || samples.length > 0 || urls.length > 0) && <p className="muted small">{problem}</p>}
-        </>
-      )}
+      </>
     </Modal>
   );
 }
@@ -483,13 +470,19 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
   // page was left, or before a restart) is followed again, not offered a
   // second time.
   useEffect(() => {
-    VoiceAPI.AttachHosted(registry).then((r) => { if (r.run) onHosted(r.run); }).catch(() => {});
+    VoiceAPI.AttachHosted(registry).then((r) => {
+      if (!r.run) return;
+      onHosted(r.run);
+      if (!r.run.final) followVoiceHosted(metaOf(r.run), r.run, true);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, onHosted]);
   useEffect(() => {
     setAvailError(false);
     VoiceAPI.HostedAvailability(registry, job).then(setAvail).catch(() => { setAvail(null); setAvailError(true); });
   }, [registry, job]);
   const running = !!hosted && !hosted.final;
+  const metaOf = (h: app.VoiceHostedView) => ({ registry, hasVoice: has, samples: 0, urls: h.urls?.length ?? 0 });
   // The editor opens on the person's newest text: a pending version to
   // repair or finish, else the live one.
   const draft = pending?.text ?? live?.text ?? "";
@@ -498,7 +491,7 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
       {running && !dialog && (
         <Notice tone="info">
           The Voice Writer is running In Agentry: {hosted.statusLine}{" "}
-          <Button variant="link" onClick={() => setDialog(true)}>Show it</Button>
+          <Button variant="link" onClick={() => showVoiceHosted(metaOf(hosted), hosted)}>Show it</Button>
         </Notice>
       )}
       {pending && (
@@ -705,9 +698,8 @@ function SamplesPicker({ label, samples, onChange, hint }: {
 // Voice Writer In Agentry at the registry's flat price, an AI Edit of the
 // account's newest version with a note and optional samples, or a Create
 // from samples where the account keeps no voice (Go decides which,
-// HostedWithAI). While it runs the dialog shows its status and Cancel run,
-// and it can be closed: the page keeps following it, and what it writes
-// waits for AI Review.
+// HostedWithAI). Start hands the run to its run window (VoiceFlow), which
+// shows where it stands and Cancel run; what it writes waits for AI Review.
 function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose }: {
   registry: string;
   hasVoice: boolean;
@@ -722,9 +714,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
   const urls = voiceAddressLines(urlsText);
   const addrCheck = useAddressCheck(urlsText);
   const [starting, setStarting] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const running = !!hosted && !hosted.final;
 
   async function start() {
     setError(null);
@@ -732,7 +722,13 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
     try {
       const r = await VoiceAPI.HostedWithAI(registry, text, samples, urls);
       if (r.refusal) setError(r.detail || r.refusal);
-      else if (r.run) onHosted(r.run);
+      else if (r.run) {
+        // The run goes on in its run window (VoiceFlow); the page follows
+        // it too, for its own lines.
+        onHosted(r.run);
+        followVoiceHosted({ registry, hasVoice, samples: samples.length, urls: urls.length }, r.run);
+        onClose();
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -741,32 +737,6 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
   }
 
   const title = hasVoice ? "Edit with AI" : "Write with AI";
-  if (running) {
-    return (
-      <Modal title={title} onClose={onClose}>
-        <Spinner label="The Voice Writer is running In Agentry…" />
-        <p className="small" role="status">{hosted.statusLine}</p>
-        <p className="muted small">
-          When it ends, what it wrote becomes your account's new version and waits for AI Review; your live voice stays as it is until it
-          passes. You can close this: the page keeps following the run.
-        </p>
-        <ErrorBox error={error} />
-        <div className="row gap" style={{ justifyContent: "flex-end" }}>
-          <Button
-            busy={cancelling || hosted.cancelRequested}
-            busyLabel="Cancelling…"
-            onClick={() => {
-              setCancelling(true);
-              VoiceAPI.CancelHosted().then(onHosted).catch((e) => setError(String(e))).finally(() => setCancelling(false));
-            }}
-          >
-            Cancel run
-          </Button>
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </Modal>
-    );
-  }
   const problem = editWithAIProblem(hasVoice, text, samples.length + urls.length) ?? addressesProblem(urls.length, addrCheck, "agentry", avail);
   const mb = Math.round(avail.maxInputBytes / (1024 * 1024));
   return (

@@ -22,7 +22,7 @@
 // is drawn as text.
 import { useEffect, useRef, useState } from "react";
 import type { Tone } from "../jobProgress";
-import { CornerCard, FoldedLog, LogPane, StopButton } from "../progress";
+import { CornerCard, FoldedLog, StopButton } from "../progress";
 import { Button, ErrorBox, Modal, Spinner } from "../ui";
 
 /** The Run log's label, the same in every window. */
@@ -60,8 +60,9 @@ export type RunStop = {
   onStop: () => void;
 };
 
-/** An action the job offers once it is over, beside Dismiss. */
-export type RunAction = { label: string; onClick: () => void };
+/** An action the job offers once it is over, beside Dismiss; busy while
+ *  what it started is under way. */
+export type RunAction = { label: string; onClick: () => void; busy?: boolean; busyLabel?: string; disabled?: boolean };
 
 export type RunWindowProps = Followed & {
   /** Opens the dialog from the card (the store's show). */
@@ -147,7 +148,7 @@ export function RunWindow(p: RunWindowProps) {
           {p.cardActions}
           {!running && <Button onClick={p.onDismiss}>{p.dismissLabel ?? "Dismiss"}</Button>}
           {!running && p.primary
-            ? <Button variant="primary" onClick={p.primary.onClick}>{p.primary.label}</Button>
+            ? <PrimaryButton action={p.primary} />
             : <Button variant="primary" onClick={p.onOpen}>Open</Button>}
         </>}
       >
@@ -185,14 +186,20 @@ export function RunWindow(p: RunWindowProps) {
           <ErrorBox error={p.error ?? null} />
         </>
       )}
-      {log && log.length > 0 && !p.logInOutcome && (
-        logOpen ? <LogPane label={RUN_LOG} lines={log} reveal /> : <FoldedLog label={RUN_LOG} lines={log} reveal />
-      )}
+      {log && log.length > 0 && !p.logInOutcome && <FoldedLog label={RUN_LOG} lines={log} reveal open={logOpen} />}
       <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
         {p.actions}
         <Button variant={p.primary ? undefined : "primary"} onClick={p.onDismiss}>{p.dismissLabel ?? "Dismiss"}</Button>
-        {p.primary && <Button variant="primary" onClick={p.primary.onClick}>{p.primary.label}</Button>}
+        {p.primary && <PrimaryButton action={p.primary} />}
       </div>
     </Modal>
+  );
+}
+
+function PrimaryButton({ action }: { action: RunAction }) {
+  return (
+    <Button variant="primary" onClick={action.onClick} busy={action.busy} busyLabel={action.busyLabel} disabled={action.disabled}>
+      {action.label}
+    </Button>
   );
 }
