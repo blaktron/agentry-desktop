@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.25",
+      "highlights": [
+        "A persistent agent such as the Assistant can use Blender or Unreal Engine on your computer once you switch each on.",
+        "Switches take effect at the agent's next turn; opening or closing the application restarts nothing.",
+        "An agent on your runhost reaches the applications here while Agentry Desktop runs; Settings shows it as linked."
+      ]
+    },
+    {
       "version": "0.7.24",
       "highlights": [
         "The Voice Writer and the Report Designer can run in the background, in a card in the corner, like a QuickAgent's run.",

@@ -411,6 +411,15 @@ export class Persistent {
     "meetings"?: boolean;
 
     /**
+     * Desktop lets the agent be offered the applications on the person's
+     * computer, through Agentry Desktop: each application server of the
+     * catalogue, and computer use, once the person switches it on. The
+     * release's capabilities.desktop line, when it has one, narrows what is
+     * offered.
+     */
+    "desktop"?: boolean;
+
+    /**
      * Mail names the mail providers the agent may reach once the person
      * signs in, from MailProviderNames.
      */
@@ -460,17 +469,17 @@ export class Persistent {
      */
     static createFrom($$source: any = {}): Persistent {
         const $$createField3_0 = $$createType0;
-        const $$createField7_0 = $$createType0;
         const $$createField8_0 = $$createType0;
+        const $$createField9_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("secrets" in $$parsedSource) {
             $$parsedSource["secrets"] = $$createField3_0($$parsedSource["secrets"]);
         }
         if ("mail" in $$parsedSource) {
-            $$parsedSource["mail"] = $$createField7_0($$parsedSource["mail"]);
+            $$parsedSource["mail"] = $$createField8_0($$parsedSource["mail"]);
         }
         if ("imageServers" in $$parsedSource) {
-            $$parsedSource["imageServers"] = $$createField8_0($$parsedSource["imageServers"]);
+            $$parsedSource["imageServers"] = $$createField9_0($$parsedSource["imageServers"]);
         }
         return new Persistent($$parsedSource as Partial<Persistent>);
     }
