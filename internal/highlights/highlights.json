@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.26",
+      "highlights": [
+        "The Assistant can run your installed QuickAgents without asking each time, once you switch that on in Settings.",
+        "Browse and the welcome say what a published version carries: a public report of its scan and its signature."
+      ]
+    },
+    {
       "version": "0.7.25",
       "highlights": [
         "A persistent agent such as the Assistant can use Blender or Unreal Engine on your computer once you switch each on.",
