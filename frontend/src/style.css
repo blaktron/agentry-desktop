@@ -1730,6 +1730,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-usage-row dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .agent-subagent-runs { list-style: none; margin: 4px 0 0; padding: 0; }
 .agent-subagent-runs li { padding: 2px 0; overflow-wrap: anywhere; }
+.agent-subagent-runs-more { margin-top: 4px; }
+.agent-subagent-runs-all .agent-subagent-runs li { padding: 4px 0; border-bottom: 1px solid var(--color-border); }
+.agent-subagent-runs-all .agent-subagent-runs li:last-child { border-bottom: 0; }
 .agent-roster h3 { font-size: 12px; margin: 10px 0 4px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 /* The Configuration's cards (ConfigCards.tsx): four grids, each card an
    icon, a name, one line and a state. Off is greyed and desaturated, on is

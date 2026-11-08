@@ -1,16 +1,13 @@
-// A draft's progress, as Create knowledge shows a build's: App mounts this
-// above the pages, and Draft it or
-// Describe again opens it as a dialog. On this computer the dialog shows the
-// time used against the draft's limit, its turns, its tokens and the stage
-// it is in (AI Review of the description, the Drafter's turn, AI Review's
-// check, the repair turn), over the Drafter's log folded beneath; In Agentry
-// it shows where the draft stands, its hold and Cancel. Run in the
-// background, or closing the dialog while the draft runs, shrinks it to a
-// card in the bottom-right corner that keeps the progress, stops the draft
-// (on this computer: BuildAPI.StopDraft, which stops only a draft; In
-// Agentry: the registry's cancel) and opens the dialog again. Once the draft
-// is over the card and the dialog say how it ended, and a draft that landed
-// offers Open the draft, which opens it on the Build tab.
+// A draft by the Drafter, here or In Agentry, followed above the pages in
+// its run window (RunWindow.tsx), as a QuickAgent's run is: App mounts this,
+// and Draft it or Describe again opens it. On this computer the window shows
+// the time used against the draft's limit, its turns, its tokens and the
+// stage it is in (AI Review of the description, the Drafter's turn, AI
+// Review's check, the repair turn), with the Run log; In Agentry it shows
+// where the draft stands, its hold and Cancel. Stop stops only a draft
+// (BuildAPI.StopDraft); Cancel asks the registry. Once the draft is over the
+// card and the dialog say how it ended, and a draft that landed offers Open
+// the draft, which opens it on the Build tab.
 //
 // The run lock is unchanged: a draft on this computer is the run in flight,
 // so a run or a build started meanwhile is refused with the reason. Every
@@ -19,11 +16,12 @@
 import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
+import { DraftProgress, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
 import type { Tone } from "../jobProgress";
-import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
+import { ProgressView } from "../progress";
 import { RevealText } from "../reveal";
-import { Button, ErrorBox, Modal, Notice, Spinner } from "../ui";
+import { Button, ErrorBox, Notice } from "../ui";
+import { RunWindow, useFollowed } from "./RunWindow";
 
 const STAGE: Record<Exclude<DraftProgress["stage"], "">, string> = {
   description: "AI Review is reading your description",
@@ -45,12 +43,9 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
   initialMinimized?: boolean;
 }) {
   const d = useDraft();
-  // The card is shown for the ask it was minimized under, or when the ask
-  // itself was for the card; a new draft, or Open, is a new ask, so it opens
-  // as the dialog with no frame of the card first.
-  const [cardFor, setCardFor] = useState<number | null>(initialMinimized ? d.raised : null);
-  const minimized = d.asCard || cardFor === d.raised;
-  const minimize = () => setCardFor(d.raised);
+  // A draft In Agentry the app found running asks for the card; a new
+  // draft, or Open, is a new ask, so it opens as the dialog.
+  const followed = useFollowed({ raised: d.raised, asCard: d.asCard, initialMinimized });
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => setErr(null), [d.raised]);
   if (!d.shown) return null;
@@ -67,138 +62,95 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
     dismissDraft();
     onOpenDraft();
   };
+  const what = `${d.revising ? `Revising ${d.revising}` : "Drafting a QuickAgent"}${inAgentry ? " In Agentry" : ""}`;
 
-  if (minimized) {
-    let line = "";
-    let tone: Tone = "";
-    if (err) {
-      line = err;
-      tone = "bad";
-    } else if (d.local) line = stageLine(d.progress);
-    else if (d.inFlight) line = hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft";
-    else if (d.drafted) {
-      line = d.revising ? `Drafted the next version of ${d.revising}` : `Drafted ${d.drafted}`;
-      tone = "ok";
-    } else if (d.refusal) {
-      line = "Agentry did not start the draft";
-      tone = "bad";
-    } else if (d.error) {
-      line = d.stopped ? "You stopped the draft, so none was made" : "No draft was made";
-      tone = d.stopped ? "warn" : "bad";
-    }
-    return (
-      <CornerCard
-        label={d.revising ? "Edit with AI: the revision" : "Describe it: the draft"}
-        running={d.inFlight}
-        title={d.inFlight ? (d.revising ? `Revising ${d.revising}${inAgentry ? " In Agentry" : ""}` : `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}`) : d.revising ? "Edit with AI: the revision is over" : "Describe it: the draft is over"}
-        line={line}
-        tone={tone}
-        actions={<>
-          {canStop && <StopButton stopping={d.stopping} onStop={() => void stopDraft()} />}
-          {canCancel && <Button onClick={cancel}>Cancel the draft</Button>}
-          {!d.inFlight && <Button onClick={dismissDraft}>Dismiss</Button>}
-          {!d.inFlight && d.drafted
-            ? <Button variant="primary" onClick={open}>Open the draft</Button>
-            : <Button variant="primary" onClick={showDraft}>Open</Button>}
-        </>}
-      >
-        {d.local && <DraftProgressView progress={d.progress} compact />}
-      </CornerCard>
+  let line = "";
+  let tone: Tone = "";
+  if (d.local) line = stageLine(d.progress);
+  else if (d.inFlight) line = hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft";
+  else if (d.drafted) {
+    line = d.revising ? `Drafted the next version of ${d.revising}` : `Drafted ${d.drafted}`;
+    tone = "ok";
+  } else if (d.refusal) {
+    line = "Agentry did not start the draft";
+    tone = "bad";
+  } else if (d.error) {
+    line = d.stopped ? "You stopped the draft, so none was made" : "No draft was made";
+    tone = d.stopped ? "warn" : "bad";
+  }
+
+  let outcome: React.ReactNode = null;
+  if (!d.inFlight && d.drafted) {
+    outcome = (
+      <>
+        <h3 className="run-outcome run-outcome-ok">{d.revising ? "Drafted the next version of " : "Drafted "}<RevealText text={d.revising ?? d.drafted} /></h3>
+        <p>
+          {d.revising
+            ? "It opens on the Build tab with what changed. Publish it as drafted, or open it in the Builder to change it first."
+            : "The draft opens on the Build tab. It is a starting point: check every part, and what it may reach, before you save or publish it."}
+        </p>
+        {hosted?.final && <p className="small">{hosted.creditsLine}</p>}
+      </>
+    );
+  } else if (!d.inFlight && d.refusal) {
+    outcome = (
+      <>
+        <h3 className="run-outcome run-outcome-bad">Agentry did not start the draft</h3>
+        <DraftRefusal v={d.refusal} registry={registry} onError={setErr} />
+        <ErrorBox error={err} />
+      </>
+    );
+  } else if (!d.inFlight) {
+    // A draft that ended with no draft: why, in the words Go or the
+    // registry gave, then what it used; its log follows, open.
+    outcome = (
+      <>
+        <h3 className={`run-outcome run-outcome-${d.stopped ? "warn" : "bad"}`}>No draft was made</h3>
+        {d.error && <div className="error-box selectable"><span className="error-box-cause"><RevealText text={d.error} /></span></div>}
+        {hosted?.final && <p className="small">{hosted.creditsLine}</p>}
+      </>
     );
   }
 
-  const title = d.inFlight
-    ? (d.revising ? `Revising ${d.revising}${inAgentry ? " In Agentry" : ""}` : `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}`)
-    : d.revising ? "Edit with AI" : "Describe it";
   return (
-    <Modal title={title} onClose={d.inFlight ? minimize : dismissDraft} wide>
-      {d.local && (
-        <RunningView
-          spinner={`${stageLine(d.progress)}…`}
-          about={<>
-            AI Review reads your description first, then every search result and page before the Drafter&apos;s model does,
-            and checks the finished draft. A draft takes a few minutes.
-          </>}
-          actions={<>
-            {canStop && <StopButton stopping={d.stopping} onStop={() => void stopDraft()} label="Stop the draft" />}
-            <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </>}
-          background={<>
-            In the background, the draft goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
-            and no draft is made.
-          </>}
-        >
-          <DraftProgressView progress={d.progress} />
-          {/* The log carries what pages and the registry said, so an invisible
-              character in it is shown, as in the error. */}
-          <FoldedLog label="Draft log" lines={d.log} reveal />
-        </RunningView>
-      )}
-
-      {!d.local && d.inFlight && (
-        <>
-          <Spinner label={hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft…"} />
-          <p className="muted small">
-            The Drafter runs In Agentry, and AI Review reads every result through the registry. Run in the background keeps it
-            in a card in the corner while you use the rest of the app; the draft goes on in Agentry either way.
-          </p>
-          {hosted && <p className="small">{hosted.creditsLine}</p>}
-          {hosted?.cancelRequested && <p className="muted small">Cancel asked for. The draft stops, and what it used is settled.</p>}
-          <ErrorBox error={err} />
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            {canCancel && <Button onClick={cancel}>Cancel the draft</Button>}
-            <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </div>
-        </>
-      )}
-
-      {!d.inFlight && d.drafted && (
-        <>
-          <h3 className="run-outcome run-outcome-ok">{d.revising ? "Drafted the next version of " : "Drafted "}<RevealText text={d.revising ?? d.drafted} /></h3>
-          <p>
-            {d.revising
-              ? "It opens on the Build tab with what changed. Publish it as drafted, or open it in the Builder to change it first."
-              : "The draft opens on the Build tab. It is a starting point: check every part, and what it may reach, before you save or publish it."}
-          </p>
-          {hosted?.final && <p className="small">{hosted.creditsLine}</p>}
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button onClick={dismissDraft}>Close</Button>
-            <Button variant="primary" onClick={open}>Open the draft</Button>
-          </div>
-        </>
-      )}
-
-      {!d.inFlight && !d.drafted && d.refusal && (
-        <>
-          <h3 className="run-outcome run-outcome-bad">Agentry did not start the draft</h3>
-          <DraftRefusal v={d.refusal} registry={registry} onError={setErr} />
-          <ErrorBox error={err} />
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button variant="primary" onClick={dismissDraft}>Close</Button>
-          </div>
-        </>
-      )}
-
-      {!d.inFlight && !d.drafted && !d.refusal && (
-        <DraftFailed d={d} />
-      )}
-    </Modal>
-  );
-}
-
-// DraftFailed is a draft that ended with no draft: why, in the words Go or
-// the registry gave, then what it used and its log.
-function DraftFailed({ d }: { d: DraftState }) {
-  return (
-    <>
-      <h3 className={`run-outcome run-outcome-${d.stopped ? "warn" : "bad"}`}>No draft was made</h3>
-      {d.error && <div className="error-box selectable"><RevealText text={d.error} /></div>}
-      {d.hosted?.final && <p className="small">{d.hosted.creditsLine}</p>}
-      {d.log.length > 0 && <LogPane label="Draft log" lines={d.log} reveal />}
-      <div className="row" style={{ justifyContent: "flex-end" }}>
-        <Button variant="primary" onClick={dismissDraft}>Close</Button>
-      </div>
-    </>
+    <RunWindow
+      {...followed}
+      onOpen={showDraft}
+      onDismiss={dismissDraft}
+      label={d.revising ? "Edit with AI: the revision" : "Describe it: the draft"}
+      title={d.inFlight ? what : d.revising ? "Edit with AI" : "Describe it"}
+      cardTitle={d.inFlight ? what : d.revising ? "Edit with AI: the revision is over" : "Describe it: the draft is over"}
+      running={d.inFlight}
+      spinner={d.local ? `${stageLine(d.progress)}…` : hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft…"}
+      about={d.local ? <>
+        AI Review reads your description first, then every search result and page before the Drafter&apos;s model does,
+        and checks the finished draft. A draft takes a few minutes.
+      </> : <>
+        The Drafter runs In Agentry, and AI Review reads every result through the registry.
+      </>}
+      status={!d.local && <>
+        {hosted && <p className="small">{hosted.creditsLine}</p>}
+        {hosted?.cancelRequested && <p className="muted small">Cancel asked for. The draft stops, and what it used is settled.</p>}
+      </>}
+      progress={d.local ? (compact) => <DraftProgressView progress={d.progress} compact={compact} /> : undefined}
+      background={d.local ? <>
+        In the background, the draft goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
+        and no draft is made.
+      </> : <>
+        In the background, the draft goes on In Agentry and this app follows it in a card in the corner. Cancel asks
+        Agentry to stop it and settle what it used.
+      </>}
+      stop={canStop
+        ? { label: "Stop the draft", cardLabel: "Stop", stopping: d.stopping, onStop: () => void stopDraft() }
+        : canCancel ? { label: "Cancel the draft", stopping: false, onStop: () => void cancel() } : null}
+      log={inAgentry ? null : d.log}
+      line={line}
+      tone={tone}
+      error={d.inFlight ? err : null}
+      outcome={outcome}
+      primary={!d.inFlight && d.drafted ? { label: "Open the draft", onClick: open } : null}
+      closeOver="dismiss"
+    />
   );
 }
 

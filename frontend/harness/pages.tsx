@@ -963,6 +963,20 @@ const harnessMain = {
   volumes: { session: "agentry-persistent-main-session", data: "agentry-persistent-main-data" },
 };
 if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state = "disabled";
+// ?subagentruns=<n> gives the Assistant n subagent runs, newest first: the
+// newest still running, the third failed to start, the rest finished, every
+// other one with a run of its own to open.
+const harnessSubagentRuns = Number(new URLSearchParams(window.location.search).get("subagentruns") ?? 0);
+Object.assign(harnessAssistant, {
+  subagentRuns: Array.from({ length: harnessSubagentRuns }, (_, i) => {
+    const started = new Date(Date.UTC(2026, 10, 7, 12, 0) - i * 47 * 60_000).toISOString();
+    const ended = new Date(Date.parse(started) + 3 * 60_000).toISOString();
+    const subagent = ["acme/pdf-summary@1.2.0", "acme/web-digest@0.4.1", "acme/expense-sorter@2.0.3"][i % 3];
+    if (i === 0) return { id: `sr${i}`, subagent, started, runId: `run-${i}` };
+    if (i === 2) return { id: `sr${i}`, subagent, started, ended: started, outcome: "error", error: "the image did not pull" };
+    return { id: `sr${i}`, subagent, started, ended, outcome: "ok", runId: i % 2 ? `run-${i}` : undefined };
+  }),
+});
 
 g.go = { app: {
   ScheduleAPI: {
@@ -1163,6 +1177,14 @@ g.go = { app: {
     ChooseDocument: async () => "/home/me/Documents/northwind-annual-report.pdf",
     CheckAddresses: async (urls: string[]) => ({ check: { max: 2, lines: urls.map((u) => ({ address: u, shown: u, host: new URL(u).host })) }, reviewReady: true }),
     RunHere: async () => {
+      // #report-ai-running: a run that has begun and goes on.
+      if (window.location.hash === "#report-ai-running") {
+        setTimeout(() => {
+          emitPage("designer:progress", { startedAt: Date.now() - 140_000, timeoutSeconds: 0, maxTurns: 0, turns: 5, inputTokens: 42_000, outputTokens: 6_300 });
+          for (const line of ["Its reports, receipts and the design it makes are written to /home/me/Downloads/agentry-out/report-designer.", "Tool call: render_design", "Tool result (render_design):", "  rendered 4 pages"]) emitPage("designer:log", line);
+        }, 50);
+        return new Promise(() => {});
+      }
       await new Promise((r) => setTimeout(r, 300));
       const made = { ...rdKit("boardroom"), name: "Northwind Harbour Trust", accent: "#1b2a4a", secondary: "#c9a227" };
       return { token: "t-1", job: "design", name: made.name, view: { id: "", default: false, design: made, label: made.name, logo: rdPng },
@@ -1191,6 +1213,15 @@ g.go = { app: {
     DeleteLocal: async () => undefined,
     Write: async () => new Promise(() => {}),
     WriteWithAI: async () => {
+      // #voice-running: a run that has begun and goes on, reporting its
+      // clock, its turns and its tokens, with a log.
+      if (voiceHash === "#voice-running") {
+        setTimeout(() => {
+          emitPage("voice:write-progress", { startedAt: Date.now() - 95_000, timeoutSeconds: 0, maxTurns: 0, turns: 3, inputTokens: 18_400, outputTokens: 2_100 });
+          for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 2 files", "Tool call: read_file", "Tool result (read_file):", "  # Launch email"]) emitPage("voice:write-log", line);
+        }, 50);
+        return new Promise(() => {});
+      }
       if (voiceHash !== "#voice-failed") return new Promise(() => {});
       for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 1 files"]) emitPage("voice:write-log", line);
       throw new Error("the Voice Writer wrote no VOICE.md");
@@ -1701,6 +1732,8 @@ import Build from "../src/pages/Build";
 import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
+import VoiceFlow from "../src/pages/VoiceFlow";
+import DesignerFlow from "../src/pages/DesignerFlow";
 import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
@@ -1877,7 +1910,10 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
-    <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
+    {/* The Voice Writer's run window, as App mounts it above the pages:
+        a run started from the page's Edit with AI goes on in it. */}
+    <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} />
+      <VoiceFlow onOpenVoice={(view) => { document.body.dataset.open = `voice:${view}`; }} /></Shell></div>
     {/* The Publisher section: what an action and a row
         open are marked on the body (data-open) for a shot to see. */}
     <div data-preview="publisher"><Shell active="publisher" signedIn={publisherHash !== "#publisher-signed-out"}><Publisher registry={REG}
@@ -1885,11 +1921,12 @@ const render = () => createRoot(document.getElementById("root")!).render(
       onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }}
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
-    <div data-preview="settings"><SettingsPreview /></div>
+    <div data-preview="settings"><SettingsPreview />
+      <DesignerFlow onOpenDesigns={() => { document.body.dataset.open = "report-design"; }} /></div>
     {harnessMeetings && <div data-preview="meetings"><Shell active="meetings"><MeetingNotes /></Shell></div>}
     {/* The Assistant's page: its chat from the transcript, its usage, its
         roster. A fixed height, since its panes fill what they are given. */}
-    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} /></div></Shell></div>
+    <div data-preview="persistent"><Shell active="persistent"><div style={{ height: 640, display: "flex", flexDirection: "column" }}><PersistentAgentPage name="assistant" registry={REG} onOpenRun={(id) => { document.body.dataset.open = `run:${id}`; }} /></div></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
         shot can tell when it was not. Outside every

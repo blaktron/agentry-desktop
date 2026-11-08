@@ -14,6 +14,9 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/reportdesigner/build"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+
+	"github.com/blaktron/agentry-desktop/internal/progress"
 )
 
 // The inputs are held to the run's own rules before anything is read: a
@@ -209,5 +212,31 @@ func TestACoverCountsTheDesignsOwnCoverImages(t *testing.T) {
 	}
 	if _, err := Run(context.Background(), Request{Job: JobCover, Brief: "b", From: &d, Images: []string{"a", "b", "c"}, Build: fake}); err == nil || ran {
 		t.Fatalf("ran past the count: %v", err)
+	}
+}
+
+// A Report Designer run reports its progress as the other built-ins do: once
+// at its start, then at every usage report.
+func TestARunReportsItsProgress(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(policy.HomeEnv, home)
+	t.Setenv("AGENTRY_CONFIG_DIR", t.TempDir())
+	made, ok := reportdesign.Builtin(reportdesign.BuiltinIDs()[0])
+	if !ok {
+		t.Fatal("no built-in theme")
+	}
+	fake := func(_ context.Context, _ dockerx.Client, o build.Options) (*build.Result, error) {
+		o.OnUsage(receipt.Usage{Turns: 3, InputTokens: 900, OutputTokens: 120})
+		return &build.Result{Design: made, Dir: filepath.Join(o.OutDir, "design")}, nil
+	}
+	var reports []progress.Report
+	if _, err := Run(context.Background(), Request{
+		Job: JobDesign, Brief: "Reports for a harbour trust.", Home: home, OutDir: t.TempDir(), RunID: "run-1", Build: fake,
+		Progress: func(p progress.Report) { reports = append(reports, p) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reports) != 2 || reports[0].StartedAt == 0 || reports[0].Turns != 0 || reports[1].Turns != 3 || reports[1].InputTokens != 900 || reports[1].OutputTokens != 120 {
+		t.Fatalf("reports %+v", reports)
 	}
 }

@@ -338,6 +338,42 @@ func TestABuiltinsJobIsRecordedWithItsKind(t *testing.T) {
 	}
 }
 
+// A built-in's job keeps its log beside the history as a QuickAgent's run
+// does, so its run page shows it, and a failed job records its cause.
+func TestABuiltinsJobKeepsItsLogAndCause(t *testing.T) {
+	freshConfig(t)
+	r := flowAPI(t, nil)
+	_ = r.asRun(jobBuild, "a run of the Voice Writer", voiceRunRef, "e", func(_ context.Context, _ string, logw io.Writer) error {
+		_, _ = io.WriteString(logw, "reading the samples\nwriting VOICE.md\n")
+		return errors.New("the model answered 503")
+	})
+	e := onlyEntry(t)
+	if e.Kind != runhistory.KindVoice || e.Outcome != runhistory.OutcomeError || e.Cause != "the model answered 503" || e.Log == "" {
+		t.Fatalf("a failed voice build's entry %+v", e)
+	}
+	rec, err := r.RecordedRun(e.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Log != "reading the samples\nwriting VOICE.md\n" || rec.Run.Cause != e.Cause {
+		t.Fatalf("the voice build's run page: log %q, cause %q", rec.Log, rec.Run.Cause)
+	}
+
+	// With Remember recent runs off nothing is kept.
+	_ = runhistory.Clear()
+	if _, err := (&SettingsAPI{}).SetRememberRuns(false); err != nil {
+		t.Fatal(err)
+	}
+	_ = r.asRun(jobDraft, "a draft by the Drafter", draftRunRef, "e", func(_ context.Context, _ string, logw io.Writer) error {
+		_, _ = io.WriteString(logw, "drafting\n")
+		return nil
+	})
+	dir, _ := runhistory.LogsDir()
+	if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+		t.Fatalf("a log was kept with the switch off: %v", ents)
+	}
+}
+
 // Recent runs merges this computer's history and the account's runs In
 // Agentry by time, newest first; a run In Agentry this app downloaded is one
 // row, the registry's, marked kept. Signed out it shows the history alone.

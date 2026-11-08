@@ -1,15 +1,15 @@
 // The one draft this app is making, here or In Agentry, kept outside
 // every page. A draft takes minutes and Build unmounts on every tab
 // change, so the draft in flight, how far it has got, what it has said and
-// the draft or refusal it ends with live here. Describe it starts one; the
-// progress dialog and its corner card (DraftFlow, mounted by App above the
-// pages) follow it; and whichever page is showing when it lands takes the
+// the draft or refusal it ends with live here. Describe it starts one; its
+// run window (DraftFlow, mounted by App above the pages) follows it; and whichever page is showing when it lands takes the
 // draft (takeLandedDraft). One can be in flight at a time.
 import { useEffect, useState } from "react";
 import * as BuildAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/buildapi";
 import { EventsOn } from "./host";
 import * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type { JobProgress } from "./jobProgress";
+import { EMPTY_LOG, type RunLog, logLines, withLogLine } from "./runLog";
 
 export type Where = "agentry" | "here";
 
@@ -22,7 +22,7 @@ export type DraftProgress = JobProgress & {
 
 let where: Where | null = null;
 let localInflight: Promise<void> | null = null;
-let inflightLog: string[] = [];
+let inflightLog: RunLog = EMPTY_LOG;
 let progress: DraftProgress | null = null;
 // stopping: Stop was pressed on a draft on this computer; stopped: the
 // draft ended after it, so the flow says the person stopped it.
@@ -99,7 +99,7 @@ function clear() {
   refusal = null;
   drafted = null;
   stopped = false;
-  inflightLog = [];
+  inflightLog = EMPTY_LOG;
   progress = null;
 }
 
@@ -120,7 +120,7 @@ function startLocal(call: () => Promise<app.DraftView>) {
   begin("here");
   stopping = false;
   const offLog = EventsOn("build:draft-log", (line: string) => {
-    inflightLog = [...inflightLog, line];
+    inflightLog = withLogLine(inflightLog, line);
     notify();
   });
   const offProgress = EventsOn("build:draft-progress", (p: DraftProgress) => {
@@ -278,7 +278,7 @@ export type DraftState = {
 function snapshot(): DraftState {
   const inFlight = draftInFlight();
   return {
-    shown, raised, asCard, where, inFlight, local: localInflight !== null, log: inflightLog, progress, stopping, stopped: !inFlight && stopped, hosted, hostedStarting,
+    shown, raised, asCard, where, inFlight, local: localInflight !== null, log: logLines(inflightLog.lines, inflightLog.dropped), progress, stopping, stopped: !inFlight && stopped, hosted, hostedStarting,
     drafted, error: inFlight ? null : landedError, refusal: inFlight ? null : refusal,
     revising: revising ?? (hosted?.revises ? hosted.revises.replace(/@.*$/, "") : null),
   };
