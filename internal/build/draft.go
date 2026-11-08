@@ -143,7 +143,7 @@ var draftFields = map[string]any{
 		"secrets":    nil, "optionalSecrets": nil, "dataAccess": nil, "targetHosts": nil,
 		"persistent": persistentFields(),
 		"browser":    map[string]any{"sites": nil, "hosts": nil, "scope": nil, "secrets": nil},
-		"desktop":    map[string]any{"servers": []any{map[string]any{"id": nil, "tools": nil}}, "computerUse": nil},
+		"desktop":    map[string]any{"servers": []any{map[string]any{"id": nil, "choose": nil, "use": nil, "tools": nil}}, "computerUse": nil},
 		"mcpServers": []any{map[string]any{
 			"npm": nil, "pypi": nil, "url": nil, "auth": nil, "scopes": nil, "version": nil, "args": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil,
 			"oauth": map[string]any{"issuer": nil, "scopes": nil, "files": []any{map[string]any{"path": nil, "template": nil}}, "env": nil},

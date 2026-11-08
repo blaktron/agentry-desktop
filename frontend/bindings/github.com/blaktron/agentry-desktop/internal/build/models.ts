@@ -328,13 +328,18 @@ export class DesktopRow {
 }
 
 /**
- * DesktopServerRow is one application server the line uses: its catalogue
- * id and the tools the release narrows it to, empty for every tool the
- * catalogue gives.
+ * DesktopServerRow is one application the line uses: its id and the tools
+ * the release narrows it to, empty for every tool its server lists. Choose
+ * marks the entry that asks the person for an application of their own when
+ * the run starts, which names no id and no tools; Use is "mcp", "computer",
+ * "both" or empty for the core's default. The form has no editor for Choose
+ * or Use and carries both unchanged from a load to the next save.
  */
 export class DesktopServerRow {
     "id": string;
     "tools": string[];
+    "choose"?: boolean;
+    "use"?: string;
 
     /** Creates a new DesktopServerRow instance. */
     constructor($$source: Partial<DesktopServerRow> = {}) {

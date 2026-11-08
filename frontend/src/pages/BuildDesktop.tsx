@@ -23,7 +23,7 @@ export function withTools(row: build.DesktopRow, id: string, tools: string[], al
   const narrowed = all.every((t) => tools.includes(t)) ? [] : all.filter((t) => tools.includes(t));
   return new build.DesktopRow({
     ...row,
-    servers: row.servers.map((s) => (s.id === id ? new build.DesktopServerRow({ id, tools: narrowed }) : s)),
+    servers: row.servers.map((s) => (s.id === id ? new build.DesktopServerRow({ ...s, tools: narrowed }) : s)),
   });
 }
 
