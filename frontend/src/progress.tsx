@@ -66,7 +66,7 @@ export function CornerCard({ label, title, running, line, tone, children, action
         <strong className="grow">{title}</strong>
       </div>
       {children}
-      {line && <p className={`small build-card-line${tone ? ` run-outcome-${tone}` : ""}`}>{line}</p>}
+      {line && <p className={`small build-card-line${tone ? ` run-outcome-${tone}` : ""}`}><RevealText text={line} /></p>}
       <div className="row build-card-actions">{actions}</div>
     </aside>
   );
@@ -190,11 +190,6 @@ export function FoldedLog({ label, open, ...pane }: { lines: string[]; label: st
 }
 
 /** Stop, and "Stopping…" once it is asked for. */
-export function StopButton({ stopping, onStop, label = "Stop", stoppingLabel = "Stopping…" }: {
-  stopping: boolean;
-  onStop: () => void;
-  label?: string;
-  stoppingLabel?: string;
-}) {
-  return <Button onClick={onStop} disabled={stopping}>{stopping ? stoppingLabel : label}</Button>;
+export function StopButton({ stopping, onStop, label = "Stop" }: { stopping: boolean; onStop: () => void; label?: string }) {
+  return <Button onClick={onStop} disabled={stopping}>{stopping ? "Stopping…" : label}</Button>;
 }

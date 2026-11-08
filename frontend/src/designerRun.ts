@@ -57,3 +57,37 @@ export const stopDesignerRun = (): Promise<void> => store.stop();
 export const cancelDesignerRun = (): Promise<void> => store.cancel();
 export const showDesignerRun = (): void => store.show();
 export const dismissDesignerRun = (): void => store.dismiss();
+
+/** What the run window asks of the Report design page: to open a design
+ *  the run made in the editor (Edit it), or Design with AI again for a job
+ *  (Try again). The page takes it when it shows, or at once if it is up. */
+export type DesignerAsk = { edit: string } | { again: DesignerJob };
+
+let ask: DesignerAsk | null = null;
+const askListeners = new Set<() => void>();
+
+/** Leaves an ask for the Report design page. */
+export function askDesignerPage(a: DesignerAsk): void {
+  ask = a;
+  askListeners.forEach((f) => f());
+}
+
+/** The ask left for the Report design page, taken: it is answered once. */
+export function takeDesignerAsk(): DesignerAsk | null {
+  const a = ask;
+  ask = null;
+  return a;
+}
+
+/** Re-reads the ask whenever one is left; the page takes it in an effect. */
+export function useDesignerAsk(): DesignerAsk | null {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const f = () => bump((n) => n + 1);
+    askListeners.add(f);
+    return () => {
+      askListeners.delete(f);
+    };
+  }, []);
+  return ask;
+}

@@ -9,18 +9,24 @@
 // Once a run on this computer is over, the window is what it made, before
 // anything is saved: only Add to my library puts it in the library
 // (DesignerAPI.SaveResult), under a free name, never the default, and
-// Dismiss forgets it. A run In Agentry saves what it made itself; the window
-// says so. Open Report design opens the library, where Use and Edit are.
+// Not now forgets it. A run In Agentry saves what it made itself; the window
+// shows that design read back from the library. Either way, once a design is
+// in the library the window offers Use it as my default and Edit it, which
+// opens it in the Report design page's editor; a run In Agentry that saved
+// nothing offers Try again, which opens Design with AI there again.
 import { useEffect, useState } from "react";
 import * as DesignerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/designerapi";
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { type DesignerJob, documentLine, hostedOutcome, lookedLine, savePrompt } from "../designer";
-import { cancelDesignerRun, designerSaved, dismissDesignerRun, showDesignerRun, stopDesignerRun, useDesignerRun } from "../designerRun";
+import {
+  type DesignerAsk, askDesignerPage, cancelDesignerRun, designerSaved, dismissDesignerRun, showDesignerRun, stopDesignerRun, useDesignerRun,
+} from "../designerRun";
 import type { Tone } from "../jobProgress";
 import { ProgressView } from "../progress";
+import { RevealText } from "../reveal";
 import { logLines } from "../runLog";
-import { ErrorBox, Notice } from "../ui";
+import { Button, ErrorBox, Notice } from "../ui";
 import { ResultCard } from "./DesignWithAI";
 import { RunWindow, useFollowed } from "./RunWindow";
 
@@ -38,17 +44,28 @@ export default function DesignerFlow({ onOpenDesigns, initialMinimized }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opts, setOpts] = useState<app.ReportDesignOptions | null>(null);
+  const [using, setUsing] = useState(false);
   const token = j?.result?.token ?? "";
+  // A run In Agentry that saved a design: its card is the library's own
+  // read of the id the run names.
+  const hostedSaved = j?.where === "agentry" && j.hosted?.final && j.hosted.applied ? j.hosted.designId ?? "" : "";
+  const registry = j?.meta.registry ?? "";
   useEffect(() => {
     setSaved(null);
     setError(null);
-  }, [token]);
-  // The page's likeness needs the families and cover styles; read once a
-  // result is there to draw.
+  }, [token, hostedSaved]);
   useEffect(() => {
-    if (!token || opts) return;
+    if (!hostedSaved) return;
+    let live = true;
+    SettingsAPI.OpenReportDesign(registry, hostedSaved).then((v) => { if (live) setSaved(v); }).catch((e) => { if (live) setError(String(e)); });
+    return () => { live = false; };
+  }, [registry, hostedSaved]);
+  // The page's likeness needs the families and cover styles; read once a
+  // design is there to draw.
+  useEffect(() => {
+    if ((!token && !hostedSaved) || opts) return;
     SettingsAPI.ReportDesignOptions().then(setOpts).catch(() => setOpts(null));
-  }, [token, opts]);
+  }, [token, hostedSaved, opts]);
   if (!s.shown || !j) return null;
 
   const here = j.where === "here";
@@ -88,11 +105,24 @@ export default function DesignerFlow({ onOpenDesigns, initialMinimized }: {
       .catch((e) => setError(String(e)))
       .finally(() => setSaving(false));
   };
-  const openDesigns = () => {
+  // Edit it opens the design in the library's editor; Try again opens
+  // Design with AI for the same job; both on the Report design page.
+  const toPage = (a: DesignerAsk) => {
     dismiss();
+    askDesignerPage(a);
     onOpenDesigns();
   };
+  const use = (id: string) => {
+    setUsing(true);
+    setError(null);
+    SettingsAPI.SetDefaultReportDesign(registry, id)
+      .then(() => { designerSaved(); dismiss(); })
+      .catch((e) => setError(String(e)))
+      .finally(() => setUsing(false));
+  };
   const made = (here && !!saved) || (!here && !!h?.applied);
+  const madeId = saved?.id ?? (h?.applied ? h.designId ?? "" : "");
+  const hostedFailed = !here && !running && !!h && !h.applied;
 
   return (
     <RunWindow
@@ -134,13 +164,25 @@ export default function DesignerFlow({ onOpenDesigns, initialMinimized }: {
         <DesignMade r={r} job={job} saved={saved} opts={opts} line={line} error={error} />
       ) : h?.applied ? (
         <>
-          <Notice tone="ok">{line} It is not your default: Use, on the Report design page, makes it so.</Notice>
-          {h.document && <p className="small" data-designer-document-line>It was built around your document {h.document}.</p>}
+          <Notice tone="ok">
+            <RevealText text={line} />{saved?.default ? " The registry made it your default." : " It is not your default: Use makes it so."}
+          </Notice>
+          {h.document && <p className="small" data-designer-document-line>It was built around your document <RevealText text={h.document} />.</p>}
+          {saved && opts && <ResultCard view={saved} opts={opts} />}
+          <ErrorBox error={error} />
+        </>
+      ) : hostedFailed ? (
+        <>
+          <Notice tone="warn"><RevealText text={line} /></Notice>
+          {h.pagesLine && <p className="muted small"><RevealText text={h.pagesLine} /></p>}
         </>
       ) : undefined}
-      primary={made
-        ? { label: "Open Report design", onClick: openDesigns }
+      actions={made && madeId ? <Button onClick={() => toPage({ edit: madeId })}>Edit it</Button> : undefined}
+      primary={made && madeId
+        ? { label: "Use it as my default", onClick: () => use(madeId), busy: using, busyLabel: "Using…", disabled: !!saved?.default }
+        : hostedFailed ? { label: "Try again", onClick: () => toPage({ again: job }) }
         : r ? { label: "Add to my library", onClick: save, busy: saving, busyLabel: "Adding…" } : null}
+      dismissLabel={r && !saved ? "Not now" : undefined}
     />
   );
 }
@@ -160,19 +202,24 @@ function DesignMade({ r, job, saved, opts, line, error }: {
   const view = saved ?? r.view;
   return (
     <>
-      {saved ? <Notice tone="ok">{line} It is not your default: Use, on the Report design page, makes it so.</Notice> : (
+      {saved ? <Notice tone="ok"><RevealText text={line} /> It is not your default: Use makes it so.</Notice> : (
         <p>
-          The Report Designer made “{r.name}”{r.previews > 0 ? `, after ${r.previews} ${r.previews === 1 ? "render" : "renders"} it looked at` : ""}.
+          The Report Designer made “<RevealText text={r.name} />”{r.previews > 0 ? `, after ${r.previews} ${r.previews === 1 ? "render" : "renders"} it looked at` : ""}.
         </p>
       )}
       {looked && <Notice tone="warn">{looked}</Notice>}
       {documentLine(r) && <p className="small" data-designer-document-line>{documentLine(r)}</p>}
       {r.job === "cover" && !r.thumbnail && <p className="muted small">Its last render was not of the cover it kept, so the design has no thumbnail of it.</p>}
       {view && opts && <ResultCard view={view} opts={opts} />}
-      <p className="muted small selectable">It is written to <span className="mono">{r.dir}</span>, with the run&apos;s reports and receipts beside it.</p>
+      <p className="muted small selectable">It is written to <span className="mono"><RevealText text={r.dir} /></span>, with the run&apos;s reports and receipts beside it.</p>
       {r.pages && r.pages.length > 0 && (
         <ul className="small">
-          {r.pages.map((p) => <li key={p.url}><span className="mono">{p.url}</span>: {p.withheld ? `withheld by AI Review (${p.withheld})` : p.rendered ? "read, rendered first" : "read"}</li>)}
+          {r.pages.map((p) => (
+            <li key={p.url}>
+              <span className="mono selectable"><RevealText text={p.url} /></span>:{" "}
+              {p.withheld ? <>withheld by AI Review (<RevealText text={p.withheld} />)</> : p.rendered ? "read, rendered first" : "read"}
+            </li>
+          ))}
         </ul>
       )}
       {!saved && <p className="small">{savePrompt(job)}</p>}

@@ -16,9 +16,8 @@
 // kept in Agentry and scanned there, then downloaded here. The step states
 // the hold, the scan's credit inside it, the caps and the balance before
 // anything is uploaded; the build is followed until it is over, and one
-// that stopped short offers Continue. Closing the dialog while it runs keeps
-// it in the corner card (below) until it is over; an app started while a
-// build In Agentry runs follows it again when Create knowledge opens.
+// that stopped short offers Continue. An app started while a build In
+// Agentry runs follows it again when Create knowledge opens.
 //
 // A build on this computer is long work: the review
 // step says so and how long it may run (at least 60 minutes, Go's
@@ -60,16 +59,15 @@
 // this computer, the Where step says why, and a pack made here from the
 // Cloud page is offered Copy to Cloud when it is done.
 //
-// A running build does not take over the app: App
-// mounts this flow above the pages, and closing the dialog while a build
-// runs, or Run in the background, shrinks it to a card in the bottom-right
-// corner. The card keeps the build's progress, opens the full view again,
-// stops the build (on this computer: KnowledgeAPI.StopBuild, after which
-// the pages written that pass the apply step are kept sealed, the seal
-// outliving the stop; In Agentry: the registry's cancel), and, once
-// the build is over, says how it ended and offers Preview (and Continue, for
-// a build In Agentry that stopped short). The run lock is unchanged: a run
-// started meanwhile is refused with the reason.
+// A running build does not take over the app: App mounts this flow above
+// the pages, and once the steps are done the build is followed in its run
+// window (RunWindow.tsx), as every job an agent runs is: its progress and Run
+// log, Run in the background to its corner card, Stop (on this computer:
+// KnowledgeAPI.StopBuild, after which the pages written that pass the apply
+// step are kept sealed, the seal outliving the stop) or Cancel the build (In
+// Agentry: the registry's cancel), and, once it is over, how it ended with
+// Preview (and Continue, for a build In Agentry that stopped short). The run
+// lock is unchanged: a run started meanwhile is refused with the reason.
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/knowledgeapi";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
@@ -77,7 +75,7 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../bindings/githu
 import { EventsOn } from "../host";
 import * as knowledge from "../../bindings/github.com/blaktron/agentry-desktop/internal/knowledge/models";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
+import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
 import { buildHoldLine, creatorUseLine } from "../usage";
 import { ProgressView } from "../progress";

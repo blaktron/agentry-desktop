@@ -14,7 +14,7 @@ import { PdfViewer } from "../PdfViewer";
 import * as DesignerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/designerapi";
 import { EventsOn } from "../host";
 import { DesignWithAI } from "./DesignWithAI";
-import { followDesignerHosted, showDesignerHosted, useDesignerRun } from "../designerRun";
+import { followDesignerHosted, showDesignerHosted, takeDesignerAsk, useDesignerAsk, useDesignerRun } from "../designerRun";
 import type { DesignerJob } from "../designer";
 
 // Settings → Report design: the account's library of report designs and the
@@ -103,6 +103,19 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
       if (!r.run.final) followDesignerHosted(hostedMeta(registry, r.run), r.run, true);
     }).catch(() => {});
   }, [registry, signedIn]);
+  // The run window's ask: Edit it opens a design the run made in the
+  // editor; Try again opens Design with AI for the same job.
+  const designerAsk = useDesignerAsk();
+  useEffect(() => {
+    // Only once the page draws the library: before then this render
+    // returned early, and the editor's open is not there to call.
+    if (!designerAsk || !signedIn || !opts || !lib?.available) return;
+    const a = takeDesignerAsk();
+    if (!a) return;
+    if ("edit" in a) void open(a.edit);
+    else setDesignAI({ job: a.again, from: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designerAsk, signedIn, opts, lib?.available]);
   // A Report Designer run that lands, or a design it made added from its
   // run window, changes the library.
   const designerLanded = useDesignerRun().landed;

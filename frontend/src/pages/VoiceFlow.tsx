@@ -106,7 +106,7 @@ function VoiceWritten({ r, line }: { r: voice.BuildResult; line: string }) {
   const skipped = r.skipped ?? [];
   return (
     <>
-      <h3 className="run-outcome run-outcome-ok">{line}</h3>
+      <h3 className="run-outcome run-outcome-ok"><RevealText text={line} /></h3>
       {r.created && <p>{VOICE_ON}</p>}
       {pages.length > 0 && (
         <ul className="small">

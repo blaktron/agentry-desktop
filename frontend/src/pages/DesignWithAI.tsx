@@ -20,7 +20,7 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { EventsOn } from "../host";
-import { Button, Card, ErrorBox, Modal, Notice, Select, Spinner, Textarea } from "../ui";
+import { Button, Card, ErrorBox, Modal, Notice, Select, Textarea } from "../ui";
 import { followDesignerHosted, startDesignerHere } from "../designerRun";
 import {
   addressLines, briefBytes, designerPriceLine, designerProblem, documentLine, firstWhere, hostedOutcome, lookedLine, maxImages, savePrompt, takesDocument,

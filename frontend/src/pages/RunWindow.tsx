@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Tone } from "../jobProgress";
 import { CornerCard, FoldedLog, StopButton } from "../progress";
+import { RevealText } from "../reveal";
 import { Button, ErrorBox, Modal, Spinner } from "../ui";
 
 /** The Run log's label, the same in every window. */
@@ -55,8 +56,6 @@ export type RunStop = {
   label: string;
   cardLabel?: string;
   stopping: boolean;
-  /** What the button says once it is asked for: "Stopping…" by default. */
-  stoppingLabel?: string;
   onStop: () => void;
 };
 
@@ -131,7 +130,6 @@ export function RunWindow(p: RunWindowProps) {
       stopping={stop.stopping}
       onStop={stop.onStop}
       label={card ? stop.cardLabel ?? stop.label : stop.label}
-      stoppingLabel={stop.stoppingLabel}
     />
   );
 
@@ -182,7 +180,7 @@ export function RunWindow(p: RunWindowProps) {
     <Modal title={p.title} onClose={p.closeOver === "dismiss" ? p.onDismiss : p.minimize} wide>
       {p.outcome ?? (
         <>
-          <h3 className={`run-outcome run-outcome-${p.tone || "bad"}`}>{p.line}</h3>
+          <h3 className={`run-outcome run-outcome-${p.tone || "bad"}`}><RevealText text={p.line ?? ""} /></h3>
           <ErrorBox error={p.error ?? null} />
         </>
       )}
