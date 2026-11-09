@@ -237,8 +237,9 @@ export enum ReasonCode {
     /**
      * ReasonDesktopRefused: an application on the person's computer the
      * release declares (capabilities.desktop) was not reached, before the
-     * sandbox or during the run. Names: the application servers' catalogue
-     * ids; Detail: why (Desktop*).
+     * sandbox or during the run. Names: the applications' ids (chosen for
+     * one the person chooses, computer for computer use); Detail: why
+     * (Desktop*).
      */
     ReasonDesktopRefused = "desktop-refused",
 };
