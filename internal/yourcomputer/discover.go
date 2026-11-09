@@ -22,7 +22,8 @@ type Probe struct {
 
 // Discover adds, once, each preset whose application and server are found
 // ready on this computer: the launcher resolves and the application is
-// installed, or its listener answers. Nothing it adds is approved. A preset
+// found where the preset says it is installed, or, for a preset that names
+// no such place on this system, its listener answers. Nothing it adds is approved. A preset
 // whose id the list has already is left alone. screeningOff names the
 // presets whose script screening the person had turned off before this
 // version, whose application gets the preset without that variable. It
@@ -65,10 +66,14 @@ func found(ctx context.Context, pre library.Preset, goos string, p Probe) bool {
 			return false
 		}
 	}
-	if pre.Listener.Port > 0 && p.Listening != nil && p.Listening(ctx, pre.Listener.Port) {
-		return true
+	// A port that answers says only that something listens there. It finds
+	// the application only when the preset names nowhere it is installed on
+	// this system; otherwise one of those places must hold it.
+	installed := pre.Installed[goos]
+	if len(installed) == 0 {
+		return pre.Listener.Port > 0 && p.Listening != nil && p.Listening(ctx, pre.Listener.Port)
 	}
-	for _, where := range pre.Installed[goos] {
+	for _, where := range installed {
 		switch {
 		case strings.HasPrefix(where, "flatpak:"):
 			if p.Flatpak != nil && p.Flatpak(strings.TrimPrefix(where, "flatpak:")) {

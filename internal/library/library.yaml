@@ -64,7 +64,7 @@
 # A preset's pin moves to the server's newest release by a change to this
 # file, which raises version.
 schema: 1
-version: 5
+version: 6
 presets:
   - id: blender
     application: Blender
@@ -254,8 +254,6 @@ presets:
     attachment: stdio
     launch:
       command: ["npx", "-y", "@coding-solo/godot-mcp@0.1.1"]
-      env:
-        GODOT_PATH: ""
     tools:
       - {name: launch_editor, class: act}
       - {name: run_project, class: exec}
@@ -274,7 +272,7 @@ presets:
     steps:
       - "Install Node.js, which runs the server: https://nodejs.org/"
       - "Install Godot 4 from https://godotengine.org/ if it is not installed."
-      - "If Godot is not in a standard location, enter the full path of its executable as GODOT_PATH with Edit on its card, once it is on your list."
+      - "If Godot is not in a standard location, add the variable GODOT_PATH, the full path of its executable, with Edit on its card once it is on your list."
       - "The server starts Godot itself; no add-on or listener is needed."
     windows:
       linux: ["Godot", "godot", "Godot_Engine", "org.godotengine.Godot"]
@@ -284,8 +282,6 @@ presets:
       linux: ["godot", "godot4", "flatpak:org.godotengine.Godot", "/snap/bin/godot"]
       darwin: ["/Applications/Godot.app"]
       windows: ["C:\\Program Files\\Godot", "C:\\Users\\Public\\Godot"]
-    envNotes:
-      GODOT_PATH: "Full path to the Godot executable, if the server cannot find it on its own."
   - id: cinema-4d
     application: "Cinema 4D"
     category: "3D and animation"
@@ -555,8 +551,6 @@ presets:
     attachment: stdio
     launch:
       command: ["uvx", "freecad-mcp==0.1.30"]
-      env:
-        FREECAD_MCP_TOKEN: ""
     listener:
       port: 9875
     tools:
@@ -580,7 +574,7 @@ presets:
     steps:
       - "Install uv, which runs the server: https://docs.astral.sh/uv/"
       - "Download the FreeCADMCP add-on from https://github.com/neka-nat/freecad-mcp (the addon/FreeCADMCP folder) and copy it into FreeCAD's add-on folder, then restart FreeCAD."
-      - "In FreeCAD, choose the MCP Addon workbench and click Start RPC Server in the FreeCAD MCP toolbar. It listens on port 9875."
+      - "In FreeCAD, choose the MCP Addon workbench and click Start RPC Server in the FreeCAD MCP toolbar. It listens on port 9875. If the add-on asks for an access token, add it as the variable FREECAD_MCP_TOKEN with Edit on its card."
     windows:
       linux: ["FreeCAD", "freecad", "org.freecad.FreeCAD"]
       darwin: ["org.freecad.FreeCAD", "FreeCAD"]
@@ -589,8 +583,6 @@ presets:
       linux: ["freecad", "FreeCAD", "flatpak:org.freecad.FreeCAD", "/snap/bin/freecad"]
       darwin: ["/Applications/FreeCAD.app"]
       windows: ["C:\\Program Files\\FreeCAD 1.0"]
-    envNotes:
-      FREECAD_MCP_TOKEN: "The access token the FreeCAD add-on requires, if it asks for one; leave empty otherwise."
   - id: fusion-360
     application: "Autodesk Fusion"
     category: "CAD and engineering"
@@ -819,8 +811,6 @@ presets:
     attachment: stdio
     launch:
       command: ["uvx", "openscad-mcp==0.6.1"]
-      env:
-        OPENSCAD_PATH: ""
     tools:
       - {name: check_openscad, class: read}
       - {name: export_model, class: act}
@@ -837,7 +827,7 @@ presets:
     steps:
       - "Install uv, which runs the server: https://docs.astral.sh/uv/"
       - "Install OpenSCAD from https://openscad.org/downloads.html."
-      - "If OpenSCAD is not on your PATH, enter the full path of its program as OPENSCAD_PATH with Edit on its card, once it is on your list."
+      - "If OpenSCAD is not on your PATH, add the variable OPENSCAD_PATH, the full path of its program, with Edit on its card once it is on your list."
     windows:
       linux: ["openscad", "OpenSCAD", "org.openscad.OpenSCAD"]
       darwin: ["org.openscad.OpenSCAD", "OpenSCAD"]
@@ -846,8 +836,6 @@ presets:
       linux: ["openscad", "flatpak:org.openscad.OpenSCAD", "/snap/bin/openscad"]
       darwin: ["/Applications/OpenSCAD.app"]
       windows: ["C:\\Program Files\\OpenSCAD"]
-    envNotes:
-      OPENSCAD_PATH: "Full path to the OpenSCAD program, if the server cannot find it on its own."
   - id: qgis
     application: "QGIS"
     category: "Maps and GIS"
@@ -1496,9 +1484,6 @@ presets:
     attachment: stdio
     launch:
       command: ["npx", "-y", "adobe-mcp-indesign@2.5.0"]
-      env:
-        INDESIGN_APP_NAME: ""
-        INDESIGN_ALLOWED_DIRS: ""
     tools:
       - {name: add_page, class: act}
       - {name: delete_page, class: act}
@@ -1927,16 +1912,13 @@ presets:
       - "Install Node.js, which runs the server: https://nodejs.org/"
       - "Install InDesign 2023 or later and open it."
       - "On macOS, allow your terminal or MCP client to control InDesign when macOS asks (System Settings, Privacy and Security, Automation)."
-      - "Put the folders agents may write to in INDESIGN_ALLOWED_DIRS."
+      - "To let agents read and write other folders, add the variable INDESIGN_ALLOWED_DIRS with Edit on its card once it is on your list: the folders, separated by : on macOS and ; on Windows. On macOS with more than one InDesign installed, add INDESIGN_APP_NAME, the exact app name (for example Adobe InDesign 2026), to pick one; otherwise the newest is used."
     windows:
       darwin: ["com.adobe.InDesign", "Adobe InDesign 2026", "Adobe InDesign 2025"]
       windows: ["InDesign.exe"]
     installed:
       darwin: ["/Applications/Adobe InDesign 2026/Adobe InDesign 2026.app", "/Applications/Adobe InDesign 2025/Adobe InDesign 2025.app"]
       windows: ["C:\\Program Files\\Adobe\\Adobe InDesign 2026\\InDesign.exe", "C:\\Program Files\\Adobe\\Adobe InDesign 2025\\InDesign.exe"]
-    envNotes:
-      INDESIGN_APP_NAME: "macOS only: the exact InDesign app name, for example Adobe InDesign 2026. Leave empty to detect the newest."
-      INDESIGN_ALLOWED_DIRS: "Extra folders the server may read and write, separated by : on macOS and ; on Windows."
   - id: premiere-pro
     application: "Adobe Premiere Pro"
     category: "Video"
@@ -1950,8 +1932,6 @@ presets:
     attachment: stdio
     launch:
       command: ["npx", "-y", "premiere-pro-mcp@1.30.0"]
-      env:
-        PREMIERE_UXP_TOKEN: ""
     tools:
       - {name: verify_premiere_connection, class: read}
       - {name: get_capabilities, class: read}
@@ -1970,7 +1950,7 @@ presets:
       - {name: evaluate_expression, class: exec}
     steps:
       - "Install Node.js, which runs the server: https://nodejs.org/"
-      - "For Premiere 25.6 or later, install the UXP connector (.ccx) from the project's release page, choose a PREMIERE_UXP_TOKEN, and enter the same value in the connector panel."
+      - "For Premiere 25.6 or later, install the UXP connector (.ccx) from the project's release page, choose a secret of at least 16 characters, enter it in the connector panel, and add it as the variable PREMIERE_UXP_TOKEN with Edit on its card once it is on your list."
       - "For older versions, or tools the UXP connector lacks, run npx -y premiere-pro-mcp@1.30.0 --install-cep once to install the CEP panel, then restart Premiere Pro."
       - "Open a project in Premiere Pro, open the MCP for Adobe Premiere Pro panel (Window menu), and ask an agent to run verify_premiere_connection."
     windows:
@@ -1979,8 +1959,6 @@ presets:
     installed:
       darwin: ["/Applications/Adobe Premiere Pro 2026/Adobe Premiere Pro 2026.app", "/Applications/Adobe Premiere Pro 2025/Adobe Premiere Pro 2025.app"]
       windows: ["C:\\Program Files\\Adobe\\Adobe Premiere Pro 2026\\Adobe Premiere Pro.exe", "C:\\Program Files\\Adobe\\Adobe Premiere Pro 2025\\Adobe Premiere Pro.exe"]
-    envNotes:
-      PREMIERE_UXP_TOKEN: "A secret of at least 16 characters you also enter in the UXP panel; only needed for Premiere 25.6 and later with the UXP connector."
   - id: after-effects
     application: "Adobe After Effects"
     category: "Video"
@@ -2394,7 +2372,6 @@ presets:
       command: ["npx", "-y", "@firfi/obs-mcp@0.3.3"]
       env:
         OBS_WEBSOCKET_URL: "ws://127.0.0.1:4455"
-        OBS_WEBSOCKET_PASSWORD: ""
     listener:
       port: 4455
     tools:
@@ -2452,7 +2429,7 @@ presets:
     steps:
       - "Install Node.js, which runs the server: https://nodejs.org/"
       - "In OBS Studio open Tools, WebSocket Server Settings and turn on Enable WebSocket server. It listens on port 4455 by default."
-      - "If you turn on authentication, copy the password into OBS_WEBSOCKET_PASSWORD with Edit on its card, once it is on your list."
+      - "If you turn on authentication, add the variable OBS_WEBSOCKET_PASSWORD, the password OBS shows there, with Edit on its card once it is on your list."
     windows:
       linux: ["obs", "com.obsproject.Studio"]
       darwin: ["com.obsproject.obs-studio", "OBS"]
@@ -2463,7 +2440,6 @@ presets:
       windows: ["C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"]
     envNotes:
       OBS_WEBSOCKET_URL: "Address of OBS's WebSocket server; the default is ws://127.0.0.1:4455."
-      OBS_WEBSOCKET_PASSWORD: "The password shown in OBS under Tools, WebSocket Server Settings; leave empty if authentication is off."
   - id: ableton-live
     application: "Ableton Live"
     category: "Music and audio"
@@ -4542,7 +4518,7 @@ presets:
       darwin: ["com.docker.docker", "Docker Desktop"]
       windows: ["Docker Desktop.exe"]
     installed:
-      linux: ["docker", "/opt/docker-desktop/bin/docker-desktop"]
+      linux: ["/opt/docker-desktop/bin/docker-desktop"]
       darwin: ["/Applications/Docker.app"]
       windows: ["C:\\Program Files\\Docker\\Docker"]
   - id: burp-suite
