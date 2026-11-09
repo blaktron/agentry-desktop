@@ -6,10 +6,13 @@ package app
 // organization default or nothing.
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/blaktron/agentry-cli/pkg/managed"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
@@ -114,3 +117,35 @@ func (s *SettingsAPI) UseManagedMalwareCheck() (*RunDefaultsView, error) {
 // rowMalwareCheck is the catalogue's id for the malware check, read as a
 // string so the app builds against a core that predates it.
 const rowMalwareCheck = "malwareCheck"
+
+// refuseManagedWhere is a setter's refusal of a default place to run that a
+// held document's run.where leaves out, in the runner's words, or nil.
+func refuseManagedWhere(member string) error {
+	if reason := managedCalls.current().WhereRefusal(member); reason != "" {
+		return errors.New(reason)
+	}
+	return nil
+}
+
+// refuseManagedBudgets is the refusal of default budgets above a held
+// document's locked cap, or none where it sets one, or nil. A budget of 0
+// is none.
+func refuseManagedBudgets(timeoutSeconds, maxTurns int) error {
+	held := managedCalls.current().Budgets(spec.Budgets{TimeoutSeconds: timeoutSeconds, MaxTurns: maxTurns})
+	if held.TimeoutSeconds != timeoutSeconds {
+		org, _ := managedLockOf(managedsettings.RunTimeout)
+		return fmt.Errorf("the timeout is capped at %d seconds by %s's managed settings (%s)", held.TimeoutSeconds, org, managedsettings.RunTimeout)
+	}
+	if held.MaxTurns != maxTurns {
+		org, _ := managedLockOf(managedsettings.RunMaxTurns)
+		return fmt.Errorf("the turns are capped at %d by %s's managed settings (%s)", held.MaxTurns, org, managedsettings.RunMaxTurns)
+	}
+	return nil
+}
+
+// The app holds the rows the runner leaves to a client: runs In Agentry and
+// hosted schedules ask internal/hostedrun, which refuses what run.where and
+// schedules lock off before anything is sent, and Report a bug refuses
+// what bugReports forbids. So a lock on either applies here, and is not a
+// row this version cannot hold.
+func init() { managed.Enforce(managed.ClientRows...) }

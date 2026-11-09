@@ -528,6 +528,9 @@ func (c *Client) Status(ctx context.Context) (*Status, error) {
 // credits-exhausted, 409 run-active, 409 secrets-declared, …) comes back
 // as a *Refusal.
 func (c *Client) Create(ctx context.Context, cr CreateRequest) (*Run, error) {
+	if err := managedRefusal("start the run", false); err != nil {
+		return nil, err
+	}
 	body, err := json.Marshal(cr)
 	if err != nil {
 		return nil, err

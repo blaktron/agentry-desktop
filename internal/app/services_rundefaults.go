@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -72,6 +73,9 @@ func (s *SettingsAPI) RunDefaults() (*RunDefaultsView, error) { return runDefaul
 // SetRunBudgets writes the default timeout and max turns into the runner
 // policy (run.SetBudgets), refused where the CLI would refuse them.
 func (s *SettingsAPI) SetRunBudgets(timeoutSeconds, maxTurns int) (*RunDefaultsView, error) {
+	if err := refuseManagedBudgets(timeoutSeconds, maxTurns); err != nil {
+		return nil, err
+	}
 	if err := run.SetBudgets(timeoutSeconds, maxTurns); err != nil {
 		return nil, err
 	}
@@ -95,6 +99,13 @@ func (s *SettingsAPI) SetMalwareCheck(on bool) (*RunDefaultsView, error) {
 func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 	if where != settings.RunWhereHere && where != settings.RunWhereAgentry {
 		return nil, fmt.Errorf("where to run is %q or %q, not %q; a runhost is made the default in Settings → Runs → Runhosts", settings.RunWhereHere, settings.RunWhereAgentry, where)
+	}
+	member := managedsettings.WhereLocal
+	if where == settings.RunWhereAgentry {
+		member = managedsettings.WhereHosted
+	}
+	if err := refuseManagedWhere(member); err != nil {
+		return nil, err
 	}
 	if err := setRunWhere(where); err != nil {
 		return nil, err
@@ -247,6 +258,11 @@ func runDefaultsView() (*RunDefaultsView, error) {
 // its files out and the Home card says so; a run's own folder is unchanged
 // either way. It applies from the next run.
 func (s *SettingsAPI) SetDeliverables(on bool) (*RunDefaultsView, error) {
+	if on {
+		if reason := managedCalls.current().DestinationRefusal(managedsettings.DestinationFolder); reason != "" {
+			return nil, errors.New(reason)
+		}
+	}
 	st, err := settings.Load()
 	if err != nil {
 		return nil, err

@@ -19,6 +19,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 )
 
 // The registry's bounds on a report's text, counted as it counts them:
@@ -53,6 +54,11 @@ func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 		// Named by origin only: the address may carry a credential someone
 		// typed into it.
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
+	}
+	// An organization that forbids bug reports is answered here, and
+	// nothing is sent.
+	if reason := managedCalls.current().Forbidden(managedsettings.BugReports); reason != "" {
+		return &BugReportResult{Reason: "refused", Message: reason}, nil
 	}
 	body := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"))
 	if n := utf8.RuneCountInString(body); n < bugReportMin || n > bugReportMax {

@@ -28,6 +28,7 @@ import (
 	rhsetup "github.com/blaktron/agentry-cli/pkg/runhost/setup"
 	"github.com/blaktron/agentry-cli/pkg/runhost/signin"
 	"github.com/blaktron/agentry-cli/pkg/runner/targethost"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/selfupdate"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -628,6 +629,9 @@ func (r *RunhostsAPI) SetDefault(name string) error {
 	}
 	if _, ok := recs.Find(name); !ok {
 		return fmt.Errorf("no runhost is named %q on this computer", name)
+	}
+	if err := refuseManagedWhere(managedsettings.WhereRunhost); err != nil {
+		return err
 	}
 	return setRunWhere(settings.RunWhereRunhostPrefix + name)
 }
