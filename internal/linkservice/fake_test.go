@@ -11,9 +11,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blaktron/agentry/pkg/appserver"
-
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
+
+	"github.com/blaktron/agentry-desktop/internal/library"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // The stand-in installed server: this test binary, started with
@@ -197,11 +198,13 @@ func (f *fakeSession) isClosed() bool {
 	return f.closed
 }
 
-// rig is a link service over the built-in catalogue with Blender ready on
-// this computer: its launcher found, its listener answering, and a fake
-// session for every launch, the launches recorded.
+// rig is a link service over a list holding Blender from the library,
+// approved for its MCP server and its windows, and ready on this computer:
+// its launcher found, its listener answering, and a fake session for every
+// launch, the launches recorded.
 type rig struct {
 	s        *Service
+	list     *yourcomputer.Store
 	sess     *fakeSession
 	launches []LaunchSpec
 	asked    []ExecQuestion
@@ -212,9 +215,11 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	r := &rig{sess: &fakeSession{tools: standInTools}, answer: ExecDecline}
+	r.list = approvedList(t, blenderApp(t))
 	r.s = New(Options{
-		LookPath:  func(string) (string, error) { return "/usr/bin/uvx", nil },
-		Listening: func(context.Context, int) error { return nil },
+		Applications: r.list,
+		LookPath:     func(string) (string, error) { return "/usr/bin/uvx", nil },
+		Listening:    func(context.Context, int) error { return nil },
 		Launch: func(_ context.Context, spec LaunchSpec) (Session, error) {
 			r.mu.Lock()
 			r.launches = append(r.launches, spec)
@@ -244,12 +249,44 @@ func (r *rig) questions() []ExecQuestion {
 	return append([]ExecQuestion(nil), r.asked...)
 }
 
-// blender is the built-in catalogue's Blender entry.
-func blender(t *testing.T) appserver.Server {
+// blender is the built-in library's Blender preset.
+func blender(t *testing.T) library.Preset {
 	t.Helper()
-	e, ok := appserver.Builtin().Lookup("blender")
+	e, ok := library.Builtin().Lookup("blender")
 	if !ok {
-		t.Fatal("the built-in catalogue has no blender entry")
+		t.Fatal("the built-in library has no blender preset")
 	}
 	return e
+}
+
+// blenderApp is Blender set up from the library on Linux, approved for its
+// server and its windows.
+func blenderApp(t *testing.T) yourcomputer.Application {
+	t.Helper()
+	a := yourcomputer.FromPreset(blender(t), library.Builtin().Version(), "linux")
+	a.Approve = yourcomputer.Approval{MCP: true, Computer: true}
+	return a
+}
+
+// approvedList is a list in a temporary folder holding apps with their
+// approvals as given.
+func approvedList(t *testing.T, apps ...yourcomputer.Application) *yourcomputer.Store {
+	t.Helper()
+	st := yourcomputer.InDir(t.TempDir())
+	if _, err := st.Update(func(d *yourcomputer.Doc) error {
+		d.Discovered = true
+		for _, a := range apps {
+			approve := a.Approve
+			if err := d.Add(a); err != nil {
+				return err
+			}
+			if err := d.Change(a.ID, func(x *yourcomputer.Application) error { x.Approve = approve; return nil }); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return st
 }

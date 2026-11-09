@@ -13,6 +13,8 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // bindBlender binds run R to Blender with the tools given.
@@ -138,7 +140,7 @@ func TestExecClassCallsAskFirst(t *testing.T) {
 		t.Fatalf("the server ran %d calls, want 7", n)
 	}
 	// With no one to ask, an exec call is declined, never run.
-	none := New(Options{LookPath: r.s.opt.LookPath, Listening: r.s.opt.Listening, Launch: r.s.opt.Launch, GOOS: "linux"})
+	none := New(Options{Applications: r.list, LookPath: r.s.opt.LookPath, Listening: r.s.opt.Listening, Launch: r.s.opt.Launch, GOOS: "linux"})
 	nb, nref := none.Bind(context.Background(), desktop.BindRequest{Run: "R", Servers: []desktop.BindServer{{ID: "blender", Tools: []string{"execute_blender_code"}}}})
 	if nref != nil {
 		t.Fatal(nref)
@@ -211,12 +213,12 @@ func TestStopRefusesEveryLaterCall(t *testing.T) {
 	}
 }
 
-// What runs on the person's computer is the catalogue entry's launch line
-// and its variables, whatever the bind or a call says: the bind names a
-// catalogue id and tools, a call names a tool and arguments, and none of it
-// reaches the launch. The person's script-screening switch drops the entry's own
-// screening variable and changes nothing else.
-func TestAnInstalledServerIsLaunchedFromTheCatalogueAlone(t *testing.T) {
+// What runs on the person's computer is the launch line and variables of
+// the person's own application, whatever the bind or a call says: the bind
+// names an application id and tools, a call names a tool and arguments, and
+// none of it reaches the launch. A variable the person took off the
+// application's server is not set.
+func TestAnInstalledServerIsLaunchedFromThePersonsApplicationAlone(t *testing.T) {
 	r := newRig(t)
 	e := blender(t)
 	b, ref := r.s.Bind(context.Background(), desktop.BindRequest{
@@ -235,42 +237,42 @@ func TestAnInstalledServerIsLaunchedFromTheCatalogueAlone(t *testing.T) {
 	}
 	got := r.launches[0]
 	if !slices.Equal(got.Command, e.Launch.Command) {
-		t.Fatalf("the launch ran %q, the catalogue's is %q", got.Command, e.Launch.Command)
+		t.Fatalf("the launch ran %q, the application's is %q", got.Command, e.Launch.Command)
 	}
-	if len(got.Env) != len(e.Launch.Env) {
-		t.Fatalf("the launch's variables %v, the catalogue's %v", got.Env, e.Launch.Env)
+	if len(got.Env) != len(e.Launch.Env) || got.Env["DISABLE_TELEMETRY"] != "true" || got.Env["BLENDER_MCP_SAFE_MODE"] != "1" {
+		t.Fatalf("the launch's variables %v, the application's %v", got.Env, e.Launch.Env)
 	}
-	for k, v := range e.Launch.Env {
-		if got.Env[k] != v {
-			t.Fatalf("the launch's %s = %q, the catalogue's %q", k, got.Env[k], v)
-		}
-	}
-	if got.Env["DISABLE_TELEMETRY"] != "true" || got.Env["BLENDER_MCP_SAFE_MODE"] != "1" {
-		t.Fatalf("the launch's variables: %v", got.Env)
-	}
-	// A bind naming an id the catalogue does not have launches nothing.
+	// A bind naming an id the list does not have launches nothing.
 	if _, ref := r.s.Bind(context.Background(), desktop.BindRequest{Run: "S", Servers: []desktop.BindServer{{ID: "sh", Tools: []string{"sh"}}}}); ref == nil {
 		t.Fatal("a bind of an unknown id was taken")
 	}
 	if len(r.launches) != 1 {
 		t.Fatalf("an unknown id launched: %+v", r.launches)
 	}
-	// Script screening off: the one variable goes.
-	lifted := New(Options{LookPath: r.s.opt.LookPath, Listening: r.s.opt.Listening, Launch: r.s.opt.Launch, GOOS: "linux", ScreeningOff: func(id string) bool { return id == "blender" }})
-	if _, ref := lifted.Bind(context.Background(), desktop.BindRequest{Run: "T", Servers: []desktop.BindServer{{ID: "blender", Tools: []string{"look"}}}}); ref != nil {
+	// The person takes the screening variable off: it goes, nothing else.
+	if _, err := r.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change("blender", func(a *yourcomputer.Application) error {
+			srv := *a.Server
+			srv.Env = map[string]string{"DISABLE_TELEMETRY": "true"}
+			a.SetServer(&srv)
+			return nil
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ref := r.s.Bind(context.Background(), desktop.BindRequest{Run: "T", Servers: []desktop.BindServer{{ID: "blender", Tools: []string{"look"}}}}); ref != nil {
 		t.Fatal(ref)
 	}
 	last := r.launches[len(r.launches)-1]
 	if _, on := last.Env["BLENDER_MCP_SAFE_MODE"]; on || last.Env["DISABLE_TELEMETRY"] != "true" || !slices.Equal(last.Command, e.Launch.Command) {
-		t.Fatalf("with script screening off the launch is %+v", last)
+		t.Fatalf("with the variable taken off the launch is %+v", last)
 	}
 }
 
 // The pre-start check refuses a bind with the step the person must take:
-// the launcher missing, the application's listener silent, a server that
-// lists a tool the catalogue does not know, a tool the catalogue does not
-// give, a system the catalogue does not offer the entry on; and a refused
-// bind leaves no server running.
+// the launcher missing, the application's listener silent, a narrowed tool
+// the server does not list, a narrowing of only withheld tools; and a
+// refused bind leaves no server running.
 func TestABindIsRefusedWithTheStepToTake(t *testing.T) {
 	for name, tc := range map[string]struct {
 		opt   func(*Options, *fakeSession)
@@ -283,9 +285,8 @@ func TestABindIsRefusedWithTheStepToTake(t *testing.T) {
 		"Blender closed": {func(o *Options, _ *fakeSession) {
 			o.Listening = func(context.Context, int) error { return errors.New("refused") }
 		}, []string{"look"}, "does not answer on port 9876"},
-		"another server":                     {func(_ *Options, f *fakeSession) { f.tools = append(f.tools, "run_shell") }, []string{"look"}, "not the server Agentry pinned"},
-		"a tool the catalogue does not give": {func(*Options, *fakeSession) {}, []string{"disable_telemetry"}, "gives Blender no tool"},
-		"another system":                     {func(o *Options, _ *fakeSession) { o.GOOS = "plan9" }, []string{"look"}, "not on this computer's system"},
+		"a tool the server does not list": {func(*Options, *fakeSession) {}, []string{"run_shell"}, "the tool run_shell of Blender, which its MCP server on this computer does not list"},
+		"only withheld tools":             {func(*Options, *fakeSession) {}, []string{"disable_telemetry"}, "given no tool of Blender"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t)

@@ -100,7 +100,7 @@ func TestLiveDesktopLink(t *testing.T) {
 	y := newYourComputerAPI(app, r)
 	installs := &InstallAPI{app: app, engine: install.NewEngine()}
 
-	// Plugins → Computer use, as the page reads it.
+	// Plugins → Your computer, as the page reads it.
 	view := y.State()
 	for _, a := range view.Applications {
 		t.Logf("Your computer: %s ready=%v launch=%q listening=%v: %s", a.Application, a.Ready, a.Launch, a.Listening, a.Missing)

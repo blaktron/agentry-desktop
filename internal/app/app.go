@@ -31,6 +31,9 @@ type App struct {
 	// chooseExec is an exec call's dialog; nil is the native one, and a test
 	// substitutes its own.
 	chooseExec func(ctx context.Context, q linkservice.ExecQuestion) (linkservice.ExecAnswer, error)
+	// chooseApp asks which of the person's applications a release's entry
+	// is; nil is the native dialog, and a test substitutes its own.
+	chooseApp func(ctx context.Context, q linkservice.ChooseQuestion) (string, error)
 	// pickDirectory is the native directory picker ("" when cancelled);
 	// a test substitutes one, the way it does for confirm.
 	pickDirectory func(ctx context.Context, title string) (string, error)

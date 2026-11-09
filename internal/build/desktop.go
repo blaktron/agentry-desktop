@@ -1,13 +1,14 @@
 package build
 
 import (
-	"github.com/blaktron/agentry/pkg/appserver"
 	"github.com/blaktron/agentry/pkg/manifest"
+
+	"github.com/blaktron/agentry-desktop/internal/library"
 )
 
-// DesktopApp is one entry of the catalogue of application servers as the
-// form offers it: the id a release names, the application, the systems it
-// is offered on, and the tools a run may be given with their classes.
+// DesktopApp is one preset of Agentry Desktop's library as the form offers
+// it: the id a release names, the application, the systems it is offered
+// on, and the tools the library classes.
 type DesktopApp struct {
 	ID          string           `json:"id"`
 	Application string           `json:"application"`
@@ -15,19 +16,19 @@ type DesktopApp struct {
 	Tools       []DesktopAppTool `json:"tools"`
 }
 
-// DesktopAppTool is one tool of an application server: read, act or exec
-// (code the application runs, which the person is asked about before each
-// call), and whether it reaches the entry's hosts.
+// DesktopAppTool is one tool of a preset's server: read, act or exec (code
+// the application runs, which the person is asked about before each call),
+// and whether it reaches the preset's hosts.
 type DesktopAppTool struct {
 	Name   string `json:"name"`
 	Class  string `json:"class"`
 	Egress bool   `json:"egress,omitempty"`
 }
 
-// DesktopApps is the catalogue of application servers built into this app,
-// in its order. A withheld tool is never offered.
+// DesktopApps are the library's presets built into this app, in its order.
+// A withheld tool is never offered.
 func DesktopApps() []DesktopApp {
-	all := appserver.Builtin().All()
+	all := library.Builtin().All()
 	out := make([]DesktopApp, 0, len(all))
 	for _, e := range all {
 		app := DesktopApp{ID: e.ID, Application: e.Application, Platforms: append([]string{}, e.Platforms...), Tools: []DesktopAppTool{}}

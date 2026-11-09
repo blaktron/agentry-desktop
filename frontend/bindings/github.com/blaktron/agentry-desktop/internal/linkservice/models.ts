@@ -6,29 +6,50 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
- * AppState is one application server's state on this computer.
+ * AppState is one of the person's applications and its state on this
+ * computer.
  */
 export class AppState {
     "id": string;
+
+    /**
+     * Application is its name.
+     */
     "application": string;
 
     /**
-     * Offered says the catalogue offers the entry on this computer's
-     * system.
+     * From is where its set-up came from (library, library-edited or
+     * person), FromWords as the card says it, and Preset the library
+     * preset it was set up from.
      */
-    "offered": boolean;
+    "from": string;
+    "fromWords": string;
+    "preset"?: string;
 
     /**
-     * Package is the pinned installed server, "pypi:mcp-for-blender@2.2.7".
+     * MCP and Computer are what the person approved: its MCP server, its
+     * windows.
      */
-    "package": string;
-    "source"?: string;
+    "mcp": boolean;
+    "computer": boolean;
+
+    /**
+     * HasServer says it has an MCP server set up, and Windows are the
+     * identifiers its windows carry here.
+     */
+    "hasServer": boolean;
+    "windows": string[];
+
+    /**
+     * Package is a preset's pinned server, "pypi:mcp-for-blender@2.2.7".
+     */
+    "package"?: string;
 
     /**
      * Attachment is stdio (Agentry Desktop starts the server) or
      * loopback-http (the application serves it).
      */
-    "attachment": string;
+    "attachment"?: string;
 
     /**
      * Launch is the command line Agentry Desktop runs, with its variables;
@@ -36,6 +57,12 @@ export class AppState {
      */
     "launch"?: string;
     "endpoint"?: string;
+
+    /**
+     * Env are the server's variables, each with what it does where the
+     * library says.
+     */
+    "env": EnvState[];
 
     /**
      * Launcher is the program the launch starts, and LauncherFound whether
@@ -52,31 +79,24 @@ export class AppState {
     "listening": boolean;
 
     /**
-     * ScreeningVariable is the variable that turns the server's own script
-     * screening on ("" for none), and ScreeningOff whether the person
-     * turned it off.
-     */
-    "screeningVariable"?: string;
-    "screeningOff": boolean;
-
-    /**
-     * Tools are the catalogue's tools with their classes.
+     * Tools are its tools as the person or the preset classed them.
      */
     "tools": ToolState[];
 
     /**
-     * Egress are the hosts the server is known to reach from this computer.
+     * Egress are the hosts a preset's server is known to reach from this
+     * computer.
      */
     "egress": string[];
 
     /**
-     * Steps are what the person does once.
+     * Steps are what the person does once, from the preset.
      */
     "steps": string[];
 
     /**
-     * Ready says a run can bind it now; Missing is the step to take when it
-     * cannot.
+     * Ready says a run can bind its server now; Missing is the step to
+     * take when it cannot.
      */
     "ready": boolean;
     "missing"?: string;
@@ -89,14 +109,26 @@ export class AppState {
         if (!("application" in $$source)) {
             this["application"] = "";
         }
-        if (!("offered" in $$source)) {
-            this["offered"] = false;
+        if (!("from" in $$source)) {
+            this["from"] = "";
         }
-        if (!("package" in $$source)) {
-            this["package"] = "";
+        if (!("fromWords" in $$source)) {
+            this["fromWords"] = "";
         }
-        if (!("attachment" in $$source)) {
-            this["attachment"] = "";
+        if (!("mcp" in $$source)) {
+            this["mcp"] = false;
+        }
+        if (!("computer" in $$source)) {
+            this["computer"] = false;
+        }
+        if (!("hasServer" in $$source)) {
+            this["hasServer"] = false;
+        }
+        if (!("windows" in $$source)) {
+            this["windows"] = [];
+        }
+        if (!("env" in $$source)) {
+            this["env"] = [];
         }
         if (!("launcherFound" in $$source)) {
             this["launcherFound"] = false;
@@ -106,9 +138,6 @@ export class AppState {
         }
         if (!("listening" in $$source)) {
             this["listening"] = false;
-        }
-        if (!("screeningOff" in $$source)) {
-            this["screeningOff"] = false;
         }
         if (!("tools" in $$source)) {
             this["tools"] = [];
@@ -130,18 +159,26 @@ export class AppState {
      * Creates a new AppState instance from a string or object.
      */
     static createFrom($$source: any = {}): AppState {
-        const $$createField14_0 = $$createType1;
-        const $$createField15_0 = $$createType2;
-        const $$createField16_0 = $$createType2;
+        const $$createField8_0 = $$createType0;
+        const $$createField13_0 = $$createType2;
+        const $$createField18_0 = $$createType4;
+        const $$createField19_0 = $$createType0;
+        const $$createField20_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("windows" in $$parsedSource) {
+            $$parsedSource["windows"] = $$createField8_0($$parsedSource["windows"]);
+        }
+        if ("env" in $$parsedSource) {
+            $$parsedSource["env"] = $$createField13_0($$parsedSource["env"]);
+        }
         if ("tools" in $$parsedSource) {
-            $$parsedSource["tools"] = $$createField14_0($$parsedSource["tools"]);
+            $$parsedSource["tools"] = $$createField18_0($$parsedSource["tools"]);
         }
         if ("egress" in $$parsedSource) {
-            $$parsedSource["egress"] = $$createField15_0($$parsedSource["egress"]);
+            $$parsedSource["egress"] = $$createField19_0($$parsedSource["egress"]);
         }
         if ("steps" in $$parsedSource) {
-            $$parsedSource["steps"] = $$createField16_0($$parsedSource["steps"]);
+            $$parsedSource["steps"] = $$createField20_0($$parsedSource["steps"]);
         }
         return new AppState($$parsedSource as Partial<AppState>);
     }
@@ -190,8 +227,8 @@ export class Bound {
      * Creates a new Bound instance from a string or object.
      */
     static createFrom($$source: any = {}): Bound {
-        const $$createField3_0 = $$createType2;
-        const $$createField7_0 = $$createType2;
+        const $$createField3_0 = $$createType0;
+        const $$createField7_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("applications" in $$parsedSource) {
             $$parsedSource["applications"] = $$createField3_0($$parsedSource["applications"]);
@@ -200,6 +237,63 @@ export class Bound {
             $$parsedSource["computerApps"] = $$createField7_0($$parsedSource["computerApps"]);
         }
         return new Bound($$parsedSource as Partial<Bound>);
+    }
+}
+
+/**
+ * Candidate is one of the person's applications a choice may name.
+ */
+export class Candidate {
+    "id": string;
+    "name": string;
+
+    /** Creates a new Candidate instance. */
+    constructor($$source: Partial<Candidate> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Candidate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Candidate {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Candidate($$parsedSource as Partial<Candidate>);
+    }
+}
+
+/**
+ * EnvState is one of a server's variables.
+ */
+export class EnvState {
+    "name": string;
+    "value": string;
+    "note"?: string;
+
+    /** Creates a new EnvState instance. */
+    constructor($$source: Partial<EnvState> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("value" in $$source)) {
+            this["value"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new EnvState instance from a string or object.
+     */
+    static createFrom($$source: any = {}): EnvState {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new EnvState($$parsedSource as Partial<EnvState>);
     }
 }
 
@@ -311,7 +405,7 @@ export class RecentRun {
      * Creates a new RecentRun instance from a string or object.
      */
     static createFrom($$source: any = {}): RecentRun {
-        const $$createField6_0 = $$createType4;
+        const $$createField6_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("servers" in $$parsedSource) {
             $$parsedSource["servers"] = $$createField6_0($$parsedSource["servers"]);
@@ -369,8 +463,8 @@ export class RecentServer {
      * Creates a new RecentServer instance from a string or object.
      */
     static createFrom($$source: any = {}): RecentServer {
-        const $$createField5_0 = $$createType5;
-        const $$createField6_0 = $$createType5;
+        const $$createField5_0 = $$createType7;
+        const $$createField6_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("calls" in $$parsedSource) {
             $$parsedSource["calls"] = $$createField5_0($$parsedSource["calls"]);
@@ -379,6 +473,39 @@ export class RecentServer {
             $$parsedSource["refused"] = $$createField6_0($$parsedSource["refused"]);
         }
         return new RecentServer($$parsedSource as Partial<RecentServer>);
+    }
+}
+
+/**
+ * RunningWindow is a window open on this display, with the identifiers
+ * computer use can match its application by.
+ */
+export class RunningWindow {
+    "title": string;
+    "identifiers": string[];
+
+    /** Creates a new RunningWindow instance. */
+    constructor($$source: Partial<RunningWindow> = {}) {
+        if (!("title" in $$source)) {
+            this["title"] = "";
+        }
+        if (!("identifiers" in $$source)) {
+            this["identifiers"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RunningWindow instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RunningWindow {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("identifiers" in $$parsedSource) {
+            $$parsedSource["identifiers"] = $$createField1_0($$parsedSource["identifiers"]);
+        }
+        return new RunningWindow($$parsedSource as Partial<RunningWindow>);
     }
 }
 
@@ -429,7 +556,7 @@ export class Support {
      * Creates a new Support instance from a string or object.
      */
     static createFrom($$source: any = {}): Support {
-        const $$createField4_0 = $$createType7;
+        const $$createField4_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("permissions" in $$parsedSource) {
             $$parsedSource["permissions"] = $$createField4_0($$parsedSource["permissions"]);
@@ -439,11 +566,18 @@ export class Support {
 }
 
 /**
- * ToolState is one of an entry's tools.
+ * ToolState is one of an application's tools.
  */
 export class ToolState {
     "name": string;
+
+    /**
+     * Class is how its calls are answered; Classed says someone gave it
+     * that class, rather than it being exec for want of one.
+     */
     "class": string;
+    "classed": boolean;
+    "withheld"?: boolean;
     "egress"?: boolean;
 
     /** Creates a new ToolState instance. */
@@ -453,6 +587,9 @@ export class ToolState {
         }
         if (!("class" in $$source)) {
             this["class"] = "";
+        }
+        if (!("classed" in $$source)) {
+            this["classed"] = false;
         }
 
         Object.assign(this, $$source);
@@ -468,11 +605,13 @@ export class ToolState {
 }
 
 // Private type creation functions
-const $$createType0 = ToolState.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = RecentServer.createFrom;
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = EnvState.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = ToolState.createFrom;
 const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = $Create.Map($Create.Any, $Create.Any);
-const $$createType6 = Permission.createFrom;
-const $$createType7 = $Create.Array($$createType6);
+const $$createType5 = RecentServer.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = $Create.Map($Create.Any, $Create.Any);
+const $$createType8 = Permission.createFrom;
+const $$createType9 = $Create.Array($$createType8);

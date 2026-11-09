@@ -923,7 +923,7 @@ var settingsSections = []struct {
 	{"licences", "Settings → Licences", []string{"licences", "licenses"}, true},
 	{"persistent-agents", "the Agents page", []string{"agents", "persistent agents"}, false},
 	{"meeting-notes", "the Meeting notes page", []string{"meeting notes"}, false},
-	{"your-computer", "Plugins → Computer use", []string{"computer use", "your computer"}, false},
+	{"your-computer", "Plugins → Your computer", []string{"computer use", "your computer", "applications"}, false},
 }
 
 // settingsSection is the place a name means: its id, its title with or

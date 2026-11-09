@@ -191,17 +191,18 @@ type Settings struct {
 	// name: "" for Agentry Helper, the default (home.go).
 	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`
 
-	// ScreeningOff are the application servers (catalogue ids) whose own
-	// script screening the person turned off in Plugins → Computer use,
-	// after a native confirmation: Agentry Desktop launches them without
-	// the variable that turns it on. Absent is screening on.
+	// ScreeningOff are the library applications whose own script screening
+	// the person turned off with the switch earlier versions had. This
+	// version reads it once, when the first start adds the library's
+	// applications found on this computer, and gives those the preset
+	// without its screening variable; the person's list holds it after.
 	// SetScreeningOff is its one writer, as SetUnsafeMode is the switch's.
 	ScreeningOff []string `yaml:"screeningOff,omitempty" json:"-"`
 
 	// MeetingNotes is the Meeting notes page's settings.
 	MeetingNotes MeetingNotes `yaml:"meetingNotes,omitempty" json:"-"`
 
-	// ComputerUse is Plugins → Computer use's computer use: whether a
+	// ComputerUse is Plugins → Your computer's computer use: whether a
 	// QuickAgent may see and use windows on this computer at all, and
 	// whether what it saw is kept. SetComputerUse and SetKeepWhatAgentSaw
 	// are their one writers.
@@ -542,10 +543,9 @@ func SetAssistantRunsWithoutAsking(on bool) error {
 	return write(s)
 }
 
-// SetScreeningOff writes whether an application server's own script screening
-// is lifted, and nothing else. The caller is the one binding that may:
-// YourComputerAPI.SetScreening, after the native confirmation when it is
-// lifting it.
+// SetScreeningOff writes whether a library application's own script
+// screening is lifted, and nothing else. No binding of this version calls
+// it: the person's list of applications holds each server's variables.
 func SetScreeningOff(id string, lifted bool) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()

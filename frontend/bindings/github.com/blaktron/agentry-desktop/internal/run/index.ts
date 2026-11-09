@@ -3,6 +3,7 @@
 
 export {
     CopilotModel,
+    DesktopEntry,
     HostSignIn,
     KeptClient,
     KeptConnection,

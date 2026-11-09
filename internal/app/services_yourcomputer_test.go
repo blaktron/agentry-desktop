@@ -12,13 +12,15 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
 
 	"github.com/blaktron/agentry-desktop/internal/linkservice"
-	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
-// Lifting an application's script screening is the person's word in a native
-// dialog the page cannot answer: a No changes nothing, a Yes turns it off, and
-// turning it back on asks nothing.
-func TestTurningScreeningOffAsksInANativeDialog(t *testing.T) {
+// Approving an application for its MCP server or its windows is the
+// person's word in a native dialog the page cannot answer: a No changes
+// nothing, a Yes approves, and turning an approval off asks nothing.
+// Loosening a tool's class asks too; tightening it does not.
+func TestApprovingAndLooseningAskInANativeDialog(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	answer := false
 	var asked []string
@@ -27,30 +29,81 @@ func TestTurningScreeningOffAsksInANativeDialog(t *testing.T) {
 		return answer, nil
 	}}
 	y := newYourComputerAPI(app, &RunAPI{app: app})
-	if _, err := y.SetScreening("blender", false); err == nil || !strings.Contains(err.Error(), "not confirmed") {
-		t.Fatalf("a No script screening turned off: %v", err)
+	if _, err := y.AddFromLibrary("blender"); err != nil {
+		t.Fatal(err)
 	}
-	if st, _ := settings.Load(); st.IsScreeningOff("blender") {
-		t.Fatal("a No script screening turned off")
+	approved := func() yourcomputer.Approval {
+		d, _ := y.list.Load()
+		a, _ := d.Lookup("blender")
+		return a.Approve
+	}
+	if approved() != (yourcomputer.Approval{}) {
+		t.Fatal("an application from the library came approved")
+	}
+	if _, err := y.SetApproval("blender", "mcp", true); err == nil || !strings.Contains(err.Error(), "not confirmed") || approved().MCP {
+		t.Fatalf("a No approved: %v", err)
 	}
 	answer = true
-	if _, err := y.SetScreening("blender", false); err != nil {
-		t.Fatal(err)
+	if _, err := y.SetApproval("blender", "mcp", true); err != nil || !approved().MCP {
+		t.Fatalf("a Yes did not approve: %v", err)
 	}
-	if st, _ := settings.Load(); !st.IsScreeningOff("blender") {
-		t.Fatal("a Yes did not turn script screening off")
+	n := len(asked)
+	if _, err := y.SetApproval("blender", "mcp", false); err != nil || approved().MCP || len(asked) != n {
+		t.Fatalf("turning it off: %v, asked %d", err, len(asked)-n)
 	}
-	if _, err := y.SetScreening("blender", true); err != nil {
-		t.Fatal(err)
-	}
-	if st, _ := settings.Load(); st.IsScreeningOff("blender") {
-		t.Fatal("script screening was not turned back on")
-	}
-	if len(asked) != 2 || asked[0] != "Turn off Blender's script screening?" {
+	if asked[0] != "Let agents use Blender's MCP server?" {
 		t.Fatalf("dialogs: %q", asked)
 	}
-	if _, err := y.SetScreening("no-such-app", false); err == nil {
-		t.Fatal("an application with no script screening was switched")
+	answer = false
+	if _, err := y.SetToolClass("blender", "execute_blender_code", "read"); err == nil {
+		t.Fatal("a No loosened a class")
+	}
+	n = len(asked)
+	if _, err := y.SetToolClass("blender", "look", "exec"); err != nil || len(asked) != n {
+		t.Fatalf("tightening asked or failed: %v", err)
+	}
+	if v := y.State(); len(v.Applications) != 1 || len(v.Library) != 1 || v.Library[0].ID != "unreal" {
+		t.Fatalf("the view: %+v", v)
+	}
+}
+
+// The run setup resolves each application a release names as the link
+// service will: by its id, by the person's choice for that QuickAgent, or
+// not yet, with the step and the approved applications to choose from.
+func TestTheRunSetupResolvesEachApplication(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}
+	y := newYourComputerAPI(app, &RunAPI{app: app})
+	if _, err := y.AddApplication(NewApplication{Name: "My CAD", Server: "stdio", Command: []string{"my-cad-mcp"}}, []string{"export_drawing"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := y.SetApproval("my-cad", "mcp", true); err != nil {
+		t.Fatal(err)
+	}
+	got := y.RunApplications("acme/cad@1.0.0", []run.DesktopEntry{{ID: "my-cad", Use: run.UseMCP}, {Use: run.UseMCP}, {ID: "blender", Use: run.UseMCP}})
+	if got[0].Resolved == nil || got[0].Resolved.ID != "my-cad" || got[0].Chosen {
+		t.Fatalf("by its id: %+v", got[0])
+	}
+	if got[1].Resolved != nil || got[1].Ready || len(got[1].Candidates) != 1 || !strings.Contains(got[1].Missing, "an application you choose") {
+		t.Fatalf("a chooser: %+v", got[1])
+	}
+	if got[2].Preset != "Blender" || !strings.Contains(got[2].Missing, "add it from the library") {
+		t.Fatalf("a preset not set up: %+v", got[2])
+	}
+	if err := y.ChooseApplication("acme/cad@1.0.0", "", "my-cad"); err != nil {
+		t.Fatal(err)
+	}
+	if err := y.ChooseApplication("acme/cad@1.0.0", "blender", "my-cad"); err != nil {
+		t.Fatal(err)
+	}
+	got = y.RunApplications("acme/cad@1.1.0", []run.DesktopEntry{{Use: run.UseMCP}, {ID: "blender", Use: run.UseMCP}})
+	for _, ra := range got {
+		if ra.Resolved == nil || ra.Resolved.ID != "my-cad" || !ra.Chosen {
+			t.Fatalf("a choice: %+v", ra)
+		}
+	}
+	if err := y.ChooseApplication("acme/cad@1.0.0", "my-cad", "my-cad"); err == nil {
+		t.Fatal("a choice was taken for an id on the list")
 	}
 }
 
@@ -88,11 +141,20 @@ func TestResumingAPausedRunAsksInANativeDialog(t *testing.T) {
 	asked := 0
 	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { asked++; return answer, nil }}
 	y := newYourComputerAPI(app, &RunAPI{app: app})
+	if _, err := y.AddFromLibrary("blender"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change("blender", func(a *yourcomputer.Application) error { a.Approve.MCP = true; return nil })
+	}); err != nil {
+		t.Fatal(err)
+	}
 	y.link = linkservice.New(linkservice.Options{
-		LookPath:  func(string) (string, error) { return "/usr/bin/uvx", nil },
-		Listening: func(context.Context, int) error { return nil },
-		Launch:    fakeLaunch,
-		GOOS:      "linux",
+		Applications: y.list,
+		LookPath:     func(string) (string, error) { return "/usr/bin/uvx", nil },
+		Listening:    func(context.Context, int) error { return nil },
+		Launch:       fakeLaunch,
+		GOOS:         "linux",
 	})
 	if _, r := y.link.Bind(context.Background(), desktop.BindRequest{Run: "R", Servers: []desktop.BindServer{{ID: "blender", Tools: []string{"look"}}}}); r != nil {
 		t.Fatal(r)

@@ -1,27 +1,30 @@
-// Your computer: the link service a run uses applications on this computer
-// through, and what the page shows and does about it. The link service
-// serves the link socket in the runner home while the app runs, for a run
-// from the CLI on this computer, and binds the app's own runs in process.
-// Plugins → Computer use lists the catalogue's applications with their
-// state here and the step to take, the per-application script-screening switch,
-// the runs using the computer now with Pause and Stop, and the runs that
-// used it. The run setup reads the same state for each application a
-// release declares.
+// Your computer: the person's approved applications, the link service a run
+// uses them through, and what the page shows and does about them. The link
+// service serves the link socket in the runner home while the app runs, for
+// a run from the CLI on this computer, and binds the app's own runs in
+// process. Settings → Your computer lists the person's applications with
+// their state here, adds one from the library or by hand, approves each for
+// its MCP server and its windows, classes its tools, and shows the runs
+// using the computer now with Pause and Stop, and the runs that used it.
+// The run setup resolves each application a release names the same way the
+// link service does, and lets the person choose one where the release asks.
 //
-// What the page asks for is a claim: turning an application's script
-// screening off is asked again in a native dialog, and so is a paused run's
-// Resume; an exec call is put to the person in a native dialog the page
-// cannot answer.
-// Pause and Stop only take away.
+// What the page asks for is a claim: approving an application for its MCP
+// server or its windows, and loosening a tool's class, are asked again in a
+// native dialog, and so is a paused run's Resume; an exec call is put to the
+// person in a native dialog the page cannot answer. Pause, Stop, turning an
+// approval off, withholding a tool and Remove only take away.
 package app
 
 import (
 	"cmp"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -31,20 +34,25 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
+	"github.com/blaktron/agentry-desktop/internal/library"
 	"github.com/blaktron/agentry-desktop/internal/linkservice"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/tray"
 	"github.com/blaktron/agentry-desktop/internal/version"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // eventYourComputer tells the page a run bound, changed state or ended.
 const eventYourComputer = "yourcomputer:changed"
 
-// YourComputerAPI is Plugins → Computer use and the run setup's cards.
+// YourComputerAPI is Plugins → Your computer and the run setup's cards.
 type YourComputerAPI struct {
 	app  *App
 	run  *RunAPI
 	link *linkservice.Service
+	// list is the person's applications.
+	list *yourcomputer.Store
 	// socket is the link socket's path while it is served, and socketErr
 	// why it is not; mu holds them and stop.
 	mu        sync.Mutex
@@ -68,10 +76,14 @@ func newYourComputerAPI(app *App, run *RunAPI) *YourComputerAPI {
 	}
 	if dir, err := configdir.Dir(); err == nil {
 		linkservice.SetTokenPath(filepath.Join(dir, "computer-use-portal.json"))
+		y.list = yourcomputer.InDir(dir)
+	} else {
+		y.list = yourcomputer.Open("")
 	}
 	y.link = linkservice.New(linkservice.Options{
+		Applications: y.list,
+		Choose:       y.askChoose,
 		Ask:          y.askExec,
-		ScreeningOff: screeningOff,
 		Recent:       recent,
 		Changed: func() {
 			nativeEmit(eventYourComputer)
@@ -92,13 +104,42 @@ func newYourComputerAPI(app *App, run *RunAPI) *YourComputerAPI {
 	return y
 }
 
+// screeningOff says the person had turned a preset's script screening off
+// with the switch earlier versions had, which the discovery carries over.
 func screeningOff(id string) bool {
 	st, err := settings.Load()
 	return err == nil && st.IsScreeningOff(id)
 }
 
+// discover adds, once, the library's applications found ready on this
+// computer, nothing approved.
+func (y *YourComputerAPI) discover(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	probe := yourcomputer.Probe{
+		LookPath: exec.LookPath,
+		Exists:   func(p string) bool { _, err := os.Stat(p); return err == nil },
+		Flatpak: func(id string) bool {
+			if _, err := exec.LookPath("flatpak"); err != nil {
+				return false
+			}
+			return exec.CommandContext(ctx, "flatpak", "info", id).Run() == nil //nolint:gosec // a library preset's Flatpak id
+		},
+		Listening: func(ctx context.Context, port int) bool { return linkservice.DialLoopback(ctx, port) == nil },
+	}
+	var added []string
+	_, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		added = yourcomputer.Discover(ctx, d, library.Builtin(), runtime.GOOS, probe, screeningOff)
+		return nil
+	})
+	if err == nil && len(added) > 0 {
+		nativeEmit(eventYourComputer)
+	}
+}
+
 // start serves the link socket in the runner home until the app quits.
 func (y *YourComputerAPI) start(ctx context.Context) {
+	go y.discover(ctx)
 	y.mu.Lock()
 	defer y.mu.Unlock()
 	home, err := y.run.runnerHome()
@@ -163,10 +204,15 @@ const (
 	execDecline  = "Don't run it"
 )
 
-// YourComputerView is Plugins → Computer use.
+// YourComputerView is Settings → Your computer.
 type YourComputerView struct {
-	// Applications are the catalogue's, with their state on this computer.
+	// Applications are the person's, with their state on this computer.
 	Applications []linkservice.AppState `json:"applications"`
+	// ListError says why the list could not be read.
+	ListError string `json:"listError,omitempty"`
+	// Library are the presets not on the list yet, for Add from the
+	// library.
+	Library []LibraryPreset `json:"library"`
 	// Using are the runs bound now.
 	Using []linkservice.Bound `json:"using"`
 	// Recent are the runs that used the computer, the newest first.
@@ -179,7 +225,7 @@ type YourComputerView struct {
 	Computer ComputerUseView `json:"computer"`
 }
 
-// ComputerUseView is Plugins → Computer use's computer use.
+// ComputerUseView is Plugins → Your computer's computer use.
 type ComputerUseView struct {
 	On      bool                `json:"on"`
 	Keep    bool                `json:"keep"`
@@ -187,15 +233,25 @@ type ComputerUseView struct {
 	Support linkservice.Support `json:"support"`
 }
 
-// State is Plugins → Computer use.
+// State is Plugins → Your computer.
 func (y *YourComputerAPI) State() *YourComputerView {
 	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 10*time.Second)
 	defer cancel()
 	y.mu.Lock()
 	socket, socketErr := y.socket, y.socketErr
 	y.mu.Unlock()
+	apps, err := y.link.States(ctx)
+	listErr := ""
+	if err != nil {
+		listErr = err.Error()
+	}
+	if apps == nil {
+		apps = []linkservice.AppState{}
+	}
 	return &YourComputerView{
-		Applications: y.link.States(ctx),
+		Applications: apps,
+		ListError:    listErr,
+		Library:      y.libraryOffer(apps),
 		Using:        y.link.Runs(),
 		Recent:       y.recent(),
 		Socket:       socket,
@@ -410,42 +466,492 @@ func (y *YourComputerAPI) recent() []linkservice.RecentRun {
 	return []linkservice.RecentRun{}
 }
 
-// Applications is the state of each application a release declares, by
-// catalogue id, for the run setup's cards: an id this app's catalogue does
-// not know is an application that is not ready, with the step to take.
-func (y *YourComputerAPI) Applications(ids []string) []linkservice.AppState {
-	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 10*time.Second)
-	defer cancel()
-	out := make([]linkservice.AppState, 0, len(ids))
-	for _, id := range ids {
-		st, ok := y.link.State(ctx, id)
-		if !ok {
-			st = linkservice.AppState{ID: id, Application: id, Missing: "This Agentry Desktop does not know the application " + id + ": update Agentry Desktop."}
+// LibraryPreset is a preset of the library as Add from the library offers
+// it.
+type LibraryPreset struct {
+	ID          string   `json:"id"`
+	Application string   `json:"application"`
+	Package     string   `json:"package"`
+	Steps       []string `json:"steps"`
+	// Exec are the preset's tools that run code inside the application.
+	Exec []string `json:"exec"`
+}
+
+// libraryOffer are the presets offered on this system whose id is not on
+// the list.
+func (y *YourComputerAPI) libraryOffer(apps []linkservice.AppState) []LibraryPreset {
+	out := []LibraryPreset{}
+	for _, p := range library.Builtin().All() {
+		if !p.OfferedOn(runtime.GOOS) || slices.ContainsFunc(apps, func(a linkservice.AppState) bool { return a.ID == p.ID }) {
+			continue
 		}
-		out = append(out, st)
+		lp := LibraryPreset{ID: p.ID, Application: p.Application, Package: p.Package.Ref(), Steps: append([]string{}, p.Steps...), Exec: []string{}}
+		for _, t := range p.Tools {
+			if t.Class == library.ClassExec {
+				lp.Exec = append(lp.Exec, t.Name)
+			}
+		}
+		out = append(out, lp)
 	}
 	return out
 }
 
-// SetScreening turns an application server's own script screening on or off.
-// Lifting it is asked again in a native dialog; turning it on asks
-// nothing. It applies from the next run that binds the application.
-func (y *YourComputerAPI) SetScreening(id string, on bool) (*YourComputerView, error) {
-	st, ok := y.link.State(y.app.ctxOrBackground(), id)
-	if !ok || st.ScreeningVariable == "" {
-		return nil, fmt.Errorf("%s has no script screening to switch", id)
+// changed tells the page and the link service's readers the list moved.
+func (y *YourComputerAPI) changed() *YourComputerView {
+	nativeEmit(eventYourComputer)
+	return y.State()
+}
+
+// AddFromLibrary puts a preset on the list as an application of the
+// person's, nothing approved.
+func (y *YourComputerAPI) AddFromLibrary(id string) (*YourComputerView, error) {
+	p, ok := library.Builtin().Lookup(id)
+	if !ok || !p.OfferedOn(runtime.GOOS) {
+		return nil, fmt.Errorf("the library has no %s for this computer", id)
 	}
-	if !on {
-		msg := fmt.Sprintf("%s's installed server screens each script for file, process, network and persistence calls before it runs (%s=1). With screening off, a script an agent sends runs inside %s as it is, once you allow it.\n\nTurn script screening off for %s?", st.Application, st.ScreeningVariable, st.Application, st.Application)
-		if err := y.app.askConsent("Turn off "+st.Application+"'s script screening?", msg); err != nil {
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Add(yourcomputer.FromPreset(p, library.Builtin().Version(), runtime.GOOS))
+	}); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// NewApplication is what Add another application gives: a name, an id
+// (made from the name when empty), the identifiers of its windows, and its
+// MCP server, if any.
+type NewApplication struct {
+	Name    string   `json:"name"`
+	ID      string   `json:"id"`
+	Windows []string `json:"windows"`
+	// Server is "" for none, "stdio" for a command Agentry Desktop starts,
+	// or "loopback-http" for an address on this computer the application
+	// serves.
+	Server   string            `json:"server"`
+	Command  []string          `json:"command"`
+	Env      map[string]string `json:"env"`
+	Endpoint string            `json:"endpoint"`
+	Listener int               `json:"listener"`
+}
+
+// application is the person's entry the form describes, its tools as the
+// last Test listed them, nothing classed.
+func (n NewApplication) application(tools []string) (yourcomputer.Application, error) {
+	a := yourcomputer.Application{Name: strings.TrimSpace(n.Name), ID: strings.TrimSpace(n.ID)}
+	if a.ID == "" {
+		a.ID = yourcomputer.IDFor(a.Name)
+	}
+	for _, w := range n.Windows {
+		if w = strings.TrimSpace(w); w != "" && !slices.Contains(a.Windows, w) {
+			a.Windows = append(a.Windows, w)
+		}
+	}
+	srv, err := n.server()
+	if err != nil {
+		return a, err
+	}
+	a.Server = srv
+	for _, t := range tools {
+		a.Tools = append(a.Tools, yourcomputer.Tool{Name: t})
+	}
+	return a, a.Validate()
+}
+
+func (n NewApplication) server() (*yourcomputer.Server, error) {
+	switch n.Server {
+	case "":
+		return nil, nil
+	case string(library.AttachmentStdio):
+		var cmd []string
+		for _, c := range n.Command {
+			if c = strings.TrimSpace(c); c != "" {
+				cmd = append(cmd, c)
+			}
+		}
+		return &yourcomputer.Server{Attachment: library.AttachmentStdio, Command: cmd, Env: n.Env, Listener: n.Listener}, nil
+	case string(library.AttachmentLoopbackHTTP):
+		return &yourcomputer.Server{Attachment: library.AttachmentLoopbackHTTP, Endpoint: strings.TrimSpace(n.Endpoint), Listener: n.Listener}, nil
+	}
+	return nil, fmt.Errorf("a server is started by Agentry Desktop or served by the application, not %q", n.Server)
+}
+
+// TestedServer is what Test found: the tools the server listed, or why it
+// did not answer.
+type TestedServer struct {
+	Tools []string `json:"tools"`
+	Error string   `json:"error,omitempty"`
+}
+
+// TestServer starts the server the form describes, as the person, lists
+// its tools and ends it. Starting a command the person typed is asked
+// again in a native dialog.
+func (y *YourComputerAPI) TestServer(n NewApplication) (*TestedServer, error) {
+	srv, err := n.server()
+	if err != nil {
+		return nil, err
+	}
+	if srv == nil {
+		return nil, fmt.Errorf("the form gives no MCP server to test")
+	}
+	if err := srv.Validate(); err != nil {
+		return nil, err
+	}
+	if srv.Attachment == library.AttachmentStdio {
+		if err := y.app.askConsent("Start this command to test it?", "Agentry Desktop will start this command as you, on this computer, to list the tools its MCP server offers, and then end it:\n\n"+srv.Launch()+"\n\nStart it?"); err != nil {
 			return nil, err
 		}
 	}
-	if err := settings.SetScreeningOff(id, !on); err != nil {
+	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 60*time.Second)
+	defer cancel()
+	tools, err := y.link.ListServerTools(ctx, *srv)
+	if err != nil {
+		return &TestedServer{Tools: []string{}, Error: err.Error()}, nil
+	}
+	return &TestedServer{Tools: tools}, nil
+}
+
+// AddApplication puts an application the person describes on the list,
+// nothing approved, its tools those the last Test listed, none classed.
+func (y *YourComputerAPI) AddApplication(n NewApplication, tools []string) (*YourComputerView, error) {
+	a, err := n.application(tools)
+	if err != nil {
 		return nil, err
 	}
-	nativeEmit(eventYourComputer)
-	return y.State(), nil
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error { return d.Add(a) }); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// RunningWindows are the windows open on this display, each with the
+// identifiers Add another application can take, where the window system
+// lets Agentry Desktop read them.
+func (y *YourComputerAPI) RunningWindows() ([]linkservice.RunningWindow, error) {
+	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 10*time.Second)
+	defer cancel()
+	return linkservice.RunningWindows(ctx)
+}
+
+// SetApproval turns one of an application's approvals on or off: "mcp"
+// lets agents use its MCP server, "computer" see and use its windows.
+// Turning one on is asked again in a native dialog; turning one off asks
+// nothing.
+func (y *YourComputerAPI) SetApproval(id, which string, on bool) (*YourComputerView, error) {
+	d, err := y.list.Load()
+	if err != nil {
+		return nil, err
+	}
+	a, ok := d.Lookup(id)
+	if !ok {
+		return nil, fmt.Errorf("no application %s is on your list", id)
+	}
+	if on {
+		var title, msg string
+		switch which {
+		case "mcp":
+			if a.Server == nil {
+				return nil, fmt.Errorf("%s has no MCP server set up", a.Name)
+			}
+			title = "Let agents use " + a.Name + "'s MCP server?"
+			msg = fmt.Sprintf("A QuickAgent or agent that names %s (as %s) will be able to call the tools of its MCP server through Agentry Desktop, which starts the server as you, with your files and your network. A tool nobody has classed, and every tool that runs code, asks you before each call. %s.\n\nLet agents use %s's MCP server?", a.Name, a.ID, capitalize(a.From.Words()), a.Name)
+		case "computer":
+			if len(a.Windows) == 0 {
+				return nil, fmt.Errorf("the identifiers of %s's windows are not known yet: give them first", a.Name)
+			}
+			title = "Let agents see and use " + a.Name + "'s windows?"
+			msg = fmt.Sprintf("While computer use is on, a QuickAgent or agent that names %s (as %s) will be able to take screenshots of its windows and click and type in them. Agentry Desktop shows when it does, with Pause and Stop.\n\nLet agents see and use %s's windows?", a.Name, a.ID, a.Name)
+		default:
+			return nil, fmt.Errorf("an approval is mcp or computer, not %q", which)
+		}
+		if err := y.app.askConsent(title, msg); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change(id, func(a *yourcomputer.Application) error {
+			switch which {
+			case "mcp":
+				a.Approve.MCP = on
+			case "computer":
+				a.Approve.Computer = on
+			default:
+				return fmt.Errorf("an approval is mcp or computer, not %q", which)
+			}
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// SetToolClass classes one of an application's tools read, act or exec.
+// Loosening a class (fewer questions before its calls) is asked again in a
+// native dialog; tightening asks nothing.
+func (y *YourComputerAPI) SetToolClass(id, tool, class string) (*YourComputerView, error) {
+	c := library.Class(class)
+	if !slices.Contains(library.Classes(), c) {
+		return nil, fmt.Errorf("a class is read, act or exec, not %q", class)
+	}
+	d, err := y.list.Load()
+	if err != nil {
+		return nil, err
+	}
+	a, ok := d.Lookup(id)
+	if !ok {
+		return nil, fmt.Errorf("no application %s is on your list", id)
+	}
+	from := a.ClassOf(tool)
+	if yourcomputer.Loosens(from, c) {
+		words := map[library.Class]string{library.ClassRead: "reads the application's state", library.ClassAct: "changes the application or works inside it"}[c]
+		msg := fmt.Sprintf("%s's tool %s is %s now, so Agentry Desktop asks you before each call. Classed %s (it %s), its calls run without asking.\n\nClass %s as %s?", a.Name, tool, from, c, words, tool, c)
+		if from == library.ClassAct {
+			msg = fmt.Sprintf("%s's tool %s is classed act. Classed read, it is shown as only reading %s's state.\n\nClass %s as read?", a.Name, tool, a.Name, tool)
+		}
+		if err := y.app.askConsent("Ask less before "+tool+"?", msg); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change(id, func(a *yourcomputer.Application) error {
+			for i := range a.Tools {
+				if a.Tools[i].Name == tool {
+					a.Tools[i].Class = c
+					return nil
+				}
+			}
+			a.Tools = append(a.Tools, yourcomputer.Tool{Name: tool, Class: c})
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// SetToolWithheld withholds a tool from every run, or gives it back.
+// Giving it back asks again in a native dialog.
+func (y *YourComputerAPI) SetToolWithheld(id, tool string, withheld bool) (*YourComputerView, error) {
+	if !withheld {
+		if err := y.app.askConsent("Give "+tool+" back to agents?", "Agents that use this application will be able to call its tool "+tool+" again, as its class says.\n\nGive it back?"); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change(id, func(a *yourcomputer.Application) error {
+			for i := range a.Tools {
+				if a.Tools[i].Name == tool {
+					a.Tools[i].Withheld = withheld
+					return nil
+				}
+			}
+			a.Tools = append(a.Tools, yourcomputer.Tool{Name: tool, Withheld: withheld})
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// EditApplication changes an application's name, windows and server. A
+// preset's application whose server changes is no longer the library's as
+// it was, and the card says so. A changed server is asked again in a
+// native dialog while it is approved, since agents use it as it is now.
+func (y *YourComputerAPI) EditApplication(id string, n NewApplication) (*YourComputerView, error) {
+	d, err := y.list.Load()
+	if err != nil {
+		return nil, err
+	}
+	cur, ok := d.Lookup(id)
+	if !ok {
+		return nil, fmt.Errorf("no application %s is on your list", id)
+	}
+	srv, err := n.server()
+	if err != nil {
+		return nil, err
+	}
+	if srv != nil && cur.Server != nil {
+		srv.Package = cur.Server.Package
+	}
+	if cur.Approve.MCP && srv != nil && (cur.Server == nil || srv.Launch() != cur.Server.Launch() || srv.Endpoint != cur.Server.Endpoint) {
+		what := srv.Launch()
+		if srv.Attachment == library.AttachmentLoopbackHTTP {
+			what = srv.Endpoint
+		}
+		if err := y.app.askConsent("Change "+cur.Name+"'s MCP server?", "Agents may use "+cur.Name+"'s MCP server, and will use it as it is after this change:\n\n"+what+"\n\nChange it?"); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		return d.Change(id, func(a *yourcomputer.Application) error {
+			if name := strings.TrimSpace(n.Name); name != "" {
+				a.Name = name
+			}
+			var windows []string
+			for _, w := range n.Windows {
+				if w = strings.TrimSpace(w); w != "" && !slices.Contains(windows, w) {
+					windows = append(windows, w)
+				}
+			}
+			a.Windows = windows
+			if len(windows) == 0 {
+				a.Approve.Computer = false
+			}
+			a.SetServer(srv)
+			if srv == nil {
+				a.Approve.MCP = false
+			}
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// RemoveApplication takes an application off the list, and the choices
+// that named it. Nothing brings a removed library application back but
+// adding it again.
+func (y *YourComputerAPI) RemoveApplication(id string) (*YourComputerView, error) {
+	if _, err := y.list.Update(func(d *yourcomputer.Doc) error { return d.Remove(id) }); err != nil {
+		return nil, err
+	}
+	return y.changed(), nil
+}
+
+// RunApplication is one application a release names, as the run setup
+// shows it: resolved to one of the person's applications, or not yet, with
+// the step to take or the applications to choose from.
+type RunApplication struct {
+	// Entry is the id the release names, "" for an application the person
+	// chooses.
+	Entry string `json:"entry"`
+	// Use is what the run uses of it: mcp, computer or both.
+	Use string `json:"use"`
+	// Resolved is the person's application it is, with its state.
+	Resolved *linkservice.AppState `json:"resolved,omitempty"`
+	// Chosen says the person chose it for this QuickAgent.
+	Chosen bool `json:"chosen"`
+	// Preset names the library's application when the id is a preset not
+	// set up.
+	Preset string `json:"preset,omitempty"`
+	// Candidates are the person's applications approved for the use, to
+	// choose from.
+	Candidates []linkservice.Candidate `json:"candidates"`
+	// Ready says a run can use it now; Missing is the step to take when
+	// it cannot.
+	Ready   bool   `json:"ready"`
+	Missing string `json:"missing,omitempty"`
+}
+
+// RunApplications resolves each application a release names as the link
+// service will at the run's start: by its id on the list, else by the
+// person's choice for this QuickAgent.
+func (y *YourComputerAPI) RunApplications(ref string, entries []run.DesktopEntry) []RunApplication {
+	ctx, cancel := context.WithTimeout(y.app.ctxOrBackground(), 10*time.Second)
+	defer cancel()
+	out := make([]RunApplication, 0, len(entries))
+	d, err := y.list.Load()
+	if err != nil {
+		for _, e := range entries {
+			out = append(out, RunApplication{Entry: e.ID, Use: e.Use, Candidates: []linkservice.Candidate{}, Missing: err.Error()})
+		}
+		return out
+	}
+	computerOn := computerUseView().On
+	for _, e := range entries {
+		ra := RunApplication{Entry: e.ID, Use: e.Use, Candidates: []linkservice.Candidate{}}
+		mcp, windows := e.Use != run.UseComputer, e.Use != run.UseMCP
+		approved := func(a yourcomputer.Application) bool {
+			return (!mcp || a.UsesMCP()) && (!windows || a.UsesWindows())
+		}
+		var a yourcomputer.Application
+		found := false
+		if e.ID != "" {
+			a, found = d.Lookup(e.ID)
+		}
+		key := e.ID
+		if e.ID == "" {
+			key = "chosen"
+		}
+		if !found {
+			if c, ok := d.Choice(ref, key); ok && approved(c) {
+				a, found, ra.Chosen = c, true, true
+			}
+		}
+		for _, c := range d.Applications {
+			if approved(c) {
+				ra.Candidates = append(ra.Candidates, linkservice.Candidate{ID: c.ID, Name: c.Name})
+			}
+		}
+		if !found {
+			p, isPreset := library.Builtin().Lookup(e.ID)
+			switch {
+			case e.ID != "" && isPreset && p.OfferedOn(runtime.GOOS):
+				ra.Preset = p.Application
+				ra.Missing = p.Application + " is not set up in Agentry Desktop: add it from the library in Settings → Your computer and approve it, or choose which of your applications it is."
+			case e.ID != "":
+				ra.Missing = "This QuickAgent uses an application called " + e.ID + ": choose which of yours it is, or add it in Settings → Your computer."
+			default:
+				ra.Missing = "This QuickAgent uses an application you choose: choose one of yours."
+			}
+			if len(ra.Candidates) == 0 {
+				ra.Missing += " None of your applications is approved for what it uses yet."
+			}
+			out = append(out, ra)
+			continue
+		}
+		st := y.link.Check(ctx, a)
+		ra.Resolved = &st
+		switch {
+		case mcp && a.Server == nil:
+			ra.Missing = a.Name + " has no MCP server set up in Agentry Desktop: add its server in Settings → Your computer."
+		case mcp && !a.Approve.MCP:
+			ra.Missing = "Agents may not use " + a.Name + "'s MCP server: turn on \"Agents may use its MCP server\" for it in Settings → Your computer."
+		case windows && len(a.Windows) == 0:
+			ra.Missing = "Agentry Desktop does not know " + a.Name + "'s windows: give their identifiers in Settings → Your computer."
+		case windows && !a.Approve.Computer:
+			ra.Missing = "Agents may not see and use " + a.Name + "'s windows: turn on \"Agents may see and use its windows\" for it in Settings → Your computer."
+		case windows && !computerOn:
+			ra.Missing = "Computer use is off on this computer: turn it on in Settings → Your computer."
+		case mcp && !st.Ready:
+			ra.Missing = st.Sentence()
+		default:
+			ra.Ready = true
+		}
+		out = append(out, ra)
+	}
+	return out
+}
+
+// ChooseApplication remembers which of the person's applications a
+// QuickAgent's entry is: an id the list does not have, or "" for an
+// application the person chooses.
+func (y *YourComputerAPI) ChooseApplication(ref, entry, id string) error {
+	if ref == "" {
+		return fmt.Errorf("a choice is for a QuickAgent")
+	}
+	key := entry
+	if key == "" {
+		key = "chosen"
+	}
+	_, err := y.list.Update(func(d *yourcomputer.Doc) error {
+		if _, ok := d.Lookup(id); !ok {
+			return fmt.Errorf("no application %s is on your list", id)
+		}
+		if entry != "" {
+			if _, onList := d.Lookup(entry); onList {
+				return fmt.Errorf("%s is on your list already: it is used by its id", entry)
+			}
+		}
+		d.Choose(ref, key, id)
+		return nil
+	})
+	if err == nil {
+		nativeEmit(eventYourComputer)
+	}
+	return err
 }
 
 // Pause refuses a run's later calls to applications on this computer
@@ -479,3 +985,30 @@ func (y *YourComputerAPI) Resume(run string) error {
 // Stop ends a run's calls in flight and its installed servers, and refuses
 // every later call of the run.
 func (y *YourComputerAPI) Stop(run string) error { return y.link.Stop(run) }
+
+// maxChoiceButtons bounds the native chooser's buttons.
+const maxChoiceButtons = 4
+
+// chooseNone is the chooser's refusal.
+const chooseNone = "None of these"
+
+// askChoose asks which of the person's applications a release's entry is.
+func (y *YourComputerAPI) askChoose(ctx context.Context, q linkservice.ChooseQuestion) (string, error) {
+	if y.app.chooseApp != nil {
+		return y.app.chooseApp(ctx, q)
+	}
+	return nativeChoose(ctx, q)
+}
+
+// chooseDialogText is the chooser's title and message.
+func chooseDialogText(q linkservice.ChooseQuestion) (title, message string) {
+	who := cmp.Or(q.Who, "A QuickAgent")
+	if q.Entry == "" {
+		title = "Which application should it use?"
+		message = fmt.Sprintf("%s uses an application you choose, through %s. Which of yours should it use? Agentry Desktop remembers your choice for this QuickAgent.", who, q.Use)
+	} else {
+		title = "Which application is " + q.Entry + "?"
+		message = fmt.Sprintf("%s uses an application called %s, through %s, and none of yours has that id. Which of yours is it? Agentry Desktop remembers your choice for this QuickAgent.", who, q.Entry, q.Use)
+	}
+	return title, message
+}

@@ -219,11 +219,10 @@ type ProfileInfo struct {
 	// test, an http or https address, never as an input source to fetch. Nil
 	// when it declares no browser.
 	BrowserSites []string
-	// Desktop are the application servers on this computer the release uses
-	// (capabilities.desktop.servers), by catalogue id: the run setup shows a
-	// card for each and starts no run until each is ready. Nil when it
-	// declares none.
-	Desktop []string
+	// Desktop are the applications on this computer the release uses
+	// (capabilities.desktop.servers), by id, each with what it uses of it:
+	// only a run on this computer reaches them. Nil when it declares none.
+	Desktop []DesktopEntry
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -254,8 +253,8 @@ type Declaration struct {
 	Secrets, Optional []string
 	// TargetHosts are its host questions' ids.
 	TargetHosts []string
-	// Desktop are the application servers on this computer it uses, which
-	// only a run on this computer reaches.
+	// Desktop are the applications on this computer it uses, which only a
+	// run on this computer reaches.
 	Desktop []string
 }
 
@@ -298,7 +297,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 	if b := sig.Manifest.Capabilities.Browser; b != nil {
 		info.BrowserSites = b.Sites
 	}
-	info.Desktop = DesktopIDs(sig.Manifest)
+	info.Desktop = DesktopEntries(sig.Manifest)
 	if k := sig.Manifest.Knowledge; k != nil {
 		info.AcceptsKnowledge = k.Accepts
 	}

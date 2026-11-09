@@ -9,12 +9,17 @@ import (
 )
 
 // A release that does not narrow an application's tools binds with none
-// named: the run is given every tool the catalogue offers, eagerly and
-// lazily, and never one it withholds. A narrowing binds as before.
+// named: the run is given every tool its server lists, eagerly and lazily,
+// and never one the person withholds. A narrowing binds as before.
 func TestAnEmptyNarrowingBindsEveryOfferedTool(t *testing.T) {
 	r := newRig(t)
-	e, _ := r.s.cat.Lookup("blender")
-	want := e.ToolNames()
+	e := blenderApp(t)
+	var want []string
+	for _, tool := range e.Tools {
+		if !tool.Withheld {
+			want = append(want, tool.Name)
+		}
+	}
 	b := bindBlender(t, r)
 	var got []string
 	for _, tool := range b.Servers["blender"] {
@@ -23,7 +28,7 @@ func TestAnEmptyNarrowingBindsEveryOfferedTool(t *testing.T) {
 	slices.Sort(got)
 	slices.Sort(want)
 	if !slices.Equal(got, want) || slices.Contains(got, "disable_telemetry") {
-		t.Fatalf("an unnarrowed bind gave %v, want the catalogue's offered tools %v", got, want)
+		t.Fatalf("an unnarrowed bind gave %v, want the server's tools less those withheld %v", got, want)
 	}
 
 	lazy := newRig(t)
@@ -71,10 +76,10 @@ func TestTheProtocolRevisionGetsFromAndClass(t *testing.T) {
 	}
 }
 
-// The listing is the catalogue's applications offered on this system, as
-// the library's, their server allowed, their windows allowed while computer
-// use is on, and whether each is ready, with the step when not.
-func TestTheListingIsTheCataloguesApplications(t *testing.T) {
+// The listing is the person's applications, where each came from, its
+// server as approved, its windows as approved while computer use is on, and
+// whether each is ready, with the step when not.
+func TestTheListingIsThePersonsApplications(t *testing.T) {
 	r := newRig(t)
 	on := false
 	r.s.opt.Computer.Enabled = func() bool { return on }

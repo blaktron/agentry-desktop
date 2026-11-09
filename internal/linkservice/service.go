@@ -3,17 +3,20 @@
 // computer through the MCP servers installed there for them.
 //
 // A run binds before its sandbox starts, naming its release and the
-// application servers it uses by their catalogue ids. For each, the link
-// service checks the person's computer is ready (the launcher present, the
-// application's own loopback listener answering), starts the server the
-// app's catalogue pins for that id as the person, speaks MCP to it, and
-// checks the tools it lists are the catalogue's. The run gets a token and
-// each server's tools; every call carries the token. A call is answered
-// only for a run the service bound, only for a server the run bound, only
-// for a tool the release was given, and then by its class in the
-// catalogue: a read or an act runs, an exec (code or commands the
-// application runs) is asked about first in a native dialog, which can
-// allow every exec call for the rest of the run. Pause and Stop refuse
+// applications it uses by id. Each id resolves to an application on the
+// person's list in Settings → Your computer (by its id, or by the
+// person's choice for that QuickAgent), which must be approved for what the
+// run uses of it. For each server, the link service checks the person's
+// computer is ready (the launcher present, the application's own loopback
+// listener answering), starts the server the person's list holds for it as
+// the person, and speaks MCP to it. The run gets a token and each server's
+// tools, less those the person withheld; every call carries the token. A
+// call is answered only for a run the service bound, only for a server the
+// run bound, only for a tool the run was given, and then by the class the
+// person or the library gave it: a read or an act runs, an exec (code or
+// commands the application runs, and any tool nobody has classed) is asked
+// about first in a native dialog, which can allow every exec call for the
+// rest of the run. Pause and Stop refuse
 // every later call; Stop also ends the calls in flight and the run's
 // servers. At unbind the servers end.
 //
@@ -22,6 +25,7 @@
 package linkservice
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -29,6 +33,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os/exec"
 	"runtime"
@@ -38,12 +43,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blaktron/agentry/pkg/appserver"
-
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
+
+	"github.com/blaktron/agentry-desktop/internal/library"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // MaxCallsInFlight bounds one run's calls at once.
@@ -78,16 +84,54 @@ type ExecQuestion struct {
 // page cannot answer; with none, an exec call is declined.
 type Asker func(ctx context.Context, q ExecQuestion) (ExecAnswer, error)
 
+// Applications is the person's list of applications.
+type Applications interface {
+	Load() (yourcomputer.Doc, error)
+	Update(func(*yourcomputer.Doc) error) (yourcomputer.Doc, error)
+}
+
+// Candidate is one of the person's applications a choice may name.
+type Candidate struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ChooseQuestion asks the person which of their applications a release's
+// entry is: an application they choose, or an id their list does not have.
+type ChooseQuestion struct {
+	// Who is the QuickAgent (its ref) or the persistent agent asking.
+	Who string
+	// Entry is the id the release names, "" for an application the person
+	// chooses.
+	Entry string
+	// Use is what the run uses of it: its MCP server or its windows.
+	Use string
+	// Candidates are the person's applications approved for that use.
+	Candidates []Candidate
+}
+
+// Chooser puts a choice to the person and answers the chosen
+// application's id.
+type Chooser func(ctx context.Context, q ChooseQuestion) (string, error)
+
+// The uses a choice is made for.
+const (
+	UseMCP      = "its MCP server"
+	UseComputer = "its windows"
+)
+
 // Options are what the link service is built with.
 type Options struct {
-	// Catalogue is the catalogue of application servers the app was built
-	// with; zero is the core's built-in one.
-	Catalogue *appserver.Catalogue
+	// Applications is the person's list; nil is an empty one.
+	Applications Applications
+	// Library is the library of presets, read for a preset's steps; nil
+	// is the built-in one.
+	Library *library.Library
+	// Choose asks the person which of their applications an entry is; nil
+	// asks no one, and such a bind is refused with the step to take.
+	Choose Chooser
 	// Ask is the exec call's dialog.
 	Ask Asker
-	// ScreeningOff says the person turned off an application server's own
-	// script screening in Plugins → Computer use; nil is never.
-	ScreeningOff func(id string) bool
 	// Launch starts a stdio entry's server; nil is the process launcher.
 	Launch Launcher
 	// DialHTTP opens a session with a loopback HTTP entry; nil is the
@@ -101,7 +145,7 @@ type Options struct {
 	// Recent keeps the runs that used the person's computer; nil keeps
 	// none.
 	Recent *Recent
-	// GOOS is the platform the catalogue's platforms are matched against;
+	// GOOS is the platform the library's platforms are matched against;
 	// "" is this one.
 	GOOS string
 	// Changed, when set, is told a binding started, changed state or
@@ -114,7 +158,7 @@ type Options struct {
 // Service is the link service. It implements desktop.Handler.
 type Service struct {
 	opt  Options
-	cat  appserver.Catalogue
+	lib  library.Library
 	mu   sync.Mutex
 	runs map[string]*binding
 	// closed is set as the app quits: no run is bound after it.
@@ -124,10 +168,10 @@ type Service struct {
 // New builds a link service.
 func New(opt Options) *Service {
 	s := &Service{opt: opt, runs: map[string]*binding{}}
-	if opt.Catalogue != nil {
-		s.cat = *opt.Catalogue
+	if opt.Library != nil {
+		s.lib = *opt.Library
 	} else {
-		s.cat = appserver.Builtin()
+		s.lib = library.Builtin()
 	}
 	if s.opt.Launch == nil {
 		s.opt.Launch = startStdio
@@ -181,10 +225,13 @@ type binding struct {
 	computerMu sync.Mutex
 }
 
-// boundServer is one application server a run bound.
+// boundServer is one application's server a run bound.
 type boundServer struct {
-	entry   appserver.Server
-	allowed map[string]appserver.Tool
+	// key is the entry the run names it by: the application's id, or
+	// chosen.
+	key     string
+	entry   yourcomputer.Application
+	allowed map[string]library.Class
 	launch  string
 	mu      sync.Mutex
 	sess    Session
@@ -236,7 +283,7 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 		if req.Lazy {
 			prep = s.prepareLazy
 		}
-		bs, r := prep(ctx, want)
+		bs, r := prep(ctx, req, want)
 		if r != nil {
 			return fail(r)
 		}
@@ -251,7 +298,10 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 			if bound.From == nil {
 				bound.From = map[string]string{}
 			}
-			bound.From[want.ID] = desktop.FromLibrary
+			bound.From[want.ID] = bs.entry.From.Protocol()
+			if want.Chosen {
+				bound.Chosen = &desktop.ChosenApplication{ID: bs.entry.ID, Name: bs.entry.Name}
+			}
 		}
 	}
 	if req.ComputerUse != "" {
@@ -282,87 +332,205 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 	return bound, nil
 }
 
-// wantedTools are the tools a bind asks of an entry: the release's
-// narrowing, or, where it names none, every tool the catalogue offers for
-// the entry, never one it withholds.
-func wantedTools(e appserver.Server, narrowing []string) []string {
-	if len(narrowing) > 0 {
-		return narrowing
-	}
-	return e.ToolNames()
-}
-
-// classed is a bound server's tools with the class the catalogue gives
-// each, for a run that names the link protocol's revision: a run of an
-// earlier one decodes the answer strictly and is sent none.
-func classed(e appserver.Server, tools []desktoplink.Tool) []desktoplink.Tool {
+// classed is a bound server's tools with the class the person or the
+// library gives each, exec for one nobody classed, for a run that names the
+// link protocol's revision: a run of an earlier one decodes the answer
+// strictly and is sent none.
+func classed(a yourcomputer.Application, tools []desktoplink.Tool) []desktoplink.Tool {
 	out := make([]desktoplink.Tool, len(tools))
 	for i, t := range tools {
 		out[i] = t
-		if c, ok := e.Tool(t.Name); ok {
-			out[i].Class = string(c.Class)
-		}
+		out[i].Class = string(a.ClassOf(t.Name))
 	}
 	return out
 }
 
 // List is the applications a QuickAgent may use on this computer, for the
-// roster of a persistent agent and agentry doctor: each application the
-// catalogue offers on this system, its installed server allowed, its
-// windows allowed while computer use is on, and whether it is ready now,
-// with the step to take when not.
+// roster of a persistent agent and agentry doctor: each on the person's
+// list, where its set-up came from, what the person approved (its windows
+// only while computer use is on), and whether its server is ready now, with
+// the step to take when not.
 func (s *Service) List(ctx context.Context) (desktop.ApplicationList, *desktop.Refusal) {
+	d, err := s.list()
+	if err != nil {
+		return desktop.ApplicationList{}, refusal(receipt.DesktopUnavailable, "", "%v", err)
+	}
 	computer := s.opt.Computer.Enabled != nil && s.opt.Computer.Enabled()
 	out := desktop.ApplicationList{Applications: []desktop.Application{}}
-	for _, e := range s.cat.All() {
-		if !slices.Contains(e.Platforms, s.opt.GOOS) {
-			continue
+	for _, a := range d.Applications {
+		st := s.check(ctx, a)
+		app := desktop.Application{ID: a.ID, Name: a.Name, From: a.From.Protocol(), MCP: a.UsesMCP(), Computer: computer && a.UsesWindows(), Ready: st.Ready}
+		if !st.Ready && a.Server != nil {
+			app.Step = st.Sentence()
 		}
-		st := s.check(ctx, e)
-		a := desktop.Application{ID: e.ID, Name: e.Application, From: desktop.FromLibrary, MCP: true, Computer: computer, Ready: st.Ready}
-		if !st.Ready {
-			a.Step = st.Sentence(e)
+		if a.Server == nil {
+			app.Ready = len(a.Windows) > 0
 		}
-		out.Applications = append(out.Applications, a)
+		out.Applications = append(out.Applications, app)
 	}
 	return out, nil
 }
 
-// prepareLazy prepares a persistent agent's application server: the
-// catalogue knows it for this platform and gives the agent's tools, and the
-// application need not be running. When it is, its installed server is
-// started now and lists its tools; when it is not, the catalogue's names
-// stand for them and the server starts at the first call that finds the
-// application running.
-func (s *Service) prepareLazy(ctx context.Context, want desktop.BindServer) (*boundServer, *desktop.Refusal) {
-	e, ok := s.cat.Lookup(want.ID)
-	if !ok {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "this Agentry Desktop does not know the application server %q: update Agentry Desktop", want.ID)
+// list reads the person's list.
+func (s *Service) list() (yourcomputer.Doc, error) {
+	if s.opt.Applications == nil {
+		return yourcomputer.Doc{}, nil
 	}
-	if st := s.check(ctx, e); st.Ready {
-		bs, r := s.prepare(ctx, want)
+	return s.opt.Applications.Load()
+}
+
+// resolve is the person's application a release's entry names, for a use:
+// the application with that id on the list, else the person's choice for
+// this QuickAgent, remembered or asked now. An id the list does not have
+// and nobody chose is refused with the step: a library preset's set-up, or
+// adding the application.
+func (s *Service) resolve(ctx context.Context, req desktop.BindRequest, id string, chosen bool, use string) (yourcomputer.Application, *desktop.Refusal) {
+	d, err := s.list()
+	if err != nil {
+		return yourcomputer.Application{}, refusal(receipt.DesktopUnavailable, id, "%v", err)
+	}
+	entry, key := id, id
+	if chosen {
+		entry, key = "", spec.DesktopChosenID
+	}
+	if !chosen {
+		if a, ok := d.Lookup(id); ok {
+			return a, nil
+		}
+	}
+	approved := func(a yourcomputer.Application) bool {
+		if use == UseComputer {
+			return a.UsesWindows()
+		}
+		return a.UsesMCP()
+	}
+	if a, ok := d.Choice(req.Ref, key); ok && approved(a) {
+		return a, nil
+	}
+	var cands []Candidate
+	for _, a := range d.Applications {
+		if approved(a) {
+			cands = append(cands, Candidate{ID: a.ID, Name: a.Name})
+		}
+	}
+	if s.opt.Choose != nil && len(cands) > 0 {
+		who := cmp.Or(req.Agent, req.Ref)
+		picked, err := s.opt.Choose(ctx, ChooseQuestion{Who: who, Entry: entry, Use: use, Candidates: cands})
+		if err == nil {
+			for _, c := range cands {
+				if c.ID == picked {
+					a, _ := d.Lookup(picked)
+					if req.Ref != "" && s.opt.Applications != nil {
+						_, _ = s.opt.Applications.Update(func(d *yourcomputer.Doc) error {
+							d.Choose(req.Ref, key, picked)
+							return nil
+						})
+					}
+					return a, nil
+				}
+			}
+		}
+		if chosen {
+			return yourcomputer.Application{}, refusal(receipt.DesktopDeclined, key, "you did not choose an application for this run")
+		}
+		return yourcomputer.Application{}, refusal(receipt.DesktopDeclined, key, "you did not choose which of your applications %s is", id)
+	}
+	if chosen {
+		return yourcomputer.Application{}, refusal(receipt.DesktopNotGranted, key,
+			"this QuickAgent uses an application you choose, through %s, and none of your applications is approved for that: approve one in Agentry Desktop's Settings → Your computer, and run again", use)
+	}
+	if p, ok := s.lib.Lookup(id); ok && p.OfferedOn(s.opt.GOOS) {
+		return yourcomputer.Application{}, refusal(receipt.DesktopNotInstalled, id,
+			"this QuickAgent uses %s, which is not set up in Agentry Desktop: add it from the library in Settings → Your computer, approve it, and run again", p.Application)
+	}
+	return yourcomputer.Application{}, refusal(receipt.DesktopNotInstalled, id,
+		"this QuickAgent uses an application called %s, which is not on your list in Agentry Desktop: add it in Settings → Your computer with the id %s, or choose which of yours it is when the run starts", id, id)
+}
+
+// resolveServer is the application whose server a release's entry uses,
+// with the server set up and approved.
+func (s *Service) resolveServer(ctx context.Context, req desktop.BindRequest, want desktop.BindServer) (yourcomputer.Application, *desktop.Refusal) {
+	key := want.ID
+	if want.Chosen {
+		key = spec.DesktopChosenID
+	}
+	a, r := s.resolve(ctx, req, want.ID, want.Chosen, UseMCP)
+	if r != nil {
+		return a, r
+	}
+	switch {
+	case a.Server == nil:
+		return a, refusal(receipt.DesktopNotInstalled, key, "%s has no MCP server set up in Agentry Desktop: add its server in Settings → Your computer, and run again", a.Name)
+	case !a.Approve.MCP:
+		return a, refusal(receipt.DesktopNotGranted, key, "agents may not use %s's MCP server: turn on \"Agents may use its MCP server\" for %s in Agentry Desktop's Settings → Your computer, and run again", a.Name, a.Name)
+	}
+	return a, nil
+}
+
+// allowedTools are the tools a bind gives a run of an application: the
+// release's narrowing, or every tool listed, less those the person
+// withheld, each with its class.
+func allowedTools(a yourcomputer.Application, narrowing []string, listed []string) map[string]library.Class {
+	out := map[string]library.Class{}
+	names := listed
+	if len(narrowing) > 0 {
+		names = narrowing
+	}
+	for _, n := range names {
+		if !a.Withholds(n) {
+			out[n] = a.ClassOf(n)
+		}
+	}
+	return out
+}
+
+// knownTools are an application's tools the list knows, less those
+// withheld: what a lazy binding stands on before its server starts.
+func knownTools(a yourcomputer.Application) []string {
+	var out []string
+	for _, t := range a.Tools {
+		if !t.Withheld {
+			out = append(out, t.Name)
+		}
+	}
+	return out
+}
+
+// prepareLazy prepares a persistent agent's application server: the
+// application on the list, its server approved, and the application need
+// not be running. When it is, its installed server is started now and
+// lists its tools; when it is not, the narrowing, or the tools the list
+// knows, stand for them and the server starts at the first call that finds
+// the application running.
+func (s *Service) prepareLazy(ctx context.Context, req desktop.BindRequest, want desktop.BindServer) (*boundServer, *desktop.Refusal) {
+	a, r := s.resolveServer(ctx, req, want)
+	if r != nil {
+		return nil, r
+	}
+	if st := s.check(ctx, a); st.Ready {
+		bs, r := s.prepare(ctx, req, want)
 		if r == nil {
 			bs.lazy = true
 			return bs, nil
 		}
 	}
-	if !slices.Contains(e.Platforms, s.opt.GOOS) {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop offers %s's installed server on %s, not on this computer's system", e.Application, strings.Join(e.Platforms, ", "))
-	}
-	bs := &boundServer{entry: e, allowed: map[string]appserver.Tool{}, lazy: true}
-	for _, name := range wantedTools(e, want.Tools) {
-		t, ok := e.Tool(name)
-		if !ok {
-			return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop's catalogue gives %s no tool %q: update Agentry Desktop", e.Application, name)
-		}
-		bs.allowed[name] = t
-		bs.tools = append(bs.tools, desktoplink.Tool{Name: name, Description: e.Application + " on this computer, through Agentry Desktop",
+	bs := &boundServer{key: bindKey(want), entry: a, allowed: allowedTools(a, want.Tools, knownTools(a)), lazy: true}
+	for _, name := range slices.Sorted(maps.Keys(bs.allowed)) {
+		bs.tools = append(bs.tools, desktoplink.Tool{Name: name, Description: a.Name + " on this computer, through Agentry Desktop",
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`)})
 	}
 	if len(bs.allowed) == 0 {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "the agent was given no tool of %s", e.Application)
+		return nil, refusal(receipt.DesktopNotInstalled, bs.key, "%s is not running, and Agentry Desktop knows none of its tools yet: open %s and turn its switch on again", a.Name, a.Name)
 	}
 	return bs, nil
+}
+
+// bindKey is the entry a run names a server by.
+func bindKey(want desktop.BindServer) string {
+	if want.Chosen {
+		return spec.DesktopChosenID
+	}
+	return want.ID
 }
 
 // started readies a lazy server for a call: the application running, and
@@ -375,9 +543,9 @@ func (bs *boundServer) started(ctx context.Context, s *Service, b *binding) *des
 	}
 	// Whether the application is running is read before each call, even
 	// where the installed server is running already.
-	e := bs.entry
-	if st := s.check(ctx, e); !st.Ready {
-		return refusal(receipt.DesktopNotInstalled, e.ID, "%s", st.Sentence(e))
+	a := bs.entry
+	if st := s.check(ctx, a); !st.Ready {
+		return refusal(receipt.DesktopNotInstalled, bs.key, "%s", st.Sentence())
 	}
 	bs.mu.Lock()
 	has := bs.sess != nil
@@ -389,27 +557,20 @@ func (bs *boundServer) started(ctx context.Context, s *Service, b *binding) *des
 	defer cancel()
 	stop := context.AfterFunc(b.ctx, cancel)
 	defer stop()
-	sess, launch, err := s.open(octx, e)
+	sess, launch, err := s.open(octx, a)
 	if err != nil {
-		return refusal(receipt.DesktopNotInstalled, e.ID, "%s's installed server (%s) did not start on this computer: %v", e.Application, e.Package.Ref(), err)
+		return refusal(receipt.DesktopNotInstalled, bs.key, "%s's MCP server did not start on this computer: %v", a.Name, err)
 	}
-	listed, err := sess.Tools(octx)
-	if err != nil {
+	if _, err := sess.Tools(octx); err != nil {
 		_ = sess.Close()
-		return refusal(receipt.DesktopNotInstalled, e.ID, "%s's installed server did not list its tools: %v", e.Application, err)
-	}
-	for _, t := range listed {
-		if !e.Offers(t.Name) && !slices.Contains(e.Withheld, t.Name) {
-			_ = sess.Close()
-			return refusal(receipt.DesktopNotInstalled, e.ID, "%s's installed server lists a tool the catalogue does not know (%s): it is not the server Agentry pinned, %s", e.Application, t.Name, e.Package.Ref())
-		}
+		return refusal(receipt.DesktopNotInstalled, bs.key, "%s's MCP server did not list its tools: %v", a.Name, err)
 	}
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 	if bs.sess != nil || b.ctx.Err() != nil {
 		_ = sess.Close()
 		if b.ctx.Err() != nil {
-			return refusal(receipt.DesktopStopped, e.ID, "the use of your computer ended")
+			return refusal(receipt.DesktopStopped, bs.key, "the use of your computer ended")
 		}
 		return nil
 	}
@@ -429,79 +590,74 @@ func (bs *boundServer) forget() {
 	}
 }
 
-// prepare is the pre-start check of one application server and its start:
-// the catalogue knows it for this platform and gives the release's tools,
-// the launcher is present, the application's listener answers, the server
-// starts and lists only tools the catalogue knows.
-func (s *Service) prepare(ctx context.Context, want desktop.BindServer) (*boundServer, *desktop.Refusal) {
-	e, ok := s.cat.Lookup(want.ID)
-	if !ok {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "this Agentry Desktop does not know the application server %q: update Agentry Desktop", want.ID)
+// prepare is the pre-start check of one application's server and its
+// start: the application on the person's list and its server approved, the
+// launcher present, the application's listener answering, the server
+// started; then the run is given the tools it lists, narrowed to the
+// release's narrowing, less those the person withheld. A narrowed tool the
+// server does not list refuses the bind, naming it.
+func (s *Service) prepare(ctx context.Context, req desktop.BindRequest, want desktop.BindServer) (*boundServer, *desktop.Refusal) {
+	a, r := s.resolveServer(ctx, req, want)
+	if r != nil {
+		return nil, r
 	}
-	if !slices.Contains(e.Platforms, s.opt.GOOS) {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop offers %s's installed server on %s, not on this computer's system", e.Application, strings.Join(e.Platforms, ", "))
-	}
-	bs := &boundServer{entry: e, allowed: map[string]appserver.Tool{}}
-	for _, name := range wantedTools(e, want.Tools) {
-		t, ok := e.Tool(name)
-		if !ok {
-			return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop's catalogue gives %s no tool %q: update Agentry Desktop", e.Application, name)
-		}
-		bs.allowed[name] = t
-	}
-	if len(bs.allowed) == 0 {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "the run was given no tool of %s", e.Application)
-	}
-	st := s.check(ctx, e)
+	key := bindKey(want)
+	st := s.check(ctx, a)
 	if !st.Ready {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "%s", st.Sentence(e))
+		return nil, refusal(receipt.DesktopNotInstalled, key, "%s", st.Sentence())
 	}
-	sess, launch, err := s.open(ctx, e)
+	sess, launch, err := s.open(ctx, a)
 	if err != nil {
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "%s's installed server (%s) did not start on this computer: %v", e.Application, e.Package.Ref(), err)
+		return nil, refusal(receipt.DesktopNotInstalled, key, "%s's MCP server did not start on this computer: %v", a.Name, err)
 	}
 	listed, err := sess.Tools(ctx)
 	if err != nil {
 		_ = sess.Close()
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "%s's installed server did not list its tools: %v", e.Application, err)
+		return nil, refusal(receipt.DesktopNotInstalled, key, "%s's MCP server did not list its tools: %v", a.Name, err)
 	}
+	names := make([]string, 0, len(listed))
 	for _, t := range listed {
-		if !e.Offers(t.Name) && !slices.Contains(e.Withheld, t.Name) {
+		names = append(names, t.Name)
+	}
+	for _, n := range want.Tools {
+		if !slices.Contains(names, n) {
 			_ = sess.Close()
-			return nil, refusal(receipt.DesktopNotInstalled, want.ID, "%s's installed server lists a tool the catalogue does not know (%s): it is not the server Agentry pinned, %s", e.Application, t.Name, e.Package.Ref())
+			return nil, refusal(receipt.DesktopNotInstalled, key, "this QuickAgent uses the tool %s of %s, which its MCP server on this computer does not list", n, a.Name)
 		}
+	}
+	bs := &boundServer{key: key, entry: a, allowed: allowedTools(a, want.Tools, names)}
+	for _, t := range listed {
 		if _, ok := bs.allowed[t.Name]; ok {
 			bs.tools = append(bs.tools, t)
 		}
 	}
 	if len(bs.tools) == 0 {
 		_ = sess.Close()
-		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "%s's installed server listed none of the tools the run was given", e.Application)
+		return nil, refusal(receipt.DesktopNotInstalled, key, "the run was given no tool of %s: its MCP server listed none it may use", a.Name)
 	}
 	bs.sess, bs.launch = sess, launch
 	return bs, nil
 }
 
-// open starts the entry's server, or connects to the application's own,
-// from the catalogue entry alone.
-func (s *Service) open(ctx context.Context, e appserver.Server) (Session, string, error) {
-	switch e.Attachment {
-	case appserver.AttachmentStdio:
-		spec, err := launchSpec(e, s.screeningOff(e.ID))
+// open starts the application's server, or connects to the application's
+// own, from the person's list alone.
+func (s *Service) open(ctx context.Context, a yourcomputer.Application) (Session, string, error) {
+	if a.Server == nil {
+		return nil, "", fmt.Errorf("%s has no MCP server set up", a.Name)
+	}
+	switch a.Server.Attachment {
+	case library.AttachmentStdio:
+		spec, err := launchSpec(a.Name, *a.Server)
 		if err != nil {
 			return nil, "", err
 		}
 		sess, err := s.opt.Launch(ctx, spec)
 		return sess, spec.Line(), err
-	case appserver.AttachmentLoopbackHTTP:
-		sess, err := s.opt.DialHTTP(ctx, e.Endpoint)
-		return sess, e.Endpoint, err
+	case library.AttachmentLoopbackHTTP:
+		sess, err := s.opt.DialHTTP(ctx, a.Server.Endpoint)
+		return sess, a.Server.Endpoint, err
 	}
-	return nil, "", fmt.Errorf("the catalogue's attachment %q is not one Agentry Desktop speaks", e.Attachment)
-}
-
-func (s *Service) screeningOff(id string) bool {
-	return s.opt.ScreeningOff != nil && s.opt.ScreeningOff(id)
+	return nil, "", fmt.Errorf("the attachment %q is not one Agentry Desktop speaks", a.Server.Attachment)
 }
 
 // Call answers one tool call: the run bound, its token, the server bound,
@@ -519,12 +675,12 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 	if !ok {
 		return desktoplink.Answer{}, refusal(receipt.DesktopNotInstalled, req.Server, "the run did not bind the application server %q", req.Server)
 	}
-	tool, ok := bs.allowed[req.Tool]
+	class, ok := bs.allowed[req.Tool]
 	if !ok {
-		return desktoplink.Answer{}, refusal(receipt.DesktopNotInstalled, req.Server, "the run was not given %s's tool %q", bs.entry.Application, req.Tool)
+		return desktoplink.Answer{}, refusal(receipt.DesktopNotInstalled, req.Server, "the run was not given %s's tool %q", bs.entry.Name, req.Tool)
 	}
-	if r := b.refusedByState(bs.entry); r != nil {
-		b.count(req.Server, tool.Class, r.Reason)
+	if r := b.refusedByState(bs); r != nil {
+		b.count(req.Server, class, r.Reason)
 		return desktoplink.Answer{}, r
 	}
 	select {
@@ -532,26 +688,26 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 	case <-ctx.Done():
 		return desktoplink.Answer{}, refusal(receipt.DesktopUnavailable, req.Server, "the call was ended before it ran")
 	case <-b.ctx.Done():
-		r := b.refusedByState(bs.entry)
+		r := b.refusedByState(bs)
 		if r == nil {
 			r = refusal(receipt.DesktopStopped, req.Server, "the run's use of your computer ended")
 		}
-		b.count(req.Server, tool.Class, r.Reason)
+		b.count(req.Server, class, r.Reason)
 		return desktoplink.Answer{}, r
 	}
 	defer func() { <-b.slots }()
 	if r := bs.started(ctx, s, b); r != nil {
-		b.count(req.Server, tool.Class, r.Reason)
+		b.count(req.Server, class, r.Reason)
 		return desktoplink.Answer{}, r
 	}
-	if tool.Class == appserver.ClassExec && !bs.execAgreed {
+	if class == library.ClassExec && !bs.execAgreed {
 		if r := s.askExec(ctx, b, bs, req); r != nil {
-			b.count(req.Server, tool.Class, r.Reason)
+			b.count(req.Server, class, r.Reason)
 			return desktoplink.Answer{}, r
 		}
 		// A pause while the person was asked holds this call too.
-		if r := b.refusedByState(bs.entry); r != nil {
-			b.count(req.Server, tool.Class, r.Reason)
+		if r := b.refusedByState(bs); r != nil {
+			b.count(req.Server, class, r.Reason)
 			return desktoplink.Answer{}, r
 		}
 	}
@@ -560,8 +716,8 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 	stop := context.AfterFunc(b.ctx, cancel)
 	defer stop()
 	a, err := bs.call(callCtx, s, req.Tool, req.Arguments)
-	if r := b.refusedByState(bs.entry); r != nil && b.ctx.Err() != nil {
-		b.count(req.Server, tool.Class, r.Reason)
+	if r := b.refusedByState(bs); r != nil && b.ctx.Err() != nil {
+		b.count(req.Server, class, r.Reason)
 		return desktoplink.Answer{}, r
 	}
 	if err != nil && bs.lazy {
@@ -569,16 +725,16 @@ func (s *Service) Call(ctx context.Context, req desktop.CallRequest) (desktoplin
 		// not a failure of the agent's.
 		if st := s.check(ctx, bs.entry); !st.Ready {
 			bs.forget()
-			r := refusal(receipt.DesktopNotInstalled, req.Server, "%s", st.Sentence(bs.entry))
-			b.count(req.Server, tool.Class, r.Reason)
+			r := refusal(receipt.DesktopNotInstalled, req.Server, "%s", st.Sentence())
+			b.count(req.Server, class, r.Reason)
 			return desktoplink.Answer{}, r
 		}
 	}
 	if err != nil {
-		b.count(req.Server, tool.Class, "error")
-		return desktoplink.TextAnswer(fmt.Sprintf("%s's installed server did not answer: %v", bs.entry.Application, err), true), nil
+		b.count(req.Server, class, "error")
+		return desktoplink.TextAnswer(fmt.Sprintf("%s's installed server did not answer: %v", bs.entry.Name, err), true), nil
 	}
-	b.count(req.Server, tool.Class, "")
+	b.count(req.Server, class, "")
 	return fitAnswer(a), nil
 }
 
@@ -594,7 +750,7 @@ func (s *Service) askExec(ctx context.Context, b *binding, bs *boundServer, req 
 		return nil
 	}
 	if s.opt.Ask == nil {
-		return refusal(receipt.DesktopDeclined, req.Server, "no one could be asked to run this code inside %s, so it did not run", bs.entry.Application)
+		return refusal(receipt.DesktopDeclined, req.Server, "no one could be asked to run this code inside %s, so it did not run", bs.entry.Name)
 	}
 	who := b.ref
 	if b.agent != "" {
@@ -606,16 +762,16 @@ func (s *Service) askExec(ctx context.Context, b *binding, bs *boundServer, req 
 	defer stop()
 	what, ok := whatWouldRun(req.Arguments)
 	if !ok {
-		return refusal(receipt.DesktopDeclined, req.Server, "the call was too long to show you in full (more than %d characters), so it was not asked about and did not run inside %s", maxWhat, bs.entry.Application)
+		return refusal(receipt.DesktopDeclined, req.Server, "the call was too long to show you in full (more than %d characters), so it was not asked about and did not run inside %s", maxWhat, bs.entry.Name)
 	}
-	ans, err := s.opt.Ask(askCtx, ExecQuestion{Who: who, Application: bs.entry.Application, Tool: req.Tool, What: what})
-	if r := b.refusedByState(bs.entry); r != nil {
+	ans, err := s.opt.Ask(askCtx, ExecQuestion{Who: who, Application: bs.entry.Name, Tool: req.Tool, What: what})
+	if r := b.refusedByState(bs); r != nil {
 		return r
 	}
 	switch {
 	case err != nil:
 		s.opt.Recent.update(true, func() { b.record.exec(false) })
-		return refusal(receipt.DesktopDeclined, req.Server, "the question to run this code inside %s was not answered, so it did not run", bs.entry.Application)
+		return refusal(receipt.DesktopDeclined, req.Server, "the question to run this code inside %s was not answered, so it did not run", bs.entry.Name)
 	case ans == ExecAllowRun:
 		b.mu.Lock()
 		b.execForRun = true
@@ -626,7 +782,7 @@ func (s *Service) askExec(ctx context.Context, b *binding, bs *boundServer, req 
 	default:
 		s.opt.Recent.update(true, func() { b.record.exec(false) })
 		s.changed()
-		return refusal(receipt.DesktopDeclined, req.Server, "the person declined to run this code inside %s", bs.entry.Application)
+		return refusal(receipt.DesktopDeclined, req.Server, "the person declined to run this code inside %s", bs.entry.Name)
 	}
 	s.changed()
 	return nil
@@ -806,22 +962,22 @@ func (s *Service) setState(run, state string) error {
 
 // refusedByState is the refusal a paused or stopped run gets, nil while
 // it is active.
-func (b *binding) refusedByState(e appserver.Server) *desktop.Refusal {
+func (b *binding) refusedByState(bs *boundServer) *desktop.Refusal {
 	b.mu.Lock()
 	state := b.state
 	b.mu.Unlock()
 	switch state {
 	case StatePaused:
-		return refusal(receipt.DesktopPaused, e.ID, "the person paused this run's use of %s on their computer", e.Application)
+		return refusal(receipt.DesktopPaused, bs.key, "the person paused this run's use of %s on their computer", bs.entry.Name)
 	case StateStopped:
-		return refusal(receipt.DesktopStopped, e.ID, "the person stopped this run's use of %s on their computer", e.Application)
+		return refusal(receipt.DesktopStopped, bs.key, "the person stopped this run's use of %s on their computer", bs.entry.Name)
 	}
 	return nil
 }
 
 // count records one call's outcome for Settings' recent runs: "" is
 // answered, "error" not answered, else a refusal's reason.
-func (b *binding) count(server string, class appserver.Class, outcome string) {
+func (b *binding) count(server string, class library.Class, outcome string) {
 	b.recent.update(false, func() { b.record.call(server, string(class), outcome) })
 }
 
@@ -851,7 +1007,7 @@ func (b *binding) summary() RecentRun {
 	r := RecentRun{Run: b.run, Ref: b.ref, Agent: b.agent, State: StateActive}
 	for _, id := range b.order {
 		bs := b.servers[id]
-		r.Servers = append(r.Servers, RecentServer{ID: id, Application: bs.entry.Application, Package: bs.entry.Package.Ref(), Launch: bs.launch, Era: bs.era(), Calls: map[string]int{}, Refused: map[string]int{}})
+		r.Servers = append(r.Servers, RecentServer{ID: id, Application: bs.entry.Name, Package: serverPackage(bs.entry), Launch: bs.launch, Era: bs.era(), Calls: map[string]int{}, Refused: map[string]int{}})
 	}
 	if b.computer != nil {
 		r.Servers = append(r.Servers, RecentServer{ID: spec.DesktopComputerID, Application: "Computer use (" + b.computer.scope + " scope)", Calls: map[string]int{}, Refused: map[string]int{}})
@@ -894,7 +1050,7 @@ func (s *Service) Runs() []Bound {
 	for _, b := range bs {
 		v := Bound{Run: b.run, Ref: b.ref, Agent: b.agent}
 		for _, id := range b.order {
-			v.Applications = append(v.Applications, b.servers[id].entry.Application)
+			v.Applications = append(v.Applications, b.servers[id].entry.Name)
 		}
 		if b.computer != nil {
 			v.ComputerUse, v.ComputerApps = b.computer.scope, b.computerApps()
@@ -925,6 +1081,9 @@ func newToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// DialLoopback says something listens on the loopback port.
+func DialLoopback(ctx context.Context, port int) error { return dialLoopback(ctx, port) }
+
 // dialLoopback says something listens on the loopback port.
 func dialLoopback(ctx context.Context, port int) error {
 	d := net.Dialer{Timeout: 2 * time.Second}
@@ -933,4 +1092,13 @@ func dialLoopback(ctx context.Context, port int) error {
 		return err
 	}
 	return c.Close()
+}
+
+// serverPackage names a preset's pinned server, "" for one the person set
+// up.
+func serverPackage(a yourcomputer.Application) string {
+	if a.Server == nil {
+		return ""
+	}
+	return a.Server.Package
 }
