@@ -1,12 +1,13 @@
 package linkservice
 
 // Launching an installed server. What runs on the person's computer is the
-// catalogue entry's launch line and environment, nothing else: the command,
-// its arguments and its variables come from the entry the app's own
-// catalogue holds for the bound id, never from the release, the bind, a
-// call or the agent. The process runs as the person, the app's own user,
-// with the app's environment and the entry's variables over it, and is
-// ended with its children when the run unbinds.
+// launch line and environment of the person's own application, nothing
+// else: the command, its arguments and its variables come from the list in
+// Settings → Your computer (a library preset's, or typed by the person),
+// never from the release, the bind, a call or the agent. The process runs as
+// the person, the app's own user, with the app's environment and the
+// application's variables over it, and is ended with its children when the
+// run unbinds.
 
 import (
 	"context"
@@ -20,9 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blaktron/agentry/pkg/appserver"
-
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
+
+	"github.com/blaktron/agentry-desktop/internal/library"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // LaunchSpec is what the link service runs for a stdio entry: the
@@ -47,33 +49,17 @@ func (l LaunchSpec) Line() string {
 	return strings.Join(append(parts, l.Command...), " ")
 }
 
-// launchSpec is the entry's launch, with its screening variable dropped
-// when the person turned the application's script screening off in
-// Settings. Nothing
-// else changes it.
-func launchSpec(e appserver.Server, screeningOff bool) (LaunchSpec, error) {
-	if e.Attachment != appserver.AttachmentStdio || e.Launch == nil || len(e.Launch.Command) == 0 {
-		return LaunchSpec{}, fmt.Errorf("the catalogue gives %s no launch", e.Application)
+// launchSpec is an application's server launch, as the person's list holds
+// it. Nothing else changes it.
+func launchSpec(name string, srv yourcomputer.Server) (LaunchSpec, error) {
+	if srv.Attachment != library.AttachmentStdio || len(srv.Command) == 0 {
+		return LaunchSpec{}, fmt.Errorf("%s has no MCP server Agentry Desktop starts", name)
 	}
-	spec := LaunchSpec{Command: append([]string(nil), e.Launch.Command...), Env: map[string]string{}}
-	for k, v := range e.Launch.Env {
+	spec := LaunchSpec{Command: append([]string(nil), srv.Command...), Env: map[string]string{}}
+	for k, v := range srv.Env {
 		spec.Env[k] = v
 	}
-	if v := ScreeningVariable(e.ID); v != "" && screeningOff {
-		delete(spec.Env, v)
-	}
 	return spec, nil
-}
-
-// ScreeningVariable is the launch variable that turns an application
-// server's own script screening on, "" for one with none: the switch Settings →
-// Your computer offers per application.
-func ScreeningVariable(id string) string {
-	switch id {
-	case "blender":
-		return "BLENDER_MCP_SAFE_MODE"
-	}
-	return ""
 }
 
 // Launcher starts an installed server from its spec and opens an MCP
@@ -125,7 +111,7 @@ func startStdio(ctx context.Context, spec LaunchSpec) (Session, error) {
 		return nil, fmt.Errorf("%s is not installed on this computer: %w", spec.Command[0], err)
 	}
 	// The process outlives the bind's context: it is ended at unbind.
-	cmd := exec.Command(path, spec.Command[1:]...) //nolint:gosec // the catalogue entry's launch, never an argument a run gave
+	cmd := exec.Command(path, spec.Command[1:]...) //nolint:gosec // the person's own application's launch, never an argument a run gave
 	cmd.Env = os.Environ()
 	keys := make([]string, 0, len(spec.Env))
 	for k := range spec.Env {

@@ -4,6 +4,7 @@ package linkservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
@@ -25,3 +26,8 @@ func ComputerSupport() Support {
 
 // RequestComputerPermissions has nothing to ask on this system.
 func RequestComputerPermissions() Support { return ComputerSupport() }
+
+// runningWindows is not read here: the person types the identifier.
+func runningWindows(context.Context) ([]RunningWindow, error) {
+	return nil, errors.New("this system's windows cannot be listed yet: type the application's identifier (its bundle identifier on macOS, its executable's file name on Windows)")
+}

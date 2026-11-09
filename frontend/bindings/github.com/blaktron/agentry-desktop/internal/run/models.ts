@@ -40,6 +40,36 @@ export class CopilotModel {
 }
 
 /**
+ * DesktopEntry is one application a release names, as the run setup
+ * resolves it: its id ("" for an application the person chooses) and what
+ * the run uses of it, its MCP server, its windows in app scope, or both.
+ */
+export class DesktopEntry {
+    "id": string;
+    "use": string;
+
+    /** Creates a new DesktopEntry instance. */
+    constructor($$source: Partial<DesktopEntry> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("use" in $$source)) {
+            this["use"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DesktopEntry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DesktopEntry {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DesktopEntry($$parsedSource as Partial<DesktopEntry>);
+    }
+}
+
+/**
  * HostSignIn is the sign-in the run setup was given for one target host,
  * for this run: a key file a native picker returned and its passphrase,
  * or a password, and a sudo password. Empty fields leave each to the

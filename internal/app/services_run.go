@@ -966,9 +966,9 @@ type ProfileStatusView struct {
 	// shown in the Knowledge step and never to the agent; nil when none.
 	AcceptsKnowledge *KnowledgeAcceptsView `json:"acceptsKnowledge,omitempty"`
 	// Desktop are the applications on this computer the release uses, by
-	// catalogue id: the run setup shows a card for each and starts no run
-	// here until each is ready.
-	Desktop []string `json:"desktop"`
+	// id, with what it uses of each: the run setup resolves each to one of
+	// the person's applications and starts no run here until each is ready.
+	Desktop []run.DesktopEntry `json:"desktop"`
 }
 
 // KnowledgeAcceptsView is the manifest's knowledge.accepts: one plain line
@@ -1018,7 +1018,7 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Modes:             emptyNotNil(p.Modes),
 		Opening:           p.Opening,
 		ShipsKnowledge:    emptyNotNil(p.ShipsKnowledge),
-		Desktop:           emptyNotNil(p.Desktop),
+		Desktop:           append([]run.DesktopEntry{}, p.Desktop...),
 	}
 	if a := p.AcceptsKnowledge; a != nil {
 		v.AcceptsKnowledge = &KnowledgeAcceptsView{Prompt: a.Prompt, Required: a.Required}

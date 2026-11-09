@@ -10,23 +10,25 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/blaktron/agentry/pkg/appserver"
-
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
+	"github.com/blaktron/agentry-desktop/internal/library"
+	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
 )
 
 // Computer use. A run whose release declares computer use asks for it at
-// bind, in the release's scope. The link service binds it only when the
-// person has turned computer use on in Plugins → Computer use, opens the
-// window system's capture and input for the bound applications' windows
-// (asking the person through the system's own dialogs where it asks), and
-// answers each computer-use call through package computeruse, refused like
-// every other call while the run is paused or stopped.
+// bind, in the release's scope, naming the applications whose windows it
+// uses. The link service binds it only when the person has turned computer
+// use on in Settings → Your computer and approved each of those
+// applications for its windows, opens the window system's capture and input
+// for the windows those applications' identifiers match (asking the person
+// through the system's own dialogs where it asks), and answers each
+// computer-use call through package computeruse, refused like every other
+// call while the run is paused or stopped.
 
 // ComputerApp is an application whose windows a run's computer use may
 // see and use: its name, and the window classes its windows carry.
@@ -55,15 +57,6 @@ type ComputerOptions struct {
 	// AskScreen asks the person, in a native dialog, whether the run named
 	// may see and use the whole screen; nil refuses screen scope.
 	AskScreen func(ctx context.Context, who string) error
-}
-
-// computerWindows name each catalogue application's windows on every
-// system, matched without regard to case against what the system gives: on
-// Linux its X11 WM_CLASS and its Wayland app id, on macOS its bundle
-// identifier and its process name, on Windows its executable's file name.
-var computerWindows = map[string][]string{
-	"blender": {"blender", "Blender", "org.blender.Blender", "org.blenderfoundation.blender", "blender.exe"},
-	"unreal":  {"UnrealEditor", "com.epicgames.UnrealEditor", "UnrealEditor.exe"},
 }
 
 // computerBinding is a run's bound computer use.
@@ -123,10 +116,15 @@ func (s *Service) bindComputer(ctx context.Context, req desktop.BindRequest, b *
 	}
 	creq := ComputerRequest{Scope: req.ComputerUse}
 	var names []string
-	for _, id := range b.order {
-		e := b.servers[id].entry
-		creq.Apps = append(creq.Apps, ComputerApp{Name: e.Application, Classes: computerWindows[e.ID]})
-		names = append(names, e.Application)
+	if req.ComputerUse == computeruse.ScopeApp {
+		apps, r := s.windowApps(ctx, req, b)
+		if r != nil {
+			return nil, r
+		}
+		for _, a := range apps {
+			creq.Apps = append(creq.Apps, ComputerApp{Name: a.Name, Classes: a.Windows})
+			names = append(names, a.Name)
+		}
 	}
 	backend, err := open(ctx, creq)
 	if err != nil {
@@ -159,6 +157,62 @@ func (s *Service) bindComputer(ctx context.Context, req desktop.BindRequest, b *
 		KeepScreenshots: keep,
 		StopKey:         stopKeyWords(s.opt.Computer.StopKey),
 	}, nil
+}
+
+// windowApps are the applications whose windows a run's computer use in
+// app scope sees and uses, each on the person's list and approved for its
+// windows: the ids the bind names, and the application the person chooses
+// when it asks for one. A run of an earlier revision of the link protocol
+// names no windows: its applications' windows are those of the servers it
+// bound.
+func (s *Service) windowApps(ctx context.Context, req desktop.BindRequest, b *binding) ([]yourcomputer.Application, *desktop.Refusal) {
+	server := spec.DesktopComputerID
+	ids := req.Windows
+	if req.Protocol < desktop.Protocol {
+		ids = nil
+		for _, id := range b.order {
+			ids = append(ids, b.servers[id].entry.ID)
+		}
+	}
+	var out []yourcomputer.Application
+	add := func(a yourcomputer.Application) *desktop.Refusal {
+		switch {
+		case len(a.Windows) == 0:
+			return refusal(receipt.DesktopNotGranted, server, "Agentry Desktop does not know %s's windows: give its window identifiers in Settings → Your computer, and run again", a.Name)
+		case !a.Approve.Computer:
+			return refusal(receipt.DesktopNotGranted, server, "agents may not see and use %s's windows: turn on \"Agents may see and use its windows\" for %s in Agentry Desktop's Settings → Your computer, and run again", a.Name, a.Name)
+		}
+		if !slices.ContainsFunc(out, func(x yourcomputer.Application) bool { return x.ID == a.ID }) {
+			out = append(out, a)
+		}
+		return nil
+	}
+	for _, id := range ids {
+		a, r := s.resolve(ctx, req, id, false, UseComputer)
+		if r != nil {
+			r.Server = server
+			return nil, r
+		}
+		if r := add(a); r != nil {
+			return nil, r
+		}
+	}
+	if req.ChooseWindows {
+		a, r := s.resolve(ctx, req, "", true, UseComputer)
+		switch {
+		case r == nil:
+			if r := add(a); r != nil {
+				return nil, r
+			}
+		case len(out) == 0 && r.Reason == receipt.DesktopNotGranted && s.opt.Choose == nil:
+			// With no one to ask and nothing approved, the window system's
+			// own picker, where it has one, names the window at the start.
+		default:
+			r.Server = server
+			return nil, r
+		}
+	}
+	return out, nil
 }
 
 // stopKeyWords is the stop key as the receipt says it: the desktop may not
@@ -206,7 +260,7 @@ func (s *Service) callComputer(ctx context.Context, b *binding, req desktop.Call
 	if !ok {
 		return desktoplink.Answer{}, refusal(receipt.DesktopNotGranted, server, "the run was not given the computer-use tool %q", req.Tool)
 	}
-	cls := appserver.Class(class)
+	cls := library.Class(class)
 	if r := b.computerState(); r != nil {
 		b.count(server, cls, r.Reason)
 		return desktoplink.Answer{}, r

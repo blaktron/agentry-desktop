@@ -218,9 +218,9 @@ export class DependencyRow {
 }
 
 /**
- * DesktopApp is one entry of the catalogue of application servers as the
- * form offers it: the id a release names, the application, the systems it
- * is offered on, and the tools a run may be given with their classes.
+ * DesktopApp is one preset of Agentry Desktop's library as the form offers
+ * it: the id a release names, the application, the systems it is offered
+ * on, and the tools the library classes.
  */
 export class DesktopApp {
     "id": string;
@@ -264,9 +264,9 @@ export class DesktopApp {
 }
 
 /**
- * DesktopAppTool is one tool of an application server: read, act or exec
- * (code the application runs, which the person is asked about before each
- * call), and whether it reaches the entry's hosts.
+ * DesktopAppTool is one tool of a preset's server: read, act or exec (code
+ * the application runs, which the person is asked about before each call),
+ * and whether it reaches the preset's hosts.
  */
 export class DesktopAppTool {
     "name": string;

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
@@ -62,7 +63,7 @@ func openComputer(ctx context.Context, req ComputerRequest) (computeruse.Backend
 }
 
 // ComputerSupport says what computer use can do on this session, for
-// Plugins → Computer use: the display, whether it is ready, what is
+// Plugins → Your computer: the display, whether it is ready, what is
 // missing, and what the window system holds.
 func ComputerSupport() Support {
 	wl := os.Getenv("WAYLAND_DISPLAY") != "" && !strings.EqualFold(os.Getenv(DisplayVariable), "x11")
@@ -105,3 +106,40 @@ func cmpOr(a, b string) string {
 // RequestComputerPermissions has nothing to ask ahead of a run here: the
 // desktop portal asks when a run starts.
 func RequestComputerPermissions() Support { return ComputerSupport() }
+
+// runningWindows reads the windows the X server shows, each with its
+// WM_CLASS instance and class: on X11, and on Wayland the windows of
+// applications that run through Xwayland. A Wayland application's own
+// windows are not readable this way, and the person types its app id.
+func runningWindows(ctx context.Context) ([]RunningWindow, error) {
+	if os.Getenv("DISPLAY") == "" {
+		return nil, fmt.Errorf("this desktop's windows cannot be listed: type the application's identifier (its Wayland app id, such as org.kde.kdenlive)")
+	}
+	b, err := x11.Open(ctx, x11.Options{Scope: computeruse.ScopeApp, Match: func(instance, class string, _ int) (string, bool) {
+		return instance + "\x00" + class, true
+	}})
+	if err != nil {
+		return nil, fmt.Errorf("this display's windows cannot be listed (%v): type the application's identifier", err)
+	}
+	defer func() { _ = b.Close() }()
+	ws, err := b.Windows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RunningWindow, 0, len(ws))
+	for _, w := range ws {
+		var ids []string
+		for _, id := range strings.Split(w.App, "\x00") {
+			if id != "" && !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			out = append(out, RunningWindow{Title: w.Title, Identifiers: ids})
+		}
+	}
+	if len(out) == 0 && os.Getenv("WAYLAND_DISPLAY") != "" {
+		return nil, fmt.Errorf("no window Agentry Desktop can read is open: on Wayland, type the application's app id (such as org.kde.kdenlive)")
+	}
+	return out, nil
+}

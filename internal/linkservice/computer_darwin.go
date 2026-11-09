@@ -4,6 +4,7 @@ package linkservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -69,4 +70,9 @@ func ComputerSupport() Support {
 func RequestComputerPermissions() Support {
 	quartz.Request()
 	return ComputerSupport()
+}
+
+// runningWindows is not read here: the person types the identifier.
+func runningWindows(context.Context) ([]RunningWindow, error) {
+	return nil, errors.New("this system's windows cannot be listed yet: type the application's identifier (its bundle identifier on macOS, its executable's file name on Windows)")
 }

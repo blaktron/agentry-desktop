@@ -13,8 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blaktron/agentry/pkg/appserver"
 	"github.com/blaktron/agentry/pkg/manifest"
+
+	"github.com/blaktron/agentry-desktop/internal/library"
 )
 
 // desktopDraft is a Drafter's manifest for a Blender helper: Blender's
@@ -184,11 +185,11 @@ func TestTheDesktopConsentIsTheInstallsWords(t *testing.T) {
 	}
 }
 
-// The form offers every entry of the catalogue built into the app, with each
-// tool a run may be given and its class, and never a withheld tool.
-func TestTheFormOffersTheCatalogue(t *testing.T) {
+// The form offers every preset of the library built into the app, with each
+// tool the library classes and its class, and never a withheld tool.
+func TestTheFormOffersTheLibrary(t *testing.T) {
 	apps := DesktopApps()
-	all := appserver.Builtin().All()
+	all := library.Builtin().All()
 	if len(apps) != len(all) || len(apps) == 0 {
 		t.Fatalf("offered %d of %d entries", len(apps), len(all))
 	}

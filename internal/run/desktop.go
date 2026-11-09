@@ -102,6 +102,57 @@ func DesktopIDs(m *manifest.Manifest) []string {
 	return ids
 }
 
+// The uses a release's entry makes of an application.
+const (
+	UseMCP      = "mcp"
+	UseComputer = "computer"
+	UseBoth     = "both"
+)
+
+// DesktopEntry is one application a release names, as the run setup
+// resolves it: its id ("" for an application the person chooses) and what
+// the run uses of it, its MCP server, its windows in app scope, or both.
+type DesktopEntry struct {
+	ID  string `json:"id"`
+	Use string `json:"use"`
+}
+
+// DesktopEntries are the applications a release's desktop line names, in
+// its order, with an application the person chooses last where app-scope
+// computer use names no window of its own.
+func DesktopEntries(m *manifest.Manifest) []DesktopEntry {
+	d := m.Capabilities.Desktop
+	if d == nil {
+		return nil
+	}
+	appScope := d.ComputerUse == manifest.ComputerUseApp
+	var out []DesktopEntry
+	chooserWindows := false
+	for _, s := range d.Servers {
+		mcp, win := s.UsesServer(), appScope && d.UsesWindows(s)
+		if !mcp && !win {
+			continue
+		}
+		use := UseMCP
+		switch {
+		case mcp && win:
+			use = UseBoth
+		case win:
+			use = UseComputer
+		}
+		id := s.ID
+		if s.Choose {
+			id = ""
+			chooserWindows = win
+		}
+		out = append(out, DesktopEntry{ID: id, Use: use})
+	}
+	if d.ChoosesWindows() && !chooserWindows {
+		out = append(out, DesktopEntry{Use: UseComputer})
+	}
+	return out
+}
+
 // RefuseHostedDesktop refuses a run In Agentry of a release that declares
 // the person's computer, which only a run on that computer reaches.
 func RefuseHostedDesktop(m *manifest.Manifest) error {
