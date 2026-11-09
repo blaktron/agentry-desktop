@@ -5,11 +5,14 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runhost"
 	rhsetup "github.com/blaktron/agentry-cli/pkg/runhost/setup"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/runhistory"
 	"github.com/blaktron/agentry-desktop/internal/selfupdate"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -179,5 +182,37 @@ func TestCreditsNeedASignedInAccount(t *testing.T) {
 	}
 	if asked {
 		t.Fatal("the person was asked before the sign-in was checked")
+	}
+}
+
+// A run sent to a runhost, and a collected run of one of its schedules, are
+// kept in the run history naming that runhost, so Recent runs says where
+// they ran; a run on this computer names none.
+func TestARunhostRunIsRecordedNamingItsRunhost(t *testing.T) {
+	r, _ := newRunhostsAPI(t)
+	freshConfig(t)
+	setRemember(t, true)
+	r.run.runhostRun = func(_ context.Context, req run.RunhostRequest, _ io.Writer) (*run.Result, *run.RanOn, error) {
+		return &run.Result{Status: "ok", RunID: "ab12cd34", Ref: req.Ref, SavedModel: &receipt.SavedModel{ID: "a7002bb0", Name: "Haiku"}}, &run.RanOn{Name: req.Runhost}, nil
+	}
+	if _, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "", nil, "", 0, -1, false, nil, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	e := onlyEntry(t)
+	if e.Runhost != "lab" || e.Where != runhistory.WhereHere || e.Model != "Haiku" {
+		t.Fatalf("the one-off run's entry: %+v", e)
+	}
+	recordScheduledRun(r.app, "lab", "acme/digest@1.0.0", runhost.ScheduleFire{Occurrence: time.Now().UTC(), Job: "0123456789abcdef0123456789abcdef"}, time.Now().UTC(),
+		&run.Result{Status: "ok", RunID: "cd34ef56", SavedModel: &receipt.SavedModel{ID: "bea51c0a", Name: "Qwen"}})
+	v, err := r.run.RecentRuns("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, row := range v.Runs {
+		got[row.ID] = row.Runhost + " " + row.Model
+	}
+	if got[e.ID] != "lab Haiku" || got["cd34ef56"] != "lab Qwen" {
+		t.Fatalf("the rows: %v", got)
 	}
 }

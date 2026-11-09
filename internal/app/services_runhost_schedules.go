@@ -224,7 +224,7 @@ func (r *RunhostsAPI) CollectSchedules() (int, error) {
 func recordScheduledRun(app *App, name, ref string, f runhost.ScheduleFire, started time.Time, res *run.Result) {
 	e := runhistory.Entry{ID: res.RunID, Kind: runhistory.KindRun, Where: runhistory.WhereHere, Ref: refOrEmpty(ref),
 		StartedAt: f.Occurrence, EndedAt: started, Outcome: runhistory.OutcomeOK, ExitCode: res.ExitCode,
-		Digest: res.Digest, Folder: cleanAbs(res.OutDir)}
+		Digest: res.Digest, Folder: cleanAbs(res.OutDir), Runhost: name}
 	if !runhistory.ValidID(e.ID) {
 		e.ID = f.Job
 	}

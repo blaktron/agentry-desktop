@@ -1,7 +1,7 @@
 // What Recent runs and the run page say of a run.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { builtinPlace, emptyLine, headline, howItEnded, nameOf, rowLine, versionOf, whatRan, whenRan, whereRan } from "../src/recentRuns.ts";
+import { builtinPlace, emptyLine, headline, howItEnded, modelRan, nameOf, rowLine, versionOf, whatRan, whenRan, whereRan } from "../src/recentRuns.ts";
 
 const now = new Date("2026-10-05T12:00:00Z");
 
@@ -67,4 +67,17 @@ test("the empty card says why it is empty", () => {
   assert.match(emptyLine({ remember: true, signedIn: false }), /^No runs yet/);
   assert.match(emptyLine({ remember: false, signedIn: false }), /Remember recent runs is off/);
   assert.match(emptyLine({ remember: false, signedIn: true }), /No run In Agentry yet/);
+});
+
+test("a run on a runhost names the runhost and its saved model, and one here or In Agentry reads as before", () => {
+  const onLab = { where: "here", runhost: "lab", model: "Haiku" };
+  assert.equal([whereRan(onLab), modelRan(onLab)].join(" "), "On lab on Haiku");
+  // A collected run of one of the runhost's schedules reads the same.
+  assert.equal(whereRan({ where: "here", runhost: "lab" }), "On lab");
+  const here = { where: "here", model: "Haiku" };
+  assert.equal([whereRan(here), modelRan(here)].join(" "), "On this computer on Haiku");
+  assert.equal(whereRan({ where: "here", scheduled: true }), "Scheduled, on this computer");
+  assert.equal(whereRan({ where: "agentry" }), "In Agentry");
+  // An entry written before runs named their runhost has none, and reads as it did.
+  assert.equal(whereRan({ where: "here", runhost: "" }), "On this computer");
 });

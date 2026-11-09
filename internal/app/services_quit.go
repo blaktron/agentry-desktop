@@ -52,6 +52,9 @@ type liveRun struct {
 	folder  string
 	// registry is a run's or a chat's, for its history entry.
 	registry string
+	// runhost is the remote runhost a run was sent to, for its history
+	// entry; "" for a run on this computer.
+	runhost string
 	// turns are the run ids of the run's later turns: a draft's one repair
 	// turn runs under its own id (drafter.PostStep), so the crash path
 	// records it and quitting sweeps it with the run's own.
