@@ -29,6 +29,20 @@ type RunhostAgentView struct {
 	Title       string `json:"title"`
 	State       string `json:"state"`
 	DesktopOnly bool   `json:"desktopOnly,omitempty"`
+	// Model is the runhost's saved model the agent runs on, as the runhost
+	// says it; nil from a runhost that names none.
+	Model *RunhostAgentModelView `json:"model,omitempty"`
+}
+
+// RunhostAgentModelView is the saved model an agent on a runhost runs on:
+// the one it names (ID), or the runhost's default it follows, with why a
+// turn on it would be refused there now.
+type RunhostAgentModelView struct {
+	ID             string `json:"id,omitempty"`
+	Name           string `json:"name,omitempty"`
+	Model          string `json:"model,omitempty"`
+	FollowsDefault bool   `json:"followsDefault,omitempty"`
+	Refusal        string `json:"refusal,omitempty"`
 }
 
 // agentTurnTimeout bounds one message to an agent on a runhost.
@@ -85,6 +99,15 @@ func (r *RunhostsAPI) Agents(name string) ([]RunhostAgentView, error) {
 			DisplayName string `json:"displayName"`
 			State       string `json:"state"`
 			DesktopOnly bool   `json:"desktopOnly"`
+			Model       *struct {
+				SavedModel *struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"savedModel"`
+				Model          string `json:"model"`
+				FollowsDefault bool   `json:"followsDefault"`
+				Refusal        string `json:"refusal"`
+			} `json:"model"`
 		} `json:"agents"`
 	}
 	if err := json.Unmarshal(out, &list); err != nil {
@@ -92,7 +115,17 @@ func (r *RunhostsAPI) Agents(name string) ([]RunhostAgentView, error) {
 	}
 	views := make([]RunhostAgentView, 0, len(list.Agents))
 	for _, a := range list.Agents {
-		views = append(views, RunhostAgentView{Name: a.Agent, Title: a.DisplayName, State: a.State, DesktopOnly: a.DesktopOnly})
+		v := RunhostAgentView{Name: a.Agent, Title: a.DisplayName, State: a.State, DesktopOnly: a.DesktopOnly}
+		if m := a.Model; m != nil {
+			v.Model = &RunhostAgentModelView{Model: m.Model, FollowsDefault: m.FollowsDefault, Refusal: m.Refusal}
+			if m.SavedModel != nil {
+				v.Model.Name = m.SavedModel.Name
+				if !m.FollowsDefault {
+					v.Model.ID = m.SavedModel.ID
+				}
+			}
+		}
+		views = append(views, v)
 	}
 	return views, nil
 }

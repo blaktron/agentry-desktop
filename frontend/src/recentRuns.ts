@@ -23,6 +23,8 @@ export type RunRow = {
   /** A schedule on this computer fired it. */
   scheduled?: boolean;
   schedule?: string;
+  /** The name of the saved model a run here was on. */
+  model?: string;
 };
 
 const BUILTIN: Record<string, string> = {
@@ -59,6 +61,10 @@ export const isBuiltin = (kind: string): boolean => kind in BUILTIN;
  *  marked Scheduled. */
 export const whereRan = (row: Pick<RunRow, "where" | "scheduled">): string =>
   row.where === "agentry" ? "In Agentry" : row.scheduled ? "Scheduled, on this computer" : "On this computer";
+
+/** The saved model a run here was on, as its receipt named it: "on Qwen";
+ *  "" when it named none. */
+export const modelRan = (row: Pick<RunRow, "model">): string => (row.model ? `on ${row.model}` : "");
 
 /** How it ended, in a few words: a failure by its exit class's name; a run
  *  In Agentry in the site's words. */
@@ -108,9 +114,10 @@ export function whenRan(row: Pick<RunRow, "startedAt" | "endedAt">, now: Date): 
   return `${lead}${t.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
 }
 
-/** A row's line under its name: where, when, how it ended. */
+/** A row's line under its name: where and on which saved model, when, how
+ *  it ended. */
 export function rowLine(row: RunRow, now: Date): string {
-  return [whereRan(row), whenRan(row, now), howItEnded(row)].filter(Boolean).join(" · ");
+  return [[whereRan(row), modelRan(row)].filter(Boolean).join(" "), whenRan(row, now), howItEnded(row)].filter(Boolean).join(" · ");
 }
 
 /** A built-in's own place, which its run page links to; none for a

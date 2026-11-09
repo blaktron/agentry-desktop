@@ -382,6 +382,10 @@ type PersistentAgentView struct {
 	SubagentRuns      []PersistentSubagentRunView `json:"subagentRuns"`
 	LastCompaction    *PersistentUpkeepView       `json:"lastCompaction,omitempty"`
 	LastConsolidation *PersistentUpkeepView       `json:"lastConsolidation,omitempty"`
+	// Model is the saved model the agent runs on: the one it names, or the
+	// default it follows, with why a turn on it would be refused now. Nil
+	// on a computer that keeps no saved model a person chose.
+	Model *run.ModelInUse `json:"model,omitempty"`
 }
 
 // PersistentUpkeepView is one run of an agent's memory upkeep, a compaction
@@ -465,11 +469,14 @@ type PersistentRosterEntry struct {
 
 // PersistentStatusView is a running agent's segment.
 type PersistentStatusView struct {
-	Since        string `json:"since"`
-	Segment      int    `json:"segment"`
-	Run          string `json:"run"`
-	Adapter      string `json:"adapter"`
-	Model        string `json:"model"`
+	Since   string `json:"since"`
+	Segment int    `json:"segment"`
+	Run     string `json:"run"`
+	Adapter string `json:"adapter"`
+	Model   string `json:"model"`
+	// SavedModel is the name of the saved model the segment runs on; ""
+	// on a policy with none.
+	SavedModel   string `json:"savedModel,omitempty"`
 	Resumed      bool   `json:"resumed"`
 	ResumeReason string `json:"resumeReason,omitempty"`
 	Busy         bool   `json:"busy"`
@@ -536,6 +543,10 @@ type PersistentChange struct {
 	RemoveKnowledge string            `json:"removeKnowledge,omitempty"`
 	RemoveServer    string            `json:"removeServer,omitempty"`
 	Switch          *PersistentSwitch `json:"switch,omitempty"`
+	// Model puts the agent on a saved model, by its id; "" puts it back on
+	// the default. A running agent takes it at its next turn, with no stop
+	// and nothing new to agree to.
+	Model *string `json:"model,omitempty"`
 }
 
 // PersistentSwitch turns a roster entry on or off.
@@ -688,6 +699,7 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 		v.LastConsolidation = upkeepView(consolidation)
 	}
 	v.Accounts = accountViews(cfg.Accounts)
+	v.Model = run.DescribeModel(cfg.Model)
 	v.Resets = resetViews(a)
 	v.MailProviders = mailProviderViews(a, cfg)
 	v.Microsoft = microsoftView(a, cfg)
@@ -721,8 +733,13 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 }
 
 func statusView(st persistent.Status) *PersistentStatusView {
+	saved := ""
+	if st.SavedModel != nil {
+		saved = st.SavedModel.Name
+	}
 	return &PersistentStatusView{
-		Since: st.Since.Format(time.RFC3339), Segment: st.Segment, Run: st.Run, Adapter: st.Adapter, Model: st.Model,
+		SavedModel: saved,
+		Since:      st.Since.Format(time.RFC3339), Segment: st.Segment, Run: st.Run, Adapter: st.Adapter, Model: st.Model,
 		Resumed: st.Resumed, ResumeReason: st.ResumeReason, Busy: st.Busy, Pending: st.Pending, Held: st.Held,
 		InputTokens: st.Usage.InputTokens, OutputTokens: st.Usage.OutputTokens, TotalTokens: st.Usage.TotalTokens,
 		CostUSD: st.Usage.CostUSD, UserTurns: st.Usage.UserTurns, ToolCalls: st.Usage.Turns,
@@ -1145,6 +1162,9 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 		Contents: persistent.Contents{Pack: p.packDigest},
 		Helper:   p.helper(), Subagents: p.subagents(),
 		BindDesktop: p.bindDesktop(home, a),
+		// A saved model whose key or sign-in is not here refuses the start or
+		// the turn by its name, as the CLI's supervisor does.
+		ModelUsable: run.AgentModelUsable(home),
 	}, nil
 }
 
@@ -1463,6 +1483,13 @@ func (p *PersistentAPI) Configure(name string, ch PersistentChange) (*Persistent
 	}
 	if ch.Switch != nil {
 		c.Switch = &persistent.Switch{ID: ch.Switch.ID, On: ch.Switch.On}
+	}
+	if ch.Model != nil {
+		id, err := run.ResolveModel(*ch.Model)
+		if err != nil {
+			return nil, err
+		}
+		c.Model = &id
 	}
 	if err := p.configure(a, c); err != nil {
 		return nil, err

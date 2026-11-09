@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as savedmodels$0 from "../../../agentry-cli/pkg/runner/savedmodels/models.js";
+
 /**
  * CopilotModel is one model a Copilot plan offers, for the model field:
  * its id, GitHub's display name and premium-request multiplier where
@@ -217,6 +221,34 @@ export class KeptConnection {
 }
 
 /**
+ * ListedModel is one model a provider lists, with its price in US dollars
+ * a million tokens where it gives one.
+ */
+export class ListedModel {
+    "id": string;
+    "displayName"?: string;
+    "inputUsd"?: string;
+    "outputUsd"?: string;
+
+    /** Creates a new ListedModel instance. */
+    constructor($$source: Partial<ListedModel> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ListedModel instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ListedModel {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ListedModel($$parsedSource as Partial<ListedModel>);
+    }
+}
+
+/**
  * Managed is the managed engine's part of the prerequisites story.
  */
 export class Managed {
@@ -283,6 +315,204 @@ export class Managed {
     static createFrom($$source: any = {}): Managed {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new Managed($$parsedSource as Partial<Managed>);
+    }
+}
+
+/**
+ * ModelChoice is one saved model as a Model dropdown offers it.
+ */
+export class ModelChoice {
+    "id": string;
+    "name": string;
+    "provider": string;
+    "model": string;
+    "default": boolean;
+
+    /**
+     * Code is why it cannot be used now: savedmodels' key-missing or
+     * needs-sign-in, or cost-budget; empty when it can.
+     */
+    "code"?: string;
+
+    /**
+     * Refusal is that reason in a sentence.
+     */
+    "refusal"?: string;
+
+    /** Creates a new ModelChoice instance. */
+    constructor($$source: Partial<ModelChoice> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("default" in $$source)) {
+            this["default"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelChoice instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelChoice {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ModelChoice($$parsedSource as Partial<ModelChoice>);
+    }
+}
+
+/**
+ * ModelChoices are a computer's saved models as its dropdowns offer them.
+ */
+export class ModelChoices {
+    /**
+     * Default is the default saved model, which an empty pick follows;
+     * nil when the computer keeps none a person chose.
+     */
+    "default"?: ModelChoice | null;
+    "models": ModelChoice[];
+
+    /** Creates a new ModelChoices instance. */
+    constructor($$source: Partial<ModelChoices> = {}) {
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelChoices instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelChoices {
+        const $$createField0_0 = $$createType2;
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("default" in $$parsedSource) {
+            $$parsedSource["default"] = $$createField0_0($$parsedSource["default"]);
+        }
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField1_0($$parsedSource["models"]);
+        }
+        return new ModelChoices($$parsedSource as Partial<ModelChoices>);
+    }
+}
+
+/**
+ * ModelDraft is a saved model as the page sends it to be saved.
+ */
+export class ModelDraft {
+    "name": string;
+    "model": string;
+
+    /**
+     * ContextWindow is what the person typed for an endpoint of their own,
+     * 0 to take what the endpoint reports.
+     */
+    "contextWindow": number;
+    "makeDefault": boolean;
+
+    /**
+     * AgreedToMessage is the person's yes to the Claude subscription's
+     * check, which sends one message on their plan.
+     */
+    "agreedToMessage": boolean;
+
+    /** Creates a new ModelDraft instance. */
+    constructor($$source: Partial<ModelDraft> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("contextWindow" in $$source)) {
+            this["contextWindow"] = 0;
+        }
+        if (!("makeDefault" in $$source)) {
+            this["makeDefault"] = false;
+        }
+        if (!("agreedToMessage" in $$source)) {
+            this["agreedToMessage"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelDraft instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelDraft {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ModelDraft($$parsedSource as Partial<ModelDraft>);
+    }
+}
+
+/**
+ * ModelInUse is the saved model something runs on, as its setting shows
+ * it: one it names, or the default it follows.
+ */
+export class ModelInUse {
+    /**
+     * ID is the saved model it names; "" when it follows the default.
+     */
+    "id": string;
+
+    /**
+     * Name, Provider and Model are the saved model it runs on now.
+     */
+    "name": string;
+    "provider": string;
+    "model": string;
+
+    /**
+     * FollowsDefault says it names none and runs on the default.
+     */
+    "followsDefault": boolean;
+
+    /**
+     * Code and Refusal say why a turn or a run on it is refused now:
+     * missing (the computer no longer keeps the saved model it names), or
+     * a ModelChoice's code.
+     */
+    "code"?: string;
+    "refusal"?: string;
+
+    /** Creates a new ModelInUse instance. */
+    constructor($$source: Partial<ModelInUse> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("followsDefault" in $$source)) {
+            this["followsDefault"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelInUse instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelInUse {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ModelInUse($$parsedSource as Partial<ModelInUse>);
     }
 }
 
@@ -364,6 +594,125 @@ export class ModelSignIn {
 }
 
 /**
+ * ModelsList is the computer's providers and saved models.
+ */
+export class ModelsList {
+    "providers": Provider[];
+    "models": SavedModel[];
+    "default": string;
+    "max": number;
+
+    /**
+     * SetUp: a person chose a model here. A policy written from defaults
+     * (by an AI Review key's save, a coding agent's choice or a first run)
+     * holds a model nobody chose, and it is listed as none.
+     */
+    "setUp": boolean;
+    "policyPath": string;
+
+    /**
+     * UsersErr is why what names each model could not be read; the lists
+     * are shown without it.
+     */
+    "usersErr"?: string;
+
+    /** Creates a new ModelsList instance. */
+    constructor($$source: Partial<ModelsList> = {}) {
+        if (!("providers" in $$source)) {
+            this["providers"] = [];
+        }
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+        if (!("default" in $$source)) {
+            this["default"] = "";
+        }
+        if (!("max" in $$source)) {
+            this["max"] = 0;
+        }
+        if (!("setUp" in $$source)) {
+            this["setUp"] = false;
+        }
+        if (!("policyPath" in $$source)) {
+            this["policyPath"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelsList instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelsList {
+        const $$createField0_0 = $$createType5;
+        const $$createField1_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("providers" in $$parsedSource) {
+            $$parsedSource["providers"] = $$createField0_0($$parsedSource["providers"]);
+        }
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField1_0($$parsedSource["models"]);
+        }
+        return new ModelsList($$parsedSource as Partial<ModelsList>);
+    }
+}
+
+/**
+ * NewProvider is a provider the page adds: a vendor and the way it is
+ * paid; for an endpoint of the person's own, its name, its address and
+ * whether it takes a key (kept beforehand with StoreProviderKey); for
+ * Copilot, the plan.
+ */
+export class NewProvider {
+    /**
+     * ID names a provider this computer has, for StoreProviderKey's fix of
+     * a missing key; "" for a provider being added.
+     */
+    "id": string;
+    "vendor": string;
+    "way": string;
+    "name": string;
+    "baseUrl": string;
+    "takesKey": boolean;
+    "copilotPlan": string;
+
+    /** Creates a new NewProvider instance. */
+    constructor($$source: Partial<NewProvider> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("vendor" in $$source)) {
+            this["vendor"] = "";
+        }
+        if (!("way" in $$source)) {
+            this["way"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("baseUrl" in $$source)) {
+            this["baseUrl"] = "";
+        }
+        if (!("takesKey" in $$source)) {
+            this["takesKey"] = false;
+        }
+        if (!("copilotPlan" in $$source)) {
+            this["copilotPlan"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new NewProvider instance from a string or object.
+     */
+    static createFrom($$source: any = {}): NewProvider {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new NewProvider($$parsedSource as Partial<NewProvider>);
+    }
+}
+
+/**
  * OwnClientGuide is how to make one's own OAuth client at a vendor:
  * Agentry's steps where it has written them (Known), else the general
  * shape of one, which a publisher's help may follow.
@@ -426,6 +775,149 @@ export class OwnClientGuide {
 }
 
 /**
+ * Provider is one provider as the page lists it: never a key or a token.
+ */
+export class Provider {
+    "id": string;
+
+    /**
+     * Vendor is the provider's vendor: custom for an endpoint of the
+     * person's own.
+     */
+    "vendor": string;
+
+    /**
+     * Name is an endpoint of the person's own's name; BaseURL its address.
+     */
+    "name"?: string;
+    "baseUrl"?: string;
+
+    /**
+     * Way is how it is paid (WayKey, WayChatGPT, …); KeyEnv and KeySource
+     * where a key is read from.
+     */
+    "way": string;
+    "keyEnv"?: string;
+    "keySource"?: string;
+
+    /**
+     * TakesNoKey: an endpoint of the person's own saved without a key.
+     */
+    "takesNoKey"?: boolean;
+
+    /**
+     * State is savedmodels' code: ready, key-missing or needs-sign-in.
+     */
+    "state": string;
+
+    /**
+     * Account is the sign-in's account, or Agentry credits' registry.
+     */
+    "account"?: string;
+
+    /**
+     * Broken is why a kept sign-in no longer works.
+     */
+    "broken"?: string;
+
+    /**
+     * SignInVendor is the sign-in store's vendor (chatgpt, claude,
+     * copilot, or a connectable vendor's own id).
+     */
+    "signInVendor"?: string;
+
+    /**
+     * CopilotPlan is a Copilot provider's plan.
+     */
+    "copilotPlan"?: string;
+
+    /**
+     * Models are the ids of the saved models on it.
+     */
+    "models": string[];
+
+    /** Creates a new Provider instance. */
+    constructor($$source: Partial<Provider> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("vendor" in $$source)) {
+            this["vendor"] = "";
+        }
+        if (!("way" in $$source)) {
+            this["way"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Provider instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Provider {
+        const $$createField13_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField13_0($$parsedSource["models"]);
+        }
+        return new Provider($$parsedSource as Partial<Provider>);
+    }
+}
+
+/**
+ * ProviderModels is what a provider offers to save, for the model field:
+ * the ids its credential lists, or none where it has no list to ask and the
+ * id is typed (a connected account's large catalogues, Claude Code's
+ * aliases, Copilot before its list is asked). Error is why a list could
+ * not be had; the id can still be typed.
+ */
+export class ProviderModels {
+    "models": ListedModel[];
+
+    /**
+     * Suggested is a few ids to offer where the provider has no list
+     * (Claude Code's aliases).
+     */
+    "suggested": string[];
+    "error"?: string;
+    "warning"?: string;
+
+    /** Creates a new ProviderModels instance. */
+    constructor($$source: Partial<ProviderModels> = {}) {
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+        if (!("suggested" in $$source)) {
+            this["suggested"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProviderModels instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ProviderModels {
+        const $$createField0_0 = $$createType9;
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField0_0($$parsedSource["models"]);
+        }
+        if ("suggested" in $$parsedSource) {
+            $$parsedSource["suggested"] = $$createField1_0($$parsedSource["suggested"]);
+        }
+        return new ProviderModels($$parsedSource as Partial<ProviderModels>);
+    }
+}
+
+/**
  * RanOn is the runhost a run ran on, for its result.
  */
 export class RanOn {
@@ -458,6 +950,49 @@ export class RanOn {
 }
 
 /**
+ * Refusal is a save the check refused: Kind is modelcheck's
+ * (not-offered, cannot-check, needs-sign-in, key-missing, not-eligible),
+ * Reason its words, Offered what the provider does offer where it said,
+ * and Retry whether the same save may be tried again as it is.
+ */
+export class Refusal {
+    "kind": string;
+    "reason": string;
+    "offered": string[];
+    "retry": boolean;
+
+    /** Creates a new Refusal instance. */
+    constructor($$source: Partial<Refusal> = {}) {
+        if (!("kind" in $$source)) {
+            this["kind"] = "";
+        }
+        if (!("reason" in $$source)) {
+            this["reason"] = "";
+        }
+        if (!("offered" in $$source)) {
+            this["offered"] = [];
+        }
+        if (!("retry" in $$source)) {
+            this["retry"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Refusal instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Refusal {
+        const $$createField2_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("offered" in $$parsedSource) {
+            $$parsedSource["offered"] = $$createField2_0($$parsedSource["offered"]);
+        }
+        return new Refusal($$parsedSource as Partial<Refusal>);
+    }
+}
+
+/**
  * ReleaseConnections is a release's servers that sign in by OAuth.
  */
 export class ReleaseConnections {
@@ -484,12 +1019,174 @@ export class ReleaseConnections {
      * Creates a new ReleaseConnections instance from a string or object.
      */
     static createFrom($$source: any = {}): ReleaseConnections {
-        const $$createField2_0 = $$createType2;
+        const $$createField2_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("servers" in $$parsedSource) {
             $$parsedSource["servers"] = $$createField2_0($$parsedSource["servers"]);
         }
         return new ReleaseConnections($$parsedSource as Partial<ReleaseConnections>);
+    }
+}
+
+/**
+ * Removed is how a removal ended: done, with what moved; or refused, with
+ * what names the models removed, for the page to ask where they go.
+ */
+export class Removed {
+    "removed": string[];
+    "moved": savedmodels$0.User[];
+    "movedTo"?: string;
+
+    /**
+     * InUse are what names the models; the removal was refused and nothing
+     * changed.
+     */
+    "inUse"?: savedmodels$0.User[];
+
+    /**
+     * Credential is what became of a removed provider's credential.
+     */
+    "credential"?: string;
+
+    /** Creates a new Removed instance. */
+    constructor($$source: Partial<Removed> = {}) {
+        if (!("removed" in $$source)) {
+            this["removed"] = [];
+        }
+        if (!("moved" in $$source)) {
+            this["moved"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Removed instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Removed {
+        const $$createField0_0 = $$createType0;
+        const $$createField1_0 = $$createType13;
+        const $$createField3_0 = $$createType13;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("removed" in $$parsedSource) {
+            $$parsedSource["removed"] = $$createField0_0($$parsedSource["removed"]);
+        }
+        if ("moved" in $$parsedSource) {
+            $$parsedSource["moved"] = $$createField1_0($$parsedSource["moved"]);
+        }
+        if ("inUse" in $$parsedSource) {
+            $$parsedSource["inUse"] = $$createField3_0($$parsedSource["inUse"]);
+        }
+        return new Removed($$parsedSource as Partial<Removed>);
+    }
+}
+
+/**
+ * SaveResult is how a save ended: the saved model, or the check's refusal,
+ * or the notice the person must agree to before the check spends a message
+ * on their plan.
+ */
+export class SaveResult {
+    "saved"?: SavedModel | null;
+    "refusal"?: Refusal | null;
+
+    /**
+     * NeedsAgreement is the sentence to put to the person before a Claude
+     * subscription's model is checked; nothing was asked of anyone yet.
+     */
+    "needsAgreement"?: string;
+
+    /**
+     * Resolved is the id a Claude alias resolved to at the check.
+     */
+    "resolved"?: string;
+
+    /**
+     * Warning is the plain-http sentence for an endpoint reached
+     * unencrypted.
+     */
+    "warning"?: string;
+
+    /**
+     * WindowSource says where an endpoint's reported window came from;
+     * UnknownWindow is the sentence for an endpoint that reported none.
+     */
+    "windowSource"?: string;
+    "unknownWindow"?: string;
+
+    /** Creates a new SaveResult instance. */
+    constructor($$source: Partial<SaveResult> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SaveResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SaveResult {
+        const $$createField0_0 = $$createType14;
+        const $$createField1_0 = $$createType16;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("saved" in $$parsedSource) {
+            $$parsedSource["saved"] = $$createField0_0($$parsedSource["saved"]);
+        }
+        if ("refusal" in $$parsedSource) {
+            $$parsedSource["refusal"] = $$createField1_0($$parsedSource["refusal"]);
+        }
+        return new SaveResult($$parsedSource as Partial<SaveResult>);
+    }
+}
+
+/**
+ * SavedModel is one saved model as the page lists it.
+ */
+export class SavedModel {
+    "id": string;
+    "name": string;
+    "provider": string;
+    "model": string;
+    "contextWindow"?: number;
+    "default": boolean;
+
+    /**
+     * Users are the schedules and persistent agents that name it.
+     */
+    "users": savedmodels$0.User[];
+
+    /** Creates a new SavedModel instance. */
+    constructor($$source: Partial<SavedModel> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("default" in $$source)) {
+            this["default"] = false;
+        }
+        if (!("users" in $$source)) {
+            this["users"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SavedModel instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SavedModel {
+        const $$createField6_0 = $$createType13;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("users" in $$parsedSource) {
+            $$parsedSource["users"] = $$createField6_0($$parsedSource["users"]);
+        }
+        return new SavedModel($$parsedSource as Partial<SavedModel>);
     }
 }
 
@@ -712,5 +1409,19 @@ export class WindowsEngine {
 
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = ServerConnection.createFrom;
-const $$createType2 = $Create.Array($$createType1);
+const $$createType1 = ModelChoice.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = $Create.Array($$createType1);
+const $$createType4 = Provider.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = SavedModel.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = ListedModel.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = ServerConnection.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = savedmodels$0.User.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $Create.Nullable($$createType6);
+const $$createType15 = Refusal.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);

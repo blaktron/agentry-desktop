@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/destination"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
 	"github.com/blaktron/agentry-desktop/internal/cliinstall"
@@ -50,6 +51,15 @@ var MinRunhostScheduleCLI = [3]int{0, 7, 12}
 // settings: an older one fires a schedule without them, so while this
 // computer holds managed settings only it schedules.
 var MinManagedCLI = [3]int{0, 7, 35}
+
+// MinUnsafeModeScheduleCLI is the oldest agentry whose schedule add takes
+// --in-unsafe-mode, which holds a schedule made in Unsafe Mode while an
+// organization's managed settings forbid Unsafe Mode.
+var MinUnsafeModeScheduleCLI = [3]int{0, 7, 38}
+
+// MinSavedModelCLI is the oldest agentry whose schedule add and edit take
+// --model, which puts each run of a schedule on a saved model.
+var MinSavedModelCLI = [3]int{0, 7, 39}
 
 // MinDeliverCLI is the oldest agentry whose schedule add keeps where its fires
 // deliver (--deliver-to, --destination).
@@ -321,7 +331,10 @@ type Request struct {
 	AllowUnsigned      bool `json:"allowUnsigned,omitempty"`
 	AllowUnscanned     bool `json:"allowUnscanned,omitempty"`
 	AllowVulnerableMCP bool `json:"allowVulnerableMcp,omitempty"`
-	SignedOut          bool `json:"signedOut,omitempty"`
+	// InUnsafeMode says the consents above were given in Unsafe Mode
+	// (--in-unsafe-mode). The app sets it, never the page.
+	InUnsafeMode bool `json:"-"`
+	SignedOut    bool `json:"signedOut,omitempty"`
 	// DeliverTo is the absolute folder each fire copies its deliverables to
 	// (`--deliver-to`), Destinations the saved destinations each fire sends its
 	// result to (`--destination`, by name). Either needs an agentry that
@@ -332,6 +345,11 @@ type Request struct {
 	// On is a remote runhost's name: the schedule runs there, with nobody
 	// present, and needs no output folder here (its runs are collected).
 	On string `json:"on,omitempty"`
+	// Model is the saved model each run is on, by its id (`--model`): one of
+	// this computer's, or, with On, one the runhost holds. "" follows the
+	// default (this computer's, or the runhost's), whichever it is at each
+	// run.
+	Model string `json:"model,omitempty"`
 }
 
 // refPattern is ns/name@version.
@@ -374,6 +392,12 @@ func (r Request) AddArgs() ([]string, error) {
 	if r.Name != "" {
 		args = append(args, "--name", r.Name)
 	}
+	if r.Model != "" {
+		if !policy.IsModelID(r.Model) {
+			return nil, fmt.Errorf("%q is not a saved model's id", r.Model)
+		}
+		args = append(args, "--model", r.Model)
+	}
 	if r.Task != "" {
 		args = append(args, "--task", r.Task)
 	}
@@ -413,6 +437,9 @@ func (r Request) AddArgs() ([]string, error) {
 	}
 	if r.AllowVulnerableMCP {
 		args = append(args, "--allow-vulnerable-mcp")
+	}
+	if r.InUnsafeMode {
+		args = append(args, "--in-unsafe-mode")
 	}
 	if r.SignedOut {
 		args = append(args, "--signed-out")
@@ -557,6 +584,9 @@ type Edit struct {
 	Name      string `json:"name,omitempty"`
 	When      *When  `json:"when,omitempty"`
 	SignedOut *bool  `json:"signedOut,omitempty"`
+	// Model moves the schedule to a saved model, by its id; "" puts it back
+	// on the default.
+	Model *string `json:"model,omitempty"`
 }
 
 // EditArgs is e for schedule id as `agentry schedule edit` takes it.
@@ -577,6 +607,12 @@ func (e Edit) EditArgs(id string) ([]string, error) {
 	}
 	if e.SignedOut != nil {
 		args = append(args, "--signed-out="+strconv.FormatBool(*e.SignedOut))
+	}
+	if e.Model != nil {
+		if *e.Model != "" && !policy.IsModelID(*e.Model) {
+			return nil, fmt.Errorf("%q is not a saved model's id", *e.Model)
+		}
+		args = append(args, "--model="+*e.Model)
 	}
 	if len(args) == 3 {
 		return nil, errors.New("nothing to change")

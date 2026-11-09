@@ -302,6 +302,34 @@ export class ReasonCount {
     }
 }
 
+/**
+ * SavedModel names the saved model a run was on. Never a credential.
+ */
+export class SavedModel {
+    "id": string;
+    "name": string;
+
+    /** Creates a new SavedModel instance. */
+    constructor($$source: Partial<SavedModel> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SavedModel instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SavedModel {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SavedModel($$parsedSource as Partial<SavedModel>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = ReasonCount.createFrom;

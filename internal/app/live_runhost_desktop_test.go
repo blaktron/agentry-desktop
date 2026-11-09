@@ -106,7 +106,7 @@ func TestLiveDesktopLinkOnARunhost(t *testing.T) {
 	}()
 
 	app.markPicked(out)
-	res, err := r.RunOnRunhost(name, reg, ref, "Check the Blender scene as your instructions say.", nil, out, 0, -1, false, nil, false)
+	res, err := r.RunOnRunhost(name, reg, ref, "Check the Blender scene as your instructions say.", nil, out, 0, -1, false, nil, false, "")
 	select {
 	case <-answered:
 	default:

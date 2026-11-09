@@ -61,6 +61,61 @@ const meetingAPI = {
   SetKeepAudio: async (on: boolean) => meetingChange({ keepAudio: on })(),
 };
 
+// Settings → Models (?settings=provider): four saved models on three
+// providers, the default starred, a schedule on one and an agent on
+// another. #models-key-missing has Anthropic's key gone; #models-signin
+// has the ChatGPT sign-in refused at its last refresh; #models-full keeps
+// ten, so Add is held; #models-none has nothing a person chose;
+// #models-unreachable refuses every check as the endpoint cannot be
+// reached, with Retry.
+const modelsHash = window.location.hash;
+const smProviders = () => [
+  { id: "anthropic", vendor: "anthropic", way: "key", keyEnv: "ANTHROPIC_API_KEY", keySource: "keyring", state: modelsHash === "#models-key-missing" ? "key-missing" : "ready", models: ["a1"] },
+  { id: "custom-home-gpu", vendor: "custom", name: "Home GPU", baseUrl: "http://gpu-box.lan:8000/v1", way: "key", takesNoKey: true, state: "ready",
+    models: modelsHash === "#models-full" ? ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"] : ["c1", "c2"] },
+  { id: "openai", vendor: "openai", way: "chatgpt", signInVendor: "chatgpt",
+    ...(modelsHash === "#models-signin" ? { state: "needs-sign-in", broken: "invalid_grant" } : { state: "ready", account: "chris@example.com" }), models: ["o1"] },
+];
+const smModels = () => [
+  { id: "a1", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", default: true, users: [] },
+  { id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", contextWindow: 32768, default: false, users: [{ kind: "schedule", id: "k2m9x0aa1b", name: "Morning brief", model: "c1" }] },
+  { id: "c2", name: "Llama", provider: "custom-home-gpu", model: "llama4", contextWindow: 131072, default: false, users: [] },
+  ...(modelsHash === "#models-full" ? [3, 4, 5, 6, 7, 8].map((i) => ({ id: `c${i}`, name: `Qwen ${i}`, provider: "custom-home-gpu", model: "qwen3", contextWindow: 32768, default: false, users: [] })) : []),
+  { id: "o1", name: "GPT", provider: "openai", model: "gpt-5.5", default: false, users: [{ kind: "agent", id: "researcher", name: "Researcher", model: "o1" }] },
+];
+// The Model dropdowns: every saved model, GPT greyed while its sign-in
+// needs renewing (#models-signin), Sonnet while its key is gone
+// (#models-key-missing).
+const smChoices = () => (modelsHash === "#models-none" ? { models: [] } : (() => {
+  const refusal = (id: string) => (id === "o1" && modelsHash === "#models-signin" ? { code: "needs-sign-in", refusal: "Needs sign-in: sign in again in Settings → Models." }
+    : id === "a1" && modelsHash === "#models-key-missing" ? { code: "key-missing", refusal: "Key missing: add its key in Settings → Models." } : {});
+  const models = smModels().map((m) => ({ id: m.id, name: m.name, provider: m.provider, model: m.model, default: m.default, ...refusal(m.id) }));
+  return { default: models.find((m) => m.default), models };
+})());
+// "Available on" (#models-runhost): the runhost lab holds Qwen, its
+// default; Make available on lab checks Llama there and keeps it.
+let smRunhostModels = [{ id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", default: true, kind: "no-key" }];
+const smRunhosts = () => [{
+  name: "lab", host: "203.0.113.20", port: 22, fingerprint: "SHA256:harness", owner: "chris", cliVersion: "0.7.39-dev.6", os: "linux", arch: "amd64",
+  addedAt: "2026-11-01T09:00:00Z", signIns: [], default: false, linkedHere: false, models: smRunhostModels.map(({ id, name, provider, model, default: d }) => ({ id, name, provider, model, default: d })),
+}];
+const smList = () => (modelsHash === "#models-none"
+  ? { providers: [], models: [], default: "", max: 10, setUp: false, policyPath: "~/.agentry/runner/policy.yaml" }
+  : { providers: smProviders(), models: smModels(), default: "a1", max: 10, setUp: true, policyPath: "~/.agentry/runner/policy.yaml" });
+const smSave = async (_p: unknown, d: { name: string; model: string; makeDefault: boolean; agreedToMessage: boolean; contextWindow: number }, claudeWay = false) => {
+  if (modelsHash === "#models-unreachable") {
+    return { refusal: { kind: "cannot-check", reason: "could not check the model: custom: list models: dial tcp 10.0.0.7:8000: connect: connection refused", offered: [], retry: true } };
+  }
+  if (claudeWay && !d.agreedToMessage) {
+    return { needsAgreement: "To check this model, Agentry sends it one short message through Claude Code. The message counts toward your Claude plan's usage." };
+  }
+  if (d.model === "gemma4") {
+    return { refusal: { kind: "not-offered", reason: "custom-home-gpu does not offer \"gemma4\": it lists qwen3, llama4", offered: ["qwen3", "llama4"], retry: false } };
+  }
+  return { saved: { id: "n1", name: d.name, provider: "custom-home-gpu", model: d.model, contextWindow: d.contextWindow || 32768, default: d.makeDefault, users: [] },
+    windowSource: d.contextWindow ? "" : "gpu-box.lan:8000" };
+};
+
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
   { namespace: "acme", name: "pr-triage", summary: "Reads an open PR and drafts a triage note under a strict egress allowlist.", modes: ["autonomous", "interactive"], quarantine: "", installs30d: 7 },
@@ -489,10 +544,10 @@ const designerHostedRun = { id: "01a1ad22-83e0-7f23-ae55-edb2187c4a3b", op: "des
 const REG_DEFAULT = "https://secureagentry.net";
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const localRuns = [
-  { id: "7c1e4a90", kind: "run", where: "here", registry: REG_DEFAULT, ref: "demo1/incident-summarizer@1.2.0", startedAt: ago(14), endedAt: ago(12), outcome: "ok", tone: "ok", kept: true, source: "local" },
+  { id: "7c1e4a90", kind: "run", where: "here", registry: REG_DEFAULT, ref: "demo1/incident-summarizer@1.2.0", startedAt: ago(14), endedAt: ago(12), outcome: "ok", tone: "ok", kept: true, source: "local", model: "Qwen" },
   { id: "0192a3b4", kind: "draft", where: "here", startedAt: ago(200), endedAt: ago(180), outcome: "ok", tone: "ok", kept: true, source: "local" },
   { id: "5e1f0004", kind: "review", where: "here", startedAt: ago(60 * 26), endedAt: ago(60 * 25), outcome: "error", tone: "bad", kept: true, source: "local" },
-  { id: "9a8b7c6d", kind: "run", where: "here", registry: REG_DEFAULT, ref: "acme/pr-triage@0.4.1", startedAt: ago(60 * 75), endedAt: ago(60 * 74), outcome: "stopped", tone: "warn", kept: true, source: "local" },
+  { id: "9a8b7c6d", kind: "run", where: "here", registry: REG_DEFAULT, ref: "acme/pr-triage@0.4.1", startedAt: ago(60 * 75), endedAt: ago(60 * 74), outcome: "stopped", tone: "warn", kept: true, source: "local", model: "Sonnet" },
 ];
 const hostedRuns = [
   { id: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42", kind: "run", where: "agentry", registry: REG_DEFAULT, ref: "demo1/incident-summarizer@1.2.0", startedAt: ago(45), endedAt: ago(41), outcome: "succeeded", state: "done — pass", tone: "ok", kept: false, source: "hosted" },
@@ -714,7 +769,7 @@ const schedFires = [
 const schedDue = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31].map((d) => (
   { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(d), outcome: "due" }));
 const scheduleItems = [
-  { id: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer", version: "1.2.0", describe: "every day at 09:00 (Europe/London)",
+  { id: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer", version: "1.2.0", model: "c1", describe: "every day at 09:00 (Europe/London)",
     when: { kind: "daily", time: "09:00", zone: "Europe/London", end: "never" }, outDir: "/home/me/agentry-runs", signedOut: true, keysSealed: true,
     runs: 3, next: schedAt(10), last: schedFires[3] },
   { id: "cd34ef56gh", name: "acme/pr-triage", ref: "acme/pr-triage", version: "0.4.1", describe: "every Tue, Thu at 22:00 (Europe/London)",
@@ -867,6 +922,9 @@ const rdBindings = {
 const keptIcon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkqGf4DwADgQGAiPkb6AAAAABJRU5ErkJggg==";
 
 const harnessAssistant = {
+  // The Assistant on the endpoint of the person's own; the others follow the
+  // default.
+  model: { id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", followsDefault: false },
   lastCompaction: { time: "2026-10-25T09:05:00Z", trigger: "manual", done: true, factsBefore: 6, factsAfter: 14 },
   lastConsolidation: { time: "2026-10-25T12:00:00Z", trigger: "consolidate", done: true, factsBefore: 14, factsAfter: 13 },
   name: "assistant", title: "Assistant", displayName: "Sandra", state: "stopped", personality: "Warm but brief.",
@@ -916,6 +974,7 @@ const harnessAssistant = {
 
 // The Coding agent, running, with its grant and a dev server.
 const harnessCoder = {
+  model: { id: "", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", followsDefault: true },
   name: "coder", title: "Coding agent", displayName: "Coding agent", state: "running", runOnStart: true,
   share: "/home/me/agentry/codingshare", defaultShare: true, knowledge: [], servers: [],
   ports: [{ name: "web", port: 3000 }],
@@ -951,6 +1010,7 @@ let harnessTasks = [
 // Main, stopped after a short conversation while it was on: off while the
 // Assistant is.
 const harnessMain = {
+  model: { id: "", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", followsDefault: true },
   name: "main", title: "Agentry Helper", displayName: "Agentry Helper", state: harnessHelper === "on" ? "stopped" : "disabled",
   share: "/home/me/agentry/mainshare", defaultShare: true, knowledge: [], servers: [], keepsSecrets: false, takesSkills: false, suggested: [],
   keepsTime: false, keepsMemory: false, codes: false, accounts: [],
@@ -1628,6 +1688,32 @@ g.go = { app: {
       { vendor: "claude", provider: "anthropic", kind: "claude-signin", connected: false, account: "chris@example.com (Example Org)", image: true, createdAt: "2026-10-11T12:00:00Z" },
       { vendor: "poe", provider: "poe", kind: "api", connected: true, keyExpiresAt: "2026-11-11T00:00:00Z", image: true, createdAt: "2026-10-11T12:00:00Z" },
     ] : []),
+    SavedModels: async () => smList(),
+    ModelChoices: async () => smChoices(),
+    ProviderModels: async (id: string) => (id === "openai" ? { models: [{ id: "gpt-5.5" }, { id: "gpt-5.5-mini" }], suggested: [], error: "", warning: "" }
+      : id === "anthropic" ? { models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5" }], suggested: [], error: "", warning: "" }
+        : { models: [{ id: "qwen3" }, { id: "llama4" }], suggested: [], error: "", warning: "http://gpu-box.lan:8000/v1 uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan. Use https if the endpoint supports it." }),
+    AddSavedModel: async (p: string, d: Parameters<typeof smSave>[1]) => smSave(p, d),
+    AddProviderModel: async (np: { way: string }, d: Parameters<typeof smSave>[1]) => smSave(np, d, np.way === "claude"),
+    EditSavedModel: async (id: string, d: Parameters<typeof smSave>[1]) => ({ saved: { ...smModels().find((m) => m.id === id), name: d.name, model: d.model } }),
+    CheckSavedModel: async (id: string, agreed: boolean) => (id === "a1" && !agreed && modelsHash === "#models-claude"
+      ? { needsAgreement: "To check this model, Agentry sends it one short message through Claude Code. The message counts toward your Claude plan's usage." }
+      : modelsHash === "#models-unreachable" ? { refusal: { kind: "cannot-check", reason: "could not check the model: custom: list models: dial tcp 10.0.0.7:8000: connect: connection refused", offered: [], retry: true } }
+        : { saved: smModels().find((m) => m.id === id) }),
+    SetDefaultModel: async () => undefined,
+    RemoveSavedModel: async (id: string, moveTo: string) => {
+      const m = smModels().find((x) => x.id === id);
+      if (m && (m.users.length > 0 || m.default) && !moveTo) return { removed: [], moved: [], inUse: m.users };
+      return { removed: [id], moved: m?.users ?? [], movedTo: moveTo };
+    },
+    RemoveProvider: async (id: string, moveTo: string) => {
+      const on = smModels().filter((m) => m.provider === id);
+      const users = on.flatMap((m) => m.users);
+      if ((users.length > 0 || on.some((m) => m.default)) && !moveTo) return { removed: [], moved: [], inUse: users };
+      return { removed: on.map((m) => m.id), moved: users, movedTo: moveTo, credential: "key removed from the keychain" };
+    },
+    StoreProviderKey: async () => "anthropic",
+    EndpointModels: async () => ({ models: [{ id: "qwen3" }, { id: "llama4" }], suggested: [], error: "", warning: "" }),
     ChatGPTModels: async () => ["gpt-5.2", "gpt-5-mini"],
     CopilotModels: async () => [{ id: "claude-sonnet-5.5", name: "Claude Sonnet 5.5", multiplier: 1 }],
     RemoveModelSignIn: async () => "revoked at the vendor",
@@ -1684,6 +1770,22 @@ if (window.location.hash === "#status-refused") {
   g.go.app.SettingsAPI.RunDefaults = refuse;
   g.go.app.HomeAPI.Layout = refuse;
   g.go.app.RunAPI.Connections = refuse;
+}
+// Settings → Models' "Available on" (#models-runhost): one runhost, lab.
+if (modelsHash === "#models-runhost") {
+  g.go.app.RunhostsAPI = {
+    List: async () => smRunhosts(),
+    Models: async (name: string) => ({ runhost: name, models: smRunhostModels, default: "c1", max: 10 }),
+    MakeModelAvailable: async (name: string, id: string) => {
+      const m = smModels().find((x) => x.id === id)!;
+      smRunhostModels = [...smRunhostModels, { id: m.id, name: m.name, provider: m.provider, model: m.model, default: false, kind: "no-key" }];
+      return { runhost: name, models: smRunhostModels, default: "c1", max: 10 };
+    },
+    RemoveRunhostModel: async (name: string, id: string) => {
+      smRunhostModels = smRunhostModels.filter((x) => x.id !== id);
+      return { runhost: name, models: smRunhostModels, default: "c1", max: 10 };
+    },
+  };
 }
 // The starting Homes' reads (see homeStart above).
 if (homeStart) {

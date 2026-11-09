@@ -22,6 +22,7 @@ import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from ".
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
 import { StartFailure } from "./StartFailure";
+import { ModelPicker, useModelChoices } from "./ModelPicker";
 
 /** The longest personality the agent takes, as the CLI holds it. */
 const MAX_PERSONALITY_BYTES = 32 << 10;
@@ -367,6 +368,9 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const [dev, setDev] = useState<{ host: string; keyFile: string; passphrase: string; password: string }>({ host: "", keyFile: "", passphrase: "", password: "" });
   const [port, setPort] = useState<{ name: string; port: string }>({ name: "", port: "" });
   const [showTasks, setShowTasks] = useState(false);
+  // This computer's saved models, read again with the agent: the one it
+  // runs on is the one it names, or the default.
+  const models = useModelChoices(agent?.model?.id);
 
   useEffect(() => {
     if (!agent) return;
@@ -433,6 +437,15 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
           onChange={(e) => void change({ runOnStart: e.target.checked }, "Run when Agentry starts")} />
         Run when Agentry starts
       </label>
+      {models && models.length > 0 && (
+        <div className="agent-model" data-agent-model={name}>
+          <ModelPicker models={models} value={agent.model?.id ?? ""} disabled={busy} testId={`agent-${name}`}
+            label="Model"
+            hint={agent.state === AGENT_STATES.running ? "A change is taken at its next turn, without stopping it." : undefined}
+            onChange={(id) => void change({ model: id }, "The model")} />
+          {agent.model?.refusal && agent.model.code === "missing" && <p className="run-step-problem">{agent.model.refusal}</p>}
+        </div>
+      )}
       <div className="row gap">
         {agent.keepsTime && <Button disabled={busy} onClick={() => setShowTasks(true)}>Tasks…</Button>}
         {agent.keepsMemory && (

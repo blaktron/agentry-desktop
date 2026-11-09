@@ -192,7 +192,7 @@ var signInRecord = func(vendor string) (*modelsignin.Record, error) {
 func modelReadiness(pol *policy.Policy, keysStored []string, keyStoreErr string) (bool, string) {
 	m := pol.Model
 	if m.Provider == "" || m.Name == "" {
-		return false, "No model provider is chosen for runs on this computer."
+		return false, "No model is chosen for runs on this computer."
 	}
 	hp := pol.Harness[adapter.DefaultFor(pol)]
 	kind := policy.KeyKind(hp, m)
@@ -398,19 +398,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("operator policy: %w", err)
 	}
-	if err := setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
-		Provider:     provider, // the one the key was stored under, never another
-		Model:        opts.Model,
-		APIKeyEnv:    opts.APIKeyEnv,
-		APIKeySource: source,
-		APIKeyKind:   kind,
-		BaseURL:      opts.BaseURL,
-		Yes:          true, // a form never mid-flight-prompts; gaps fill from the table
-		// An endpoint of the person's own is asked for the window, with the
-		// key the run would use.
-		ContextWindow:      opts.ContextWindow,
-		ProbeContextWindow: probeWithStoredKey(provider),
-	}); err != nil {
+	if err := configureKey(pol, provider, source, kind, opts, logw); err != nil {
 		return err
 	}
 	if err := policy.Save(policyPath, pol); err != nil {
@@ -422,6 +410,24 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		return nil
 	}
 	return prepareImages(ctx, home, policyPath, pol, logw)
+}
+
+// configureKey records in pol a model paid by provider's key, from source
+// (env or keyring), of kind, through the CLI's own setup.
+func configureKey(pol *policy.Policy, provider, source, kind string, opts SetupOpts, logw io.Writer) error {
+	return setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
+		Provider:     provider, // the one the key was stored under, never another
+		Model:        opts.Model,
+		APIKeyEnv:    opts.APIKeyEnv,
+		APIKeySource: source,
+		APIKeyKind:   kind,
+		BaseURL:      opts.BaseURL,
+		Yes:          true, // a form never mid-flight-prompts; gaps fill from the table
+		// An endpoint of the person's own is asked for the window, with the
+		// key the run would use.
+		ContextWindow:      opts.ContextWindow,
+		ProbeContextWindow: probeWithStoredKey(provider),
+	})
 }
 
 // prepareImages stands up the gateway plane and the harness image model
@@ -460,6 +466,27 @@ func errSignInFirst(what string) error {
 // what this computer keeps standing in for its sign-in: setup signs nothing
 // in here, and refuses a choice that is not signed in.
 func applySignInSetup(ctx context.Context, home, policyPath, provider string, opts SetupOpts, logw io.Writer) error {
+	pol, _, err := policy.EnsureDefault(policyPath)
+	if err != nil {
+		return fmt.Errorf("operator policy: %w", err)
+	}
+	if err := configureSignIn(ctx, home, pol, provider, opts, logw); err != nil {
+		return err
+	}
+	if err := policy.Save(policyPath, pol); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(logw, "policy written: %s\n", policyPath)
+	if !opts.PullImages {
+		return nil
+	}
+	return prepareImages(ctx, home, policyPath, pol, logw)
+}
+
+// configureSignIn records in pol a model paid by a kept model sign-in or a
+// connected account, through the CLI's own setup.ConfigureModel, refusing a
+// choice nothing is signed in to.
+func configureSignIn(ctx context.Context, home string, pol *policy.Policy, provider string, opts SetupOpts, logw io.Writer) error {
 	store := modelsignin.Open(home, nil)
 	kept := func(vendor string) string {
 		r, err := store.Get(vendor)
@@ -471,11 +498,7 @@ func applySignInSetup(ctx context.Context, home, policyPath, provider string, op
 		}
 		return r.Label
 	}
-	pol, _, err := policy.EnsureDefault(policyPath)
-	if err != nil {
-		return fmt.Errorf("operator policy: %w", err)
-	}
-	err = setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
+	return setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
 		Provider:       provider,
 		Model:          opts.Model,
 		APIKeyKind:     opts.APIKeyKind,
@@ -506,17 +529,6 @@ func applySignInSetup(ctx context.Context, home, policyPath, provider string, op
 			Connect: func(p string) (string, error) { return "", errSignInFirst(setup.ConnectLabel) },
 		},
 	})
-	if err != nil {
-		return err
-	}
-	if err := policy.Save(policyPath, pol); err != nil {
-		return err
-	}
-	_, _ = fmt.Fprintf(logw, "policy written: %s\n", policyPath)
-	if !opts.PullImages {
-		return nil
-	}
-	return prepareImages(ctx, home, policyPath, pol, logw)
 }
 
 // formPrompter satisfies setup.Prompter for a GUI whose answers arrived as
@@ -574,6 +586,9 @@ func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, e
 	if err != nil {
 		// setup.ListModels scrubs the key from what it returns; this
 		// wrapper says so by doing it again over anything it passes on.
+		if key == "" {
+			return nil, err
+		}
 		return nil, errors.New(strings.ReplaceAll(err.Error(), key, "<key>"))
 	}
 	out := &Catalog{Provider: cat.Provider, Models: cat.Models, Kind: policy.CredentialKindOf(provider, key), Warning: cat.Warning}
@@ -741,17 +756,15 @@ func applyCreditsSetup(ctx context.Context, home, policyPath string, opts SetupO
 	if opts.Model != "" || opts.APIKeyEnv != "" || opts.StoreKey != "" || opts.ForgetKey || opts.BaseURL != "" || opts.APIKeySource != "" {
 		return errors.New("paying with Agentry credits takes no model, key or endpoint: the registry chooses the model")
 	}
-	reg := settings.SecureAgentryRegistry()
-	if reg == "" || settings.TokenFor(reg) == "" {
+	// Refused signed out before the policy is touched, or even created.
+	if reg := settings.SecureAgentryRegistry(); reg == "" || settings.TokenFor(reg) == "" {
 		return errCreditsSignIn
 	}
 	pol, _, err := policy.EnsureDefault(policyPath)
 	if err != nil {
 		return fmt.Errorf("operator policy: %w", err)
 	}
-	if err := setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
-		Provider: policy.ProviderAgentry, AgentryRegistry: reg, Yes: true,
-	}); err != nil {
+	if err := configureCredits(pol, logw); err != nil {
 		return err
 	}
 	if err := policy.Save(policyPath, pol); err != nil {
@@ -762,4 +775,17 @@ func applyCreditsSetup(ctx context.Context, home, policyPath string, opts SetupO
 		return nil
 	}
 	return prepareImages(ctx, home, policyPath, pol, logw)
+}
+
+// configureCredits records in pol a model paid with the credits of the
+// account this computer is signed in to at the SecureAgentry registry;
+// refused signed out.
+func configureCredits(pol *policy.Policy, logw io.Writer) error {
+	reg := settings.SecureAgentryRegistry()
+	if reg == "" || settings.TokenFor(reg) == "" {
+		return errCreditsSignIn
+	}
+	return setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
+		Provider: policy.ProviderAgentry, AgentryRegistry: reg, Yes: true,
+	})
 }

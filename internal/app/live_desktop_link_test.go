@@ -126,7 +126,7 @@ func TestLiveDesktopLink(t *testing.T) {
 	}
 
 	app.markPicked(out)
-	res, err := r.RunAgent(reg, ref, task, nil, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, "")
+	res, err := r.RunAgent(reg, ref, task, nil, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, "", "")
 	if expect == "closed" {
 		if err == nil {
 			t.Fatalf("a run with Blender closed started: %+v", res)

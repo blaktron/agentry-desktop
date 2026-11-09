@@ -30,6 +30,8 @@ import {
 } from "../scheduled";
 
 import { RepeatFields, SignedOutBox, type Availability } from "./WhenStep";
+import { ModelPicker, useModelChoices } from "./ModelPicker";
+import { modelSaid, pickBlocker, type PickModel } from "../modelPick";
 import { secretAnswerRefusal } from "../secretIntake";
 
 /** A row of the page's list: a schedule on this computer, or one In
@@ -70,6 +72,9 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [list, setList] = useState<app.SchedulesView | null>(null);
+  // This computer's saved models, read again with the list: each schedule
+  // here names one or follows the default.
+  const models = useModelChoices(list);
   const [listErr, setListErr] = useState<string | null>(null);
   const [month, setMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [cal, setCal] = useState<FireRow[]>([]);
@@ -379,7 +384,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
                 </div>
               </li>
             ) : (
-              <li key={s.id} className="schedule-row" data-schedule={s.id}>
+              <li key={s.id} className="schedule-row" data-schedule={s.id} data-held={s.held ? "" : undefined}>
                 <div className="grow">
                   <strong>{s.name}</strong> <span className="mono small muted">{s.ref}@{s.version}</span>
                   <div className="small">{s.describe}{s.next ? ` · next ${whenOf(s.next)}` : ""}</div>
@@ -388,13 +393,17 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
                     {s.last ? ` · last: ${outcomeLabel(s.last)}` : ""}
                     {running.has(s.id) ? " · running now" : ""}
                   </div>
+                  {models && models.length > 0 && (
+                    <div className="muted small" data-schedule-model>Model: {modelSaid(models, s.model ?? "")}</div>
+                  )}
                 </div>
                 <div className="row" style={{ gap: 6 }}>
                   <Button onClick={() => setEditing(s)} disabled={!!unavailable || s.local}>Edit</Button>
                   {s.paused
                     ? <Button onClick={() => act(s.id, "resume", () => ScheduleAPI.Resume(s.id))} disabled={!!busy || !!unavailable}>Resume</Button>
                     : <Button onClick={() => act(s.id, "pause", () => ScheduleAPI.Pause(s.id))} disabled={!!busy || !!unavailable || s.ended}>Pause</Button>}
-                  <Button onClick={() => act(s.id, "run", () => ScheduleAPI.RunNow(s.id))} disabled={!!busy || !!unavailable || running.has(s.id)}>
+                  <Button onClick={() => act(s.id, "run", () => ScheduleAPI.RunNow(s.id))} disabled={!!busy || !!unavailable || running.has(s.id) || !!s.held}
+                    title={s.held ? scheduleState(s) : undefined}>
                     {running.has(s.id) ? "Running…" : "Run now"}
                   </Button>
                   <Button variant="danger" onClick={() => act(s.id, "remove", () => ScheduleAPI.Remove(s.id, s.name))} disabled={!!busy || !!unavailable}>Delete</Button>
@@ -415,7 +424,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       </section>
 
       {editing && (
-        <EditSchedule item={editing} registry={registry} availability={availability} now={now}
+        <EditSchedule item={editing} registry={registry} availability={availability} now={now} models={models ?? []}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); read(); }} />
       )}
       {picking && (
@@ -445,15 +454,22 @@ function FireLine({ f, onOpenRun, withDate }: { f: FireRow; onOpenRun: (id: stri
 
 /** Edit: the name, when it runs, and (on this computer) whether it also
  *  runs signed out. */
-function EditSchedule({ item, registry, availability, now, onClose, onSaved }: {
+function EditSchedule({ item, registry, availability, now, models, onClose, onSaved }: {
   item: Row;
   registry: string;
   availability: Availability | null;
   now: Date;
+  /** This computer's saved models, for a schedule here. */
+  models: PickModel[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(item.name);
+  // The saved model its runs are on: "" is the default. A move is taken at
+  // its next run, with nothing new to agree to.
+  const pickedBefore = item.hosted ? "" : item.model ?? "";
+  const [model, setModel] = useState(pickedBefore);
+  const modelProblem = item.hosted || model === pickedBefore ? "" : pickBlocker(models, model);
   const signedOut = !item.hosted && !!item.signedOut;
   const [form, setForm] = useState<WhenForm>(() => whenForm(item.when, signedOut, now, availability?.zone || item.when.zone || ""));
   const [err, setErr] = useState<string | null>(null);
@@ -484,6 +500,7 @@ function EditSchedule({ item, registry, availability, now, onClose, onSaved }: {
         when: whenChanged ? spec : undefined,
         // Said only when it changes, or to seal keys a re-seal removed.
         signedOut: form.signedOut !== !!item.signedOut || keysGone ? form.signedOut : undefined,
+        model: model !== pickedBefore ? model : undefined,
       }));
       onSaved();
     } catch (e) {
@@ -509,6 +526,11 @@ function EditSchedule({ item, registry, availability, now, onClose, onSaved }: {
       </div>
       <RepeatFields form={form} onChange={setForm} disabled={saving} />
       {!item.hosted && <SignedOutBox form={form} onChange={setForm} availability={availability} disabled={saving} />}
+      {!item.hosted && models.length > 0 && (
+        <ModelPicker models={models} value={model} onChange={setModel} disabled={saving} testId="schedule-edit"
+          hint="Its next run is on it." />
+      )}
+      {modelProblem && <p className="run-step-problem">{modelProblem}</p>}
       {!item.hosted && item.signedOut && !item.keysSealed && (
         <p className="small">Its keys are not sealed, so it does not run while you are signed out: Save with the box ticked seals them again.</p>
       )}
@@ -520,7 +542,7 @@ function EditSchedule({ item, registry, availability, now, onClose, onSaved }: {
       <ErrorBox error={err} />
       <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
         <Button onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button variant="primary" onClick={save} disabled={saving || !!problem}>{saving ? "Saving…" : "Save"}</Button>
+        <Button variant="primary" onClick={save} disabled={saving || !!problem || !!modelProblem}>{saving ? "Saving…" : "Save"}</Button>
       </div>
     </Modal>
   );

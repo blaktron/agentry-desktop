@@ -151,7 +151,7 @@ func TestARunOnARunhostSaysWhereItRan(t *testing.T) {
 		req.Say("harness: working")
 		return &run.Result{Status: "ok", RunID: "r1", Ref: req.Ref}, &run.RanOn{Name: req.Runhost, Host: "10.0.0.5", Fingerprint: "ED25519 SHA256:x"}, nil
 	}
-	v, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "the task", nil, "", 0, -1, false, map[string]string{"topic": "birds"}, false)
+	v, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "the task", nil, "", 0, -1, false, map[string]string{"topic": "birds"}, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestARunOnARunhostSaysWhereItRan(t *testing.T) {
 		t.Fatalf("request %+v", got)
 	}
 	// The run lock is free again.
-	if _, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "", nil, "", 0, -1, false, nil, false); err != nil {
+	if _, err := r.run.RunOnRunhost("lab", "https://registry.test", "acme/demo@1.0.0", "", nil, "", 0, -1, false, nil, false, ""); err != nil {
 		t.Fatalf("a second run: %v", err)
 	}
 }

@@ -1988,3 +1988,18 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   background: #e02424;
   flex: none;
 }
+
+/* Settings → Models: the saved models and the providers, one row each. */
+.saved-models, .saved-providers { list-style: none; margin: 0; padding: 0; }
+.saved-model, .saved-provider { display: grid; gap: 3px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.saved-model:last-child, .saved-provider:last-child { border-bottom: none; }
+.saved-model p, .saved-provider p { margin: 0; }
+.saved-model-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px; }
+.saved-model-head > .row.nowrap { gap: 12px; }
+.saved-model-star { width: 1.1em; text-align: center; color: var(--color-muted); }
+.saved-model-star.on { color: var(--color-accent); }
+.saved-model-fix { color: var(--color-sev-medium); }
+.saved-models-count { margin: 0; padding: 10px 16px; border-top: 1px solid var(--color-border); }
+/* A Model dropdown's greyed saved models, each with its reason. */
+.model-greyed { margin: 4px 0 0; padding-left: 18px; }
+.run-model, .agent-model { margin: 8px 0; }

@@ -28,7 +28,7 @@ test("the engine's blocker says no engine answers and that the answers stay; the
 test("the model's blocker is Go's sentence for what is missing, with a fallback", () => {
   const gap = "$ANTHROPIC_API_KEY is not set in this app's environment, and no anthropic key is saved on this computer.";
   assert.equal(modelGapLine(status({ modelReady: false, modelGap: gap }), false), `${gap} Set it up in this panel; everything you entered stays.`);
-  assert.match(modelGapLine(status({ modelReady: false }), true), /^No model provider is set up for runs on this computer\. .* Or run this release In Agentry\.$/);
+  assert.match(modelGapLine(status({ modelReady: false }), true), /^No model is set up for runs on this computer\. .* Or run this release In Agentry\.$/);
 });
 
 test("gapBlocker is the gap's line, and nothing when there is no gap", () => {

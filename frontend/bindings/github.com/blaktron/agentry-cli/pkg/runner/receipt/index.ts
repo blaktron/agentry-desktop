@@ -5,5 +5,6 @@ export {
     Policy,
     Reason,
     ReasonCode,
-    ReasonCount
+    ReasonCount,
+    SavedModel
 } from "./models.js";

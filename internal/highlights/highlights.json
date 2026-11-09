@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.30",
+      "highlights": [
+        "Settings → Models keeps up to ten saved models, each a provider and a model, with your default starred.",
+        "Pick the model when a run starts, for each schedule and for each agent, the one on Home included.",
+        "Make a saved model available on a runhost, checked there, and put that runhost's agents on it.",
+        "A model whose key or sign-in is missing is greyed with the fix, and nothing falls back to your default."
+      ]
+    },
+    {
       "version": "0.7.29",
       "highlights": [
         "Your computer lists your own applications: add any, from the library or by hand, and approve its server or its windows.",

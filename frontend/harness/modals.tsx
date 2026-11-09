@@ -525,6 +525,7 @@ const runOutputs = {
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
 const STEP_OF: Record<string, StepKey> = {
+  "runpanel-model-recap": "review",
   "runpanel-changed-install": "review",
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",
@@ -606,6 +607,15 @@ g.go = { app: {
   },
   // No saved destinations: the run panel reads them when it opens.
   DestinationsAPI: { List: async () => ({ destinations: [], keychainOff: false }), DefaultFor: async () => [] },
+  // One runhost, lab, in the #runpanel-model… states: a schedule there
+  // picks among the saved models lab holds (Qwen, its default).
+  RunhostsAPI: {
+    List: async () => (view.startsWith("runpanel-model") ? [{
+      name: "lab", host: "203.0.113.20", port: 22, fingerprint: "SHA256:harness", owner: "chris", cliVersion: "0.7.39-dev.6", os: "linux", arch: "amd64",
+      addedAt: "2026-11-01T09:00:00Z", signIns: [], default: false, linkedHere: false, models: [{ id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", default: true }],
+    }] : []),
+    Models: async (name: string) => ({ runhost: name, default: "c1", max: 10, models: [{ id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", default: true, kind: "no-key" }] }),
+  },
   // Schedules on this computer: this computer can
   // schedule; on the Windows state it cannot also run signed out.
   ScheduleAPI: {
@@ -624,6 +634,17 @@ g.go = { app: {
       : { id: "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5", next: "2026-10-10T07:00:00Z" }),
   },
   RunAPI: {
+    // The Model list (#runpanel-model…): Sonnet the default, Qwen on the
+    // person's own endpoint, GPT greyed while its key is gone. Every other
+    // state keeps no saved model a person chose, so it shows none.
+    ModelChoices: async () => (view.startsWith("runpanel-model") ? {
+      default: { id: "a1", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", default: true },
+      models: [
+        { id: "a1", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", default: true },
+        { id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", default: false },
+        { id: "o1", name: "GPT", provider: "openai", model: "gpt-5.5", default: false, code: "key-missing", refusal: "Key missing: add its key in Settings → Models." },
+      ],
+    } : { models: [] }),
     QueuedRuns: async () => [],
     CancelQueuedRun: async () => {},
     // Go's word on a source answer: an http address is refused as the CLI
@@ -902,7 +923,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule || hostedKeysTools ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
-        initialWhen={view.startsWith("runpanel-schedule") || view === "runpanel-source-schedule" ? "repeat" : undefined}
+        initialWhen={view.startsWith("runpanel-schedule") || view === "runpanel-source-schedule" || view === "runpanel-model-schedule" ? "repeat" : undefined}
         initialForm={hostAnswered ? {
           mode: "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: { server: view === "runpanel-host-key" ? "deploy@203.0.113.10:2222" : "admin@web-01.example.net" },

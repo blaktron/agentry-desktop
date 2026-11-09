@@ -245,6 +245,7 @@ func (s *ScheduleAPI) List() (*SchedulesView, error) {
 	if err != nil {
 		return nil, err
 	}
+	schedules.HoldUnsafeMode(items, unsafeModeRefusal())
 	v := &SchedulesView{Schedules: items, Running: []string{}}
 	s.mu.Lock()
 	for id := range s.running {
@@ -477,8 +478,60 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 	} else if err := s.app.requireOutputDir(req.OutDir); err != nil {
 		return err
 	}
+	if req.Model != "" {
+		if err := s.needsCLI(schedules.MinSavedModelCLI, "a schedule on a saved model"); err != nil {
+			return err
+		}
+	}
 	if req.AllowVulnerableMCP && !unsafe {
 		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or schedule a release that pins a fixed version")
+	}
+	return markInUnsafeMode(req, func() (string, error) {
+		c, err := s.cli()
+		if err != nil {
+			return "", err
+		}
+		ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+		defer cancel()
+		return c.Version(ctx)
+	})
+}
+
+// needsCLI refuses, naming what, when the installed agentry is older than
+// min.
+func (s *ScheduleAPI) needsCLI(min [3]int, what string) error {
+	c, err := s.cli()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+	line, err := c.Version(ctx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if why := schedules.OlderThan(line, min, what); why != "" {
+		return errors.New(why)
+	}
+	return nil
+}
+
+// markInUnsafeMode marks a schedule whose consent is an Unsafe Mode one
+// (a vulnerable declared server's, given only in Unsafe Mode), so that
+// managed settings that later forbid Unsafe Mode hold its fires. Only an
+// agentry that keeps the mark may make it; version answers the installed
+// agentry's version line.
+func markInUnsafeMode(req *schedules.Request, version func() (string, error)) error {
+	req.InUnsafeMode = req.AllowVulnerableMCP
+	if !req.InUnsafeMode {
+		return nil
+	}
+	line, err := version()
+	if err != nil {
+		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if why := schedules.OlderThan(line, schedules.MinUnsafeModeScheduleCLI, "scheduling a run that accepts a vulnerable declared MCP server"); why != "" {
+		return errors.New(why)
 	}
 	return nil
 }
@@ -685,7 +738,7 @@ func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Ch
 		lines = append(lines, "Every run of it accepts "+strings.Join(accepting, ", and ")+". Each receipt records the consent.")
 	}
 	if unsafe && req.AllowVulnerableMCP {
-		lines = append(lines, "Unsafe Mode is on: every run of this schedule is an Unsafe Mode run, and its receipt names each server it let through.")
+		lines = append(lines, "Unsafe Mode is on: every run of this schedule is an Unsafe Mode run, and its receipt names each server it let through. If an organization's managed settings later forbid Unsafe Mode on this computer, the schedule waits until they stop.")
 	}
 	linger := req.SignedOut && !s.lingers()
 	if linger {
@@ -709,6 +762,13 @@ func (s *ScheduleAPI) Edit(id string, e schedules.Edit) error {
 	c, err := s.cli()
 	if err != nil {
 		return err
+	}
+	if e.Model != nil {
+		// A moved schedule's next run is on the new model, with nothing new
+		// to agree to: the model is the person's own choice on their computer.
+		if err := s.needsCLI(schedules.MinSavedModelCLI, "moving a schedule to a saved model"); err != nil {
+			return err
+		}
 	}
 	yes := false
 	if e.SignedOut != nil && *e.SignedOut && !s.lingers() {
@@ -777,6 +837,9 @@ func (s *ScheduleAPI) RunNow(id string) error {
 	if !schedule.ValidID(id) {
 		return fmt.Errorf("%q is not a schedule id", id)
 	}
+	if why := s.heldHere(id); why != "" {
+		return errors.New(why)
+	}
 	c, err := s.cli()
 	if err != nil {
 		return err
@@ -805,6 +868,28 @@ func (s *ScheduleAPI) RunNow(id string) error {
 		emitEvent(s.app, eventSchedulesChanged)
 	}()
 	return nil
+}
+
+// heldHere is why the schedule id may not run here now, or "": made in
+// Unsafe Mode while the managed settings held here forbid it. The agentry
+// command refuses such a run as well; saying so here puts the reason on the
+// page instead of in a run that never starts.
+func (s *ScheduleAPI) heldHere(id string) string {
+	st, err := s.store()
+	if err != nil {
+		return ""
+	}
+	items, err := st.List(s.clock())
+	if err != nil {
+		return ""
+	}
+	schedules.HoldUnsafeMode(items, unsafeModeRefusal())
+	for _, it := range items {
+		if it.ID == id && it.Held != "" {
+			return it.Held + "; this schedule's consents were given in Unsafe Mode, so it does not run until they stop forbidding it"
+		}
+	}
+	return ""
 }
 
 // start rewrites every schedule's alarm from the store once the app is up:

@@ -35,6 +35,10 @@ type RunhostScheduleView struct {
 	Keeps string `json:"keeps"`
 	// Runs is how many of its runs the runhost still holds.
 	Runs int `json:"runs"`
+	// Model is the runhost's saved model each run is on, by its id, or
+	// "default" for the runhost's default at each run; "" for a schedule
+	// that carries the model of the device that made it.
+	Model string `json:"model,omitempty"`
 }
 
 // RunhostStoreView is what a runhost's store keeps: never a value.
@@ -94,7 +98,7 @@ func (r *RunhostsAPI) Store(name string) (*RunhostStoreView, error) {
 		v.SignIns = append(v.SignIns, k.Vendor)
 	}
 	for _, s := range list.Schedules {
-		sv := RunhostScheduleView{ID: s.ID, Name: s.Name, Ref: s.Ref, Ended: s.Ended, Keeps: entriesSaid(s.Entries)}
+		sv := RunhostScheduleView{ID: s.ID, Name: s.Name, Ref: s.Ref, Ended: s.Ended, Keeps: entriesSaid(s.Entries), Model: s.Model}
 		if s.Next != nil {
 			sv.Next = s.Next.UTC().Format(time.RFC3339)
 		}
@@ -223,6 +227,9 @@ func recordScheduledRun(app *App, name, ref string, f runhost.ScheduleFire, star
 		Digest: res.Digest, Folder: cleanAbs(res.OutDir)}
 	if !runhistory.ValidID(e.ID) {
 		e.ID = f.Job
+	}
+	if res.SavedModel != nil {
+		e.Model = res.SavedModel.Name
 	}
 	if res.Status != "ok" {
 		e.Outcome, e.ExitClass, e.Cause = runhistory.OutcomeError, res.ExitClass, fmt.Sprintf("on runhost %s: %s", name, res.Error)

@@ -88,6 +88,33 @@ export function List(): $CancellablePromise<$models.RunhostView[]> {
 }
 
 /**
+ * MakeModelAvailable makes this computer's saved model id available on
+ * runhost name. What a runhost cannot take is refused before anything is
+ * sent. A key is read here and, once the person agrees in a native dialog,
+ * sent to the runhost's store; a sign-in the runhost does not keep is made
+ * there from this computer's browser; a credits token it does not keep is
+ * minted for it, after its own consent. A Claude subscription's model is
+ * checked there by one message, which the person agrees to first. The
+ * runhost then checks the model and keeps it, or refuses with the reason
+ * and keeps nothing. Nothing of this computer's own sign-ins is sent.
+ */
+export function MakeModelAvailable(name: string, id: string): $CancellablePromise<$models.RunhostModelsView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.MakeModelAvailable", name, id).then(($result: any) => {
+        return $$createType6($result)!;
+    });
+}
+
+/**
+ * Models asks runhost name for the saved models it holds, each with why a
+ * run on it would be refused there now and what names it.
+ */
+export function Models(name: string): $CancellablePromise<$models.RunhostModelsView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Models", name).then(($result: any) => {
+        return $$createType6($result)!;
+    });
+}
+
+/**
  * Pair pairs this computer with a runhost set up from another of the
  * person's: with the server's admin sign-in, for this call alone, it
  * installs this computer's own run key and sealing key and nothing else.
@@ -135,12 +162,25 @@ export function RemoveCredits(name: string): $CancellablePromise<$models.Runhost
 }
 
 /**
+ * RemoveRunhostModel takes the saved model ref off runhost name. While one
+ * of its agents or schedules names it, the runhost refuses unless moveTo
+ * names another of its saved models to move them to; removing its default
+ * needs moveTo too. Its provider's credential leaves the runhost with its
+ * last saved model unless keepCredential.
+ */
+export function RemoveRunhostModel(name: string, ref: string, moveTo: string, keepCredential: boolean): $CancellablePromise<$models.RunhostModelsView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveRunhostModel", name, ref, moveTo, keepCredential).then(($result: any) => {
+        return $$createType6($result)!;
+    });
+}
+
+/**
  * RemoveSchedule takes schedule id off runhost name, with everything it
  * kept in the store, after the native confirmation.
  */
 export function RemoveSchedule(name: string, id: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveSchedule", name, id).then(($result: any) => {
-        return $$createType6($result)!;
+        return $$createType8($result)!;
     });
 }
 
@@ -163,11 +203,33 @@ export function SendAgent(name: string, agent: string, text: string): $Cancellab
 }
 
 /**
+ * SetAgentModel puts agent on runhost name on one of the runhost's saved
+ * models, by its id or name, or back on the runhost's default ("" or
+ * "default"). A running agent takes it at its next turn there, with no stop
+ * and nothing new to agree to.
+ */
+export function SetAgentModel(name: string, agent: string, ref: string): $CancellablePromise<$models.RunhostAgentView[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.SetAgentModel", name, agent, ref).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
  * SetDefault makes runhost name where runs go unless the run setup says
  * otherwise.
  */
 export function SetDefault(name: string): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.SetDefault", name);
+}
+
+/**
+ * SetRunhostDefaultModel makes the saved model ref runhost name's default:
+ * its agents and schedules that name none run on it.
+ */
+export function SetRunhostDefaultModel(name: string, ref: string): $CancellablePromise<$models.RunhostModelsView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.SetRunhostDefaultModel", name, ref).then(($result: any) => {
+        return $$createType6($result)!;
+    });
 }
 
 /**
@@ -209,7 +271,7 @@ export function StartAgent(name: string, agent: string): $CancellablePromise<$mo
  */
 export function Status(name: string): $CancellablePromise<$models.RunhostStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Status", name).then(($result: any) => {
-        return $$createType8($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -228,7 +290,7 @@ export function StopAgent(name: string, agent: string): $CancellablePromise<$mod
  */
 export function Store(name: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Store", name).then(($result: any) => {
-        return $$createType6($result)!;
+        return $$createType8($result)!;
     });
 }
 
@@ -259,7 +321,9 @@ const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $models.RunhostAgentView.createFrom;
 const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = $Create.Array($$createType0);
-const $$createType5 = $models.RunhostStoreView.createFrom;
+const $$createType5 = $models.RunhostModelsView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
-const $$createType7 = $models.RunhostStatusView.createFrom;
+const $$createType7 = $models.RunhostStoreView.createFrom;
 const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = $models.RunhostStatusView.createFrom;
+const $$createType10 = $Create.Nullable($$createType9);

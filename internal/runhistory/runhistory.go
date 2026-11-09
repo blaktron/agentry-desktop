@@ -99,6 +99,10 @@ type Entry struct {
 	// given that id, so a hand-edited entry names no other file.
 	Log    string `yaml:"log,omitempty"`
 	Folder string `yaml:"folder,omitempty"`
+	// Model is the name of the saved model the run was on, as its receipt
+	// named it; "" for a run on a policy with no saved model, or one that
+	// stopped before it was compiled.
+	Model string `yaml:"model,omitempty"`
 }
 
 // file is runs.yaml.

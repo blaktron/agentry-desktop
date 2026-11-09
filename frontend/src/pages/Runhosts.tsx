@@ -13,6 +13,23 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Field, Input, Notice } from "../primitives";
 import { runhostNameProblem, signInWords, unsafeModeWords, updateWords, type RunhostUpdate } from "../runhosts";
+import { ModelPicker } from "./ModelPicker";
+import { modelSaid, type PickModel } from "../modelPick";
+
+/** The saved models runhost name holds, asked of it: null until it
+ *  answers, with the error when it could not. A runhost's agents and
+ *  schedules name only these. */
+function useRunhostModels(name: string, key: unknown = 0): { models: PickModel[] | null; error: string | null } {
+  const [state, setState] = useState<{ models: PickModel[] | null; error: string | null }>({ models: null, error: null });
+  useEffect(() => {
+    let live = true;
+    Promise.resolve().then(() => RunhostsAPI.Models(name))
+      .then((v) => live && setState({ models: (v?.models ?? []).map((m) => ({ ...m, refusal: m.refusal ?? "" })), error: null }))
+      .catch((e) => live && setState({ models: [], error: String(e) }));
+    return () => { live = false; };
+  }, [name, key]);
+  return state;
+}
 
 /** The narration of one runhost's calls, newest last. */
 function useNarration(name: string): [string[], () => void] {
@@ -444,6 +461,7 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
  *  takes it off the runhost with everything it kept. */
 function RunhostSchedules({ name }: { name: string }) {
   const [store, setStore] = useState<app.RunhostStoreView | null>(null);
+  const { models } = useRunhostModels(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -467,6 +485,9 @@ function RunhostSchedules({ name }: { name: string }) {
             <span className="mono">{sc.name}</span> <span className="muted">{sc.ref}</span>{" "}
             <span className="muted">
               {sc.ended ? "ended" : sc.next ? `next ${new Date(sc.next).toLocaleString()}` : "no run left"} · keeps {sc.keeps}
+              {sc.model
+                ? <span data-runhost-schedule-model> · on {models ? modelSaid(models, sc.model) : sc.model === "default" ? "the default" : "a saved model"}</span>
+                : <span data-runhost-schedule-model> · on the model it was made with</span>}
             </span>
           </span>
           <Button disabled={busy} onClick={async () => {
@@ -488,12 +509,14 @@ function RunhostSchedules({ name }: { name: string }) {
 }
 
 /** The persistent agents on a runhost: each one runs there under the
- *  runhost's service, on the runhost's own model, and is started, stopped
- *  and talked to from here through the runhost's run key. What one would be
- *  given for the first time there is asked in a native dialog. Agentry Helper
- *  stays on this computer. */
+ *  runhost's service, on one of the saved models the runhost holds (its
+ *  Model list offers only those), and is started, stopped and talked to from
+ *  here through the runhost's run key. A model change is taken at its next
+ *  turn there. What one would be given for the first time there is asked in
+ *  a native dialog. Agentry Helper stays on this computer. */
 function RunhostAgents({ name }: { name: string }) {
   const [agents, setAgents] = useState<app.RunhostAgentView[] | null>(null);
+  const { models, error: modelsError } = useRunhostModels(name, agents);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [talkTo, setTalkTo] = useState<string | null>(null);
@@ -532,8 +555,12 @@ function RunhostAgents({ name }: { name: string }) {
   return (
     <div className="small" data-runhost-agents={name}>
       <p style={{ marginBottom: 4 }}>
-        <strong>Persistent agents:</strong> they run on {name}, on the model it keeps, and keep their conversation there.
+        <strong>Persistent agents:</strong> they run on {name}, each on a saved model it holds, and keep their conversation there.
       </p>
+      {modelsError && <p className="muted small">{name}'s saved models could not be read: {modelsError}</p>}
+      {models && models.length === 0 && !modelsError && (
+        <p className="muted small" data-runhost-no-models>{name} holds no saved model: make one available on it in Settings → Models.</p>
+      )}
       {agents.map((a) => (
         <div key={a.name} data-runhost-agent={a.name}>
           <p className="row" style={{ justifyContent: "space-between", margin: "2px 0" }}>
@@ -553,6 +580,15 @@ function RunhostAgents({ name }: { name: string }) {
               </span>
             )}
           </p>
+          {!a.desktopOnly && models && models.length > 0 && (
+            <div data-runhost-agent-model={a.name}>
+              <ModelPicker models={models} value={a.model?.id ?? ""} disabled={busy !== null} testId={`runhost-${a.name}`}
+                label={`Model for ${a.title || a.name}`}
+                hint={a.state === "running" ? "A change is taken at its next turn." : undefined}
+                onChange={(id) => act(a.name, () => RunhostsAPI.SetAgentModel(name, a.name, id))} />
+              {a.model?.refusal && <p className="run-step-problem">{a.model.refusal}</p>}
+            </div>
+          )}
           {talkTo === a.name && a.state === "running" && (
             <div style={{ margin: "4px 0 8px" }}>
               <p className="row">
