@@ -525,6 +525,7 @@ const runOutputs = {
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
 const STEP_OF: Record<string, StepKey> = {
+  "runpanel-model-recap": "review",
   "runpanel-changed-install": "review",
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",

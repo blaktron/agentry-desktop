@@ -57,7 +57,7 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
 import { ModelPicker, useModelChoices } from "./ModelPicker";
-import { pickBlocker, type PickModel } from "../modelPick";
+import { modelSaid, pickBlocker, type PickModel } from "../modelPick";
 import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from "../runReadiness";
 import { applicationBlockers, runAppName, stateLine } from "../yourComputer";
 import { EventsOn } from "../host";
@@ -1853,6 +1853,15 @@ export default function RunPanel({
               <dl className="run-recap">
                 <dt>Where</dt>
                 <dd><span>{modeWord}</span><Button variant="link" onClick={() => goTo(0)} aria-label="Edit where to run">Edit</Button></dd>
+                {modelsHere && pickFrom && pickFrom.length > 0 && (
+                  <>
+                    <dt>Model</dt>
+                    <dd data-recap-model>
+                      <span>{model ? modelSaid(pickFrom, model) : modelSaid(pickFrom, "")}</span>
+                      <Button variant="link" onClick={() => goTo(0)} aria-label="Edit the model">Edit</Button>
+                    </dd>
+                  </>
+                )}
                 <dt>Files</dt>
                 <dd>
                   <span className="mono small selectable">{inputs.length === 0 ? "none" : inputs.join(", ")}</span>

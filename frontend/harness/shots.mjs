@@ -56,6 +56,8 @@ const states = [
     expectSelector: '[data-run-model] [data-model-greyed]' },
   { name: "runpanel-model-picked", url: "/modals.html#runpanel-model", note: "Qwen picked: the run goes on the person's own endpoint, and Run is not held for it", locator: ".modal",
     select: [["[data-run-model] select", "c1"]], expectNoText: "cannot be used now. Key missing" },
+  { name: "runpanel-model-recap", url: "/modals.html#runpanel-model-recap", note: "Review and start names the saved model the run is on", locator: ".modal",
+    wait: 300, expectSelector: "[data-recap-model]", expectText: ["the default (Sonnet)"] },
   { name: "runpanel-model-schedule-runhost", url: "/modals.html#runpanel-model-schedule", note: "a schedule on the runhost lab offers only the saved models lab holds: Default (Qwen)", locator: ".modal",
     click: '[data-run-on="lab"] input', wait: 300, expectText: ["Default (Qwen)", "Every run of the schedule on lab is on it"], expectNone: '[data-run-model] option[value="a1"]' },
   { name: "runpanel-model-in-agentry", url: "/modals.html#runpanel-model", note: "In Agentry offers no Model list: a run there uses Agentry's own model access", locator: ".modal",
