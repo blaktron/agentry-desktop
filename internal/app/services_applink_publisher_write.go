@@ -34,8 +34,10 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Masterminds/semver/v3"
 
@@ -134,8 +136,17 @@ func cmpOr(a, b string) string {
 	return b
 }
 
+// fileKey is what a submission compares a file by: its content's sha256.
+// Whether it is executable is kept in the copy, which the archive records,
+// but not compared: a release is unpacked without it.
+func fileKey(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
 // submission is a folder copied out of the share for a submission: its
-// manifest, its files by path with their sha256, and where the copy is.
+// manifest, its files by path with their key (fileKey), and where the copy
+// is.
 type submission struct {
 	dir   string
 	man   *manifest.Manifest
@@ -189,7 +200,11 @@ func (m *mainLink) quickAgentSubmit(ctx context.Context, folder string) (string,
 		if err != nil {
 			return "", err
 		}
-		if newest := newestVersion(vs); newest != nil && !next.GreaterThan(newest) {
+		newest, err := newestVersion(vs)
+		if err != nil {
+			return "", fmt.Errorf("%s/%s's versions cannot all be read as versions (%w), so whether %s is newer is not known: the person submits this one from Agentry's Build tab", ns, name, err, man.Version)
+		}
+		if newest != nil && !next.GreaterThan(newest) {
 			return "", fmt.Errorf("%s/%s already has version %s, and %s is not newer: give agent.yaml a newer version", ns, name, newest.Original(), man.Version)
 		}
 		ref, from := m.comparedWith(ns, name, vs)
@@ -201,6 +216,9 @@ func (m *mainLink) quickAgentSubmit(ctx context.Context, folder string) (string,
 			defer func() { _ = os.RemoveAll(b.dir) }()
 			base, baseFrom = b, from
 		}
+	}
+	if exists && base == nil {
+		baseFrom = "none: it has no published version to compare with"
 	}
 	text := submitDialogText(ns+"/"+name+"@"+man.Version, exists, private, sub, base, baseFrom, m.publisher.cost(reg))
 	if err := m.app.askConsent(m.who()+" asks to submit "+ns+"/"+name+"@"+man.Version, text); err != nil {
@@ -277,6 +295,10 @@ func copyOutOfShare(share, ns, name string) (*submission, error) {
 		if len(sub.files) == maxSubmitFiles {
 			return fmt.Errorf("the folder holds more than %d files", maxSubmitFiles)
 		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		f, err := root.Open(p)
 		if err != nil {
 			return err
@@ -290,11 +312,15 @@ func copyOutOfShare(share, ns, name string) (*submission, error) {
 		if total > maxSubmitBytes {
 			return fmt.Errorf("the folder holds more than %d MiB", maxSubmitBytes>>20)
 		}
-		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(rel)), data, 0o600); err != nil {
+		// The archive keeps whether a file is executable, so the copy does.
+		mode := os.FileMode(0o600)
+		if info.Mode()&0o111 != 0 {
+			mode = 0o700
+		}
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(rel)), data, mode); err != nil {
 			return err
 		}
-		sum := sha256.Sum256(data)
-		sub.files[rel] = "sha256:" + hex.EncodeToString(sum[:])
+		sub.files[rel] = fileKey(data)
 		return nil
 	})
 	if err == nil {
@@ -308,19 +334,20 @@ func copyOutOfShare(share, ns, name string) (*submission, error) {
 }
 
 // newestVersion is the newest of a QuickAgent's versions, by semver; nil
-// for none that parses.
-func newestVersion(vs []apiclient.AgentVersion) *semver.Version {
+// for none. A version that does not read as one is an error, never skipped:
+// skipped, it could be the newest.
+func newestVersion(vs []apiclient.AgentVersion) (*semver.Version, error) {
 	var newest *semver.Version
 	for _, v := range vs {
 		sv, err := semver.NewVersion(v.Version)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("%s is not a version", quoted(v.Version))
 		}
 		if newest == nil || sv.GreaterThan(newest) {
 			newest = sv
 		}
 	}
-	return newest
+	return newest, nil
 }
 
 // comparedWith is the release a submission is compared with, and how it
@@ -382,8 +409,7 @@ func (m *mainLink) baseRelease(ctx context.Context, reg, ref string) (*submissio
 		if err != nil {
 			return err
 		}
-		sum := sha256.Sum256(data)
-		b.files[filepath.ToSlash(r)] = "sha256:" + hex.EncodeToString(sum[:])
+		b.files[filepath.ToSlash(r)] = fileKey(data)
 		return nil
 	})
 	if err == nil {
@@ -425,7 +451,11 @@ func submitDialogText(ref string, exists, private bool, sub, base *submission, b
 	}
 	sent := included(sub)
 	if base == nil {
-		lines = append(lines, "", fmt.Sprintf("All %d files are new:", len(sent)))
+		if baseFrom != "" {
+			lines = append(lines, "", fmt.Sprintf("The %d files it sends (compared with %s):", len(sent), baseFrom))
+		} else {
+			lines = append(lines, "", fmt.Sprintf("All %d files are new:", len(sent)))
+		}
 		lines = append(lines, namedList(slices.Sorted(maps.Keys(sent)))...)
 	} else {
 		was := included(base)
@@ -470,7 +500,7 @@ func submitDialogText(ref string, exists, private bool, sub, base *submission, b
 	} else {
 		lines = append(lines, "", "What it may reach that it could not before:")
 		for _, w := range widened {
-			lines = append(lines, "  • "+w)
+			lines = append(lines, "  • "+plainText(w))
 		}
 	}
 	return strings.Join(append(lines, "", cost, "The pipeline then checks this version like any other, and decides whether it is published.", "", "Submit it?"), "\n")
@@ -484,9 +514,22 @@ func namedList(files []string) []string {
 			out = append(out, fmt.Sprintf("  … and %d more", len(files)-i))
 			break
 		}
-		out = append(out, "  • "+f)
+		out = append(out, "  • "+plainText(f))
 	}
 	return out
+}
+
+// plainText is text the agent chose (a file's name, a host its manifest
+// names) as the dialog shows it: as it is when every character is a
+// printable one, else quoted with its control and format characters
+// escaped, so it cannot break a line or reorder what follows it.
+func plainText(s string) string {
+	for _, r := range s {
+		if !unicode.IsGraphic(r) || unicode.Is(unicode.Cf, r) {
+			return strconv.QuoteToASCII(s)
+		}
+	}
+	return s
 }
 
 // submittedState is a submission's outcome in the person's words.

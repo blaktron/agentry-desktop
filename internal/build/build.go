@@ -2065,7 +2065,9 @@ type PublishOptions struct {
 	// release ships: one entry for each, nil for a release that ships none.
 	Shipping *KnowledgeShipping
 	// CreatePrivate creates a QuickAgent that does not exist yet private,
-	// where it would otherwise be created public.
+	// where it would otherwise be created public; one that exists by the
+	// time of the upload is refused, since the question asked about a new
+	// one.
 	CreatePrivate bool
 }
 
@@ -2130,6 +2132,11 @@ func PublishWith(ctx context.Context, regURL, token, dir string, privateTold boo
 		msg := fmt.Sprintf("%s/%s is no longer private, and this version would be public, which the warning did not say; submit again to be asked", m.Namespace, m.Name)
 		_, _ = fmt.Fprintf(logw, "refused: %s\n", msg)
 		return &PublishResult{Status: StatusRefused, Refusal: "visibility-changed", Detail: msg}, nil
+	}
+	if opts.CreatePrivate && aresp.StatusCode() == http.StatusOK {
+		msg := fmt.Sprintf("%s/%s exists now, which the question did not say: it was asked about as a new QuickAgent to create private; submit again to be asked", m.Namespace, m.Name)
+		_, _ = fmt.Fprintf(logw, "refused: %s\n", msg)
+		return &PublishResult{Status: StatusRefused, Refusal: "agent-appeared", Detail: msg}, nil
 	}
 	switch aresp.StatusCode() {
 	case http.StatusOK:

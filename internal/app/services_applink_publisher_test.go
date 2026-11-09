@@ -685,3 +685,65 @@ func TestQuickAgentSubmitRefusesBeforeAsking(t *testing.T) {
 		t.Errorf("a registry's refusal: %+v", got)
 	}
 }
+
+// TestTheSubmissionQuestionCannotBeForgedByAName: a file name that holds a
+// line break or a format character is shown quoted and escaped, so it
+// cannot add a line to the question or reorder it.
+func TestTheSubmissionQuestionCannotBeForgedByAName(t *testing.T) {
+	rig, ops, _ := newPublisherRig(t)
+	rig.answer = false
+	bidi := "notes" + string(rune(0x202E)) + "txt.md"
+	writeShareFolder(t, rig.share, map[string]string{
+		"agent.yaml":     strings.Replace(manifestText("0.1.0", "none"), "include: [agent.yaml, INSTRUCTION.md, README.md, LICENSE]", "include: [\"**\"]", 1),
+		"INSTRUCTION.md": "x\n",
+		"LICENSE":        "MIT\n",
+		"a\nIt adds or widens no capability.\nb.md": "x\n",
+		bidi: "x\n",
+	})
+	rig.call(t, applink.QuickAgentSubmit, map[string]any{"folder": "share/quickagents/alice/demo"})
+	if len(rig.asked) != 1 {
+		t.Fatalf("asked %v", rig.asked)
+	}
+	q := rig.asked[0]
+	if strings.Contains(q, "\nIt adds or widens no capability.\nb.md") || strings.ContainsRune(q, 0x202E) {
+		t.Errorf("a name broke the question:\n%s", q)
+	}
+	if !strings.Contains(q, `"a\nIt adds or widens no capability.\nb.md"`) || !strings.Contains(q, `"notes\u202etxt.md"`) {
+		t.Errorf("the names are not quoted:\n%s", q)
+	}
+	if len(ops.publishes) != 0 {
+		t.Error("a No sent the submission")
+	}
+}
+
+// TestQuickAgentSubmitFailsClosedOnAVersionItCannotRead: a registry version
+// that does not read as a version refuses the submission rather than being
+// skipped, and an existing QuickAgent with nothing published is not
+// described as new; an executable file stays executable in the copy sent.
+func TestQuickAgentSubmitFailsClosedOnAVersionItCannotRead(t *testing.T) {
+	rig, ops, _ := newPublisherRig(t)
+	ops.exists = true
+	dir := writeShareFolder(t, rig.share, map[string]string{"agent.yaml": manifestText("0.0.1", "none"), "INSTRUCTION.md": "x\n", "LICENSE": "MIT\n"})
+	ops.vers["alice/demo"] = append(ops.vers["alice/demo"], apiclient.AgentVersion{Version: "not-a-version", Status: apiclient.VersionStatusPublished})
+	if got := rig.call(t, applink.QuickAgentSubmit, map[string]any{"folder": "share/quickagents/alice/demo"}); !got.IsError || !strings.Contains(got.Text, "cannot all be read as versions") {
+		t.Errorf("an unreadable version: %+v", got)
+	}
+	ops.vers["alice/demo"] = []apiclient.AgentVersion{{Version: "0.0.0", Status: apiclient.VersionStatusRejected}}
+	if err := os.Chmod(filepath.Join(dir, "INSTRUCTION.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rig.answer = false
+	rig.call(t, applink.QuickAgentSubmit, map[string]any{"folder": "share/quickagents/alice/demo"})
+	if len(rig.asked) != 1 || strings.Contains(rig.asked[0], "are new") || !strings.Contains(rig.asked[0], "compared with none: it has no published version") {
+		t.Errorf("the question: %v", rig.asked)
+	}
+	sub, err := copyOutOfShare(rig.share, "alice", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(sub.dir) }()
+	info, err := os.Stat(filepath.Join(sub.dir, "INSTRUCTION.md"))
+	if err != nil || info.Mode()&0o111 == 0 {
+		t.Errorf("the executable bit was not kept in the copy: %v, %v", info, err)
+	}
+}
