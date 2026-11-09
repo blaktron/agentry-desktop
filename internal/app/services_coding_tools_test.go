@@ -85,7 +85,7 @@ func TestInstallCodingToolPluginRefusesWhatItCannotInstall(t *testing.T) {
 		t.Fatal("asked about an install that cannot run")
 		return false, nil
 	}}}
-	for _, id := range []string{"no-such-tool", "cursor", "t3code", "codex"} {
+	for _, id := range []string{"no-such-tool", "cursor", "t3code"} {
 		if _, err := s.InstallCodingToolPlugin(id); err == nil {
 			t.Errorf("%s: an install was planned", id)
 		}

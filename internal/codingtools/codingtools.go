@@ -139,6 +139,7 @@ var (
 	goos     = runtime.GOOS
 	lookPath = exec.LookPath
 	getenv   = os.Getenv
+	stat     = os.Stat
 )
 
 // Found is where a tool was found on this computer.
@@ -176,7 +177,7 @@ func firstExisting(templates []string, file bool) (string, bool) {
 				continue
 			}
 		}
-		st, err := os.Stat(p)
+		st, err := stat(p)
 		if err != nil {
 			continue
 		}
@@ -218,6 +219,9 @@ func expand(tpl string) (string, bool) {
 // whose name sorts highest as a dotted version ("2.1.321-c6c6b56" reads as
 // 2.1.321).
 func newestVersion(dir string) (string, bool) {
+	if _, err := stat(dir); err != nil {
+		return "", false
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", false
@@ -290,7 +294,7 @@ func Plugin(t Tool) PluginState {
 			continue
 		}
 		if t.MarkerText == "" {
-			if _, err := os.Stat(p); err == nil {
+			if _, err := stat(p); err == nil {
 				return PluginInstalled
 			}
 			continue

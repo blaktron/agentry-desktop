@@ -15,10 +15,20 @@ import (
 func isolate(t *testing.T, platform string, onPath map[string]string, env map[string]string, cat ...Tool) string {
 	t.Helper()
 	home := t.TempDir()
-	oldHome, oldGOOS, oldLook, oldEnv, oldCat, oldRun := homeDir, goos, lookPath, getenv, catalog, runCommand
+	oldHome, oldGOOS, oldLook, oldEnv, oldCat, oldRun, oldStat := homeDir, goos, lookPath, getenv, catalog, runCommand, stat
 	t.Cleanup(func() {
-		homeDir, goos, lookPath, getenv, catalog, runCommand = oldHome, oldGOOS, oldLook, oldEnv, oldCat, oldRun
+		homeDir, goos, lookPath, getenv, catalog, runCommand, stat = oldHome, oldGOOS, oldLook, oldEnv, oldCat, oldRun, oldStat
 	})
+	// Only the test's own directories exist: a tool installed on the
+	// machine running the tests (Homebrew's claude on a Mac runner) must
+	// not be found.
+	tmp := os.TempDir()
+	stat = func(p string) (os.FileInfo, error) {
+		if !strings.HasPrefix(p, tmp) && !strings.HasPrefix(p, home) {
+			return nil, os.ErrNotExist
+		}
+		return os.Stat(p)
+	}
 	homeDir = func() (string, error) { return home, nil }
 	goos = platform
 	lookPath = func(name string) (string, error) {
