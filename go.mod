@@ -7,7 +7,7 @@ require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.7.10
-	github.com/blaktron/agentry-cli v0.7.43
+	github.com/blaktron/agentry-cli v0.7.44-dev.2
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/jezek/xgb v1.3.1
