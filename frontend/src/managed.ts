@@ -205,7 +205,11 @@ export function rowNote(row: ManagedRow | null | undefined): RowNote | null {
   if (locked && !forbids(row) && typeof rowValue(row) === "string" && row.id !== "updates.minimumVersion") {
     lines.push(`${capital(org)} leaves this to you.`);
   }
-  if (!row.applied) lines.push("This version of the agentry command does not apply it yet, so runs are not held to it.");
+  if (!row.applied) {
+    lines.push(locked
+      ? "This version of the agentry command cannot hold you to it, so no run starts on this computer until Agentry is updated."
+      : "This version of the agentry command does not apply it yet.");
+  }
   return {
     id: row.id,
     state: row.state,

@@ -81,7 +81,9 @@ test("an install source list is worded, and a row this client does not apply say
     "the organization, the built-ins and acme and tools");
   assert.equal(valueWords(row("install.sources", '{"scope":"organization-and-built-ins","namespaces":[]}')), "the organization and the built-ins");
   const unapplied = rowNote(row("bugReports", '"forbidden"', "locked", false))!;
-  assert.equal(unapplied.lines.at(-1), "This version of the agentry command does not apply it yet, so runs are not held to it.");
+  assert.equal(unapplied.lines.at(-1), "This version of the agentry command cannot hold you to it, so no run starts on this computer until Agentry is updated.");
+  const unappliedDefault = rowNote(row("bugReports", '"forbidden"', "default", false))!;
+  assert.equal(unappliedDefault.lines.at(-1), "This version of the agentry command does not apply it yet.");
   assert.equal(rowNote(row("bugReports", '"forbidden"'))!.lines.length, 1);
 });
 
