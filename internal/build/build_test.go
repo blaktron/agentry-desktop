@@ -265,6 +265,71 @@ func TestPublishHappyPath(t *testing.T) {
 	}
 }
 
+// TestPublishCreatesAMissingAgentPrivateWhenAsked: with CreatePrivate, a
+// QuickAgent the registry does not have is created private, and the
+// result says it is private.
+func TestPublishCreatesAMissingAgentPrivateWhenAsked(t *testing.T) {
+	dir := t.TempDir()
+	if err := Save(dir, model()); err != nil {
+		t.Fatal(err)
+	}
+	created := ""
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/agents/acme/hello-build", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	mux.HandleFunc("POST /api/v1/agents", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		created, _ = body["visibility"].(string)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{}`))
+	})
+	mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"version":"0.1.0","status":"needs_review","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
+	})
+	mux.HandleFunc("GET /api/v1/agents/acme/hello-build/versions/0.1.0/report", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"versionStatus":"needs_review","findings":[],"findingCounts":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	var log strings.Builder
+	res, err := PublishWith(t.Context(), srv.URL, "agy_test", dir, false, PublishOptions{CreatePrivate: true}, &log)
+	if err != nil {
+		t.Fatalf("PublishWith: %v\nlog:\n%s", err, log.String())
+	}
+	if created != "private" || res.Visibility != "private" || !strings.Contains(log.String(), "created agent acme/hello-build (private)") {
+		t.Fatalf("created %q, result %+v, log:\n%s", created, res, log.String())
+	}
+}
+
+// TestPublishRefusesAnAgentThatAppearedAfterTheQuestion: asked about as a
+// new QuickAgent to create private, one that exists by the upload is
+// refused, and nothing is uploaded.
+func TestPublishRefusesAnAgentThatAppearedAfterTheQuestion(t *testing.T) {
+	dir := t.TempDir()
+	if err := Save(dir, model()); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/agents/acme/hello-build", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"namespace":"acme","name":"hello-build","visibility":"public","summary":"","quarantineState":"none","createdAt":"2026-08-31T00:00:00Z"}`))
+	})
+	mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("a version was uploaded")
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	res, err := PublishWith(t.Context(), srv.URL, "agy_test", dir, false, PublishOptions{CreatePrivate: true}, io.Discard)
+	if err != nil || res.Status != StatusRefused || res.Refusal != "agent-appeared" {
+		t.Fatalf("result %+v, %v", res, err)
+	}
+}
+
 func TestPublishRefusesAnonymous(t *testing.T) {
 	dir := t.TempDir()
 	if err := Save(dir, model()); err != nil {
