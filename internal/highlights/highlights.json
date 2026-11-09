@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.30",
+      "highlights": [
+        "Settings → Models keeps up to ten saved models, each a provider and a model, with your default starred.",
+        "Add a model on a provider you already have, and it asks for no new key or sign-in.",
+        "Every model is checked before it is saved, and one whose key or sign-in is missing says so, with the fix.",
+        "Removing a model a schedule or an agent uses asks where they go first: nothing moves on its own."
+      ]
+    },
+    {
       "version": "0.7.29",
       "highlights": [
         "Your computer lists your own applications: add any, from the library or by hand, and approve its server or its windows.",

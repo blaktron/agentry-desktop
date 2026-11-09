@@ -389,6 +389,8 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
               plan you already have (ChatGPT, Claude, GitHub Copilot) or connect your account, or use
               an API key, kept on this machine. Preparing the images is optional now; your first run
               prepares them if you skip it.
+              {" "}The model you save here is your first saved model, and your default: runs use it unless you
+              pick another. Settings → Models adds more, up to ten.
             </>
           }
         />

@@ -61,6 +61,45 @@ const meetingAPI = {
   SetKeepAudio: async (on: boolean) => meetingChange({ keepAudio: on })(),
 };
 
+// Settings → Models (?settings=provider): four saved models on three
+// providers, the default starred, a schedule on one and an agent on
+// another. #models-key-missing has Anthropic's key gone; #models-signin
+// has the ChatGPT sign-in refused at its last refresh; #models-full keeps
+// ten, so Add is held; #models-none has nothing a person chose;
+// #models-unreachable refuses every check as the endpoint cannot be
+// reached, with Retry.
+const modelsHash = window.location.hash;
+const smProviders = () => [
+  { id: "anthropic", vendor: "anthropic", way: "key", keyEnv: "ANTHROPIC_API_KEY", keySource: "keyring", state: modelsHash === "#models-key-missing" ? "key-missing" : "ready", models: ["a1"] },
+  { id: "custom-home-gpu", vendor: "custom", name: "Home GPU", baseUrl: "http://gpu-box.lan:8000/v1", way: "key", takesNoKey: true, state: "ready",
+    models: modelsHash === "#models-full" ? ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"] : ["c1", "c2"] },
+  { id: "openai", vendor: "openai", way: "chatgpt", signInVendor: "chatgpt",
+    ...(modelsHash === "#models-signin" ? { state: "needs-sign-in", broken: "invalid_grant" } : { state: "ready", account: "chris@example.com" }), models: ["o1"] },
+];
+const smModels = () => [
+  { id: "a1", name: "Sonnet", provider: "anthropic", model: "claude-sonnet-5-5", default: true, users: [] },
+  { id: "c1", name: "Qwen", provider: "custom-home-gpu", model: "qwen3", contextWindow: 32768, default: false, users: [{ kind: "schedule", id: "k2m9x0aa1b", name: "Morning brief", model: "c1" }] },
+  { id: "c2", name: "Llama", provider: "custom-home-gpu", model: "llama4", contextWindow: 131072, default: false, users: [] },
+  ...(modelsHash === "#models-full" ? [3, 4, 5, 6, 7, 8].map((i) => ({ id: `c${i}`, name: `Qwen ${i}`, provider: "custom-home-gpu", model: "qwen3", contextWindow: 32768, default: false, users: [] })) : []),
+  { id: "o1", name: "GPT", provider: "openai", model: "gpt-5.5", default: false, users: [{ kind: "agent", id: "researcher", name: "Researcher", model: "o1" }] },
+];
+const smList = () => (modelsHash === "#models-none"
+  ? { providers: [], models: [], default: "", max: 10, setUp: false, policyPath: "~/.agentry/runner/policy.yaml" }
+  : { providers: smProviders(), models: smModels(), default: "a1", max: 10, setUp: true, policyPath: "~/.agentry/runner/policy.yaml" });
+const smSave = async (_p: unknown, d: { name: string; model: string; makeDefault: boolean; agreedToMessage: boolean; contextWindow: number }, claudeWay = false) => {
+  if (modelsHash === "#models-unreachable") {
+    return { refusal: { kind: "cannot-check", reason: "could not check the model: custom: list models: dial tcp 10.0.0.7:8000: connect: connection refused", offered: [], retry: true } };
+  }
+  if (claudeWay && !d.agreedToMessage) {
+    return { needsAgreement: "To check this model, Agentry sends it one short message through Claude Code. The message counts toward your Claude plan's usage." };
+  }
+  if (d.model === "gemma4") {
+    return { refusal: { kind: "not-offered", reason: "custom-home-gpu does not offer \"gemma4\": it lists qwen3, llama4", offered: ["qwen3", "llama4"], retry: false } };
+  }
+  return { saved: { id: "n1", name: d.name, provider: "custom-home-gpu", model: d.model, contextWindow: d.contextWindow || 32768, default: d.makeDefault, users: [] },
+    windowSource: d.contextWindow ? "" : "gpu-box.lan:8000" };
+};
+
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
   { namespace: "acme", name: "pr-triage", summary: "Reads an open PR and drafts a triage note under a strict egress allowlist.", modes: ["autonomous", "interactive"], quarantine: "", installs30d: 7 },
@@ -1628,6 +1667,31 @@ g.go = { app: {
       { vendor: "claude", provider: "anthropic", kind: "claude-signin", connected: false, account: "chris@example.com (Example Org)", image: true, createdAt: "2026-10-11T12:00:00Z" },
       { vendor: "poe", provider: "poe", kind: "api", connected: true, keyExpiresAt: "2026-11-11T00:00:00Z", image: true, createdAt: "2026-10-11T12:00:00Z" },
     ] : []),
+    SavedModels: async () => smList(),
+    ProviderModels: async (id: string) => (id === "openai" ? { models: [{ id: "gpt-5.5" }, { id: "gpt-5.5-mini" }], suggested: [], error: "", warning: "" }
+      : id === "anthropic" ? { models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5" }], suggested: [], error: "", warning: "" }
+        : { models: [{ id: "qwen3" }, { id: "llama4" }], suggested: [], error: "", warning: "http://gpu-box.lan:8000/v1 uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan. Use https if the endpoint supports it." }),
+    AddSavedModel: async (p: string, d: Parameters<typeof smSave>[1]) => smSave(p, d),
+    AddProviderModel: async (np: { way: string }, d: Parameters<typeof smSave>[1]) => smSave(np, d, np.way === "claude"),
+    EditSavedModel: async (id: string, d: Parameters<typeof smSave>[1]) => ({ saved: { ...smModels().find((m) => m.id === id), name: d.name, model: d.model } }),
+    CheckSavedModel: async (id: string, agreed: boolean) => (id === "a1" && !agreed && modelsHash === "#models-claude"
+      ? { needsAgreement: "To check this model, Agentry sends it one short message through Claude Code. The message counts toward your Claude plan's usage." }
+      : modelsHash === "#models-unreachable" ? { refusal: { kind: "cannot-check", reason: "could not check the model: custom: list models: dial tcp 10.0.0.7:8000: connect: connection refused", offered: [], retry: true } }
+        : { saved: smModels().find((m) => m.id === id) }),
+    SetDefaultModel: async () => undefined,
+    RemoveSavedModel: async (id: string, moveTo: string) => {
+      const m = smModels().find((x) => x.id === id);
+      if (m && (m.users.length > 0 || m.default) && !moveTo) return { removed: [], moved: [], inUse: m.users };
+      return { removed: [id], moved: m?.users ?? [], movedTo: moveTo };
+    },
+    RemoveProvider: async (id: string, moveTo: string) => {
+      const on = smModels().filter((m) => m.provider === id);
+      const users = on.flatMap((m) => m.users);
+      if ((users.length > 0 || on.some((m) => m.default)) && !moveTo) return { removed: [], moved: [], inUse: users };
+      return { removed: on.map((m) => m.id), moved: users, movedTo: moveTo, credential: "key removed from the keychain" };
+    },
+    StoreProviderKey: async () => "anthropic",
+    EndpointModels: async () => ({ models: [{ id: "qwen3" }, { id: "llama4" }], suggested: [], error: "", warning: "" }),
     ChatGPTModels: async () => ["gpt-5.2", "gpt-5-mini"],
     CopilotModels: async () => [{ id: "claude-sonnet-5.5", name: "Claude Sonnet 5.5", multiplier: 1 }],
     RemoveModelSignIn: async () => "revoked at the vendor",

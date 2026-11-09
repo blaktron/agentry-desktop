@@ -33,7 +33,7 @@ export function engineGapLine(hostedOffered: boolean): string {
 /** What the model's gap says: Go's sentence for what is missing, else a
  *  plain one, and the way through. */
 export function modelGapLine(setup: app.SetupStatusView, hostedOffered: boolean): string {
-  const gap = setup.modelGap || "No model provider is set up for runs on this computer.";
+  const gap = setup.modelGap || "No model is set up for runs on this computer.";
   return `${gap} ${KEPT}${hostedOffered ? " Or run this release In Agentry." : ""}`;
 }
 
