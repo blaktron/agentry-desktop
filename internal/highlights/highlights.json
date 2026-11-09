@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.31",
+      "highlights": [
+        "Settings shows each security setting your organization manages: Managed by it with a padlock, or Set by it as a default.",
+        "A schedule held by your organization's managed settings says so on its row, and Run now tells you why.",
+        "When the registry rotates its signing key with a handover from your pinned key, Agentry trusts the new key itself."
+      ]
+    },
+    {
       "version": "0.7.30",
       "highlights": [
         "Settings → Models keeps up to ten saved models, each a provider and a model, with your default starred.",
