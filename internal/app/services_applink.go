@@ -16,7 +16,9 @@
 // agreed to let it start are its own, so a Yes for one agent is never a Yes
 // for another. A run is an ordinary local run under the run lock: it is in
 // Recent runs and writes to the output folder and the Deliverables folder.
-// What the registry and the docs say reaches the agent as quoted data.
+// What the registry and the docs say reaches the agent as quoted data. The
+// Assistant's publisher tools, which reach the QuickAgents the person
+// publishes, are answered in services_applink_publisher.go.
 package app
 
 import (
@@ -128,6 +130,11 @@ type mainLink struct {
 	// meetings answers the Assistant's meeting tools; nil where this link
 	// does not.
 	meetings func(ctx context.Context, tool string, raw json.RawMessage, who string) (string, error)
+	// publisher reaches the person's QuickAgents for the Assistant's
+	// publisher tools (services_applink_publisher.go), and fetchedPath is
+	// where its fetches are kept; nil where this link answers none of them.
+	publisher   publisherOps
+	fetchedPath func() (string, error)
 
 	mu   sync.Mutex
 	runs map[string]*mainRun
@@ -189,6 +196,9 @@ func args(raw json.RawMessage, v any) error {
 func (m *mainLink) call(ctx context.Context, tool string, raw json.RawMessage) (string, error) {
 	if applink.IsMeetingTool(tool) && m.meetings != nil {
 		return m.meetings(ctx, tool, raw, m.who())
+	}
+	if applink.IsPublisherTool(tool) {
+		return m.answerPublisher(ctx, tool, raw)
 	}
 	switch tool {
 	case "registry_search":
