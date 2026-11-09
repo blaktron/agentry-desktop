@@ -258,3 +258,34 @@ func TestAHandAddedApplicationBindsLazilyForAnAgent(t *testing.T) {
 		t.Fatal("a tool the person classed read asked")
 	}
 }
+
+// A value a preset leaves for the person to fill in holds the application
+// back, named with its note, until the person sets it.
+func TestABlankValueThePersonFillsInIsNamed(t *testing.T) {
+	ob, ok := library.Builtin().Lookup("obsidian")
+	if !ok {
+		t.Skip("the library has no preset with a value to fill in")
+	}
+	a := yourcomputer.FromPreset(ob, library.Builtin().Version(), "linux")
+	a.Approve = yourcomputer.Approval{MCP: true}
+	s := New(Options{
+		Applications: approvedList(t, a),
+		LookPath:     func(string) (string, error) { return "/usr/bin/npx", nil },
+		Listening:    func(context.Context, int) error { return nil },
+		GOOS:         "linux",
+	})
+	st, _ := s.State(context.Background(), "obsidian")
+	if st.Ready || !strings.Contains(st.Missing, "OBSIDIAN_API_KEY") || !strings.Contains(st.Missing, "Local REST API") {
+		t.Fatalf("a blank key: ready %v, %q", st.Ready, st.Missing)
+	}
+	a.Server.Env["OBSIDIAN_API_KEY"] = "k"
+	s = New(Options{
+		Applications: approvedList(t, a),
+		LookPath:     func(string) (string, error) { return "/usr/bin/npx", nil },
+		Listening:    func(context.Context, int) error { return nil },
+		GOOS:         "linux",
+	})
+	if st, _ := s.State(context.Background(), "obsidian"); !st.Ready {
+		t.Fatalf("the key set: %q", st.Missing)
+	}
+}

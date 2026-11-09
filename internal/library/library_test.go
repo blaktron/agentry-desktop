@@ -103,6 +103,16 @@ func TestTheLibraryRefusesWhatItCannotVouchFor(t *testing.T) {
 		"an address as egress":      strings.Replace(validDoc, "[api.example.com]", "[127.0.0.1]", 1),
 		"a wildcard as egress":      strings.Replace(validDoc, "[api.example.com]", `["*.example.com"]`, 1),
 		"no steps":                  strings.Replace(validDoc, "steps: [Install it.]", "steps: []", 1),
+		"another schema":            strings.Replace(validDoc, "schema: 1\n", "schema: 2\n", 1),
+		"no schema":                 strings.Replace(validDoc, "schema: 1\n", "", 1),
+		"no category":               strings.Replace(validDoc, "    category: Examples\n", "", 1),
+		"a long summary":            strings.Replace(validDoc, "    category: Examples\n", "    category: Examples\n    summary: "+strings.Repeat("x", 121)+"\n", 1),
+		"no listener on loopback": strings.NewReplacer(
+			"attachment: stdio", "attachment: loopback-http",
+			"    launch:\n      command: [uvx, example-mcp==1.2.3]\n", "    endpoint: http://127.0.0.1:9000/mcp\n",
+			"    listener:\n      port: 9000\n", "").Replace(validDoc),
+		"a blank variable with no note": strings.Replace(validDoc, "      command: [uvx, example-mcp==1.2.3]\n",
+			"      command: [uvx, example-mcp==1.2.3]\n      env: {EXAMPLE_KEY: \"\"}\n", 1),
 		"no tools": strings.Replace(validDoc, "      - {name: run_code, class: exec}\n      - {name: read_thing, class: read}\n",
 			"      []\n", 1),
 	} {
@@ -155,10 +165,12 @@ func TestLookupHandsOutACopy(t *testing.T) {
 	}
 }
 
-const validDoc = `version: 1
+const validDoc = `schema: 1
+version: 1
 presets:
   - id: example
     application: Example
+    category: Examples
     platforms: [linux]
     server:
       ecosystem: pypi
@@ -192,8 +204,12 @@ func TestTheApplicationsOwnServerIsReachedNotLaunched(t *testing.T) {
 		t.Fatalf("the application's own server on loopback: %v", err)
 	}
 	launched := strings.Replace(validDoc, "ecosystem: pypi", "ecosystem: application", 1)
-	if _, err := Parse([]byte(launched)); err == nil || !strings.Contains(err.Error(), "reached on loopback") {
-		t.Fatalf("the application's own server as stdio: %v", err)
+	if _, err := Parse([]byte(launched)); err == nil || !strings.Contains(err.Error(), "the application's command, not uvx") {
+		t.Fatalf("the application's own server through a package runner: %v", err)
+	}
+	ownCommand := strings.NewReplacer("ecosystem: pypi", "ecosystem: application", "[uvx, example-mcp==1.2.3]", "[xcrun, mcpbridge]").Replace(validDoc)
+	if _, err := Parse([]byte(ownCommand)); err != nil {
+		t.Fatalf("the application's own command: %v", err)
 	}
 }
 
@@ -251,5 +267,57 @@ func TestAPresetNamesItsWindowsAndItsDefaults(t *testing.T) {
 	strayNote := validDoc + "    envNotes:\n      NOT_SET: something\n"
 	if _, err := Parse([]byte(strayNote)); err == nil || !strings.Contains(err.Error(), "NOT_SET") {
 		t.Fatalf("a note for a variable the launch does not set: %v", err)
+	}
+}
+
+// A stdio server that needs no port of the application's names none, and
+// a variable the person fills in is left blank with a note saying what goes
+// there.
+func TestAPresetMayNeedNoPortAndAskForAValue(t *testing.T) {
+	doc := strings.NewReplacer(
+		"    listener:\n      port: 9000\n", "",
+		"      command: [uvx, example-mcp==1.2.3]\n", "      command: [uvx, example-mcp==1.2.3]\n      env: {EXAMPLE_KEY: \"\"}\n",
+	).Replace(validDoc) + "    envNotes:\n      EXAMPLE_KEY: The key the application shows in its settings.\n"
+	c, err := Parse([]byte(doc))
+	if err != nil {
+		t.Fatalf("no port and a value to fill in: %v", err)
+	}
+	p, _ := c.Lookup("example")
+	if p.Listener.Port != 0 || p.Launch.Env["EXAMPLE_KEY"] != "" || p.EnvNotes["EXAMPLE_KEY"] == "" {
+		t.Fatalf("example = %+v", p)
+	}
+}
+
+// A copy read from the repository may carry fields a later build added to
+// the same schema; the copy built in may not.
+func TestAFetchedCopyPassesOverFieldsALaterBuildAdded(t *testing.T) {
+	later := strings.Replace(validDoc, "    category: Examples\n", "    category: Examples\n    icon: example.svg\n", 1)
+	if _, err := Parse([]byte(later)); err == nil {
+		t.Fatal("the built-in parse accepted an unknown field")
+	}
+	if _, err := ParseFetched([]byte(later)); err != nil {
+		t.Fatalf("a fetched copy with a later field: %v", err)
+	}
+	bad := strings.Replace(later, "version: 1.2.3", `version: ">=1"`, 1)
+	if _, err := ParseFetched([]byte(bad)); err == nil {
+		t.Fatal("a fetched copy skipped the checks")
+	}
+}
+
+// Every preset of the built-in library is offered somewhere, says what it
+// is, and its stdio launch holds its pin or is the application's own
+// command.
+func TestTheBuiltinLibraryIsWhole(t *testing.T) {
+	lib := Builtin()
+	if lib.Len() < 2 {
+		t.Fatalf("the library has %d presets", lib.Len())
+	}
+	for _, p := range lib.All() {
+		if p.Category == "" || len(p.Platforms) == 0 || len(p.Steps) == 0 || len(p.Tools) == 0 {
+			t.Errorf("%s is incomplete: %+v", p.ID, p)
+		}
+		if p.Attachment == AttachmentStdio && p.Package.Ecosystem != EcosystemApplication && !slices.Contains(p.Launch.Command, p.Package.pinnedArg()) {
+			t.Errorf("%s launches %q without its pin %s", p.ID, p.Launch.Command, p.Package.pinnedArg())
+		}
 	}
 }

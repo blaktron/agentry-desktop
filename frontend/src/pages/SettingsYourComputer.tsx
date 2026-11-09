@@ -1,6 +1,7 @@
 // Your computer: the person's approved applications, each approved by them
 // for its MCP server, its windows, both or neither; Add from the library
-// and Add another application; computer use's switches and what is kept;
+// (a dropdown with check marks over the library, which Go keeps current
+// from Agentry's repository) and Add another application; computer use's switches and what is kept;
 // the runs using the computer now, with Pause and Stop; and the runs that
 // used it. Every state comes from Go, which reads it from this computer, and
 // every approval, loosened class and changed server is asked again in a
@@ -14,12 +15,13 @@ import { EventsOn } from "../host";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { forbids, rowOf } from "../managed";
 import { classWords, fromWords, recentLine, stateLine } from "../yourComputer";
+import { LibraryPicker } from "./LibraryPicker";
 
 export function YourComputerSettings() {
   const [view, setView] = useState<app.YourComputerView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState<"" | "library" | "other">("");
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const managedRows = useManagedRows();
   // Applications you set up yourself can be forbidden; the library's are
@@ -79,33 +81,16 @@ export function YourComputerSettings() {
             <ApplicationCard key={s.id} s={s} busy={busy} act={act} onEdit={() => setEditing(s.id)} />
           ),
         )}
-        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          <Button onClick={() => setAdding(adding === "library" ? "" : "library")} disabled={busy || noApplications} data-add-library>Add from the library</Button>
-          <Button onClick={() => setAdding(adding === "other" ? "" : "other")} disabled={busy || noApplications || noCustom} data-add-other>Add another application</Button>
-          <button type="button" className="link small" onClick={read} disabled={busy}>Check again</button>
+        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+          <LibraryPicker presets={view?.library ?? []} status={view?.libraryStatus} busy={busy} disabled={busy || noApplications || !view}
+            onAdd={(ids) => act(() => YourComputerAPI.AddFromLibrary(ids))} />
+          <Button onClick={() => setAdding(!adding)} disabled={busy || noApplications || noCustom} data-add-other>Add another application</Button>
+          <button type="button" className="link small" disabled={busy}
+            onClick={() => { setBusy(true); YourComputerAPI.CheckLibrary().then(setView).catch((e) => setError(String(e))).finally(() => setBusy(false)); }}>Check again</button>
         </div>
-        {adding === "library" && view && (
-          <Card>
-            <strong>The library</strong>
-            <p className="muted small">
-              Popular applications whose set-up Agentry knows. Adding one puts it on your list with nothing approved.
-            </p>
-            {view.library.length === 0 && <p className="muted small">Every application of the library is on your list.</p>}
-            {view.library.map((p) => (
-              <div key={p.id} className="small" data-library-preset={p.id} style={{ marginBottom: "0.75rem" }}>
-                <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span><strong>{p.application}</strong> <span className="muted">(id <span className="mono">{p.id}</span>, server <span className="mono selectable">{p.package}</span>)</span></span>
-                  <Button onClick={async () => { if (await act(() => YourComputerAPI.AddFromLibrary(p.id))) setAdding(""); }} disabled={busy}>Add</Button>
-                </div>
-                {p.exec.length > 0 && <p className="muted small">{p.exec.join(", ")} {p.exec.length === 1 ? "runs" : "run"} code inside {p.application}, asked first.</p>}
-                <ol className="small">{p.steps.map((step) => <li key={step} className="selectable">{step}</li>)}</ol>
-              </div>
-            ))}
-          </Card>
-        )}
-        {adding === "other" && (
-          <ApplicationForm busy={busy} onCancel={() => setAdding("")}
-            onSave={async (n, tools) => { if (await act(() => YourComputerAPI.AddApplication(n, tools))) setAdding(""); }}
+        {adding && (
+          <ApplicationForm busy={busy} onCancel={() => setAdding(false)}
+            onSave={async (n, tools) => { if (await act(() => YourComputerAPI.AddApplication(n, tools))) setAdding(false); }}
             onTest={(n) => YourComputerAPI.TestServer(n)} />
         )}
         {view?.socketError && (

@@ -3,6 +3,7 @@
 // run setup's Run button reads, the class words, and a run's record. Pure,
 // with type-only imports, so node's own test runner can hold it.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import type * as library from "../bindings/github.com/blaktron/agentry-desktop/internal/library/models";
 import type * as linkservice from "../bindings/github.com/blaktron/agentry-desktop/internal/linkservice/models";
 
 /** Where an application's set-up came from, as its card says it. */
@@ -81,4 +82,46 @@ export function recentLine(r: linkservice.RecentRun): string {
   }[r.state] ?? "using it now";
   parts.push(how);
   return parts.join("; ");
+}
+
+/** One category of Add from the library's list, its presets by name. */
+export interface LibraryGroup {
+  category: string;
+  presets: app.LibraryPreset[];
+}
+
+/** Add from the library's list: the presets matching the query (by name,
+ *  id, category or summary, without regard to case), grouped by category,
+ *  categories and applications in alphabetical order. */
+export function libraryGroups(presets: app.LibraryPreset[], query: string): LibraryGroup[] {
+  const q = query.trim().toLowerCase();
+  const hit = (p: app.LibraryPreset) =>
+    !q || [p.application, p.id, p.category, p.summary].some((s) => (s ?? "").toLowerCase().includes(q));
+  const byCategory = new Map<string, app.LibraryPreset[]>();
+  for (const p of presets) {
+    if (!hit(p)) continue;
+    const c = p.category || "Other";
+    byCategory.set(c, [...(byCategory.get(c) ?? []), p]);
+  }
+  const name = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+  return [...byCategory.entries()]
+    .sort(([a], [b]) => name(a, b))
+    .map(([category, ps]) => ({ category, presets: [...ps].sort((a, b) => name(a.application, b.application)) }));
+}
+
+/** The label of the button that adds the checked presets. */
+export function addCheckedLabel(n: number): string {
+  if (n === 0) return "Check the applications to add";
+  return n === 1 ? "Add 1 application" : `Add ${n} applications`;
+}
+
+/** What the library's list says of itself: how many applications it offers
+ *  here, which copy it is, and why the last read failed, if it did. */
+export function libraryStatusLine(st: library.Status | undefined, offered: number): string {
+  const n = offered === 1 ? "1 application" : `${offered} applications`;
+  if (!st) return `${n} for this computer.`;
+  const from = st.origin === "repository" ? "updated from Agentry's repository" : "the copy that came with this version of Agentry Desktop";
+  let line = `${n} for this computer, from library version ${st.version}, ${from}.`;
+  if (st.error) line += ` The newest library could not be read just now: ${st.error}`;
+  return line;
 }
