@@ -99,6 +99,15 @@ func TestLiveDesktopLink(t *testing.T) {
 	r := &RunAPI{app: app}
 	y := newYourComputerAPI(app, r)
 	installs := &InstallAPI{app: app, engine: install.NewEngine()}
+	// Blender on the person's list, its server approved.
+	if _, ok := y.link.State(context.Background(), "blender"); !ok {
+		if _, err := y.AddFromLibrary("blender"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := y.SetApproval("blender", "mcp", true); err != nil {
+		t.Fatal(err)
+	}
 
 	// Plugins → Your computer, as the page reads it.
 	view := y.State()

@@ -617,7 +617,7 @@ export class CodingAgentsView {
 }
 
 /**
- * ComputerUseView is Plugins → Computer use's computer use.
+ * ComputerUseView is Plugins → Your computer's computer use.
  */
 export class ComputerUseView {
     "on": boolean;
