@@ -70,9 +70,10 @@ type publisherOps interface {
 	// fork forks ns/name into target, as newName ("" keeps the name),
 	// once the person agreed: it asks nothing itself.
 	fork(reg, ns, name, target, newName string) (*ForkView, error)
-	// forkState is a fork's copy: copying, ready or failed; "" for a
-	// QuickAgent that is not a fork.
-	forkState(reg, ns, name string) (string, error)
+	// forkState is a fork's copy: copying, ready or failed ("" for a
+	// QuickAgent that is not a fork), and why a failed copy failed, in the
+	// registry's words.
+	forkState(reg, ns, name string) (state, detail string, err error)
 	// standing is whether ns/name exists, and whether it is private.
 	standing(reg, ns, name string) (exists, private bool, err error)
 	// cost is what a submission spends, in a sentence.
@@ -263,6 +264,11 @@ func (m *mainLink) mineLine(reg string, a PublisherAgent) string {
 	}
 	if a.ForkState != "" && a.ForkState != "ready" {
 		parts = append(parts, "fork "+a.ForkState)
+		if a.ForkState == "failed" {
+			if _, detail, err := m.publisher.forkState(reg, a.Namespace, a.Name); err == nil && detail != "" {
+				parts[len(parts)-1] += " (the registry says: " + quoted(detail) + ")"
+			}
+		}
 	}
 	line := "- " + a.Namespace + "/" + a.Name + ": " + strings.Join(parts, ", ")
 	switch vs, err := m.publisher.versions(reg, a.Namespace, a.Name); {
@@ -558,22 +564,26 @@ func (o appPublisherOps) fork(reg, ns, name, target, newName string) (*ForkView,
 	return o.pub.fork(reg, ns, name, target, newName, func(string, string) error { return nil })
 }
 
-func (o appPublisherOps) forkState(reg, ns, name string) (string, error) {
+func (o appPublisherOps) forkState(reg, ns, name string) (string, string, error) {
 	client, regURL, token, err := o.client(reg)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	res, err := client.GetAgentWithResponse(o.pub.ctx(), ns, name)
 	if err != nil {
-		return "", withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
+		return "", "", withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
 	}
 	if res.JSON200 == nil {
-		return "", withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
+		return "", "", withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
 	}
 	if res.JSON200.ForkState == nil {
-		return "", nil
+		return "", "", nil
 	}
-	return string(*res.JSON200.ForkState), nil
+	detail := ""
+	if res.JSON200.ForkDetail != nil {
+		detail = *res.JSON200.ForkDetail
+	}
+	return string(*res.JSON200.ForkState), detail, nil
 }
 
 func (o appPublisherOps) standing(reg, ns, name string) (bool, bool, error) {
