@@ -13,6 +13,7 @@ package app
 //	AGENTRY_LIVE_PUBLISHER_REGISTRY=<the registry, default https://dev.secureagentry.net> \
 //	AGENTRY_LIVE_PUBLISHER_NS=<a namespace the sign-in publishes in> \
 //	AGENTRY_LIVE_PUBLISHER_REF=<one of its QuickAgents to fetch, ns/name@version> \
+//	AGENTRY_LIVE_PUBLISHER_REVISE=<one of its QuickAgents to revise In Agentry, ns/name> \
 //	go test -run TestLiveAssistantPublisher -v -timeout 30m ./internal/app
 //
 // The model's key is read from the variable the policy names. The sign-in
@@ -106,12 +107,9 @@ func TestLiveAssistantForkAndSubmit(t *testing.T) {
 	ask := "Fork " + origin + " into the namespace " + ns + " with the name " + fork + ", using quickagent_fork. Then quickagent_fetch " + ns + "/" + fork +
 		". In share/quickagents/" + ns + "/" + fork + "/README.md add a last line saying \"Checked by the Assistant.\", and in its agent.yaml move the version to the next patch version. Then quickagent_submit share/quickagents/" + ns + "/" + fork +
 		". Tell me what each tool answered."
+	// Files fetched into the share are checked before the fetch answers,
+	// so the whole of it is one turn.
 	if err := p.Send(assistantAgent, ask); err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	// Files fetched into the share in a turn are checked before the next
-	// one, so the change and the submission may take a second turn.
-	if err := p.Send(assistantAgent, "Continue: make the two changes and submit the fork, then tell me what quickagent_submit answered."); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 	manifest := "schemaVersion: \"2\"\nname: " + fresh + "\nnamespace: " + ns + "\nmodes: [autonomous]\nversion: 0.1.0\nsummary: \"Says hello to the person (live check)\"\nlicense: MIT\nentrypoints:\n  instruction: INSTRUCTION.md\ncapabilities:\n  network:\n    egress: none\n  filesystem:\n    read: none\n    write: none\npublish:\n  include: [agent.yaml, INSTRUCTION.md, LICENSE]\n"
@@ -147,6 +145,59 @@ func TestLiveAssistantForkAndSubmit(t *testing.T) {
 	exists, private, err := ops.standing(reg, ns, fresh)
 	if err != nil || !exists || !private {
 		t.Errorf("the new QuickAgent: exists %v, private %v, %v", exists, private, err)
+	}
+	_ = token
+}
+
+// TestLiveAssistantRevise: the Assistant fetches one of the person's
+// QuickAgents, has the Drafter revise it In Agentry, moves its version on
+// and submits it, each write asked in a dialog (answered Yes here and
+// logged). Skipped unless AGENTRY_LIVE_PUBLISHER=1 and
+// AGENTRY_LIVE_PUBLISHER_REVISE names a QuickAgent in
+// AGENTRY_LIVE_PUBLISHER_NS whose payer may revise In Agentry. What it
+// holds: the revision and the submission were each asked once, naming the
+// Assistant, the revision ran In Agentry, and the QuickAgent has a new
+// version.
+func TestLiveAssistantRevise(t *testing.T) {
+	if os.Getenv("AGENTRY_LIVE_PUBLISHER") != "1" || os.Getenv("AGENTRY_LIVE_PUBLISHER_REVISE") == "" {
+		t.Skip("uses a model, a registry sign-in and credits: set AGENTRY_LIVE_PUBLISHER=1 and AGENTRY_LIVE_PUBLISHER_REVISE (see the file's comment)")
+	}
+	reg, _, token, p, dialogs := liveAssistant(t)
+	target := os.Getenv("AGENTRY_LIVE_PUBLISHER_REVISE")
+	ns, name, _ := strings.Cut(target, "/")
+	ops := appPublisherOps{pub: &PublisherAPI{app: &App{ctx: context.Background()}}}
+	before, err := ops.versions(reg, ns, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ask := "Use quickagent_fetch with " + target + ". Then use quickagent_revise on share/quickagents/" + target + " with where set to agentry and these instructions for the Drafter: \"End every answer with a one-line summary that starts with Summary:.\" " +
+		"When it answers, read share/quickagents/" + target + "/agent.yaml, set its version to the next patch version after the latest one quickagent_versions lists, and quickagent_submit share/quickagents/" + target +
+		". Do it all in this one reply, and tell me what quickagent_revise and quickagent_submit answered."
+	if err := p.Send(assistantAgent, ask); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	t.Logf("dialogs: %q", *dialogs)
+	var reviseAsked, submitAsked int
+	for _, d := range *dialogs {
+		if strings.Contains(d, " asks to revise "+target+" with the Drafter") {
+			reviseAsked++
+		}
+		if strings.Contains(d, " asks to submit "+target) {
+			submitAsked++
+		}
+	}
+	if reviseAsked != 1 || submitAsked != 1 {
+		t.Errorf("asked to revise %d times and to submit %d times, want 1 and 1", reviseAsked, submitAsked)
+	}
+	after, err := ops.versions(reg, ns, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range after {
+		t.Logf("%s@%s: %s", target, v.Version, v.Status)
+	}
+	if len(after) != len(before)+1 {
+		t.Errorf("%s has %d versions, want %d", target, len(after), len(before)+1)
 	}
 	_ = token
 }

@@ -351,7 +351,7 @@ func TestQuickAgentFetchStaysInTheShare(t *testing.T) {
 // something are answered as not yet answered here, and reach nothing.
 func TestTheOtherPublisherToolsAreNotAnsweredYet(t *testing.T) {
 	rig, ops, _ := newPublisherRig(t)
-	for _, tool := range []string{applink.QuickAgentRevise, applink.QuickAgentManage} {
+	for _, tool := range []string{applink.QuickAgentManage} {
 		if got := rig.call(t, tool, map[string]any{}); !got.IsError || !strings.Contains(got.Text, "does not answer "+tool+" yet") {
 			t.Errorf("%s: %+v", tool, got)
 		}
@@ -368,10 +368,10 @@ func TestOnlyTheAssistantsLinkReachesThePersonsQuickAgents(t *testing.T) {
 	isolateHomes(t)
 	s := New("")
 	links := s.persistent.links
-	if a := links[assistantAgent]; a == nil || a.publisher == nil || a.fetchedPath == nil {
+	if a := links[assistantAgent]; a == nil || a.publisher == nil || a.fetchedPath == nil || a.reviser == nil {
 		t.Errorf("the Assistant's link: %+v", a)
 	}
-	if m := links[mainAgent]; m == nil || m.publisher != nil || m.fetchedPath != nil {
+	if m := links[mainAgent]; m == nil || m.publisher != nil || m.fetchedPath != nil || m.reviser != nil {
 		t.Errorf("Agentry Helper's link: %+v", m)
 	}
 }
