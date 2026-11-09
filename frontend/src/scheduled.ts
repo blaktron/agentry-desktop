@@ -315,8 +315,9 @@ export function whenOf(iso: string): string {
 }
 
 /** A schedule's state, in a word, for its row. */
-export function scheduleState(s: { paused?: boolean; ended?: boolean; signedOut?: boolean; keysSealed?: boolean; hosted?: boolean; pausedReason?: string }): string {
+export function scheduleState(s: { paused?: boolean; ended?: boolean; signedOut?: boolean; keysSealed?: boolean; hosted?: boolean; pausedReason?: string; held?: string }): string {
   if (s.ended) return "Ended";
+  if (s.held) return `Held: ${s.held}. Its consents were given in Unsafe Mode, so it does not run until they stop forbidding it`;
   if (s.hosted && s.paused) {
     switch (s.pausedReason) {
       case "refusals": return "Paused after three refused runs in a row: Resume checks it again";

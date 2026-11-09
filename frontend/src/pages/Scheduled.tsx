@@ -384,7 +384,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
                 </div>
               </li>
             ) : (
-              <li key={s.id} className="schedule-row" data-schedule={s.id}>
+              <li key={s.id} className="schedule-row" data-schedule={s.id} data-held={s.held ? "" : undefined}>
                 <div className="grow">
                   <strong>{s.name}</strong> <span className="mono small muted">{s.ref}@{s.version}</span>
                   <div className="small">{s.describe}{s.next ? ` · next ${whenOf(s.next)}` : ""}</div>
@@ -402,7 +402,8 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
                   {s.paused
                     ? <Button onClick={() => act(s.id, "resume", () => ScheduleAPI.Resume(s.id))} disabled={!!busy || !!unavailable}>Resume</Button>
                     : <Button onClick={() => act(s.id, "pause", () => ScheduleAPI.Pause(s.id))} disabled={!!busy || !!unavailable || s.ended}>Pause</Button>}
-                  <Button onClick={() => act(s.id, "run", () => ScheduleAPI.RunNow(s.id))} disabled={!!busy || !!unavailable || running.has(s.id)}>
+                  <Button onClick={() => act(s.id, "run", () => ScheduleAPI.RunNow(s.id))} disabled={!!busy || !!unavailable || running.has(s.id) || !!s.held}
+                    title={s.held ? scheduleState(s) : undefined}>
                     {running.has(s.id) ? "Running…" : "Run now"}
                   </Button>
                   <Button variant="danger" onClick={() => act(s.id, "remove", () => ScheduleAPI.Remove(s.id, s.name))} disabled={!!busy || !!unavailable}>Delete</Button>

@@ -245,6 +245,7 @@ func (s *ScheduleAPI) List() (*SchedulesView, error) {
 	if err != nil {
 		return nil, err
 	}
+	schedules.HoldUnsafeMode(items, unsafeModeRefusal())
 	v := &SchedulesView{Schedules: items, Running: []string{}}
 	s.mu.Lock()
 	for id := range s.running {
@@ -836,6 +837,9 @@ func (s *ScheduleAPI) RunNow(id string) error {
 	if !schedule.ValidID(id) {
 		return fmt.Errorf("%q is not a schedule id", id)
 	}
+	if why := s.heldHere(id); why != "" {
+		return errors.New(why)
+	}
 	c, err := s.cli()
 	if err != nil {
 		return err
@@ -864,6 +868,28 @@ func (s *ScheduleAPI) RunNow(id string) error {
 		emitEvent(s.app, eventSchedulesChanged)
 	}()
 	return nil
+}
+
+// heldHere is why the schedule id may not run here now, or "": made in
+// Unsafe Mode while the managed settings held here forbid it. The agentry
+// command refuses such a run as well; saying so here puts the reason on the
+// page instead of in a run that never starts.
+func (s *ScheduleAPI) heldHere(id string) string {
+	st, err := s.store()
+	if err != nil {
+		return ""
+	}
+	items, err := st.List(s.clock())
+	if err != nil {
+		return ""
+	}
+	schedules.HoldUnsafeMode(items, unsafeModeRefusal())
+	for _, it := range items {
+		if it.ID == id && it.Held != "" {
+			return it.Held + "; this schedule's consents were given in Unsafe Mode, so it does not run until they stop forbidding it"
+		}
+	}
+	return ""
 }
 
 // start rewrites every schedule's alarm from the store once the app is up:

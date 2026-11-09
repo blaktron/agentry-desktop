@@ -224,6 +224,18 @@ export class Item {
      */
     "model"?: string;
 
+    /**
+     * UnsafeMode: its consents were given in Unsafe Mode, so managed
+     * settings that forbid Unsafe Mode hold its fires.
+     */
+    "unsafeMode"?: boolean;
+
+    /**
+     * Held is why its fires and Run now are refused here, or "": the
+     * managed settings that forbid Unsafe Mode, for an UnsafeMode schedule.
+     */
+    "held"?: string;
+
     /** Creates a new Item instance. */
     constructor($$source: Partial<Item> = {}) {
         if (!("id" in $$source)) {
