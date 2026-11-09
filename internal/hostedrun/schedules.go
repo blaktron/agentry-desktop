@@ -188,6 +188,9 @@ func (c *Client) Schedules(ctx context.Context) ([]Schedule, int, error) {
 // CreateSchedule makes a schedule, checked as its fires would be; a gap is
 // a *Refusal naming it.
 func (c *Client) CreateSchedule(ctx context.Context, sr ScheduleRequest) (*Schedule, error) {
+	if err := managedRefusal("make the schedule", true); err != nil {
+		return nil, err
+	}
 	body, err := jsonBody(sr)
 	if err != nil {
 		return nil, err
@@ -220,6 +223,9 @@ func (c *Client) GetSchedule(ctx context.Context, id string) (*Schedule, error) 
 // UpdateSchedule edits a schedule; a new When starts its repeat over from
 // now.
 func (c *Client) UpdateSchedule(ctx context.Context, id string, sr ScheduleRequest) (*Schedule, error) {
+	if err := managedRefusal("change the schedule", true); err != nil {
+		return nil, err
+	}
 	body, err := jsonBody(sr)
 	if err != nil {
 		return nil, err
@@ -272,6 +278,9 @@ func (c *Client) ResumeSchedule(ctx context.Context, id string) (*Schedule, erro
 // RunScheduleNow starts an ordinary run of the schedule's setup now, which
 // is no occurrence, and answers the run's id.
 func (c *Client) RunScheduleNow(ctx context.Context, id string) (string, error) {
+	if err := managedRefusal("run the schedule now", true); err != nil {
+		return "", err
+	}
 	req, err := c.request(ctx, http.MethodPost, c.schedulesPath(id, "run"), nil, "")
 	if err != nil {
 		return "", err

@@ -19,7 +19,9 @@ package app
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +34,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
 	"github.com/blaktron/agentry-desktop/internal/library"
@@ -53,6 +56,8 @@ type YourComputerAPI struct {
 	link *linkservice.Service
 	// list is the person's applications.
 	list *yourcomputer.Store
+	// lib is the library of presets, kept current from the repository.
+	lib *library.Live
 	// socket is the link socket's path while it is served, and socketErr
 	// why it is not; mu holds them and stop.
 	mu        sync.Mutex
@@ -74,12 +79,15 @@ func newYourComputerAPI(app *App, run *RunAPI) *YourComputerAPI {
 	if dir, err := configdir.Dir(); err == nil {
 		recent = linkservice.OpenRecent(filepath.Join(dir, "desktop-link-runs.json"))
 	}
+	libCache := ""
 	if dir, err := configdir.Dir(); err == nil {
 		linkservice.SetTokenPath(filepath.Join(dir, "computer-use-portal.json"))
 		y.list = yourcomputer.InDir(dir)
+		libCache = filepath.Join(dir, "library.yaml")
 	} else {
 		y.list = yourcomputer.Open("")
 	}
+	y.lib = library.NewLive(library.LiveOptions{URL: library.URLFor(version.Version), Cache: libCache, OnChange: library.SetCurrent})
 	y.link = linkservice.New(linkservice.Options{
 		Applications: y.list,
 		Choose:       y.askChoose,
@@ -129,7 +137,7 @@ func (y *YourComputerAPI) discover(ctx context.Context) {
 	}
 	var added []string
 	_, err := y.list.Update(func(d *yourcomputer.Doc) error {
-		added = yourcomputer.Discover(ctx, d, library.Builtin(), runtime.GOOS, probe, screeningOff)
+		added = yourcomputer.Discover(ctx, d, library.Current(), runtime.GOOS, probe, screeningOff)
 		return nil
 	})
 	if err == nil && len(added) > 0 {
@@ -137,9 +145,48 @@ func (y *YourComputerAPI) discover(ctx context.Context) {
 	}
 }
 
+// libraryEvery is how often a running app reads the library again.
+const libraryEvery = 6 * time.Hour
+
+// keepLibrary reads the library from the repository now and every
+// libraryEvery until ctx ends, telling the page when it moved. The first
+// read comes before the discovery, so a new list is checked against the
+// newest library.
+func (y *YourComputerAPI) keepLibrary(ctx context.Context) {
+	y.refreshLibrary(ctx)
+	y.discover(ctx)
+	t := time.NewTicker(libraryEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			y.refreshLibrary(ctx)
+		}
+	}
+}
+
+// refreshLibrary reads the library once, telling the page when it moved.
+func (y *YourComputerAPI) refreshLibrary(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if changed, _ := y.lib.Refresh(ctx); changed {
+		nativeEmit(eventYourComputer)
+	}
+}
+
+// CheckLibrary reads the library from the repository now: Check again.
+// A library that could not be read leaves the one in use, and the view
+// says why.
+func (y *YourComputerAPI) CheckLibrary() *YourComputerView {
+	y.refreshLibrary(y.app.ctxOrBackground())
+	return y.State()
+}
+
 // start serves the link socket in the runner home until the app quits.
 func (y *YourComputerAPI) start(ctx context.Context) {
-	go y.discover(ctx)
+	go y.keepLibrary(ctx)
 	y.mu.Lock()
 	defer y.mu.Unlock()
 	home, err := y.run.runnerHome()
@@ -210,9 +257,13 @@ type YourComputerView struct {
 	Applications []linkservice.AppState `json:"applications"`
 	// ListError says why the list could not be read.
 	ListError string `json:"listError,omitempty"`
-	// Library are the presets not on the list yet, for Add from the
+	// Library are the presets offered on this system, in the library's
+	// order, each saying whether its id is on the list: Add from the
 	// library.
 	Library []LibraryPreset `json:"library"`
+	// LibraryStatus says which copy of the library is in use and how its
+	// last read from the repository went.
+	LibraryStatus library.Status `json:"libraryStatus"`
 	// Using are the runs bound now.
 	Using []linkservice.Bound `json:"using"`
 	// Recent are the runs that used the computer, the newest first.
@@ -249,14 +300,15 @@ func (y *YourComputerAPI) State() *YourComputerView {
 		apps = []linkservice.AppState{}
 	}
 	return &YourComputerView{
-		Applications: apps,
-		ListError:    listErr,
-		Library:      y.libraryOffer(apps),
-		Using:        y.link.Runs(),
-		Recent:       y.recent(),
-		Socket:       socket,
-		SocketError:  socketErr,
-		Computer:     computerUseView(),
+		Applications:  apps,
+		ListError:     listErr,
+		Library:       y.libraryOffer(apps),
+		LibraryStatus: y.lib.Status(),
+		Using:         y.link.Runs(),
+		Recent:        y.recent(),
+		Socket:        socket,
+		SocketError:   socketErr,
+		Computer:      computerUseView(),
 	}
 }
 
@@ -269,6 +321,11 @@ func computerUseView() ComputerUseView {
 // again in a native dialog; turning it off asks nothing, and stops every
 // run's computer use now.
 func (y *YourComputerAPI) SetComputerUse(on bool) (*YourComputerView, error) {
+	if on {
+		if reason := managedCalls.current().Forbidden(managedsettings.DesktopApplications); reason != "" {
+			return nil, errors.New(reason)
+		}
+	}
 	if on {
 		msg := "A QuickAgent that says it does computer use will be able to see and use the windows of the applications it names on this computer, while it runs and while you watch: Agentry Desktop shows that it is working and lets you pause or stop it from the tray, the banner or " + StopKeyName + ". " +
 			computerAskWords() + "\n\nTurn computer use on?"
@@ -466,29 +523,47 @@ func (y *YourComputerAPI) recent() []linkservice.RecentRun {
 	return []linkservice.RecentRun{}
 }
 
-// LibraryPreset is a preset of the library as Add from the library offers
-// it.
+// LibraryPreset is a preset as Add from the library offers it: what it is,
+// the server it sets up, the steps, the tools that run code, and whether
+// an application of its id is on the list already.
 type LibraryPreset struct {
 	ID          string   `json:"id"`
 	Application string   `json:"application"`
+	Category    string   `json:"category"`
+	Summary     string   `json:"summary"`
 	Package     string   `json:"package"`
 	Steps       []string `json:"steps"`
 	// Exec are the preset's tools that run code inside the application.
 	Exec []string `json:"exec"`
+	// Asks are the variables the person fills in once it is added.
+	Asks []string `json:"asks"`
+	// OnList says an application of this id is on the list.
+	OnList bool `json:"onList"`
 }
 
-// libraryOffer are the presets offered on this system whose id is not on
-// the list.
+// libraryOffer are the presets offered on this system, each saying
+// whether its id is on the list.
 func (y *YourComputerAPI) libraryOffer(apps []linkservice.AppState) []LibraryPreset {
 	out := []LibraryPreset{}
-	for _, p := range library.Builtin().All() {
-		if !p.OfferedOn(runtime.GOOS) || slices.ContainsFunc(apps, func(a linkservice.AppState) bool { return a.ID == p.ID }) {
+	for _, p := range library.Current().All() {
+		if !p.OfferedOn(runtime.GOOS) {
 			continue
 		}
-		lp := LibraryPreset{ID: p.ID, Application: p.Application, Package: p.Package.Ref(), Steps: append([]string{}, p.Steps...), Exec: []string{}}
+		lp := LibraryPreset{
+			ID: p.ID, Application: p.Application, Category: p.Category, Summary: p.Summary, Package: p.Package.Ref(),
+			Steps: append([]string{}, p.Steps...), Exec: []string{}, Asks: []string{},
+			OnList: slices.ContainsFunc(apps, func(a linkservice.AppState) bool { return a.ID == p.ID }),
+		}
 		for _, t := range p.Tools {
 			if t.Class == library.ClassExec {
 				lp.Exec = append(lp.Exec, t.Name)
+			}
+		}
+		if p.Launch != nil {
+			for _, k := range slices.Sorted(maps.Keys(p.Launch.Env)) {
+				if p.Launch.Env[k] == "" {
+					lp.Asks = append(lp.Asks, k)
+				}
 			}
 		}
 		out = append(out, lp)
@@ -502,15 +577,33 @@ func (y *YourComputerAPI) changed() *YourComputerView {
 	return y.State()
 }
 
-// AddFromLibrary puts a preset on the list as an application of the
-// person's, nothing approved.
-func (y *YourComputerAPI) AddFromLibrary(id string) (*YourComputerView, error) {
-	p, ok := library.Builtin().Lookup(id)
-	if !ok || !p.OfferedOn(runtime.GOOS) {
-		return nil, fmt.Errorf("the library has no %s for this computer", id)
+// AddFromLibrary puts the checked presets on the list as applications of
+// the person's, nothing approved, in one change: an id that is on the list
+// already is left as it is, and an id the library does not offer on this
+// computer adds nothing.
+func (y *YourComputerAPI) AddFromLibrary(ids []string) (*YourComputerView, error) {
+	if len(ids) == 0 {
+		return nil, errors.New("check the applications to add")
+	}
+	lib := library.Current()
+	presets := make([]library.Preset, 0, len(ids))
+	for _, id := range ids {
+		p, ok := lib.Lookup(id)
+		if !ok || !p.OfferedOn(runtime.GOOS) {
+			return nil, fmt.Errorf("the library has no %s for this computer", id)
+		}
+		presets = append(presets, p)
 	}
 	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {
-		return d.Add(yourcomputer.FromPreset(p, library.Builtin().Version(), runtime.GOOS))
+		for _, p := range presets {
+			if _, have := d.Lookup(p.ID); have {
+				continue
+			}
+			if err := d.Add(yourcomputer.FromPreset(p, lib.Version(), runtime.GOOS)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -886,7 +979,7 @@ func (y *YourComputerAPI) RunApplications(ref string, entries []run.DesktopEntry
 			}
 		}
 		if !found {
-			p, isPreset := library.Builtin().Lookup(e.ID)
+			p, isPreset := library.Current().Lookup(e.ID)
 			switch {
 			case e.ID != "" && isPreset && p.OfferedOn(runtime.GOOS):
 				ra.Preset = p.Application

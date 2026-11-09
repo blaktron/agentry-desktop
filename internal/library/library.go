@@ -11,7 +11,10 @@
 // id. A tool's class here is the library's, never the server's own tool
 // annotations, which a server sets as it likes.
 //
-// The library is embedded data (library.yaml), released with the app.
+// The library is data (library.yaml). The copy built into the app is the
+// floor; the app reads the newest copy of the same file from the source
+// repository (see Live), so a preset can be added or moved to a newer
+// server without a release of the app. Either copy passes the same checks.
 package library
 
 import (
@@ -24,6 +27,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -53,10 +58,11 @@ const (
 	EcosystemPyPI Ecosystem = "pypi"
 	EcosystemNPM  Ecosystem = "npm"
 	// EcosystemApplication is a server the application ships itself, as a
-	// plugin released with it: its name is the plugin's and its version the
-	// application's release that brought it. No package registry holds it,
-	// so there is nothing to launch; only a loopback-http preset may name
-	// it.
+	// plugin released with it or a command installed with it: its name is
+	// the plugin's or the command's and its version the application's
+	// release that brought it. No package registry holds it: a loopback-http
+	// preset reaches it, and a stdio preset launches the application's own
+	// command, never a package runner.
 	EcosystemApplication Ecosystem = "application"
 )
 
@@ -84,6 +90,10 @@ type Preset struct {
 	ID string `yaml:"id" json:"id"`
 	// Application is the application's name, as people know it.
 	Application string `yaml:"application" json:"application"`
+	// Category groups the preset in the library's list.
+	Category string `yaml:"category" json:"category"`
+	// Summary says in a line what agents can do with the application.
+	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
 	// Platforms are the operating systems it is offered on.
 	Platforms []string `yaml:"platforms" json:"platforms"`
 	// Package is the installed server, pinned to one exact release.
@@ -95,8 +105,8 @@ type Preset struct {
 	// Endpoint is a loopback-http server's address.
 	Endpoint string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
 	// Listener is the loopback port the application listens on, checked
-	// before a run starts.
-	Listener Listener `yaml:"listener" json:"listener"`
+	// before a run starts; port 0 for a server that needs none.
+	Listener Listener `yaml:"listener,omitempty" json:"listener"`
 	// Tools are the server's tools the library classes, in its order.
 	Tools []Tool `yaml:"tools" json:"tools"`
 	// Withheld are tools the server offers that the preset withholds.
@@ -116,7 +126,8 @@ type Preset struct {
 	// id written flatpak:<id>.
 	Installed map[string][]string `yaml:"installed,omitempty" json:"installed,omitempty"`
 	// EnvNotes say what each of the launch's variables does, for the
-	// person's card.
+	// person's card. A variable the launch sets to "" is one the person
+	// fills in, and has a note saying where its value comes from.
 	EnvNotes map[string]string `yaml:"envNotes,omitempty" json:"envNotes,omitempty"`
 	// Screening is the launch variable that turns the server's own script
 	// screening on, which earlier versions of Agentry Desktop let the
@@ -149,7 +160,7 @@ type Launch struct {
 
 // Listener is where the application listens for its server.
 type Listener struct {
-	Port int `yaml:"port" json:"port"`
+	Port int `yaml:"port,omitempty" json:"port"`
 }
 
 // Tool is one tool a run may call.
@@ -186,6 +197,11 @@ func (s Preset) Offers(name string) bool {
 	return ok || slices.Contains(s.Withheld, name)
 }
 
+// Schema is the version of the library's format this build reads. A copy
+// of another schema is not read: a change to the format that an older app
+// would misread moves the file to a new schema.
+const Schema = 1
+
 // Library is a validated library.
 type Library struct {
 	version int
@@ -206,8 +222,25 @@ var builtin = func() Library {
 // Builtin is the library released with this build.
 func Builtin() Library { return builtin }
 
+var current atomic.Pointer[Library]
+
+// Current is the library the app uses: the newest copy it has read and
+// checked (SetCurrent), or the one released with this build.
+func Current() Library {
+	if c := current.Load(); c != nil {
+		return *c
+	}
+	return builtin
+}
+
+// SetCurrent makes c the library Current returns.
+func SetCurrent(c Library) { current.Store(&c) }
+
 // Version is the library's version, raised on every change to it.
 func (c Library) Version() int { return c.version }
+
+// Len is the number of presets.
+func (c Library) Len() int { return len(c.entries) }
 
 // All is every preset, in the library's order.
 func (c Library) All() []Preset {
@@ -277,26 +310,40 @@ var (
 	envRE     = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 )
 
-// Parse reads and validates a library. It refuses unknown fields, a
-// library without a version, a repeated or malformed id, an entry
-// without an application, a platform or a step, a server without an exact
-// version, a source that is not https, a launch that does not hold the
-// pin, an attachment other than stdio or loopback-http, a stdio server of
-// the application's own, a loopback address that is not loopback or not on
-// the listener's port, a port out of range, a tool of no class or one
-// outside the closed set, a tool listed twice or both given and withheld,
-// an egress host that is not a DNS name, a platform offered with no window
-// identifiers, and an environment note for a variable the launch does not
-// set.
-func Parse(data []byte) (Library, error) {
+// Parse reads and validates a library. It refuses a schema other than
+// this build's, unknown fields, a library without a version, a repeated
+// or malformed id, an entry without an application, a category, a
+// platform or a step, a summary longer than a line, a server without an
+// exact version, a source that is not https, a launch that does not hold
+// the pin, an attachment other than stdio or loopback-http, a package
+// runner launching the application's own server, a loopback address that
+// is not loopback or not on the listener's port, a port out of range, a
+// tool of no class or one outside the closed set, a tool listed twice or
+// both given and withheld, an egress host that is not a DNS name, a
+// platform offered with no window identifiers, an environment note for a
+// variable the launch does not set, and a variable left for the person to
+// fill in with no note.
+func Parse(data []byte) (Library, error) { return parse(data, true) }
+
+// ParseFetched reads a copy of the library read from the source
+// repository: the checks of Parse, except that a field this build does not
+// know is passed over, so a later build's additions to the same schema do
+// not cut an older app off from the list.
+func ParseFetched(data []byte) (Library, error) { return parse(data, false) }
+
+func parse(data []byte, strict bool) (Library, error) {
 	var doc struct {
+		Schema  int      `yaml:"schema"`
 		Version int      `yaml:"version"`
 		Presets []Preset `yaml:"presets"`
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
+	dec.KnownFields(strict)
 	if err := dec.Decode(&doc); err != nil {
 		return Library{}, fmt.Errorf("library: %w", err)
+	}
+	if doc.Schema != Schema {
+		return Library{}, fmt.Errorf("library: schema %d is not this build's %d", doc.Schema, Schema)
 	}
 	if doc.Version < 1 {
 		return Library{}, errors.New("library: version is a positive number")
@@ -320,6 +367,10 @@ func (s Preset) validate() error {
 		return errors.New("an id is lowercase letters, digits and single hyphens")
 	case s.Application == "":
 		return errors.New("an application name is required")
+	case strings.TrimSpace(s.Category) == "" || utf8.RuneCountInString(s.Category) > 40:
+		return errors.New("a preset names its category, in at most 40 characters")
+	case utf8.RuneCountInString(s.Summary) > 120:
+		return errors.New("a summary is one line of at most 120 characters")
 	case len(s.Platforms) == 0:
 		return errors.New("a preset names the platforms it is offered on")
 	case len(s.Steps) == 0:
@@ -339,8 +390,13 @@ func (s Preset) validate() error {
 		return fmt.Errorf("the screening variable %s is not one the launch sets", s.Screening)
 	}
 	for k := range s.EnvNotes {
-		if s.Launch == nil || s.Launch.Env[k] == "" {
+		if _, set := s.launchEnv()[k]; !set {
 			return fmt.Errorf("the environment note %s names a variable the launch does not set", k)
+		}
+	}
+	for k, v := range s.launchEnv() {
+		if v == "" && strings.TrimSpace(s.EnvNotes[k]) == "" {
+			return fmt.Errorf("the variable %s is left for the person to fill in and has no note saying what goes there", k)
 		}
 	}
 	if err := s.Package.validate(); err != nil {
@@ -349,7 +405,7 @@ func (s Preset) validate() error {
 	if err := s.validateAttachment(); err != nil {
 		return err
 	}
-	if s.Listener.Port < 1 || s.Listener.Port > 65535 {
+	if s.Listener.Port < 0 || s.Listener.Port > 65535 || (s.Attachment == AttachmentLoopbackHTTP && s.Listener.Port == 0) {
 		return fmt.Errorf("listener port %d is not a port", s.Listener.Port)
 	}
 	given := map[string]bool{}
@@ -412,16 +468,31 @@ func (p Package) pinnedArg() string {
 	return p.Name + "==" + p.Version
 }
 
+// launchEnv is the launch's environment, nil for none.
+func (s Preset) launchEnv() map[string]string {
+	if s.Launch == nil {
+		return nil
+	}
+	return s.Launch.Env
+}
+
+// packageRunners fetch and run a package from a registry: the
+// application's own server is never launched through one, since nothing
+// would pin what it fetched.
+var packageRunners = []string{"uvx", "uv", "npx", "npm", "pnpm", "pnpx", "bunx", "bun", "yarn", "pipx", "pip", "python", "python3", "node", "deno"}
+
 func (s Preset) validateAttachment() error {
 	switch s.Attachment {
 	case AttachmentStdio:
 		switch {
-		case s.Package.Ecosystem == EcosystemApplication:
-			return errors.New("a stdio server is launched from a package: the application's own plugin is reached on loopback")
 		case s.Launch == nil || len(s.Launch.Command) == 0:
 			return errors.New("a stdio server needs its launch command")
 		case s.Endpoint != "":
 			return errors.New("a stdio server has no endpoint")
+		case s.Package.Ecosystem == EcosystemApplication:
+			if slices.Contains(packageRunners, strings.ToLower(s.Launch.Command[0])) {
+				return fmt.Errorf("the application's own server is launched with the application's command, not %s", s.Launch.Command[0])
+			}
 		case !slices.Contains(s.Launch.Command, s.Package.pinnedArg()):
 			return fmt.Errorf("the launch command does not hold the pin %s", s.Package.pinnedArg())
 		}

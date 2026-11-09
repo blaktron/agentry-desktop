@@ -101,7 +101,7 @@ func TestLiveDesktopLink(t *testing.T) {
 	installs := &InstallAPI{app: app, engine: install.NewEngine()}
 	// Blender on the person's list, its server approved.
 	if _, ok := y.link.State(context.Background(), "blender"); !ok {
-		if _, err := y.AddFromLibrary("blender"); err != nil {
+		if _, err := y.AddFromLibrary([]string{"blender"}); err != nil {
 			t.Fatal(err)
 		}
 	}

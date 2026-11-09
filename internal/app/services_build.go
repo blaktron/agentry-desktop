@@ -249,21 +249,25 @@ func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, 
 	if note := shipsNote(ships); note != "" {
 		lines = append(lines, note)
 	}
+	lines = append(lines, submissionCostLine(sub, subErr))
+	return strings.Join(append(lines, "", "Submit?"), "\n")
+}
+
+// submissionCostLine is what a submission spends, as a dialog says it.
+func submissionCostLine(sub *SubscriptionView, subErr error) string {
 	switch {
 	case subErr != nil:
-		lines = append(lines, "What a submission costs could not be read ("+subErr.Error()+"); the registry charges it when the version is accepted.")
+		return "What a submission costs could not be read (" + subErr.Error() + "); the registry charges it when the version is accepted."
 	case sub == nil:
-		lines = append(lines, "This registry charges no credits.")
+		return "This registry charges no credits."
 	case sub.Unmetered:
-		lines = append(lines, "This account is unmetered: the submission spends no credits.")
-	default:
-		whose := "this account's"
-		if sub.MemberOf != "" {
-			whose = "the " + sub.MemberOf + " organization's"
-		}
-		lines = append(lines, fmt.Sprintf("It spends %s from %s balance of %d.", creditsText(sub.SubmissionCost), whose, sub.Balance))
+		return "This account is unmetered: the submission spends no credits."
 	}
-	return strings.Join(append(lines, "", "Submit?"), "\n")
+	whose := "this account's"
+	if sub.MemberOf != "" {
+		whose = "the " + sub.MemberOf + " organization's"
+	}
+	return fmt.Sprintf("It spends %s from %s balance of %d.", creditsText(sub.SubmissionCost), whose, sub.Balance)
 }
 
 // siteSettingsURL is the site's settings page for ns/name, on the

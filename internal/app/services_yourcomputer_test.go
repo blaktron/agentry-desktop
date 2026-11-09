@@ -11,6 +11,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
 
+	"github.com/blaktron/agentry-desktop/internal/library"
 	"github.com/blaktron/agentry-desktop/internal/linkservice"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/yourcomputer"
@@ -29,7 +30,7 @@ func TestApprovingAndLooseningAskInANativeDialog(t *testing.T) {
 		return answer, nil
 	}}
 	y := newYourComputerAPI(app, &RunAPI{app: app})
-	if _, err := y.AddFromLibrary("blender"); err != nil {
+	if _, err := y.AddFromLibrary([]string{"blender"}); err != nil {
 		t.Fatal(err)
 	}
 	approved := func() yourcomputer.Approval {
@@ -62,7 +63,12 @@ func TestApprovingAndLooseningAskInANativeDialog(t *testing.T) {
 	if _, err := y.SetToolClass("blender", "look", "exec"); err != nil || len(asked) != n {
 		t.Fatalf("tightening asked or failed: %v", err)
 	}
-	if v := y.State(); len(v.Applications) != 1 || len(v.Library) != 1 || v.Library[0].ID != "unreal" {
+	v := y.State()
+	onList := map[string]bool{}
+	for _, p := range v.Library {
+		onList[p.ID] = p.OnList
+	}
+	if len(v.Applications) != 1 || !onList["blender"] || onList["unreal"] || v.LibraryStatus.Origin != library.OriginBuiltin {
 		t.Fatalf("the view: %+v", v)
 	}
 }
@@ -141,7 +147,7 @@ func TestResumingAPausedRunAsksInANativeDialog(t *testing.T) {
 	asked := 0
 	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { asked++; return answer, nil }}
 	y := newYourComputerAPI(app, &RunAPI{app: app})
-	if _, err := y.AddFromLibrary("blender"); err != nil {
+	if _, err := y.AddFromLibrary([]string{"blender"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := y.list.Update(func(d *yourcomputer.Doc) error {

@@ -27,7 +27,7 @@ export function Delete(reg: string, ns: string, name: string, typed: string): $C
 
 /**
  * Fork forks ns/name into target, as newName when it is not "" (else the
- * origin's name).
+ * origin's name), after the native dialog.
  */
 export function Fork(reg: string, ns: string, name: string, target: string, newName: string): $CancellablePromise<$models.ForkView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PublisherAPI.Fork", reg, ns, name, target, newName).then(($result: any) => {

@@ -152,9 +152,12 @@ func TestAStoppedAgentsShareSentenceFollowsTheMalwareCheck(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			turned := strings.Replace(string(raw), "\nmalwareCheck: false\n", "\nmalwareCheck: true\n", 1)
+			turned := strings.Replace(string(raw), "\n# malwareCheck: false\n", "\nmalwareCheck: true\n", 1)
 			if turned == string(raw) {
-				t.Fatal("the default policy has no malwareCheck: false line to turn on")
+				turned = strings.Replace(string(raw), "\nmalwareCheck: false\n", "\nmalwareCheck: true\n", 1)
+			}
+			if turned == string(raw) {
+				t.Fatal("the default policy has no malwareCheck line to turn on")
 			}
 			if err := os.WriteFile(polFile.Path, []byte(turned), 0o600); err != nil {
 				t.Fatal(err)

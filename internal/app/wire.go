@@ -64,6 +64,11 @@ func New(notices string) *Services {
 	// hands its transcripts to the Assistant.
 	meetings := &MeetingAPI{app: app, assistant: persistentAssistant{p: persistentAPI}}
 	links[assistantAgent].meetings = meetings.answerTool
+	// The Assistant alone reaches the QuickAgents the person publishes,
+	// through the Publisher section's reads.
+	publisher := &PublisherAPI{app: app}
+	links[assistantAgent].publisher = appPublisherOps{pub: publisher}
+	links[assistantAgent].fetchedPath = fetchedRecordPath(assistantAgent)
 	notifications := newNotificationsAPI(app)
 	app.notifications = notifications
 	yourComputer := newYourComputerAPI(app, run)
@@ -79,7 +84,7 @@ func New(notices string) *Services {
 		voice:         &VoiceAPI{app: app, run: run},
 		designer:      &DesignerAPI{app: app, run: run},
 		home:          &HomeAPI{},
-		publisher:     &PublisherAPI{app: app},
+		publisher:     publisher,
 		selfUpdate:    newSelfUpdateAPI(app, meetings.suspendForUpdate),
 		whatsNew:      newWhatsNewAPI(),
 		schedule:      schedule,
