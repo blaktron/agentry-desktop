@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -83,11 +84,39 @@ type fetchedRelease struct {
 var errSignedOut = errors.New("the person is not signed in to Agentry in Agentry Desktop, and their QuickAgents are read with their sign-in: ask them to sign in first")
 
 // answerPublisher answers one of the publisher tools. A link with no
-// publisher operations (Agentry Helper's) answers none of them.
+// publisher operations (Agentry Helper's) answers none of them. An error
+// reaches the agent with every address in it cut to its origin, since a
+// download's address may carry a signature or a sign-in.
 func (m *mainLink) answerPublisher(ctx context.Context, tool string, raw json.RawMessage) (string, error) {
 	if m.publisher == nil {
 		return "", fmt.Errorf("this app does not answer %s", tool)
 	}
+	text, err := m.publisherCall(ctx, tool, raw)
+	if err != nil && !errors.Is(err, errNotConfirmed) {
+		return "", errors.New(originsOnly(err.Error()))
+	}
+	return text, err
+}
+
+// addressInText is an http(s) address as it appears in a sentence.
+var addressInText = regexp.MustCompile(`https?://[^\s"'<>()]+`)
+
+// originsOnly is s with each address in it cut to its scheme and host: no
+// sign-in, path or query.
+func originsOnly(s string) string {
+	return addressInText.ReplaceAllStringFunc(s, func(a string) string {
+		// The sentence's own punctuation after an address is kept.
+		trimmed := strings.TrimRight(a, ".,;:!?")
+		tail := a[len(trimmed):]
+		u, err := url.Parse(trimmed)
+		if err != nil || u.Host == "" {
+			return "an address" + tail
+		}
+		return u.Scheme + "://" + u.Host + tail
+	})
+}
+
+func (m *mainLink) publisherCall(ctx context.Context, tool string, raw json.RawMessage) (string, error) {
 	switch tool {
 	case applink.QuickAgentMine:
 		var a struct {
@@ -192,11 +221,14 @@ func (m *mainLink) mineLine(reg string, a PublisherAgent) string {
 		parts = append(parts, "fork "+a.ForkState)
 	}
 	line := "- " + a.Namespace + "/" + a.Name + ": " + strings.Join(parts, ", ")
-	if vs, err := m.publisher.versions(reg, a.Namespace, a.Name); err == nil && len(vs) > 0 {
+	switch vs, err := m.publisher.versions(reg, a.Namespace, a.Name); {
+	case err != nil:
+		line += "; its versions could not be read now"
+	case len(vs) == 0:
+		line += "; no version yet"
+	default:
 		newestFirst(vs)
 		line += "; latest version " + vs[0].Version + ", " + versionState(vs[0].Status)
-	} else if err == nil {
-		line += "; no version yet"
 	}
 	if s := strings.TrimSpace(a.Summary); s != "" {
 		line += "; its summary: " + quoted(s)
@@ -275,7 +307,7 @@ func versionState(s apiclient.VersionStatus) string {
 	case apiclient.VersionStatusWithdrawn:
 		return "withdrawn"
 	}
-	return string(s)
+	return quoted(string(s))
 }
 
 // reportURL is where a version's security report is read: the site's page
@@ -318,6 +350,7 @@ func (m *mainLink) quickAgentFetch(ctx context.Context, ref string) (string, err
 	if err != nil {
 		return "", err
 	}
+	kept := false
 	if m.fetchedPath != nil {
 		p, err := m.fetchedPath()
 		if err != nil {
@@ -327,8 +360,12 @@ func (m *mainLink) quickAgentFetch(ctx context.Context, ref string) (string, err
 		if err := keepFetched(p, ns+"/"+name, rec); err != nil {
 			return "", fmt.Errorf("the files are in the share, but what was fetched could not be kept: %w", err)
 		}
+		kept = true
 	}
 	names := slices.Sorted(maps.Keys(files))
+	for i, n := range names {
+		names[i] = quoted(n)
+	}
 	dest := path.Join("share", applink.PublisherFolder, ns, name)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Fetched %s/%s@%s into %s/, replacing what was there: %d files", ns, name, rel.version, dest, len(names))
@@ -337,7 +374,10 @@ func (m *mainLink) quickAgentFetch(ctx context.Context, ref string) (string, err
 	} else if len(names) > 0 {
 		b.WriteString(", " + strings.Join(names, ", "))
 	}
-	b.WriteString(". Agentry keeps what it fetched, to show the person what changed when you submit.")
+	b.WriteString(".")
+	if kept {
+		b.WriteString(" Agentry keeps what it fetched, to show the person what changed when you submit.")
+	}
 	return b.String(), nil
 }
 
@@ -389,7 +429,9 @@ func placeInShare(share, ns, name, src string) (map[string]string, error) {
 		return fmt.Errorf("%s is not a regular file", rel)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("copy the release into the share folder: %w", err)
+		// Half a release is not left for the agent to take as the whole.
+		_ = root.RemoveAll(dest)
+		return nil, fmt.Errorf("copy the release into the share folder (nothing of it was kept): %w", err)
 	}
 	return files, nil
 }
@@ -468,41 +510,56 @@ func (o appPublisherOps) list(reg, ns, query string) ([]PublisherAgent, error) {
 	return o.pub.List(reg, ns, PublisherQuery{Q: query, Sort: "submitted"})
 }
 
-func (o appPublisherOps) versions(reg, ns, name string) ([]apiclient.AgentVersion, error) {
-	url, token, err := storedCredential(reg)
+// client is a registry client for reg with the person's stored sign-in,
+// and that sign-in's token, which an error is cleared of before it is
+// answered.
+func (o appPublisherOps) client(reg string) (*apiclient.ClientWithResponses, string, string, error) {
+	regURL, token, err := storedCredential(reg)
 	if err != nil {
-		return nil, errSignedOut
+		return nil, "", "", errSignedOut
 	}
-	client, err := registry.New(url, token)
+	client, err := registry.New(regURL, token)
 	if err != nil {
-		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
+		return nil, "", "", fmt.Errorf("%s is not a registry address this app can use", originOf(regURL))
+	}
+	return client, regURL, token, nil
+}
+
+// withoutToken is err with token cut out of its text.
+func withoutToken(err error, token string) error {
+	if err == nil || token == "" || !strings.Contains(err.Error(), token) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), token, "[the sign-in]"))
+}
+
+func (o appPublisherOps) versions(reg, ns, name string) ([]apiclient.AgentVersion, error) {
+	client, regURL, token, err := o.client(reg)
+	if err != nil {
+		return nil, err
 	}
 	res, err := client.ListVersionsWithResponse(o.pub.ctx(), ns, name)
 	if err != nil {
-		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
+		return nil, withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
 	}
 	if res.JSON200 == nil {
-		return nil, registry.Problem("list "+ns+"/"+name+"'s versions", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body)
+		return nil, withoutToken(registry.Problem("list "+ns+"/"+name+"'s versions", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
 	}
 	return *res.JSON200, nil
 }
 
 func (o appPublisherOps) fetch(ctx context.Context, reg, ref string) (*fetchedRelease, error) {
-	url, token, err := storedCredential(reg)
+	client, regURL, token, err := o.client(reg)
 	if err != nil {
-		return nil, errSignedOut
-	}
-	client, err := registry.New(url, token)
-	if err != nil {
-		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
+		return nil, err
 	}
 	res, err := registry.Resolve(ctx, client, ref, false)
 	if err != nil {
-		return nil, err
+		return nil, withoutToken(err, token)
 	}
-	archive, err := registry.Download(ctx, url, token, res)
+	archive, err := registry.Download(ctx, regURL, token, res)
 	if err != nil {
-		return nil, err
+		return nil, withoutToken(err, token)
 	}
 	if computed := registry.Digest(archive); computed != res.Digest {
 		return nil, fmt.Errorf("digest mismatch: the registry says %s, the archive is %s; nothing was fetched", res.Digest, computed)

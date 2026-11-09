@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,8 @@ type fakePublisherOps struct {
 	release  map[string]string // path → content of the release fetch unpacks
 	link     bool              // the unpacked release holds a link
 	answer   string            // what the registry resolves a fetch to, ns/name@version
+	fetchErr error             // what fetch fails with, when set
+	versErr  map[string]error  // what versions fails with, by ns/name
 	fetched  []string
 	dirs     []string
 }
@@ -41,6 +44,9 @@ func (f *fakePublisherOps) account(string) (*publisherAccount, error) {
 func (f *fakePublisherOps) list(_, ns, _ string) ([]PublisherAgent, error) { return f.lists[ns], nil }
 
 func (f *fakePublisherOps) versions(_, ns, name string) ([]apiclient.AgentVersion, error) {
+	if err := f.versErr[ns+"/"+name]; err != nil {
+		return nil, err
+	}
 	return append([]apiclient.AgentVersion{}, f.vers[ns+"/"+name]...), nil
 }
 
@@ -48,6 +54,9 @@ func (f *fakePublisherOps) fetch(_ context.Context, _, ref string) (*fetchedRele
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fetched = append(f.fetched, ref)
+	if f.fetchErr != nil {
+		return nil, f.fetchErr
+	}
 	dir, err := os.MkdirTemp("", "fake-fetch-*")
 	if err != nil {
 		return nil, err
@@ -209,7 +218,7 @@ func TestQuickAgentFetchPlacesTheReleaseInTheShare(t *testing.T) {
 	if got.IsError {
 		t.Fatal(got.Text)
 	}
-	if !strings.Contains(got.Text, "Fetched alice/demo@1.0.0 into share/quickagents/alice/demo/") || !strings.Contains(got.Text, "3 files, INSTRUCTION.md, agent.yaml, docs/guide.md") {
+	if !strings.Contains(got.Text, "Fetched alice/demo@1.0.0 into share/quickagents/alice/demo/") || !strings.Contains(got.Text, `3 files, "INSTRUCTION.md", "agent.yaml", "docs/guide.md"`) {
 		t.Errorf("the answer: %s", got.Text)
 	}
 	for p, body := range ops.release {
@@ -260,9 +269,48 @@ func TestQuickAgentFetchStaysInTheShare(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A link one level down, at the namespace's folder, is refused too.
+	if err := os.MkdirAll(filepath.Join(rig.share, "quickagents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(rig.share, "quickagents", "alice")); err != nil {
+		t.Fatal(err)
+	}
+	if got := rig.call(t, applink.QuickAgentFetch, map[string]any{"ref": "alice/demo"}); !got.IsError {
+		t.Errorf("a link at the namespace's folder was followed: %+v", got)
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Errorf("files were written where the namespace's link leads: %v", entries)
+	}
+	if err := os.RemoveAll(filepath.Join(rig.share, "quickagents")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A file where the folder should be is refused, and left as it was.
+	if err := os.WriteFile(filepath.Join(rig.share, "quickagents"), []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := rig.call(t, applink.QuickAgentFetch, map[string]any{"ref": "alice/demo"}); !got.IsError {
+		t.Errorf("a file in the folder's place: %+v", got)
+	}
+	if err := os.Remove(filepath.Join(rig.share, "quickagents")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A reference that climbs out is no reference.
+	for _, ref := range []string{"../demo", "alice/..", "alice/demo/../../x"} {
+		if got := rig.call(t, applink.QuickAgentFetch, map[string]any{"ref": ref}); !got.IsError || !strings.Contains(got.Text, "is not a QuickAgent's reference") {
+			t.Errorf("%s: %+v", ref, got)
+		}
+	}
+
+	// A release holding a link is refused, and nothing half-copied is left.
 	ops.link = true
 	if got := rig.call(t, applink.QuickAgentFetch, map[string]any{"ref": "alice/demo"}); !got.IsError || !strings.Contains(got.Text, "not a regular file") {
 		t.Errorf("a release holding a link: %+v", got)
+	}
+	if _, err := os.Stat(filepath.Join(rig.share, "quickagents", "alice", "demo")); !os.IsNotExist(err) {
+		t.Errorf("a half-copied release was left in the share: %v", err)
 	}
 	ops.link = false
 
@@ -302,5 +350,34 @@ func TestOnlyTheAssistantsLinkReachesThePersonsQuickAgents(t *testing.T) {
 	}
 	if m := links[mainAgent]; m == nil || m.publisher != nil || m.fetchedPath != nil {
 		t.Errorf("Agentry Helper's link: %+v", m)
+	}
+}
+
+// TestNoAddressOrSignInReachesTheAgentInAnError: an error that names a
+// download's address, with its sign-in and signature, reaches the agent
+// with the address cut to its origin, and the real operations cut the
+// sign-in's token out of what they return.
+func TestNoAddressOrSignInReachesTheAgentInAnError(t *testing.T) {
+	rig, ops, _ := newPublisherRig(t)
+	ops.fetchErr = errors.New(`download https://user:pw@store.example/blobs/alice/demo.tar.zst?X-Amz-Signature=sig123&X-Amz-Credential=cred456: dial tcp: connection refused`)
+	got := rig.call(t, applink.QuickAgentFetch, map[string]any{"ref": "alice/demo"})
+	if !got.IsError || !strings.Contains(got.Text, "download https://store.example: dial tcp") {
+		t.Errorf("the error: %+v", got)
+	}
+	for _, leak := range []string{"user", "pw@", "sig123", "cred456", "/blobs/", "Signature"} {
+		if strings.Contains(got.Text, leak) {
+			t.Errorf("the answer carries %q: %s", leak, got.Text)
+		}
+	}
+	ops.versErr = map[string]error{"alice/demo": errors.New("reach https://registry.example/api/v1/agents/alice/demo/versions?token=t0k: timeout")}
+	got = rig.call(t, applink.QuickAgentMine, map[string]any{"namespace": "alice"})
+	if got.IsError || !strings.Contains(got.Text, "alice/demo: private; its versions could not be read now") || strings.Contains(got.Text, "t0k") {
+		t.Errorf("mine with versions unread: %+v", got)
+	}
+	if got := rig.call(t, applink.QuickAgentVersions, map[string]any{"ref": "alice/demo"}); !got.IsError || strings.Contains(got.Text, "t0k") || strings.Contains(got.Text, "/versions") {
+		t.Errorf("versions unread: %+v", got)
+	}
+	if err := withoutToken(errors.New("refused agt_s3cret by the registry"), "agt_s3cret"); strings.Contains(err.Error(), "agt_s3cret") {
+		t.Errorf("the token stayed: %v", err)
 	}
 }
