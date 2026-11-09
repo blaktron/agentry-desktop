@@ -47,7 +47,7 @@ type fakePublisherOps struct {
 	retiredAs   string
 	versionActs []string
 	actErr      error
-	forks      []string
+	forks       []string
 	// exists and private are what standing answers; published what
 	// publish answers, and publishes the folders it was given, copied.
 	exists, private bool
