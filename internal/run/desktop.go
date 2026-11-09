@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -40,17 +39,10 @@ func (p *prepared) bindDesktop(ctx context.Context, bind DesktopBinder) error {
 	if bind == nil {
 		return engine.NoDesktopRefusal(d)
 	}
-	req := desktop.BindRequest{Run: p.params.RunID, Ref: p.plan.Ref, Digest: p.plan.Digest}
-	for _, s := range d.Servers {
-		req.Servers = append(req.Servers, desktop.BindServer{ID: s.ID, Tools: s.ToolNames()})
-	}
-	if c, ok := d.Computer(); ok {
-		req.ComputerUse, req.ComputerTools = d.ComputerUse, c.ToolNames()
-		if p.params.OutDir != "" {
-			req.Reports = filepath.Join(p.params.OutDir, filepath.FromSlash(desktop.ReportsFolder))
-		}
-	}
-	link, err := bind(ctx, req)
+	// The request is the one `agentry run` sends: the link protocol's
+	// revision, each application's narrowing (none for every tool its
+	// server lists), the chosen entry, and computer use's windows.
+	link, err := bind(ctx, engine.DesktopBindRequest(d, p.params.RunID, p.plan.Ref, p.plan.Digest, p.params.OutDir))
 	if err != nil {
 		return desktopBindError(d, err)
 	}

@@ -17,7 +17,7 @@ import (
 func blenderPrepared() *prepared {
 	plan := &spec.Plan{Ref: "acme/scene@1.0.0", Digest: "sha256:abc"}
 	plan.Capabilities.Desktop = &spec.DesktopCap{Servers: []spec.DesktopServerCap{{
-		ID: "blender", Application: "Blender",
+		ID: "blender", Application: "Blender", Narrowed: true,
 		Tools: []spec.DesktopTool{{Name: "get_scene_info", Class: "read"}, {Name: "execute_blender_code", Class: "exec"}},
 	}}}
 	return &prepared{plan: plan, params: engine.Params{RunID: "R"}}
@@ -53,7 +53,7 @@ func TestARunBindsToTheLinkServiceBeforeItsSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Run != "R" || got.Ref != "acme/scene@1.0.0" || got.Digest != "sha256:abc" || len(got.Servers) != 1 || got.Servers[0].ID != "blender" ||
+	if got.Protocol != desktop.Protocol || got.Run != "R" || got.Ref != "acme/scene@1.0.0" || got.Digest != "sha256:abc" || len(got.Servers) != 1 || got.Servers[0].ID != "blender" ||
 		!slices.Equal(got.Servers[0].Tools, []string{"get_scene_info", "execute_blender_code"}) {
 		t.Fatalf("the bind asked for %+v", got)
 	}
@@ -69,5 +69,34 @@ func TestARunBindsToTheLinkServiceBeforeItsSandbox(t *testing.T) {
 	none := &prepared{plan: &spec.Plan{}}
 	if err := none.bindDesktop(context.Background(), nil); err != nil || none.params.Desktop != nil {
 		t.Fatalf("a plan with no desktop line: %v", err)
+	}
+}
+
+// The app's own run asks as `agentry run` does: the link protocol's
+// revision, no tools for an application the release does not narrow (every
+// tool its server lists), the chosen entry, and computer use's windows.
+func TestTheAppsRunBindsAsTheCLIDoes(t *testing.T) {
+	plan := &spec.Plan{Ref: "acme/scene@1.0.0", Digest: "sha256:abc"}
+	plan.Capabilities.Desktop = &spec.DesktopCap{
+		Servers: []spec.DesktopServerCap{
+			{ID: "blender", Application: "blender"},
+			{ID: spec.DesktopChosenID, Application: "an application the person chooses", Chosen: true},
+		},
+		ComputerUse: spec.ComputerUseApp, ComputerTools: []spec.DesktopTool{{Name: "screenshot", Class: "read"}},
+		Windows: []string{"blender"}, ChooseWindows: true,
+	}
+	p := &prepared{plan: plan, params: engine.Params{RunID: "R"}}
+	var got desktop.BindRequest
+	err := p.bindDesktop(context.Background(), func(_ context.Context, req desktop.BindRequest) (*engine.DesktopLink, error) {
+		got = req
+		return &engine.DesktopLink{Token: "tok"}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Protocol != desktop.Protocol || len(got.Servers) != 2 || len(got.Servers[0].Tools) != 0 ||
+		!got.Servers[1].Chosen || got.Servers[1].ID != spec.DesktopChosenID ||
+		!slices.Equal(got.Windows, []string{"blender"}) || !got.ChooseWindows || got.ComputerUse != spec.ComputerUseApp {
+		t.Fatalf("the app's run asked for %+v", got)
 	}
 }
