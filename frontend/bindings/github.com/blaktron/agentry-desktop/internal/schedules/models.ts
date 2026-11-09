@@ -103,6 +103,12 @@ export class Edit {
     "when"?: When | null;
     "signedOut"?: boolean | null;
 
+    /**
+     * Model moves the schedule to a saved model, by its id; "" puts it back
+     * on the default.
+     */
+    "model"?: string | null;
+
     /** Creates a new Edit instance. */
     constructor($$source: Partial<Edit> = {}) {
 
@@ -211,6 +217,12 @@ export class Item {
     "runs"?: number;
     "next"?: string;
     "last"?: Fire | null;
+
+    /**
+     * Model is the id of the saved model each run is on; "" follows the
+     * default.
+     */
+    "model"?: string;
 
     /** Creates a new Item instance. */
     constructor($$source: Partial<Item> = {}) {
@@ -340,6 +352,14 @@ export class Request {
      * present, and needs no output folder here (its runs are collected).
      */
     "on"?: string;
+
+    /**
+     * Model is the saved model each run is on, by its id (`--model`): one of
+     * this computer's, or, with On, one the runhost holds. "" follows the
+     * default (this computer's, or the runhost's), whichever it is at each
+     * run.
+     */
+    "model"?: string;
 
     /** Creates a new Request instance. */
     constructor($$source: Partial<Request> = {}) {

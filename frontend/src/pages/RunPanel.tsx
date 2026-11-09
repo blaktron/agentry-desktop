@@ -56,6 +56,8 @@ import { SendTo } from "./SendTo";
 import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
+import { ModelPicker, useModelChoices } from "./ModelPicker";
+import { pickBlocker, type PickModel } from "../modelPick";
 import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from "../runReadiness";
 import { applicationBlockers, runAppName, stateLine } from "../yourComputer";
 import { EventsOn } from "../host";
@@ -151,6 +153,12 @@ export default function RunPanel({
   const [runhosts, setRunhosts] = useState<app.RunhostView[]>([]);
   useEffect(() => { Promise.resolve().then(() => RunhostsAPI.List()).then(setRunhosts).catch(() => setRunhosts([])); }, []);
   const onRunhost = mode.startsWith("runhost:") ? mode.slice("runhost:".length) : "";
+  // The saved model the run is on: "" is the default. This computer's saved
+  // models, each with why it cannot be used now; a schedule on a runhost
+  // names one of the runhost's own instead.
+  const [model, setModel] = useState(f0?.model ?? "");
+  const models = useModelChoices();
+  const [runhostModels, setRunhostModels] = useState<{ runhost: string; models: PickModel[] | null; error?: string }>({ runhost: "", models: null });
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
   // file intake question may pick one of these (Details), and a
@@ -560,6 +568,28 @@ export default function RunPanel({
   });
   const scheduling = when.choice !== "now" && !whenBlocked;
   const schedulingHere = scheduling && !inAgentry;
+  // A schedule on a runhost picks among the saved models that runhost holds,
+  // asked of it when the setup turns to one.
+  const runhostPick = schedulingHere ? onRunhost : "";
+  useEffect(() => {
+    if (!runhostPick) return;
+    let live = true;
+    setRunhostModels({ runhost: runhostPick, models: null });
+    Promise.resolve().then(() => RunhostsAPI.Models(runhostPick))
+      .then((v) => live && setRunhostModels({ runhost: runhostPick, models: (v?.models ?? []).map((m) => ({ ...m, refusal: m.refusal ?? "" })) }))
+      .catch((e) => live && setRunhostModels({ runhost: runhostPick, models: [], error: String(e) }));
+    return () => { live = false; };
+  }, [runhostPick]);
+  // A model picked from one list means nothing in the other: the pick goes
+  // back to the default when the list changes.
+  const pickList = runhostPick ? "runhost:" + runhostPick : "here";
+  const lastPickList = useRef(pickList);
+  useEffect(() => {
+    if (lastPickList.current !== pickList) {
+      lastPickList.current = pickList;
+      setModel("");
+    }
+  }, [pickList]);
   const schedulingThere = scheduling && inAgentry;
   const whenSays = scheduling ? whenProblem(when) : null;
   const blockers: string[] = [];
@@ -661,6 +691,20 @@ export default function RunPanel({
     if (check.state === "checking" || (check.state === "idle" && !whenSays && (onRunhost || outDir.trim()))) blockers.push("Checking what a scheduled run needs.");
     if (check.state === "error") blockers.push(`The check could not be made: ${check.error}`);
     if (check.state === "done" && !check.ready) blockers.push(...check.gaps.map((g) => `A scheduled run would not have it: ${g}`));
+  }
+  // The Model list: a run In Agentry pays with Agentry's own model access
+  // and offers none. A schedule on a runhost names one of the models that
+  // runhost holds; every other run one of this computer's.
+  const modelsHere = !inAgentry;
+  const pickFrom: PickModel[] | null = schedulingHere && onRunhost
+    ? (runhostModels.runhost === onRunhost ? runhostModels.models : null)
+    : models;
+  if (modelsHere && pickFrom) {
+    const b = pickBlocker(pickFrom, model);
+    if (b) blockers.push(b);
+  }
+  if (modelsHere && schedulingHere && onRunhost && runhostModels.runhost === onRunhost && runhostModels.error) {
+    blockers.push(`${onRunhost}'s saved models could not be read: ${runhostModels.error}`);
   }
   const canRun = !busy && blockers.length === 0;
   const why = runButtonWhy(blockers, busy);
@@ -819,7 +863,7 @@ export default function RunPanel({
   function currentForm(): RunForm {
     return {
       mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
-      acceptUnsigned, acceptUnscanned, allowVulnerableMCP, reportDesign,
+      acceptUnsigned, acceptUnscanned, allowVulnerableMCP, reportDesign, model,
     };
   }
 
@@ -868,7 +912,7 @@ export default function RunPanel({
       intake: intakeAnswers(), voice: writeInVoice, timeoutSeconds: timeout, maxTurns: turns,
       allowUnsigned: unsigned && acceptUnsigned, allowUnscanned: unscanned && acceptUnscanned, allowVulnerableMcp: vuln.send,
       signedOut: !onRunhost && when.signedOut && !!availability?.signedOut.available, destinations: sendNames(), when: spec,
-      on: onRunhost || undefined,
+      on: onRunhost || undefined, model: model || undefined,
     });
   }
   // The check runs again, after a pause in typing, whenever the schedule
@@ -976,7 +1020,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign, model),
       );
       onClose();
     } catch (e) {
@@ -1130,7 +1174,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns(), sendNames(), reportDesign, model),
       );
       onClose();
     } catch (e) {
@@ -1152,7 +1196,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunOnRunhost(rhName, registry, agentRef, task, inputs, outDir.trim(), t, mt, unsigned && acceptUnsigned, intakeAnswers(), unscanned && acceptUnscanned),
+        () => RunAPI.RunOnRunhost(rhName, registry, agentRef, task, inputs, outDir.trim(), t, mt, unsigned && acceptUnsigned, intakeAnswers(), unscanned && acceptUnscanned, model),
       );
       onClose();
     } catch (e) {
@@ -1323,6 +1367,21 @@ export default function RunPanel({
                     </>
                   )}
                 </>
+              )}
+              {modelsHere && pickFrom && pickFrom.length > 0 && (
+                <div className="run-model" data-run-model>
+                  <ModelPicker
+                    models={pickFrom} value={model} onChange={setModel} disabled={running} testId="run"
+                    hint={schedulingHere && onRunhost
+                      ? `Every run of the schedule on ${onRunhost} is on it: one of the saved models ${onRunhost} holds (Settings → Models, Available on).`
+                      : schedulingHere ? "Every run of the schedule is on it." : onRunhost ? `Its key, if it has one, goes to ${onRunhost} for this run alone.` : undefined}
+                  />
+                </div>
+              )}
+              {modelsHere && schedulingHere && onRunhost && pickFrom && pickFrom.length === 0 && !runhostModels.error && (
+                <p className="muted small" data-runhost-no-models>
+                  {onRunhost} holds no saved model, so a schedule there cannot run: make one available on it in Settings → Models.
+                </p>
               )}
               {/* Machine readiness — the local modes only; a run In
                   Agentry needs nothing from this machine. */}

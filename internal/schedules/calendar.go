@@ -43,6 +43,9 @@ type Item struct {
 	Runs       int    `json:"runs,omitempty"`
 	Next       string `json:"next,omitempty"`
 	Last       *Fire  `json:"last,omitempty"`
+	// Model is the id of the saved model each run is on; "" follows the
+	// default.
+	Model string `json:"model,omitempty"`
 }
 
 // Fire is one occurrence, or a Run now, as the page shows it.
@@ -103,6 +106,7 @@ func (st Store) List(now time.Time) ([]Item, error) {
 			ID: sc.ID, Name: sc.Name, Ref: sc.Ref, Version: sc.Version, Registry: sc.Registry, Local: sc.Local != "",
 			Describe: sc.When.Describe(), When: whenOf(sc.When), OutDir: sc.Run.OutDir, Paused: sc.Paused,
 			Ended: state.Ended || sc.When.Remaining(state.Runs) == 0, SignedOut: sc.SignedOut, Runs: state.Runs,
+			Model: sc.Run.Model,
 		}
 		if sc.SignedOut {
 			if p, err := st.s.CredentialPath(sc.ID); err == nil {

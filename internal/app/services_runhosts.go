@@ -86,6 +86,9 @@ type RunhostView struct {
 	// LinkedHere says the runhost's agents are linked to this computer:
 	// their use of an application here is answered by this app.
 	LinkedHere bool `json:"linkedHere"`
+	// Models are the saved models the runhost holds, as it last said them
+	// (nil before it was first asked): Settings → Models' "Available on".
+	Models []runhost.ModelRecord `json:"models"`
 }
 
 // RunhostStatusView is what a runhost says of itself over the run key.
@@ -166,6 +169,7 @@ func viewOf(rec runhost.Record, def string) RunhostView {
 	if rec.Credits != nil {
 		v.Credits = rec.Credits.TokenName
 	}
+	v.Models = rec.Models
 	return v
 }
 

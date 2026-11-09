@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runhostsapi";
 import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
@@ -10,8 +11,8 @@ import {
 } from "../modelSetup";
 import { parseContextWindow } from "../providerForm";
 import {
-  addHeld, assignedLine, countLine, fixIsKey, fixIsSignIn, paidWith, providerName, refusalLine, removalAsk, removalHeld, removalNeedsTarget, stateBadge, suggestedName, userLine,
-  type ProviderRow, type SavedModelRow,
+  addHeld, assignedLine, availableLine, availableOn, countLine, runhostMoveTargets, fixIsKey, fixIsSignIn, paidWith, providerName, refusalLine, removalAsk, removalHeld, removalNeedsTarget, stateBadge, suggestedName, userLine,
+  type ProviderRow, type RunhostModels, type SavedModelRow,
 } from "../savedModels";
 import { ProviderLogo } from "../providerLogos";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
@@ -36,6 +37,11 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
   const [keyFor, setKeyFor] = useState<ProviderRow | null>(null);
   const [signInFor, setSignInFor] = useState<ProviderRow | null>(null);
   const [checking, setChecking] = useState<{ model: SavedModelRow; notice: string } | null>(null);
+  // The runhosts this computer is paired with, each with the saved models it
+  // holds as last read: "Available on".
+  const [runhosts, setRunhosts] = useState<RunhostModels[]>([]);
+  const [runhostBusy, setRunhostBusy] = useState<string | null>(null);
+  const [removingThere, setRemovingThere] = useState<{ model: SavedModelRow; runhost: RunhostModels; error?: string } | null>(null);
 
   async function refresh() {
     try {
@@ -48,6 +54,25 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
     } catch { /* the list stays */ }
   }
   useEffect(() => { void refresh(); }, []);
+  // The runhosts, as this computer last read their saved models; each one
+  // not read yet is asked once.
+  useEffect(() => {
+    let live = true;
+    Promise.resolve().then(() => RunhostsAPI.List()).then((l) => {
+      if (!live) return;
+      const rows = (l ?? []).map((r) => ({ name: r.name, models: r.models }));
+      setRunhosts(rows);
+      for (const r of rows.filter((x) => x.models == null)) {
+        RunhostsAPI.Models(r.name)
+          .then((v) => live && v && setRunhosts((prev) => prev.map((x) => x.name === r.name ? { ...x, models: v.models } : x)))
+          .catch(() => {});
+      }
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const tookModels = (name: string, v: app.RunhostModelsView | null) => {
+    if (v) setRunhosts((prev) => prev.map((x) => x.name === name ? { ...x, models: v.models } : x));
+  };
 
   if (!list) {
     return (
@@ -78,6 +103,36 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
       setError(String(e));
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Available on: the runhost checks the model before it keeps it; a key
+  // goes there only once the person agrees in a native dialog.
+  async function makeAvailable(m: SavedModelRow, rh: string) {
+    setRunhostBusy(`${m.id}@${rh}`);
+    setError(null);
+    setNotice(null);
+    try {
+      tookModels(rh, await RunhostsAPI.MakeModelAvailable(rh, m.id));
+      setNotice(`${rh} checked ${m.name} and holds it now: its agents and schedules can run on it.`);
+    } catch (e) {
+      if (!/not confirmed/i.test(String(e))) setError(String(e));
+    } finally {
+      setRunhostBusy(null);
+    }
+  }
+  async function removeThere(m: SavedModelRow, rh: RunhostModels, moveTo: string) {
+    setRunhostBusy(`${m.id}@${rh.name}`);
+    setError(null);
+    setNotice(null);
+    try {
+      tookModels(rh.name, await RunhostsAPI.RemoveRunhostModel(rh.name, m.id, moveTo, false));
+      setRemovingThere(null);
+      setNotice(`${rh.name} no longer holds ${m.name}.`);
+    } catch (e) {
+      setRemovingThere({ model: m, runhost: rh, error: String(e) });
+    } finally {
+      setRunhostBusy(null);
     }
   }
 
@@ -152,6 +207,20 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
                     </p>
                   )}
                   <p className="muted small">{assignedLine(m)}</p>
+                  {runhosts.length > 0 && (
+                    <div className="small saved-model-runhosts" data-available-on={m.name}>
+                      <span className="muted">{availableLine(m.id, runhosts)}</span>{" "}
+                      {availableOn(m.id, runhosts).map((a) => {
+                        const rh = runhosts.find((x) => x.name === a.runhost)!;
+                        const key = `${m.id}@${a.runhost}`;
+                        return a.holds
+                          ? <Button key={a.runhost} variant="link" disabled={!!runhostBusy} busy={runhostBusy === key} busyLabel="…"
+                              data-remove-from={a.runhost} onClick={() => setRemovingThere({ model: m, runhost: rh })}>Remove from {a.runhost}…</Button>
+                          : <Button key={a.runhost} variant="link" disabled={!!runhostBusy || a.unknown} busy={runhostBusy === key} busyLabel={`Checking on ${a.runhost}…`}
+                              data-make-available-on={a.runhost} onClick={() => void makeAvailable(m, a.runhost)}>Make available on {a.runhost}</Button>;
+                      })}
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -245,6 +314,12 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
           onClose={() => setRemoving(null)}
           onRemoved={(line) => { setRemoving(null); say(line); void refresh(); }}
         />
+      )}
+      {removingThere && (
+        <RemoveFromRunhost model={removingThere.model} runhost={removingThere.runhost} error={removingThere.error}
+          busy={runhostBusy === `${removingThere.model.id}@${removingThere.runhost.name}`}
+          onRemove={(moveTo) => void removeThere(removingThere.model, removingThere.runhost, moveTo)}
+          onClose={() => setRemovingThere(null)} />
       )}
       {keyFor && (
         <KeyDialog provider={keyFor} onClose={() => setKeyFor(null)} onSaved={() => { setKeyFor(null); say(`The key for ${providerName(keyFor)} is kept in this computer's keychain.`); void refresh(); }} />
@@ -870,6 +945,45 @@ function KeyDialog({ provider, onClose, onSaved }: { provider: ProviderRow; onCl
         <Button onClick={onClose} disabled={busy}>Cancel</Button>
         <Button variant="primary" disabled={busy || !key.trim()} busy={busy} busyLabel="Saving…" onClick={() => void save()}>Keep the key</Button>
       </p>
+    </Modal>
+  );
+}
+
+/** Remove from a runhost: the runhost refuses while its agents or schedules
+ *  name the model, or while it is its default, unless the person picks
+ *  another of the runhost's saved models to move them to. Its provider's
+ *  credential leaves the runhost with its last saved model. */
+function RemoveFromRunhost({ model, runhost, error, busy, onRemove, onClose }: {
+  model: SavedModelRow;
+  runhost: RunhostModels;
+  error?: string;
+  busy: boolean;
+  onRemove: (moveTo: string) => void;
+  onClose: () => void;
+}) {
+  const targets = runhostMoveTargets(model.id, runhost);
+  const [moveTo, setMoveTo] = useState("");
+  return (
+    <Modal title={`Remove ${model.name} from ${runhost.name}?`} onClose={onClose}>
+      <p className="small">
+        {runhost.name} stops holding {model.name}. Its provider's key, sign-in or credits token leaves {runhost.name} too
+        when no other saved model there uses it. This computer keeps {model.name}.
+      </p>
+      {targets.length > 0 && (
+        <label className="field">
+          <span className="field-label">Move what names it to</span>
+          <Select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} aria-label="Move what names it to" data-move-to>
+            <option value="">Nothing: refuse if something names it</option>
+            {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </Select>
+          <span className="muted small">Its agents and schedules that name {model.name} move there, and it is {runhost.name}'s default if {model.name} was.</span>
+        </label>
+      )}
+      <ErrorBox error={error ?? null} />
+      <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+        <Button onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant="danger" busy={busy} busyLabel="Removing…" onClick={() => onRemove(moveTo)}>Remove</Button>
+      </div>
     </Modal>
   );
 }

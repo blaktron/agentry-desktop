@@ -1,6 +1,6 @@
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame, CouldNotRead } from "../../cards";
-import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
+import { emptyLine, howItEnded, modelRan, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
 
 // Home's Recent runs card: the last five runs, chats and built-in jobs,
 // newest first, on this computer (the history Go keeps) and In Agentry (the
@@ -34,7 +34,7 @@ export function RecentRunsCard({ view, error, onRetry, now, onOpenRun, onOpenSet
                 <span className={r.kind === "run" || r.kind === "chat" ? "mono" : ""}>{whatRan(r)}</span>
               </button>
               <div className="muted small">
-                {[whereRan(r), whenRan(r, now)].filter(Boolean).join(" · ")} ·{" "}
+                {[[whereRan(r), modelRan(r)].filter(Boolean).join(" "), whenRan(r, now)].filter(Boolean).join(" · ")} ·{" "}
                 <span className={`recent-run-end tone-${r.tone || "warn"}`}>{howItEnded(r)}</span>
               </div>
             </li>

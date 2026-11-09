@@ -112,7 +112,7 @@ func TestUnsafeModeSavedOnIsHeldOffByTheLock(t *testing.T) {
 		return &run.Result{}, nil
 	}
 	u.answer = true
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, true, nil, false, nil, nil, nil, ""); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, true, nil, false, nil, nil, nil, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 1 || got[0].Unsafe {

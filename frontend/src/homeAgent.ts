@@ -84,3 +84,15 @@ export function homeChoices(agents: AgentLike[]): string[] {
 export function isOn(a: AgentLike): boolean {
   return a.state !== AGENT_STATES.disabled;
 }
+
+/** The model line on Home's agent card: the saved model the agent runs on,
+ *  as "Model: Qwen (custom-lab/qwen3)", "Model: the default, Haiku
+ *  (anthropic/claude-haiku-5)", or why a turn on it would be refused; "" on
+ *  a computer that keeps no saved model a person chose. */
+export function agentModelLine(m: Pick<app.PersistentAgentView, "model">["model"]): string {
+  if (!m) return "";
+  if (m.code === "missing") return "Model: the saved model it names is gone. Pick another.";
+  const what = `${m.name} (${m.provider}/${m.model})`;
+  const line = m.followsDefault ? `Model: the default, ${what}` : `Model: ${what}`;
+  return m.refusal ? `${line}. ${m.refusal}` : line;
+}

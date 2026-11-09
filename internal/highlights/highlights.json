@@ -4,9 +4,9 @@
       "version": "0.7.30",
       "highlights": [
         "Settings → Models keeps up to ten saved models, each a provider and a model, with your default starred.",
-        "Add a model on a provider you already have, and it asks for no new key or sign-in.",
-        "Every model is checked before it is saved, and one whose key or sign-in is missing says so, with the fix.",
-        "Removing a model a schedule or an agent uses asks where they go first: nothing moves on its own."
+        "Pick the model when a run starts, for each schedule and for each agent, the one on Home included.",
+        "Make a saved model available on a runhost, checked there, and put that runhost's agents on it.",
+        "A model whose key or sign-in is missing is greyed with the fix, and nothing falls back to your default."
       ]
     },
     {
