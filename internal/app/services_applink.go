@@ -135,6 +135,9 @@ type mainLink struct {
 	// where its fetches are kept; nil where this link answers none of them.
 	publisher   publisherOps
 	fetchedPath func() (string, error)
+	// forkFollow bounds how long a fork's copy is followed; zero is
+	// forkWait.
+	forkFollow time.Duration
 
 	mu   sync.Mutex
 	runs map[string]*mainRun

@@ -2064,6 +2064,9 @@ type PublishOptions struct {
 	// Shipping is the publisher's confirmation of the knowledge packs the
 	// release ships: one entry for each, nil for a release that ships none.
 	Shipping *KnowledgeShipping
+	// CreatePrivate creates a QuickAgent that does not exist yet private,
+	// where it would otherwise be created public.
+	CreatePrivate bool
 }
 
 // checkShipping holds the upload to the rule that no release ships a pack
@@ -2137,6 +2140,9 @@ func PublishWith(ctx context.Context, regURL, token, dir string, privateTold boo
 		}
 	case http.StatusNotFound:
 		vis := apiclient.CreateAgentRequestVisibilityPublic
+		if opts.CreatePrivate {
+			vis = apiclient.CreateAgentRequestVisibilityPrivate
+		}
 		summary := m.Summary
 		modes := make(apiclient.AgentModes, 0, len(m.SupportedModes()))
 		for _, mode := range m.SupportedModes() {
@@ -2156,7 +2162,8 @@ func PublishWith(ctx context.Context, regURL, token, dir string, privateTold boo
 			}
 			return nil, registry.Problem("create agent", cresp.StatusCode(), cresp.ApplicationproblemJSONDefault, cresp.Body)
 		}
-		_, _ = fmt.Fprintf(logw, "created agent %s/%s (public)\n", m.Namespace, m.Name)
+		_, _ = fmt.Fprintf(logw, "created agent %s/%s (%s)\n", m.Namespace, m.Name, vis)
+		private = opts.CreatePrivate
 	default:
 		return nil, registry.Problem("check agent", aresp.StatusCode(), aresp.ApplicationproblemJSONDefault, aresp.Body)
 	}
