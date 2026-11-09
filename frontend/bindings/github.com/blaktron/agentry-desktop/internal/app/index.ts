@@ -131,6 +131,7 @@ export {
     LocalInstallView,
     MCPToolRow,
     MCPView,
+    ManagedRowView,
     ManagedView,
     MeetingAppView,
     MeetingAssistantView,

@@ -89,3 +89,15 @@ test("the bug report starts from the facts, never the task or the result", () =>
   assert.equal(sentence("Already a sentence."), "Already a sentence.");
   assert.equal(sentence(""), "");
 });
+
+test("a run an organization's managed settings refused shows the engine's sentence as its cause", () => {
+  const sentence = "Scheduled runs are forbidden by acme's managed settings (schedules)";
+  const refused = {
+    ...harness, exitCode: 11, exitClass: "policy", retryLikelyHelps: false, error: sentence,
+    exitClassMeaning: "refused by the operator policy or a missing secret before the agent started",
+  } as unknown as app.RunResultView;
+  const f = failureOf(localFailureInput(refused))!;
+  assert.equal(f.className, "policy");
+  assert.equal(f.cause, sentence);
+  assert.match(reportText(f, "ab12cd34"), /Cause: Scheduled runs are forbidden by acme's managed settings \(schedules\)/);
+});

@@ -23,12 +23,15 @@ import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
 import { StartFailure } from "./StartFailure";
 import { ModelPicker, useModelChoices } from "./ModelPicker";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { forbids, rowOf } from "../managed";
 
 /** The longest personality the agent takes, as the CLI holds it. */
 const MAX_PERSONALITY_BYTES = 32 << 10;
 
 export default function PersistentAgentsSettings({ registry, onOpenAgent }: { registry: string; onOpenAgent: (name: string) => void }) {
   const agents = useAgents();
+  const managedRows = useManagedRows();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<string | null>(null);
@@ -105,6 +108,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         The Assistant is your personal assistant. Agentry Helper is a lite version of it that works only with Agentry. The
         Assistant does everything the Helper does, so turning the Assistant on turns the Helper off.
       </p>
+      <ManagedNotes rows={managedRows} part="agents" ids={["messengers", "persistentReleases"]} />
       <ErrorBox error={error} />
       {note && <p className="small" role="status">{note}</p>}
       {agents.map((a) => {
@@ -113,6 +117,11 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
         const isMain = a.name === MAIN_AGENT;
         const isCoder = a.name === CODER_AGENT;
         const superseded = isMain && !enabled && helperSuperseded(agents);
+        // The Assistant and the Coding agent can each be forbidden to members:
+        // one that is off cannot be turned on, one that is on can still be
+        // turned off.
+        const managedId = a.name === ASSISTANT_AGENT ? "agents.assistant" : isCoder ? "agents.codingAgent" : "";
+        const managedOff = !enabled && !!managedId && forbids(rowOf(managedRows, managedId));
         return (
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
@@ -128,7 +137,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                   role="switch"
                   data-persistent-enable={a.name}
                   checked={enabled}
-                  disabled={busy !== null || superseded}
+                  disabled={busy !== null || superseded || managedOff}
                   onChange={(e) => {
                     const on = e.target.checked;
                     void act(a.name, () => setAgentEnabled(a.name, on), on && isCoder);
@@ -137,6 +146,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
                 Enabled
               </label>
             </div>
+            {managedId && <ManagedNotes rows={managedRows} part="agents" ids={[managedId]} />}
             {isMain && (
               <p className="small" data-agent-kind="lite">
                 The lite personal agent: it works only with Agentry, finding, installing, running and scheduling QuickAgents
