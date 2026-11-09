@@ -61,6 +61,12 @@ export class AttestationResult {
     "keyRetired"?: boolean;
     "keyRetiredAt"?: string;
 
+    /**
+     * HandedOver says, once, that this verification pinned a key the
+     * registry rotated to, handed over by a pinned key; empty otherwise.
+     */
+    "handedOver"?: string;
+
     /** Creates a new AttestationResult instance. */
     constructor($$source: Partial<AttestationResult> = {}) {
         if (!("state" in $$source)) {
