@@ -321,3 +321,20 @@ func TestTheBuiltinLibraryIsWhole(t *testing.T) {
 		}
 	}
 }
+
+// A variable the library leaves blank is one the person must fill in: its
+// note never calls it optional. An optional one is left out of the launch,
+// and a step says when to add it.
+func TestABlankVariableIsAlwaysRequired(t *testing.T) {
+	optional := regexp.MustCompile(`(?i)\b(if |optional|leave (it )?empty|only needed|if needed)`)
+	for _, p := range Builtin().All() {
+		if p.Launch == nil {
+			continue
+		}
+		for k, v := range p.Launch.Env {
+			if v == "" && optional.MatchString(p.EnvNotes[k]) {
+				t.Errorf("%s leaves %s blank, and its note says it is optional: %s", p.ID, k, p.EnvNotes[k])
+			}
+		}
+	}
+}
