@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import {
+  desktopAppID,
   cardIcon,
   grantedWords,
   cardMenu,
@@ -368,4 +369,11 @@ test("the applications on the person's computer are apps, switched while the age
     const s = cardState(running, e);
     assert.doesNotMatch(`${s.words} ${s.reason ?? ""}`, /\bstop\b/i);
   }
+});
+
+test("a desktop:<id> entry names the application it resolves; computer use and a code agreement name none", () => {
+  assert.equal(desktopAppID({ kind: "desktop", id: "desktop:my-cad" }), "my-cad");
+  assert.equal(desktopAppID({ kind: "desktop", id: "desktop:computer" }), null);
+  assert.equal(desktopAppID({ kind: "desktop-exec", id: "desktop:my-cad:exec" }), null);
+  assert.equal(desktopAppID({ kind: "server", id: "server:x" }), null);
 });

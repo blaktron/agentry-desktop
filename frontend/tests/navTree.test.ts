@@ -76,17 +76,17 @@ test("Library's rows are hidden elsewhere, and on a QuickAgent's page Library is
   assert.deepEqual(current(rs), []);
 });
 
-test("Plugins opens its landing, with Computer use beneath it, and Meeting notes only where this copy records", () => {
+test("Plugins opens its landing, with Your computer beneath it, and Meeting notes only where this copy records", () => {
   const without = rows({ page: "plugins" });
-  assert.deepEqual(labels(without), [...TOP.slice(0, 6), "Computer use", "Settings"]);
+  assert.deepEqual(labels(without), [...TOP.slice(0, 6), "Your computer", "Settings"]);
   assert.deepEqual(current(without), ["Plugins"]);
   const withMeetings = rows({ page: "plugins", meetings: true });
-  assert.deepEqual(labels(withMeetings), [...TOP.slice(0, 6), "Meeting notes", "Computer use", "Settings"]);
+  assert.deepEqual(labels(withMeetings), [...TOP.slice(0, 6), "Meeting notes", "Your computer", "Settings"]);
   const m = rows({ page: "meetings", meetings: true });
   assert.deepEqual(lit(m), ["Plugins", "Meeting notes"]);
   assert.deepEqual(current(m), ["Meeting notes"]);
   const c = rows({ page: "computer" });
-  assert.deepEqual(lit(c), ["Plugins", "Computer use"]);
+  assert.deepEqual(lit(c), ["Plugins", "Your computer"]);
   assert.deepEqual(row(c, "plugins").children?.[0].target, { kind: "page", page: "computer" });
   // Elsewhere Plugins lists nothing beneath it.
   assert.deepEqual(labels(rows({ page: "home", meetings: true })), TOP);

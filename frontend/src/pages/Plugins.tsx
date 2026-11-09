@@ -30,8 +30,8 @@ export default function Plugins({ onOpen }: { onOpen: (page: PluginPage) => void
       unavailable: meetingsOff ? asSentence(meetings?.unavailable || "not offered on this computer.") : undefined,
     },
     {
-      page: "computer", title: "Computer use",
-      sentence: "The applications on this computer a QuickAgent may use, their script screening and computer use, and the runs using your computer now or that used it.",
+      page: "computer", title: "Your computer",
+      sentence: "The applications on this computer agents may use, each approved by you for its MCP server, its windows or both, computer use, and the runs using your computer now or that used it.",
       status: null,
     },
   ];

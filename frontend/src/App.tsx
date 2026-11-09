@@ -83,7 +83,7 @@ export type Route =
   | { page: "plugins" }
   // Meeting notes: record a meeting, transcribe it here.
   | { page: "meetings" }
-  // Computer use: the applications a QuickAgent may use on this computer.
+  // Your computer: the applications agents may use on this computer.
   | { page: "computer" }
   // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).

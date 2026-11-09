@@ -209,7 +209,7 @@ func TestSettingsOpenTakesTodaysAndFormerNames(t *testing.T) {
 		{"Update settings", "updates", "Opened Settings → Updates and installs "},
 		{"Destinations", "destinations", "Opened Settings → Connections → Destinations "},
 		{"Persistent Agents", "persistent-agents", "Opened the Agents page "},
-		{"computer use", "your-computer", "Opened Plugins → Computer use "},
+		{"computer use", "your-computer", "Opened Plugins → Your computer "},
 	} {
 		opened = nil
 		a := rig.call(t, "settings_open", map[string]string{"section": c.name})

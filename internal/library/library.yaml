@@ -1,0 +1,139 @@
+# Agentry Desktop's library: popular applications whose set-up Agentry
+# knows. The person adds one to Settings → Your computer in one click, and
+# then it is theirs like any other application they added: approved for its
+# MCP server, its windows, both or neither, by them.
+#
+# Each preset:
+#   id           what a release names the application by, and the id the
+#                person's application gets
+#   application  the application, as people know it
+#   platforms    the operating systems the preset is offered on (linux,
+#                darwin, windows)
+#   server       the local MCP server: ecosystem (pypi, npm), name, exact
+#                version, and where its source lives; or, for a server the
+#                application ships itself, ecosystem application, the
+#                plugin's name, the application's release that brought it,
+#                and where it is documented
+#   attachment   stdio: Agentry Desktop launches the server and speaks MCP
+#                  over its standard input and output
+#                loopback-http: the application serves MCP itself on a
+#                  loopback address, which Agentry Desktop connects to
+#   launch       for stdio: the command line, holding the pinned version,
+#                and the environment it runs with by default
+#   endpoint     for loopback-http: the http://127.0.0.1 address
+#   listener     the loopback port the application listens on for the
+#                server, which Agentry Desktop checks before a run starts
+#   tools        the server's tools the library classes:
+#                  read  reads the application's state
+#                  act   changes it, or works inside it
+#                  exec  runs code or commands the application interprets;
+#                        each call asks the person first
+#                and, with egress: true, a tool that reaches the hosts
+#                below from the person's computer. A tool the server lists
+#                that is not here is exec until the person classes it.
+#   withheld     tools the server offers that the preset withholds
+#   egress       the hosts the server or its add-on is known to reach from
+#                the person's computer; nothing in a run holds it to them
+#   steps        what the person does once before the first run
+#   windows      the identifiers the application's windows carry, per
+#                platform, for computer use
+#   installed    where the application is found installed, per platform: a
+#                command on the PATH, an absolute path, or flatpak:<app id>
+#   envNotes     what each default variable of the launch does
+#   screening    the launch variable that turns the server's own script
+#                screening on, which earlier versions let the person turn
+#                off with a switch of its own
+#
+# A preset's pin moves to the server's newest release by a change to this
+# file, which raises version.
+version: 3
+presets:
+  - id: blender
+    application: Blender
+    platforms: [linux, darwin, windows]
+    server:
+      ecosystem: pypi
+      name: mcp-for-blender
+      version: 2.2.7
+      source: https://github.com/ahujasid/blender-mcp
+    attachment: stdio
+    launch:
+      command: [uvx, mcp-for-blender==2.2.7]
+      env:
+        DISABLE_TELEMETRY: "true"
+        BLENDER_MCP_SAFE_MODE: "1"
+    listener:
+      port: 9876
+    tools:
+      - {name: execute_blender_code, class: exec}
+      - {name: generate_3d, class: act, egress: true}
+      - {name: import_asset, class: act, egress: true}
+      - {name: search_assets, class: read, egress: true}
+      - {name: look, class: read}
+      - {name: get_scene_info, class: read}
+      - {name: get_addon_status, class: read}
+    withheld:
+      - disable_telemetry
+      - record_trajectory_feedback
+      - search_mentions
+      - open_viewport
+      - viewport_latest
+      - viewport_capture
+      - viewport_pick
+    egress:
+      - api.polyhaven.com
+      - cdn.polyhaven.com
+      - api.sketchfab.com
+      - api.poly.pizza
+      - hyperhuman.deemos.com
+      - queue.fal.run
+      - api.meshy.ai
+      - openapi.tripo3d.ai
+      - openapi.tripo3d.com
+      - ai3d.tencentcloudapi.com
+      - hunyuan.tencentcloudapi.com
+      - mcp-for-blender.com
+    steps:
+      - "Install uv, which runs the server: https://docs.astral.sh/uv/"
+      - "Install the add-on that comes with this server, with uvx mcp-for-blender==2.2.7 install-addon, and enable Interface: MCP for Blender in Blender's Preferences, Add-ons."
+      - In the sidebar of Blender's 3D view, open the BlenderMCP tab and start the server, which listens on port 9876.
+    windows:
+      linux: [blender, Blender, org.blender.Blender]
+      darwin: [org.blenderfoundation.blender, Blender, blender]
+      windows: [blender.exe]
+    installed:
+      linux: [blender, flatpak:org.blender.Blender, /snap/bin/blender]
+      darwin: [/Applications/Blender.app]
+      windows: ['C:\Program Files\Blender Foundation']
+    screening: BLENDER_MCP_SAFE_MODE
+    envNotes:
+      BLENDER_MCP_SAFE_MODE: Screens each script for file, process, network and persistence calls before it runs. A text screen, not a sandbox.
+      DISABLE_TELEMETRY: Sends no usage record to the server's authors.
+  - id: unreal
+    application: Unreal Engine
+    platforms: [linux, darwin, windows]
+    server:
+      ecosystem: application
+      name: ModelContextProtocol
+      version: 5.8.0
+      source: https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-mcp-in-unreal-editor
+    attachment: loopback-http
+    endpoint: http://127.0.0.1:8000/mcp
+    listener:
+      port: 8000
+    tools:
+      - {name: list_toolsets, class: read}
+      - {name: describe_toolset, class: read}
+      - {name: call_tool, class: act}
+    steps:
+      - Use Unreal Engine 5.8 or later. In the editor's Edit, Plugins, enable Unreal MCP and All Toolsets, then restart the editor.
+      - "In Editor Preferences, General, Model Context Protocol, keep Auto Start Server on, the Server Port Number 8000 and the Server URL Path /mcp, and leave Enable Tool Search on, so the server offers its three tools."
+      - "Unreal MCP is Experimental and has no authentication: anything on this computer that reaches port 8000 can drive the open editor."
+    windows:
+      linux: [UnrealEditor]
+      darwin: [com.epicgames.UnrealEditor, UnrealEditor]
+      windows: [UnrealEditor.exe]
+    installed:
+      linux: [UnrealEditor]
+      darwin: ['/Users/Shared/Epic Games']
+      windows: ['C:\Program Files\Epic Games']

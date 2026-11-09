@@ -18,7 +18,7 @@
 //   Licences
 //
 // The persistent agents are managed on the Agents page, Meeting notes on its
-// own page, and computer use on Plugins → Computer use.
+// own page, and the applications and computer use on Plugins → Your computer.
 
 export type SettingsSection = "account" | "report-design" | "provider" | "run-defaults" | "connections" | "updates" | "home" | "licences";
 

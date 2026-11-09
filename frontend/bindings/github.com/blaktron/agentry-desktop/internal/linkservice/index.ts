@@ -4,9 +4,12 @@
 export {
     AppState,
     Bound,
+    Candidate,
+    EnvState,
     Permission,
     RecentRun,
     RecentServer,
+    RunningWindow,
     Support,
     ToolState
 } from "./models.js";

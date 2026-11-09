@@ -9,6 +9,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 
@@ -247,4 +248,42 @@ func Assets(bundle fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// nativeChoose asks which of the person's applications a release's entry
+// is, one button for each of up to four candidates; more than four are
+// chosen in the run setup.
+func nativeChoose(ctx context.Context, q linkservice.ChooseQuestion) (string, error) {
+	wails := application.Get()
+	if wails == nil {
+		return "", errNoApplication
+	}
+	title, message := chooseDialogText(q)
+	if len(q.Candidates) > maxChoiceButtons {
+		return "", fmt.Errorf("more than %d of your applications could be it: choose it in the run setup", maxChoiceButtons)
+	}
+	answer := make(chan string, 1)
+	d := wails.Dialog.Question().SetTitle(title).SetMessage(message)
+	for _, c := range q.Candidates {
+		id := c.ID
+		d.AddButton(c.Name).OnClick(func() { answer <- id })
+	}
+	no := d.AddButton(chooseNone).OnClick(func() { answer <- "" })
+	d.SetDefaultButton(no).SetCancelButton(no)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if w := mainWindow(); w != nil {
+		d.AttachToWindow(w)
+	}
+	d.Show()
+	select {
+	case id := <-answer:
+		if id == "" {
+			return "", errNotConfirmed
+		}
+		return id, nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }

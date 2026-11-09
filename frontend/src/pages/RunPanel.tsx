@@ -57,10 +57,9 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
 import { engineGapLine, gapBlocker, modelGapLine, runButtonWhy, setupGap } from "../runReadiness";
-import { applicationBlockers, execCount, stateLine } from "../yourComputer";
+import { applicationBlockers, runAppName, stateLine } from "../yourComputer";
 import { EventsOn } from "../host";
 import * as YourComputerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/yourcomputerapi";
-import type * as linkservice from "../../bindings/github.com/blaktron/agentry-desktop/internal/linkservice/models";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it. */
@@ -319,27 +318,35 @@ export default function RunPanel({
       .catch((e) => setProfileErr(String(e)));
   }, [registry, agentRef]);
 
-  // The applications on this computer the release uses: each one's state,
-  // read from this computer by Go, again whenever a run binds or ends and
-  // every few seconds while one is not ready, so opening Blender turns Run
-  // on without a reload.
+  // The applications on this computer the release names: each resolved to
+  // one of the person's applications as the link service will at the
+  // start, by its id or by the person's choice, with its state read from
+  // this computer by Go, again whenever the list or a run changes and every
+  // few seconds while one is not ready, so opening the application turns
+  // Run on without a reload.
   const declaredApps = profile?.desktop ?? [];
-  const appsKey = declaredApps.join(",");
-  const [apps, setApps] = useState<linkservice.AppState[] | null>(null);
+  const appsKey = declaredApps.map((e) => `${e.id}:${e.use}`).join(",");
+  const [apps, setApps] = useState<app.RunApplication[] | null>(null);
+  const readApps = useRef<() => void>(() => {});
   useEffect(() => {
     if (!appsKey) {
       setApps(null);
       return;
     }
     let live = true;
+    const entries = appsKey.split(",").map((k) => {
+      const i = k.lastIndexOf(":");
+      return { id: k.slice(0, i), use: k.slice(i + 1) };
+    });
     const read = () => {
-      YourComputerAPI.Applications(appsKey.split(",")).then((a) => { if (live) setApps(a); }).catch(() => { if (live) setApps([]); });
+      YourComputerAPI.RunApplications(agentRef, entries).then((a) => { if (live) setApps(a); }).catch(() => { if (live) setApps([]); });
     };
+    readApps.current = read;
     read();
     const off = EventsOn("yourcomputer:changed", read);
     const every = window.setInterval(read, 5000);
     return () => { live = false; off(); window.clearInterval(every); };
-  }, [appsKey]);
+  }, [appsKey, agentRef]);
 
   // In Agentry: is the mode offered for this release, and does this
   // account already have a run the panel should reattach to?
@@ -1277,7 +1284,7 @@ export default function RunPanel({
                   )}
                   {onRunhost && apps && apps.length > 0 && (
                     <p className="muted small" style={{ margin: "4px 0" }} data-runhost-desktop-note>
-                      {apps.map((a) => a.application).join(" and ")} on this computer answer{apps.length === 1 ? "s" : ""} the run
+                      {apps.map(runAppName).join(" and ")} on this computer answer{apps.length === 1 ? "s" : ""} the run
                       on {onRunhost} through this app while the run lasts: keep Agentry Desktop open until it ends, or its later
                       calls are refused there.
                     </p>
@@ -1342,15 +1349,33 @@ export default function RunPanel({
                 <>
                   <h4>Your computer</h4>
                   {(apps ?? []).map((a) => (
-                    <Card key={a.id}>
-                      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                        <strong>Can use {a.application} on your computer</strong>
-                        <span className={a.ready ? "small" : "small warn"}>{a.ready ? "Ready" : "Not ready"}</span>
+                    <Card key={`${a.entry}:${a.use}`}>
+                      <div data-run-application={a.entry || "chosen"}>
+                        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                          <strong>Can use {runAppName(a)} on your computer{a.use === "computer" ? ", its windows" : a.use === "both" ? ", its MCP server and its windows" : ""}</strong>
+                          <span className={a.ready ? "small" : "small warn"}>{a.ready ? "Ready" : "Not ready"}</span>
+                        </div>
+                        {a.resolved && a.entry && a.resolved.id !== a.entry && (
+                          <p className="muted small" style={{ margin: 0 }}>This QuickAgent calls it <span className="mono">{a.entry}</span>; you chose {a.resolved.application}.</p>
+                        )}
+                        {a.resolved && !a.entry && <p className="muted small" style={{ margin: 0 }}>You chose {a.resolved.application} for this QuickAgent.</p>}
+                        <p className="small selectable" style={{ marginBottom: 0 }}>{a.ready && a.resolved?.hasServer && a.use !== "computer" ? stateLine(a.resolved) : a.missing || "Ready."}</p>
+                        {(!a.resolved || a.chosen) && a.candidates.length > 0 && (
+                          <label className="small row" style={{ gap: "0.5rem", alignItems: "baseline" }}>
+                            {a.entry ? `Which of yours is ${a.entry}?` : "Which application should it use?"}
+                            <select value={a.resolved?.id ?? ""} data-choose-application
+                              onChange={(e) => { if (e.target.value) YourComputerAPI.ChooseApplication(agentRef, a.entry, e.target.value).then(() => readApps.current()).catch(() => readApps.current()); }}>
+                              <option value="">Choose…</option>
+                              {a.candidates.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          </label>
+                        )}
+                        {a.resolved && (
+                          <p className="muted small" style={{ marginBottom: 0 }}>
+                            {a.resolved.fromWords}.{a.use !== "computer" ? ` Agentry Desktop starts its MCP server as you when the run starts, and asks you before each call that runs code or that nobody has classed.` : ""} Pause and Stop are in Plugins → Your computer while it runs.
+                          </p>
+                        )}
                       </div>
-                      <p className="small selectable" style={{ marginBottom: 0 }}>{stateLine(a)}</p>
-                      <p className="muted small" style={{ marginBottom: 0 }}>
-                        Agentry Desktop starts {a.application}&apos;s MCP server as you when the run starts{execCount(a) > 0 ? `, and asks you before each call that runs code inside ${a.application}` : ""}. Pause and Stop are in Plugins → Computer use while it runs.
-                      </p>
                     </Card>
                   ))}
                   {apps === null && <p className="muted small">Checking the applications on your computer…</p>}

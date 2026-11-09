@@ -16,7 +16,9 @@ package app
 //
 // AGENTRY_LIVE_AGENT_DESKTOP_STOP, a file, ends the test early once it
 // exists; AGENTRY_LIVE_AGENT_DESKTOP_UNLINK, a file, gives the runhosts'
-// links up while it exists, as closing the app would.
+// links up while it exists, as closing the app would;
+// AGENTRY_LIVE_AGENT_DESKTOP_LIST, a your-computer.yaml, is the person's
+// list of applications the test starts from.
 
 import (
 	"cmp"
@@ -66,6 +68,18 @@ func TestLiveAgentDesktop(t *testing.T) {
 	}
 	r := &RunAPI{app: app}
 	y := newYourComputerAPI(app, r)
+	if list := os.Getenv("AGENTRY_LIVE_AGENT_DESKTOP_LIST"); list != "" {
+		b, err := os.ReadFile(list)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(y.list.Path(), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range y.State().Applications {
+			t.Logf("on the list: %s (%s), mcp=%v computer=%v ready=%v %s", a.ID, a.From, a.MCP, a.Computer, a.Ready, a.Missing)
+		}
+	}
 	y.start(ctx)
 	defer y.shutdown()
 	if y.socketErr != "" {

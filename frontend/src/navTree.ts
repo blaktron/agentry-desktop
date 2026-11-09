@@ -7,7 +7,7 @@
 // it), Voice and Knowledge; Library, which opens what is installed, with
 // Installed, Browse and Publisher beneath it; Plugins, a landing of the
 // optional features, with Meeting notes (where this copy can record) and
-// Computer use beneath it; and Settings, which opens its landing and lists
+// Your computer beneath it; and Settings, which opens its landing and lists
 // every section beneath it.
 //
 // A group's rows show only while its landing or one of its pages is open,
@@ -85,7 +85,7 @@ const PLUGINS: Item = {
   label: "Plugins", page: "plugins",
   sub: [
     { label: "Meeting notes", page: "meetings", needsMeetings: true },
-    { label: "Computer use", page: "computer" },
+    { label: "Your computer", page: "computer" },
   ],
 };
 

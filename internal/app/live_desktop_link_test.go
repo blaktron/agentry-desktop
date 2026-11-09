@@ -16,7 +16,7 @@ package app
 //	AGENTRY_LIVE_DESKTOP_TASK=<the run's task, optional> \
 //	go test -run TestLiveDesktopLink -v -timeout 60m ./internal/app
 //
-// What it holds: the install's consent dialog names Blender in the words
+// What it holds: the install's consent dialog names blender in the words
 // the CLI uses; with Blender closed, a run is refused before its sandbox
 // with the step to take; with it open, the run binds in this process, each
 // exec call is put to the exec dialog with the code it would run and is
@@ -99,8 +99,17 @@ func TestLiveDesktopLink(t *testing.T) {
 	r := &RunAPI{app: app}
 	y := newYourComputerAPI(app, r)
 	installs := &InstallAPI{app: app, engine: install.NewEngine()}
+	// Blender on the person's list, its server approved.
+	if _, ok := y.link.State(context.Background(), "blender"); !ok {
+		if _, err := y.AddFromLibrary("blender"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := y.SetApproval("blender", "mcp", true); err != nil {
+		t.Fatal(err)
+	}
 
-	// Plugins → Computer use, as the page reads it.
+	// Plugins → Your computer, as the page reads it.
 	view := y.State()
 	for _, a := range view.Applications {
 		t.Logf("Your computer: %s ready=%v launch=%q listening=%v: %s", a.Application, a.Ready, a.Launch, a.Listening, a.Missing)
@@ -112,7 +121,7 @@ func TestLiveDesktopLink(t *testing.T) {
 	mu.Lock()
 	consent := strings.Join(dialogs, "\n")
 	mu.Unlock()
-	if !strings.Contains(consent, "desktop: Blender on your computer through its MCP server (") {
+	if !strings.Contains(consent, "desktop: the application blender on your computer, through its MCP server (") {
 		t.Fatalf("the install's consent did not name Blender in the CLI's words:\n%s", consent)
 	}
 
