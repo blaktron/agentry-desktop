@@ -47,7 +47,7 @@ func TestAVulnerableServersScheduleIsMarkedAndNeedsAnAgentryThatKeepsTheMark(t *
 func TestAScheduleMadeInUnsafeModeIsHeldWhileManagedSettingsForbidIt(t *testing.T) {
 	freshConfig(t)
 	home := os.Getenv(policy.HomeEnv)
-	make := func(name string, unsafe bool) string {
+	create := func(name string, unsafe bool) string {
 		sc := schedule.Schedule{Name: name, Ref: "acme/" + name, Version: "1.0.0", Digest: "sha256:aa",
 			Run:  schedule.RunSpec{OutDir: t.TempDir(), MaxTurns: -1, MaxCost: -1, AllowVulnerableMCP: unsafe, UnsafeMode: unsafe},
 			When: schedule.Recurrence{Kind: schedule.Daily, Time: "09:00", Zone: "UTC", Start: time.Now(), End: schedule.End{Kind: schedule.EndNever}}}
@@ -56,7 +56,7 @@ func TestAScheduleMadeInUnsafeModeIsHeldWhileManagedSettingsForbidIt(t *testing.
 		}
 		return sc.ID
 	}
-	unsafeID, plainID := make("unsafe", true), make("plain", false)
+	unsafeID, plainID := create("unsafe", true), create("plain", false)
 	asked := 0
 	s := &ScheduleAPI{app: &App{ctx: context.Background()}, findCLI: func(context.Context) (*schedules.CLI, error) {
 		asked++
