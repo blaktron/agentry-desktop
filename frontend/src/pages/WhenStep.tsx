@@ -6,7 +6,7 @@
 // is shown here; In Agentry the registry's create is that check, and the
 // setup asks for what it names. The same fields edit a schedule's repeat on
 // the Scheduled page.
-import { DAYS, signedOutUnavailable, zoneChoices, type WhenForm } from "../scheduled";
+import { DAYS, offersSignedOut, schedulePlaceLine, signedOutUnavailable, zoneChoices, type WhenForm } from "../scheduled";
 import { Button } from "../ui";
 
 export type Availability = {
@@ -165,7 +165,7 @@ export function SignedOutBox({ form, onChange, availability, disabled }: {
 export type HostedTerms = { holdCredits: number; balance: number; balanceKnown: boolean };
 
 /** The When step on Review and start. */
-export function WhenStep({ form, onChange, unavailable, availability, check, disabled, inAgentry, onUpgrade }: {
+export function WhenStep({ form, onChange, unavailable, availability, check, disabled, inAgentry, onUpgrade, onRunhost }: {
   form: WhenForm;
   onChange: (w: WhenForm) => void;
   /** Why only Now is offered for this run, or null. */
@@ -179,6 +179,9 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
   inAgentry?: HostedTerms | null;
   /** The way up, where the plan is what holds When In Agentry. */
   onUpgrade?: () => void;
+  /** The remote runhost the run goes to, by name: a schedule there runs on
+   *  its server, so running while signed out of this computer is not asked. */
+  onRunhost?: string | null;
 }) {
   const choose = (choice: WhenForm["choice"]) => onChange({ ...form, choice });
   return (
@@ -213,12 +216,9 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
       {form.choice !== "now" && !unavailable && !inAgentry && (
         <>
           <RepeatFields form={form} onChange={onChange} disabled={disabled} />
-          <SignedOutBox form={form} onChange={onChange} availability={availability} disabled={disabled} />
-          <p className="muted small" style={{ margin: "4px 0" }}>
-            A schedule runs this exact version, autonomous, on this computer
-            {form.signedOut ? ", whether or not you are signed in" : ", while you are signed in"}; it never wakes the
-            computer. One missed while the computer was off runs once when it is back, if the next one has not come
-            first. Each run gets its own folder in the output folder below.
+          {offersSignedOut(onRunhost) && <SignedOutBox form={form} onChange={onChange} availability={availability} disabled={disabled} />}
+          <p className="muted small" style={{ margin: "4px 0" }} data-when-place={onRunhost || "here"}>
+            {schedulePlaceLine(onRunhost, form.signedOut)}
           </p>
           {check.state === "checking" && <p className="muted small" data-when-check="checking">Checking what a scheduled run needs…</p>}
           {check.state === "error" && <p className="small run-step-problem" data-when-check="error">The check could not be made: {check.error}</p>}

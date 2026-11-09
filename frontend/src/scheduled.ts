@@ -388,3 +388,24 @@ export function asSentence(reason: string): string {
   if (!t) return "";
   return t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? "" : ".");
 }
+
+/** Whether the schedule form offers running while you are signed out: only
+ *  for a schedule on this computer. A runhost runs its schedules on its own
+ *  server with nobody present, whatever this computer is doing. */
+export function offersSignedOut(runhost?: string | null): boolean {
+  return !runhost;
+}
+
+/** The sentence under the schedule form's repeat, for a schedule on this
+ *  computer or on the runhost named. */
+export function schedulePlaceLine(runhost: string | null | undefined, signedOut: boolean): string {
+  if (runhost) {
+    return `A schedule on ${runhost} runs this exact version, autonomous, on that server with nobody present, whether or not ` +
+      "this computer is on or you are signed in to it. Each run's output waits there, sealed to this computer, until this " +
+      "computer collects it.";
+  }
+  return "A schedule runs this exact version, autonomous, on this computer" +
+    (signedOut ? ", whether or not you are signed in" : ", while you are signed in") +
+    "; it never wakes the computer. One missed while the computer was off runs once when it is back, if the next one has " +
+    "not come first. Each run gets its own folder in the output folder below.";
+}
