@@ -15,6 +15,8 @@ import { Button, Card, ErrorBox, Field, Input, Notice } from "../primitives";
 import { runhostNameProblem, signInWords, unsafeModeWords, updateWords, type RunhostUpdate } from "../runhosts";
 import { ModelPicker } from "./ModelPicker";
 import { modelSaid, type PickModel } from "../modelPick";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { lockedMembers, rowOf } from "../managed";
 
 /** The saved models runhost name holds, asked of it: null until it
  *  answers, with the error when it could not. A runhost's agents and
@@ -275,6 +277,10 @@ export function RunhostCredits({ runhost, onChange }: { runhost: app.RunhostView
 
 /** Settings → Runs → Runhosts. */
 export function RunhostsSettings() {
+  const managedRows = useManagedRows();
+  // A lock on where runs may go that leaves out runhosts stops a new one.
+  const places = lockedMembers(rowOf(managedRows, "run.where"));
+  const runhostsBarred = !!places && !places.includes("runhost");
   const [list, setList] = useState<app.RunhostView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<"add" | "pair" | null>(null);
@@ -291,13 +297,14 @@ export function RunhostsSettings() {
         with this computer&apos;s key for it. A run on it is verified here, sent, verified again there, runs under gVisor,
         and its output comes back sealed to this computer.
       </p>
+      <ManagedNotes rows={managedRows} part="runhosts" />
       <ErrorBox error={error} />
       {list && list.length === 0 && !adding && <p className="muted small">No runhosts yet.</p>}
       {list?.map((r) => <RunhostCard key={r.name} runhost={r} onChange={put} onGone={load} />)}
       {!adding && (
         <p className="row">
-          <Button variant="primary" onClick={() => setAdding("add")} data-runhost-new>Add a runhost</Button>
-          <Button onClick={() => setAdding("pair")} data-runhost-pair-new>Pair with a runhost set up on another computer</Button>
+          <Button variant="primary" disabled={runhostsBarred} onClick={() => setAdding("add")} data-runhost-new>Add a runhost</Button>
+          <Button disabled={runhostsBarred} onClick={() => setAdding("pair")} data-runhost-pair-new>Pair with a runhost set up on another computer</Button>
         </p>
       )}
       {adding && (

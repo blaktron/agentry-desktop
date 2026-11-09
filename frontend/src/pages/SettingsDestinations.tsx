@@ -13,6 +13,8 @@ import { useEffect, useRef, useState } from "react";
 import * as DestinationsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/destinationsapi";
 import * as destinations from "../../bindings/github.com/blaktron/agentry-desktop/internal/destinations/models";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice } from "../ui";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { lockedMembers, rowOf } from "../managed";
 import { credentialsLine, defaultLine, kindPhrase, keyPairLine, nameProblem, newSecret, objectPath, problemSentence } from "../destinations";
 
 type Kind = "webhook" | "s3";
@@ -47,6 +49,10 @@ const toInput = (d: Draft) =>
   });
 
 export function DestinationsSettings() {
+  const managedRows = useManagedRows();
+  // A lock on where a run may send its result leaves only the kinds it lists.
+  const sends = lockedMembers(rowOf(managedRows, "deliverables.destinations"));
+  const mayAdd = (kind: string) => !sends || sends.includes(kind);
   const [status, setStatus] = useState<destinations.Status | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [problem, setProblem] = useState("");
@@ -148,6 +154,7 @@ export function DestinationsSettings() {
           deliverables to. The sending runs after the agent has ended, in a container that reaches that address alone, and
           it never changes whether the run succeeded.
         </p>
+        <ManagedNotes rows={managedRows} part="destinations" />
         {status?.keychainOff && (
           <Notice tone="warn">The system keychain is turned off for Agentry here, and a destination&apos;s credentials are kept there alone, so no destination can be saved.</Notice>
         )}
@@ -174,8 +181,8 @@ export function DestinationsSettings() {
         )}
         {!draft && (
           <p className="row">
-            <Button variant="primary" disabled={busy || !!status?.keychainOff} onClick={() => setDraft({ ...blank })}>Add a webhook</Button>
-            <Button disabled={busy || !!status?.keychainOff} onClick={() => setDraft({ ...blank, kind: "s3" })} data-add-bucket>Add an S3 bucket</Button>
+            <Button variant="primary" disabled={busy || !!status?.keychainOff || !mayAdd("webhook")} onClick={() => setDraft({ ...blank })}>Add a webhook</Button>
+            <Button disabled={busy || !!status?.keychainOff || !mayAdd("s3")} onClick={() => setDraft({ ...blank, kind: "s3" })} data-add-bucket>Add an S3 bucket</Button>
           </p>
         )}
         {draft && (

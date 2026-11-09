@@ -53,3 +53,19 @@ func SetMalwareCheck(on bool) error {
 	pol.MalwareCheck = &on
 	return policy.Save(path, pol)
 }
+
+// ClearMalwareCheck removes the member's own malware check choice from the
+// runner policy, so an organization's default for it applies. The policy's
+// other settings are kept.
+func ClearMalwareCheck() error {
+	path, err := policy.DefaultPath()
+	if err != nil {
+		return err
+	}
+	pol, _, err := policy.EnsureDefault(path)
+	if err != nil {
+		return fmt.Errorf("operator policy: %w", err)
+	}
+	pol.MalwareCheck = nil
+	return policy.Save(path, pol)
+}

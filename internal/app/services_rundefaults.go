@@ -81,6 +81,9 @@ func (s *SettingsAPI) SetRunBudgets(timeoutSeconds, maxTurns int) (*RunDefaultsV
 // SetMalwareCheck turns the malware check of this computer's runs on or
 // off (run.SetMalwareCheck). It applies from the next run.
 func (s *SettingsAPI) SetMalwareCheck(on bool) (*RunDefaultsView, error) {
+	if err := refuseIfManagedLock(rowMalwareCheck); err != nil {
+		return nil, err
+	}
 	if err := run.SetMalwareCheck(on); err != nil {
 		return nil, err
 	}

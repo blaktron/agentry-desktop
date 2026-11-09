@@ -4831,6 +4831,70 @@ export class MCPView {
 }
 
 /**
+ * ManagedRowView is one managed row that applies on this computer. A row no
+ * held document sets is not listed: it is not managed.
+ */
+export class ManagedRowView {
+    /**
+     * ID is the row's name in a document, such as "malwareCheck".
+     */
+    "id": string;
+
+    /**
+     * State is ManagedLocked or ManagedDefault.
+     */
+    "state": string;
+
+    /**
+     * Value is the row's value as the JSON text the document holds: a string
+     * for a choice, a number for a cap, an array or an object for a set or a
+     * source list.
+     */
+    "value": string;
+
+    /**
+     * Organization is the organization whose document sets the row.
+     */
+    "organization": string;
+
+    /**
+     * Applied says the agentry command this app links applies the row to a
+     * run. A row it does not apply is still shown, and a run is not held to
+     * it.
+     */
+    "applied": boolean;
+
+    /** Creates a new ManagedRowView instance. */
+    constructor($$source: Partial<ManagedRowView> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("value" in $$source)) {
+            this["value"] = "";
+        }
+        if (!("organization" in $$source)) {
+            this["organization"] = "";
+        }
+        if (!("applied" in $$source)) {
+            this["applied"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ManagedRowView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ManagedRowView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ManagedRowView($$parsedSource as Partial<ManagedRowView>);
+    }
+}
+
+/**
  * ManagedView is one organization's managed settings held here, as the
  * Settings landing names them.
  */

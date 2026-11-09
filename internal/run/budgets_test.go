@@ -119,3 +119,26 @@ func TestSetMalwareCheckWritesThePolicyTheCLIReads(t *testing.T) {
 		}
 	}
 }
+
+// Forgetting the malware check choice removes only that key: the policy
+// reads as unset, and the budgets stay.
+func TestClearMalwareCheckForgetsOnlyThatChoice(t *testing.T) {
+	isolateRunEnv(t)
+	if err := SetBudgets(1200, 25); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetMalwareCheck(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearMalwareCheck(); err != nil {
+		t.Fatal(err)
+	}
+	path, _ := policy.DefaultPath()
+	pol, _, err := policy.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pol.MalwareCheck != nil || pol.Budgets.TimeoutSeconds != 1200 || pol.Budgets.MaxTurns != 25 {
+		t.Fatalf("policy after clearing: malwareCheck %v, budgets %+v; want unset and 1200 s, 25 turns", pol.MalwareCheck, pol.Budgets)
+	}
+}
