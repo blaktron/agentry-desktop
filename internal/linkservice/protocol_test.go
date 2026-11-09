@@ -102,3 +102,23 @@ func TestTheListingIsTheCataloguesApplications(t *testing.T) {
 		}
 	}
 }
+
+// A run of the app's own binds in process and hands the engine what the
+// socket would: where each application's set-up came from and each tool's
+// class, so the receipt names a library application as the library's and
+// counts its calls by class.
+func TestAnInProcessBindingCarriesFromAndClass(t *testing.T) {
+	r := newRig(t)
+	link, err := r.s.BindInProcess(context.Background(), desktop.BindRequest{Protocol: desktop.Protocol, Run: "R", Servers: []desktop.BindServer{{ID: "blender"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.From["blender"] != desktop.FromLibrary || desktop.SetByPerson(link.From["blender"]) {
+		t.Fatalf("the in-process binding's from: %+v", link.From)
+	}
+	for _, tool := range link.Servers["blender"] {
+		if tool.Class == "" {
+			t.Fatalf("the in-process binding gave %s no class", tool.Name)
+		}
+	}
+}
