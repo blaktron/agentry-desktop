@@ -50,6 +50,8 @@ const (
 	maxVersionsShown = 30
 	// maxFetchedNamed bounds the files a fetch's answer names.
 	maxFetchedNamed = 40
+	// maxReasonText bounds a version's reason in quickagent_versions.
+	maxReasonText = 300
 )
 
 // publisherOps are the registry operations the publisher tools reach: the
@@ -269,10 +271,10 @@ func (m *mainLink) quickAgentVersions(ref string) (string, error) {
 		}
 		line := "- " + v.Version + ": " + versionState(v.Status)
 		if r := v.StatusReason; r != nil && strings.TrimSpace(*r) != "" {
-			line += ", " + quoted(*r)
+			line += ", " + quoted(cut(*r, maxReasonText))
 		}
 		if r := v.YankReason; v.Status == apiclient.VersionStatusYanked && r != nil && strings.TrimSpace(*r) != "" {
-			line += ", " + quoted(*r)
+			line += ", " + quoted(cut(*r, maxReasonText))
 		}
 		if v.Status != apiclient.VersionStatusWithdrawn {
 			line += "; its report: " + reportURL(reg, ns, name, v.Version)
