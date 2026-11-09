@@ -33,6 +33,8 @@ import { RepeatFields, SignedOutBox, type Availability } from "./WhenStep";
 import { ModelPicker, useModelChoices } from "./ModelPicker";
 import { modelSaid, pickBlocker, type PickModel } from "../modelPick";
 import { secretAnswerRefusal } from "../secretIntake";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { forbids, rowOf } from "../managed";
 
 /** A row of the page's list: a schedule on this computer, or one In
  *  Agentry (hosted). */
@@ -84,6 +86,8 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [picking, setPicking] = useState(false);
+  const managedRows = useManagedRows();
+  const noSchedules = forbids(rowOf(managedRows, "schedules"));
   const [reseal, setReseal] = useState<string | null>(null);
   // In Agentry: the account's schedules, their month and their history; each
   // read that did not answer says so.
@@ -264,9 +268,10 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
         sub="Runs for later, or on repeat like a calendar entry: on this computer, and In Agentry."
         actions={<>
           {menu.length > 0 && <OptionsMenu items={menu} />}
-          <Button variant="primary" onClick={() => setPicking(true)} disabled={!!unavailable && !hostedOpen}>Schedule a new run</Button>
+          <Button variant="primary" onClick={() => setPicking(true)} disabled={noSchedules || (!!unavailable && !hostedOpen)}>Schedule a new run</Button>
         </>}
       />
+      <ManagedNotes rows={managedRows} part="scheduled" />
       {pinSaid && (pinSaid.error ? <ErrorBox error={pinSaid.text} /> : <p className="small home-said" role="status" data-pin-said>{pinSaid.text}</p>)}
       {unavailable && (
         <Notice tone="warn">

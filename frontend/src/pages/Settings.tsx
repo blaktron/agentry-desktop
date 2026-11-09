@@ -43,7 +43,8 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
-import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus } from "../managed";
+import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, lockedMembers, rowOf } from "../managed";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { LockGlyph } from "../unsafe";
 import { PLACES } from "../firstRun";
 
@@ -112,8 +113,9 @@ export default function Settings({
       )}
       {section === "updates" && (
         <>
-          <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /><AgentryCommandCard /></PartSection>
+          <PartSection id="desktop" title="Agentry Desktop"><ManagedPartsUpdates /><SelfUpdateCard /><AgentryCommandCard /></PartSection>
           <PartSection id="quickagents" title="QuickAgents">
+            <ManagedPartsInstalls />
             <Card>
               <label className="row gap">
                 <input type="checkbox" checked={false} disabled onChange={() => {}} />
@@ -152,6 +154,17 @@ export default function Settings({
       {section === "licences" && <LicencesSettings />}
     </div>
   );
+}
+
+// The managed rows of the Updates and installs section: the oldest client
+// that may run, then where QuickAgents may be installed from and whether a
+// release's risk may be accepted. Each reads the rows itself, so the section
+// stays a list of parts.
+function ManagedPartsUpdates() {
+  return <ManagedNotes rows={useManagedRows()} part="updates" />;
+}
+function ManagedPartsInstalls() {
+  return <ManagedNotes rows={useManagedRows()} part="installs" />;
 }
 
 function PartSection({ id, title, children }: { id: SettingsPart; title: string; children: React.ReactNode }) {
@@ -374,6 +387,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const managedRows = useManagedRows();
   const read = () => RunAPI.SetupStatus().then(setSetup).catch((e) => setErr(String(e)));
   // The fields take the saved budgets on the first read and after a budgets
   // save only, so choosing where to run keeps a timeout typed and not saved;
@@ -442,6 +456,10 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
   const timeoutSeconds = parseInt(timeoutText, 10);
   const maxTurns = parseInt(turns, 10);
   const budgetsValid = /^\d+$/.test(timeoutText.trim()) && timeoutSeconds >= 1 && /^\d+$/.test(turns.trim()) && maxTurns >= 0;
+  // A locked cap is the most a run may take: a lower value stays the member's.
+  const timeoutCap = lockedCap(rowOf(managedRows, "run.timeout"));
+  const turnsCap = lockedCap(rowOf(managedRows, "run.maxTurns"));
+  const overCap = (timeoutCap !== null && timeoutSeconds > timeoutCap) || (turnsCap !== null && (maxTurns > turnsCap || maxTurns === 0));
   const budgetsChanged = !!defaults && (timeoutSeconds !== defaults.timeoutSeconds || maxTurns !== defaults.maxTurns);
   // The Chat idle timeout in whole minutes, a week at most; Go keeps seconds.
   const idleMinutes = parseInt(idleText, 10);
@@ -461,6 +479,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
         <>
           <PartSection id="budgets" title="Timeout and turns">
             <Card>
+              <ManagedNotes rows={managedRows} part="budgets" />
               <div className="row">
                 <label className="row" style={{ gap: 6 }}>
                   <span className="small">Timeout (seconds)</span>
@@ -472,8 +491,8 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
                   <Input type="number" min={0} style={{ width: 120 }} value={turns} disabled={busy}
                     onChange={(e) => { setTurns(e.target.value); setSaved(null); }} />
                 </label>
-                <Button variant="primary" disabled={busy || !budgetsValid || !budgetsChanged}
-                  title={!budgetsValid ? "a timeout of at least 1 second, and 0 or more turns" : ""}
+                <Button variant="primary" disabled={busy || !budgetsValid || !budgetsChanged || overCap}
+                  title={!budgetsValid ? "a timeout of at least 1 second, and 0 or more turns" : overCap ? "above the most your organization allows" : ""}
                   onClick={() => act(() => SettingsAPI.SetRunBudgets(timeoutSeconds, maxTurns), "Saved.")}>
                   Save
                 </Button>
@@ -534,10 +553,11 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
           </PartSection>
           <PartSection id="where" title="Where to run">
             <Card>
+              <ManagedNotes rows={managedRows} part="where" />
               <div className="row" style={{ gap: 14 }}>
                 {([["here", PLACES.local], ["agentry", PLACES.cloud]] as [RunWhere, string][]).map(([w, label]) => (
                   <label key={w} className="check-row" style={{ margin: 0 }}>
-                    <input type="radio" name="run-where" checked={defaults.where === w} disabled={busy}
+                    <input type="radio" name="run-where" checked={defaults.where === w} disabled={busy || !whereAllowed(managedRows, w)}
                       onChange={() => act(() => SettingsAPI.SetRunWhere(w))} />
                     <span>{label}</span>
                   </label>
@@ -570,6 +590,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
           </PartSection>
           <PartSection id="deliverables" title="Deliverables">
             <Card>
+              <ManagedNotes rows={managedRows} part="deliverables" />
               <label className="check-row" style={{ margin: 0 }}>
                 <input type="checkbox" role="switch" checked={defaults.deliverables} disabled={busy} data-deliverables-switch
                   onChange={(e) => void act(() => SettingsAPI.SetDeliverables(e.target.checked))} />
@@ -618,8 +639,10 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
           </PartSection>
           <PartSection id="malware" title="Malware check">
             <Card>
+              <ManagedNotes rows={managedRows} part="malware" busy={busy}
+                use={() => void act(() => SettingsAPI.UseManagedMalwareCheck(), "Saved. Your organization's setting applies.")} />
               <label className="check-row" style={{ margin: 0 }}>
-                <input type="checkbox" role="switch" checked={defaults.malwareCheck} disabled={busy} data-malware-check
+                <input type="checkbox" role="switch" checked={defaults.malwareCheck || forbids(rowOf(managedRows, "malwareCheck"))} disabled={busy || forbids(rowOf(managedRows, "malwareCheck"))} data-malware-check
                   onChange={(e) => void act(() => SettingsAPI.SetMalwareCheck(e.target.checked))} />
                 <span><strong>Check every file a run is given for malware</strong></span>
               </label>
@@ -705,6 +728,13 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
       <PartSection id="images" title="Container images"><DockerImagesCard /></PartSection>
     </>
   );
+}
+
+// whereAllowed: whether a lock on where runs may go leaves the place. "here"
+// is this computer and "agentry" is In Agentry; with no lock, both are.
+function whereAllowed(rows: ReturnType<typeof useManagedRows>, w: RunWhere): boolean {
+  const members = lockedMembers(rowOf(rows, "run.where"));
+  return !members || members.includes(w === "here" ? "local" : "hosted");
 }
 
 // EngineCard is the container engine found, with Re-detect: the detection

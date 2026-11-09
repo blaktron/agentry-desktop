@@ -11,6 +11,8 @@ import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/in
 import type * as linkservice from "../../bindings/github.com/blaktron/agentry-desktop/internal/linkservice/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 import { EventsOn } from "../host";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { forbids, rowOf } from "../managed";
 import { classWords, fromWords, recentLine, stateLine } from "../yourComputer";
 
 export function YourComputerSettings() {
@@ -19,6 +21,11 @@ export function YourComputerSettings() {
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState<"" | "library" | "other">("");
   const [editing, setEditing] = useState<string | null>(null);
+  const managedRows = useManagedRows();
+  // Applications you set up yourself can be forbidden; the library's are
+  // the ones the organization's rows on applications decide.
+  const noCustom = forbids(rowOf(managedRows, "desktop.customServers"));
+  const noApplications = forbids(rowOf(managedRows, "desktop.applications"));
 
   const read = () => {
     YourComputerAPI.State().then(setView).catch((e) => setError(String(e)));
@@ -58,6 +65,7 @@ export function YourComputerSettings() {
           and a call that runs code, or a tool nobody has classed, asks you first. The server runs on your computer with your files
           and your network, outside the run&apos;s rules, and the run&apos;s receipt says so.
         </p>
+        <ManagedNotes rows={managedRows} part="applications" />
         {errorBox}
         {view?.listError && <Notice tone="warn">{view.listError}</Notice>}
         {!view && !error && <p className="muted small">Reading this computer…</p>}
@@ -72,8 +80,8 @@ export function YourComputerSettings() {
           ),
         )}
         <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-          <Button onClick={() => setAdding(adding === "library" ? "" : "library")} disabled={busy} data-add-library>Add from the library</Button>
-          <Button onClick={() => setAdding(adding === "other" ? "" : "other")} disabled={busy} data-add-other>Add another application</Button>
+          <Button onClick={() => setAdding(adding === "library" ? "" : "library")} disabled={busy || noApplications} data-add-library>Add from the library</Button>
+          <Button onClick={() => setAdding(adding === "other" ? "" : "other")} disabled={busy || noApplications || noCustom} data-add-other>Add another application</Button>
           <button type="button" className="link small" onClick={read} disabled={busy}>Check again</button>
         </div>
         {adding === "library" && view && (
@@ -108,6 +116,7 @@ export function YourComputerSettings() {
       </section>
       <section id="settings-part-computer-use" className="settings-part" data-computer-use>
         <h2>Computer use</h2>
+        <ManagedNotes rows={managedRows} part="screen" />
         <p className="muted small">
           A QuickAgent that says it does computer use sees and uses the windows of the applications it names, on this computer,
           while it runs: it takes screenshots of those windows and clicks and types in them. It never sees or uses another window

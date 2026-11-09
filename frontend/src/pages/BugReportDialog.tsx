@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import { Button, ErrorBox, Modal, Notice, Textarea } from "../ui";
 import { bugReportOutcome, bugTextProblem } from "../bugReport";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { forbids, rowOf } from "../managed";
 
 // Report bug: the card the sidebar's link above the version opens. Signed
 // out, it says so and offers Settings' sign-in instead of the box. Submit
@@ -23,6 +25,8 @@ export default function BugReportDialog({ registry, signedIn, initialText = "", 
   const [outcome, setOutcome] = useState<ReturnType<typeof bugReportOutcome> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const filed = outcome?.tone === "ok";
+  const managedRows = useManagedRows();
+  const noReports = forbids(rowOf(managedRows, "bugReports"));
 
   // Filed: the thanks stays a moment, then the card closes itself. The
   // latest onClose is read through a ref, so a re-render of the app does
@@ -73,6 +77,7 @@ export default function BugReportDialog({ registry, signedIn, initialText = "", 
             onChange={(e) => setText(e.target.value)}
             autoFocus
           />
+          <ManagedNotes rows={managedRows} part="bug-report" />
           {problem && <p className="small muted">{problem}</p>}
           {outcome && <Notice tone={outcome.tone}>{outcome.sentence}</Notice>}
           <ErrorBox error={error} />
@@ -81,7 +86,7 @@ export default function BugReportDialog({ registry, signedIn, initialText = "", 
             {outcome?.signIn ? (
               <Button variant="primary" onClick={onSignIn}>Sign in</Button>
             ) : (
-              <Button variant="primary" onClick={submit} disabled={busy || !!problem || !text.trim()} busy={busy} busyLabel="Sending…">
+              <Button variant="primary" onClick={submit} disabled={busy || noReports || !!problem || !text.trim()} busy={busy} busyLabel="Sending…">
                 Submit
               </Button>
             )}
