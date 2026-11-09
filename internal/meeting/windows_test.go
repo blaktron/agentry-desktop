@@ -158,8 +158,16 @@ func TestAWindowWithNoCallRecordsNothingAndClosingEndsItsRecording(t *testing.T)
 		t.Fatal(err)
 	}
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the recording", func() bool { return h.m.Status().Recording != nil })
-	id := h.m.Status().Recording.ID
+	// The ID is taken from the read that saw the recording: the window ends
+	// soon after, so a second read may already find none.
+	var id string
+	waitFor(t, "the recording", func() bool {
+		if r := h.m.Status().Recording; r != nil {
+			id = r.ID
+			return true
+		}
+		return false
+	})
 	waitFor(t, "the window to end it", func() bool { return h.m.Status().Recording == nil })
 	if st := h.meeting(t, id).State; st == StateRecording {
 		t.Fatalf("the meeting is still %s", st)
