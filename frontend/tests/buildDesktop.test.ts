@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as build from "../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
-import { withComputerUse, withServer, withTools } from "../src/pages/BuildDesktop";
+import { DESKTOP_ID, withChooser, withComputerUse, withNarrowing, withServer, withTools, withUse } from "../src/pages/BuildDesktop";
 
 const ALL = ["execute_blender_code", "look", "get_scene_info"];
 
@@ -32,4 +32,23 @@ test("computer use alone is a line; clearing both is none", () => {
   const off = withServer(both, "blender", false)!;
   assert.equal(off.computerUse, "app");
   assert.ok(withComputerUse(both, "") instanceof build.DesktopRow);
+});
+
+test("any application by id, its use, and an application the person chooses", () => {
+  let row = withServer(undefined, "my-cad", true)!;
+  row = withNarrowing(row, "my-cad", "export_drawing, open_file  export_drawing");
+  assert.deepEqual(row.servers[0].tools, ["export_drawing", "open_file"]);
+  row = withComputerUse(row, "app")!;
+  row = withUse(row, "my-cad", "computer");
+  assert.equal(row.servers[0].use, "computer");
+  assert.deepEqual(row.servers[0].tools, [], "a windows-only entry carries no narrowing");
+  row = withChooser(row, true)!;
+  assert.equal(row.servers.filter((s) => s.choose).length, 1);
+  assert.equal(withChooser(row, true)!.servers.filter((s) => s.choose).length, 1, "at most one chooser");
+  row = withUse(row, "", "both");
+  assert.equal(row.servers.find((s) => s.choose)!.use, "both");
+  assert.equal(row.servers.find((s) => !s.choose)!.use, "computer", "the chooser's use leaves the others");
+  row = withServer(row, "my-cad", false)!;
+  assert.equal(row.servers.length, 1, "removing an id keeps the chooser");
+  assert.ok(DESKTOP_ID.test("my-cad") && !DESKTOP_ID.test("My CAD") && !DESKTOP_ID.test("-x"));
 });

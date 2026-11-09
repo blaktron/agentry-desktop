@@ -433,3 +433,11 @@ export function nextTurnWords(agent: Pick<app.PersistentAgentView, "state" | "di
       return null;
   }
 }
+
+/** desktopAppID is the application id a desktop:<id> entry names, null for
+ *  any other entry, computer use's and a code agreement's included. */
+export function desktopAppID(e: Pick<app.PersistentRosterEntry, "kind" | "id">): string | null {
+  if (e.kind !== "desktop" || !e.id.startsWith("desktop:")) return null;
+  const id = e.id.slice("desktop:".length);
+  return id && id !== "computer" && !id.includes(":") ? id : null;
+}

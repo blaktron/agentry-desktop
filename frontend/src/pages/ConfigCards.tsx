@@ -12,11 +12,12 @@
 // way. A mail provider's server card can disable its provider, which keeps
 // the sign-in; a calendar feed's card renames it.
 import { useEffect, useState } from "react";
+import * as YourComputerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/yourcomputerapi";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import { EventsOn } from "../host";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
-import { addFormOf, calendarFeedLine, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, calendarFeedLine, desktopAppID, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
 import { SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
@@ -169,6 +170,7 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
           <span className="config-card-name">{e.name}</span>
           <span className="config-card-line">{line}</span>
           <span className="config-card-state">{state.words}</span>
+          {desktopAppID(e) && <DesktopAppLine id={desktopAppID(e)!} />}
         </span>
       </button>
       <div className="config-card-menu">
@@ -823,5 +825,27 @@ function RenameCalendarFeed({ agent, feed, busy, act, onDone }: { agent: app.Per
       </Button>
       <Button variant="ghost" className="small" onClick={onDone}>Cancel</Button>
     </div>
+  );
+}
+
+/** DesktopAppLine is which of the person's applications a desktop:<id>
+ *  entry uses, resolved by its id as a run's start resolves it, and the step
+ *  to take while it is not ready. */
+function DesktopAppLine({ id }: { id: string }) {
+  const [ra, setRA] = useState<app.RunApplication | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => {
+      YourComputerAPI.RunApplications("", [{ id, use: "mcp" }]).then((a) => { if (live) setRA(a[0] ?? null); }).catch(() => { if (live) setRA(null); });
+    };
+    read();
+    const off = EventsOn("yourcomputer:changed", read);
+    return () => { live = false; off(); };
+  }, [id]);
+  if (!ra) return null;
+  return (
+    <span className="config-card-line muted" data-desktop-app={id}>
+      {ra.resolved ? `On your computer: ${ra.resolved.application}, ${ra.resolved.fromWords}${ra.ready ? "" : `. ${ra.missing}`}` : ra.missing}
+    </span>
   );
 }

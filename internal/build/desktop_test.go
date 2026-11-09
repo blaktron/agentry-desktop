@@ -212,3 +212,50 @@ func TestTheFormOffersTheLibrary(t *testing.T) {
 		}
 	}
 }
+
+// An application that is no preset of the library round-trips by its id,
+// with its narrowing and its use, and the consent names it by its id.
+func TestAnyApplicationRoundTripsThroughTheForm(t *testing.T) {
+	m, _, err := FromDraft([]byte(desktopDraft), "# CAD helper\n\nExport the drawing.\n", "blaktron")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Desktop = &DesktopRow{Servers: []DesktopServerRow{
+		{ID: "my-cad", Tools: []string{"export_drawing"}, Use: "both"},
+		{ID: "kdenlive", Tools: []string{}, Use: "computer"},
+	}, ComputerUse: "app"}
+	dir := t.TempDir()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(dir + "/agent.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := manifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("the saved manifest does not parse: %v\n%s", err, raw)
+	}
+	for _, e := range manifest.Validate(parsed) {
+		if strings.Contains(e.Error(), "desktop") {
+			t.Fatalf("the contract refuses the saved line: %v\n%s", e, raw)
+		}
+	}
+	want := []manifest.DesktopServer{{ID: "my-cad", Use: manifest.DesktopUseBoth, Tools: []string{"export_drawing"}}, {ID: "kdenlive", Use: manifest.DesktopUseComputer}}
+	if d := parsed.Capabilities.Desktop; d == nil || !reflect.DeepEqual(d.Servers, want) {
+		t.Fatalf("saved desktop = %+v\n%s", d, raw)
+	}
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded.Desktop, m.Desktop) {
+		t.Fatalf("loaded desktop = %+v, want %+v", loaded.Desktop, m.Desktop)
+	}
+	consent := strings.Join(DesktopConsent(loaded), "\n")
+	for _, w := range []string{"my-cad", "kdenlive"} {
+		if !strings.Contains(consent, w) {
+			t.Errorf("the consent does not name %s: %q", w, consent)
+		}
+	}
+}

@@ -328,12 +328,12 @@ export class DesktopRow {
 }
 
 /**
- * DesktopServerRow is one application the line uses: its id and the tools
- * the release narrows it to, empty for every tool its server lists. Choose
- * marks the entry that asks the person for an application of their own when
- * the run starts, which names no id and no tools; Use is "mcp", "computer",
- * "both" or empty for the core's default. The form has no editor for Choose
- * or Use and carries both unchanged from a load to the next save.
+ * DesktopServerRow is one application the line uses: its id (any
+ * application's, a library preset's or another) and the tools the release
+ * narrows it to, empty for every tool its server lists. Choose marks the
+ * entry that asks the person for an application of their own when the run
+ * starts, which names no id and no tools; Use is "mcp", "computer", "both"
+ * or empty for the core's default.
  */
 export class DesktopServerRow {
     "id": string;
