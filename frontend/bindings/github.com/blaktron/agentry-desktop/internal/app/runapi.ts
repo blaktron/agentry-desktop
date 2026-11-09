@@ -1095,6 +1095,10 @@ export function SetHostedSecret(reg: string, name: string, value: string, keep: 
  * the run lock with its progress streamed as runner:unsafe-progress, and
  * writes the setting only once the image is here and its command index
  * reads. A No, a failed pull or a busy docker leaves the switch off.
+ * 
+ * While the organization's managed settings forbid Unsafe Mode (or a cached
+ * copy of them does not verify), On is refused with their reason before any
+ * dialog or pull. Off is never refused.
  */
 export function SetUnsafeMode(on: boolean): $CancellablePromise<$models.RunDefaultsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SetUnsafeMode", on).then(($result: any) => {

@@ -9,6 +9,7 @@ export {
     ComputerUse,
     Desktop,
     DesktopServer,
+    DesktopUse,
     MCPOAuth,
     MCPOAuthFile,
     Persistent,

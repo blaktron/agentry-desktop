@@ -246,6 +246,13 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 		b.servers[want.ID] = bs
 		b.order = append(b.order, want.ID)
 		bound.Servers[want.ID] = bs.tools
+		if req.Protocol >= desktop.Protocol {
+			bound.Servers[want.ID] = classed(bs.entry, bs.tools)
+			if bound.From == nil {
+				bound.From = map[string]string{}
+			}
+			bound.From[want.ID] = desktop.FromLibrary
+		}
 	}
 	if req.ComputerUse != "" {
 		cb, r := s.bindComputer(ctx, req, b)
@@ -275,6 +282,52 @@ func (s *Service) Bind(ctx context.Context, req desktop.BindRequest) (desktop.Bo
 	return bound, nil
 }
 
+// wantedTools are the tools a bind asks of an entry: the release's
+// narrowing, or, where it names none, every tool the catalogue offers for
+// the entry, never one it withholds.
+func wantedTools(e appserver.Server, narrowing []string) []string {
+	if len(narrowing) > 0 {
+		return narrowing
+	}
+	return e.ToolNames()
+}
+
+// classed is a bound server's tools with the class the catalogue gives
+// each, for a run that names the link protocol's revision: a run of an
+// earlier one decodes the answer strictly and is sent none.
+func classed(e appserver.Server, tools []desktoplink.Tool) []desktoplink.Tool {
+	out := make([]desktoplink.Tool, len(tools))
+	for i, t := range tools {
+		out[i] = t
+		if c, ok := e.Tool(t.Name); ok {
+			out[i].Class = string(c.Class)
+		}
+	}
+	return out
+}
+
+// List is the applications a QuickAgent may use on this computer, for the
+// roster of a persistent agent and agentry doctor: each application the
+// catalogue offers on this system, its installed server allowed, its
+// windows allowed while computer use is on, and whether it is ready now,
+// with the step to take when not.
+func (s *Service) List(ctx context.Context) (desktop.ApplicationList, *desktop.Refusal) {
+	computer := s.opt.Computer.Enabled != nil && s.opt.Computer.Enabled()
+	out := desktop.ApplicationList{Applications: []desktop.Application{}}
+	for _, e := range s.cat.All() {
+		if !slices.Contains(e.Platforms, s.opt.GOOS) {
+			continue
+		}
+		st := s.check(ctx, e)
+		a := desktop.Application{ID: e.ID, Name: e.Application, From: desktop.FromLibrary, MCP: true, Computer: computer, Ready: st.Ready}
+		if !st.Ready {
+			a.Step = st.Sentence(e)
+		}
+		out.Applications = append(out.Applications, a)
+	}
+	return out, nil
+}
+
 // prepareLazy prepares a persistent agent's application server: the
 // catalogue knows it for this platform and gives the agent's tools, and the
 // application need not be running. When it is, its installed server is
@@ -297,7 +350,7 @@ func (s *Service) prepareLazy(ctx context.Context, want desktop.BindServer) (*bo
 		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop offers %s's installed server on %s, not on this computer's system", e.Application, strings.Join(e.Platforms, ", "))
 	}
 	bs := &boundServer{entry: e, allowed: map[string]appserver.Tool{}, lazy: true}
-	for _, name := range want.Tools {
+	for _, name := range wantedTools(e, want.Tools) {
 		t, ok := e.Tool(name)
 		if !ok {
 			return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop's catalogue gives %s no tool %q: update Agentry Desktop", e.Application, name)
@@ -389,7 +442,7 @@ func (s *Service) prepare(ctx context.Context, want desktop.BindServer) (*boundS
 		return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop offers %s's installed server on %s, not on this computer's system", e.Application, strings.Join(e.Platforms, ", "))
 	}
 	bs := &boundServer{entry: e, allowed: map[string]appserver.Tool{}}
-	for _, name := range want.Tools {
+	for _, name := range wantedTools(e, want.Tools) {
 		t, ok := e.Tool(name)
 		if !ok {
 			return nil, refusal(receipt.DesktopNotInstalled, want.ID, "Agentry Desktop's catalogue gives %s no tool %q: update Agentry Desktop", e.Application, name)

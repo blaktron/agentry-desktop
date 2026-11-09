@@ -202,8 +202,8 @@ export enum ComputerUse {
  */
 export class Desktop {
     /**
-     * Servers are the application servers the run uses on the person's
-     * computer, by catalogue id.
+     * Servers are the applications the run uses on the person's computer:
+     * each by its id, or one the person chooses.
      */
     "servers"?: DesktopServer[];
 
@@ -233,25 +233,38 @@ export class Desktop {
 }
 
 /**
- * DesktopServer is one application server a release uses.
+ * DesktopServer is one application a release uses on the person's
+ * computer.
  */
 export class DesktopServer {
     /**
-     * ID is the server's id in the catalogue of application servers.
+     * ID is the application's id, resolved on the person's computer to an
+     * application they approved there. Empty on a Choose entry.
      */
-    "id": string;
+    "id"?: string;
 
     /**
-     * Tools narrows the run to these of the catalogue's tools; absent,
-     * the run has every tool the catalogue gives.
+     * Choose asks for an application the person chooses when the run
+     * starts, from those they approved for what Use names. At most one
+     * entry of a line chooses, and it names no id and no tools.
+     */
+    "choose"?: boolean;
+
+    /**
+     * Use is what of the application the run uses: its MCP server, its
+     * windows (computer use), or both. Empty is its server, and its windows
+     * too where the line declares computer use.
+     */
+    "use"?: DesktopUse;
+
+    /**
+     * Tools narrows the run to these tools of the application's server;
+     * absent, the run has every tool the server lists.
      */
     "tools"?: string[];
 
     /** Creates a new DesktopServer instance. */
     constructor($$source: Partial<DesktopServer> = {}) {
-        if (!("id" in $$source)) {
-            this["id"] = "";
-        }
 
         Object.assign(this, $$source);
     }
@@ -260,14 +273,42 @@ export class DesktopServer {
      * Creates a new DesktopServer instance from a string or object.
      */
     static createFrom($$source: any = {}): DesktopServer {
-        const $$createField1_0 = $$createType0;
+        const $$createField3_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tools" in $$parsedSource) {
-            $$parsedSource["tools"] = $$createField1_0($$parsedSource["tools"]);
+            $$parsedSource["tools"] = $$createField3_0($$parsedSource["tools"]);
         }
         return new DesktopServer($$parsedSource as Partial<DesktopServer>);
     }
 }
+
+/**
+ * DesktopUse is what of an application a run uses.
+ */
+export enum DesktopUse {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * What a run may use of an application.
+     *
+     * DesktopUseMCP is the application's MCP server alone.
+     */
+    DesktopUseMCP = "mcp",
+
+    /**
+     * DesktopUseComputer is the application's windows alone, through
+     * computer use.
+     */
+    DesktopUseComputer = "computer",
+
+    /**
+     * DesktopUseBoth is its MCP server and its windows.
+     */
+    DesktopUseBoth = "both",
+};
 
 /**
  * MCPOAuth is a package server's OAuth sign-in: the authorization server
@@ -412,8 +453,8 @@ export class Persistent {
 
     /**
      * Desktop lets the agent be offered the applications on the person's
-     * computer, through Agentry Desktop: each application server of the
-     * catalogue, and computer use, once the person switches it on. The
+     * computer, through Agentry Desktop: each application the person
+     * approved there, and computer use, once the person switches it on. The
      * release's capabilities.desktop line, when it has one, narrows what is
      * offered.
      */

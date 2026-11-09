@@ -96,11 +96,16 @@ export function startLayout(start: HomeStart): LayoutCard[] {
 }
 
 /** The start's name as Settings → Home says it. */
-export const START_NAME: Record<HomeStart, string> = { local: "this computer", remote: "a runhost", cloud: "In Agentry" };
+export const START_NAME: Record<HomeStart, string> = {
+  local: placeInSentence("local"),
+  remote: placeInSentence("remote"),
+  cloud: placeInSentence("cloud"),
+};
 
 export const asStart = (s: string | undefined): HomeStart => (s === "remote" || s === "cloud" ? s : "local");
 
 import type * as settings from "../bindings/github.com/blaktron/agentry-desktop/internal/settings/models";
+import { placeInSentence } from "./firstRun";
 
 // The one size today, the Build, Voice and Knowledge cards'.
 export type HomeCardSize = "large";

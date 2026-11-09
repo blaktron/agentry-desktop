@@ -17,7 +17,7 @@ import (
 func blenderPrepared() *prepared {
 	plan := &spec.Plan{Ref: "acme/scene@1.0.0", Digest: "sha256:abc"}
 	plan.Capabilities.Desktop = &spec.DesktopCap{Servers: []spec.DesktopServerCap{{
-		ID: "blender", Application: "Blender", Package: "pypi:mcp-for-blender@2.2.7",
+		ID: "blender", Application: "Blender",
 		Tools: []spec.DesktopTool{{Name: "get_scene_info", Class: "read"}, {Name: "execute_blender_code", Class: "exec"}},
 	}}}
 	return &prepared{plan: plan, params: engine.Params{RunID: "R"}}

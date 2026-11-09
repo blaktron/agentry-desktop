@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-cli/pkg/runhost"
 	"github.com/blaktron/agentry-cli/pkg/runhost/job"
 	"github.com/blaktron/agentry-cli/pkg/runhost/payload"
@@ -89,6 +90,13 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	say := req.Say
 	if say == nil {
 		say = func(string) {}
+	}
+	// The runhost has its own sign-in and its own managed settings. This
+	// computer's are read now: what refuses every run refuses this one here,
+	// and the rest travels with the job for the runhost to apply.
+	held := currentManaged()
+	if err := managedRunRefusal(held); err != nil {
+		return nil, nil, err
 	}
 	home, err := Home()
 	if err != nil {
@@ -176,7 +184,7 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 		return nil, ranOn, engine.Classify(engine.ExitVerify, fmt.Errorf("%s is %s; a runhost runs a verified, unsigned or unscanned release", sig.Ref, meta.Attestation.State))
 	}
 
-	run, err := runhostCarry(home, sig, m, pol, req)
+	run, err := runhostCarry(home, sig, m, pol, req, held)
 	if err != nil {
 		return nil, ranOn, err
 	}
@@ -321,9 +329,12 @@ func RunhostCannotCarry(m *manifest.Manifest) string {
 // runhostCarry is what the job carries of the run beside its release and
 // files: the intake's answers, the secrets the release and its servers
 // declare, from the saved MCP profile and the secret answers, then the
-// policy's source, and the person's lists of target hosts.
-func runhostCarry(home string, sig *Signature, m *manifest.Manifest, pol *policy.Policy, req RunhostRequest) (job.Run, error) {
+// policy's source, the person's lists of target hosts, and what this
+// computer's managed settings say of the run (Unsafe Mode's refusal, the
+// documents), which the runhost applies as sent.
+func runhostCarry(home string, sig *Signature, m *manifest.Manifest, pol *policy.Policy, req RunhostRequest, held managed.Effective) (job.Run, error) {
 	var run job.Run
+	run.Managed = held.Narrowing()
 	overrides := map[string]string{}
 	prof, err := profile.Load(profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix()))
 	if err != nil {

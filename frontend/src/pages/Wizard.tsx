@@ -27,18 +27,21 @@ import { pickHomeAgent, setAgentEnabled, updateAgent, useAgents, useHomeAgent } 
 import { homeAgentDrawn, homeChoices } from "../homeAgent";
 import { AGENT_STATES, CODER_AGENT, CODER_WARNING, MAIN_AGENT, enableOutcome } from "../persistentAgents";
 import { AgentTiles } from "./AgentTiles";
+import { MCP_NODE_MAJOR, PLACES, SIGN_IN_OPTIONAL, placeInSentence } from "../firstRun";
 
 const LABELS: Record<WizardStep, string> = {
-  welcome: "Welcome", signin: "Sign in", where: "Local, Remote or Cloud", runtime: "Runtime", agents: "Agents",
+  welcome: "Welcome", signin: "Sign in", where: "Where runs happen", runtime: "Runtime", agents: "Agents",
   reviewkey: "AI Review key", codingagent: "Coding agent", done: "Done", cloud: "Your data in the cloud",
   server: "Your server", model: "Model", remotedone: "Done",
 };
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
 
-// How the wizard closed. Either way the App marks onboarding done; "later" also
-// raises the Browse banner naming what is missing, for this session only.
-export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[] };
+// How the wizard closed. Each way the App marks onboarding done; "later" and
+// "skipped" also raise Home's banner naming what is missing, for this
+// session only: "later" with the done page's own list, "skipped" with what
+// the app reads once it is closed.
+export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[] } | { kind: "skipped" };
 
 export default function Wizard({
   settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = "welcome", probeOnEntry = false,
@@ -88,7 +91,7 @@ export default function Wizard({
           </div>
         </div>
 
-        {step === "welcome" && <Welcome onSetUp={next} onSkip={() => onFinish({ kind: "done" })} />}
+        {step === "welcome" && <Welcome onSetUp={next} onSkip={() => onFinish({ kind: "skipped" })} />}
         {step === "signin" && (
           <SignInStep
             settings={settings}
@@ -217,9 +220,8 @@ function SignInStep({
       <div className="wizard-body">
         <h1>Sign in to a registry</h1>
         <p className="page-sub">
-          Sign in to install and run QuickAgents. {twoSignIns(settings)} The credential is kept in
-          the OS keychain and shared with the <span className="mono">agentry</span> CLI. You can also
-          browse anonymously and sign in later.
+          {SIGN_IN_OPTIONAL} {twoSignIns(settings)} The credential is kept in the OS keychain and shared
+          with the <span className="mono">agentry</span> CLI, and you can sign in later from Settings.
         </p>
 
         <ErrorBox error={error} />
@@ -278,21 +280,22 @@ function SignInStep({
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack}>Back</Button>
         <div className="grow" />
-        {!signedIn && <Button onClick={onNext} disabled={busy}>Skip, browse anonymously</Button>}
-        <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
+        <Button variant="primary" onClick={onNext} disabled={busy}>{signedIn ? "Continue" : "Continue without signing in"}</Button>
       </div>
     </>
   );
 }
 
-// WhereStep: where the person's QuickAgents run, as two cards in the start pages'
-// light-line frame (cards.tsx). Local goes on to the setup this computer
-// needs; Cloud needs none of it, so it ends on a page about how the
-// person's data is kept there. Cloud is held shut, with "Please sign in"
-// across it, until the registry being browsed is signed in, since a hosted
-// run is started and paid for under that sign-in. Local records the choice
-// in Run defaults on the click; Cloud records it on Finish, so Back from its
-// page leaves Run defaults as they were.
+// WhereStep: where the person's QuickAgents run, as three cards in the start
+// pages' light-line frame (cards.tsx), named as the rest of the app names
+// the places (firstRun.ts). This computer goes on to the setup it needs; A
+// runhost to the server's; In Agentry needs none of it, so it ends on a page
+// about how the person's data is kept there. In Agentry is held shut, with
+// "Please sign in" across it, until the registry being browsed is signed in,
+// since a hosted run is started and paid for under that sign-in. This
+// computer records the choice in Run defaults on the click; In Agentry
+// records it on Finish, so Back from its page leaves Run defaults as they
+// were.
 function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose: (p: WizardPath) => void; onBack: () => void }) {
   async function local() {
     // This computer is also the default, so a write that fails changes
@@ -310,19 +313,19 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
         </p>
         <div className="wizard-choices">
           <ChoiceCard
-            title="Local"
+            title={PLACES.local}
             blurb="Run QuickAgents on this computer, in containers, with the AI provider you choose. Next you set up a container engine and your provider, and if you like an AI Review key and a coding agent."
             figure={<LocalFigure />}
             onOpen={() => void local()}
           />
           <ChoiceCard
-            title="Remote"
+            title={PLACES.remote}
             blurb="Run QuickAgents on a Linux server of yours, set up from here over SSH, driven from this app. Next you name the server and sign in as its administrator, once, and choose its model."
             figure={<RemoteFigure />}
             onOpen={() => onChoose("remote")}
           />
           <ChoiceCard
-            title="Cloud"
+            title={PLACES.cloud}
             blurb="Run QuickAgents on Agentry's servers, paid with credits from your account. Nothing to install or set up on this computer."
             figure={<CloudFigure />}
             onOpen={() => onChoose("cloud")}
@@ -330,7 +333,7 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
           />
         </div>
         {!signedIn && (
-          <p className="muted small">Cloud runs are started and paid for under your Agentry account. Go back to sign in.</p>
+          <p className="muted small">Runs In Agentry are started and paid for under your Agentry account. Go back to sign in.</p>
         )}
       </div>
       <div className="wizard-foot">
@@ -582,8 +585,8 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
             <h2>Let your coding agent drive Agentry</h2>
             <p className="muted">
               The other direction: Claude Code or Codex searching, verifying, installing and running
-              QuickAgents through the <span className="mono">agentry-mcp</span> server. It needs Node
-              20 or newer, the <span className="mono">agentry</span> CLI on your PATH and{" "}
+              QuickAgents through the <span className="mono">agentry-mcp</span> server. It needs Node.js{" "}
+              {MCP_NODE_MAJOR} or newer, the <span className="mono">agentry</span> CLI on your PATH and{" "}
               <span className="mono">python3</span>; this app installs none of them and runs nothing
               here — copy the line for your host and run it yourself, with the path to your build of
               the server.
@@ -676,8 +679,9 @@ function DoneStep({
         <div className="wizard-body">
           <h1>Nothing is set up yet</h1>
           <p className="page-sub">
-            Agentry Desktop can browse a public registry as it is, but it cannot sign in, run or build
-            anything until setup is done. Every step is still here, and Settings has them all too.
+            You can browse public QuickAgents as you are. A run on {placeInSentence("local")} needs a container engine and an
+            AI provider; {SIGN_IN_OPTIONAL.charAt(0).toLowerCase() + SIGN_IN_OPTIONAL.slice(1)} Every step is still here, and
+            Settings has them all too.
           </p>
           <Recap rows={rows} />
         </div>

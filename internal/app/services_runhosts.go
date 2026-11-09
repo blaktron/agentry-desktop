@@ -578,8 +578,15 @@ func (r *RunhostsAPI) RemoveSignIn(name, vendor string) (*RunhostView, error) {
 const unsafeModeMeaning = "In Unsafe Mode a release's declared commands are installed from the Unsafe Mode image (a Kali Linux base) and run with that image's whole PATH, without the command catalogue. Every run on this runhost, from every paired device, is compiled this way until it is turned off. Runs stay sandboxed under gVisor, behind the egress proxy."
 
 // SetUnsafeMode turns runhost name's Unsafe Mode on or off with the server's
-// admin sign-in, after a native confirmation when turning it on.
+// admin sign-in, after a native confirmation when turning it on. Turning it
+// on is refused before anything is asked while the managed settings held
+// here forbid Unsafe Mode; turning it off never is.
 func (r *RunhostsAPI) SetUnsafeMode(name string, on bool, admin RunhostAdmin) error {
+	if on {
+		if reason := unsafeModeRefusal(); reason != "" {
+			return errors.New(reason)
+		}
+	}
 	_, rec, _, _, err := r.record(name)
 	if err != nil && rec == nil {
 		return err
