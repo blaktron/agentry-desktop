@@ -1691,6 +1691,7 @@ g.go = { app: {
       return { removed: on.map((m) => m.id), moved: users, movedTo: moveTo, credential: "key removed from the keychain" };
     },
     StoreProviderKey: async () => "anthropic",
+    EndpointModels: async () => ({ models: [{ id: "qwen3" }, { id: "llama4" }], suggested: [], error: "", warning: "" }),
     ChatGPTModels: async () => ["gpt-5.2", "gpt-5-mini"],
     CopilotModels: async () => [{ id: "claude-sonnet-5.5", name: "Claude Sonnet 5.5", multiplier: 1 }],
     RemoveModelSignIn: async () => "revoked at the vendor",

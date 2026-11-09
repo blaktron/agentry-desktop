@@ -466,9 +466,11 @@ function AddProviderDialog({ taken, names, first, kept, onKept, onClose, onSaved
     setListing("Asking the endpoint which models it serves…");
     setListError(null);
     try {
-      const cat = await RunAPI.ListModels(vendor, vendor === "custom" ? baseURL.trim() : "", key);
-      setCatalog(cat);
-      if (!cat.models.some((m) => m.id === model) && cat.models[0]) takeModel(cat.models[0].id);
+      // An endpoint being added is asked with the key typed for it or none,
+      // never one kept for another provider.
+      const cat = vendor === "custom" ? await RunAPI.EndpointModels(baseURL.trim(), key) : await RunAPI.ListModels(vendor, "", key);
+      setCatalog({ models: cat.models ?? [] } as app.CatalogView);
+      if (!(cat.models ?? []).some((m) => m.id === model) && cat.models?.[0]) takeModel(cat.models[0].id);
     } catch (e) {
       setCatalog(null);
       setListError(`Could not list the models: ${e instanceof Error ? e.message : e}. You can still type a model id.`);

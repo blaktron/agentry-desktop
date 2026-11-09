@@ -387,3 +387,31 @@ func TestAProvidersModelsAreListedWithItsOwnCredential(t *testing.T) {
 		t.Fatalf("listed %+v (%v)", got, err)
 	}
 }
+
+// An endpoint being added is listed with the key typed for it or none, never
+// with a key this computer keeps for another provider.
+func TestAnEndpointBeingAddedIsNeverSentAnotherProvidersKey(t *testing.T) {
+	newLab(t)
+	if err := keychainStore("custom", "kept-for-another-endpoint"); err != nil {
+		t.Fatal(err)
+	}
+	var sent []string
+	prev := listModels
+	listModels = func(_ context.Context, _, _, key string) (*setup.Catalog, error) {
+		sent = append(sent, key)
+		return &setup.Catalog{Models: []setup.Model{{ID: "qwen3"}}}, nil
+	}
+	t.Cleanup(func() { listModels = prev })
+	if got, err := ListEndpointModels(context.Background(), "http://new.example:8000/v1", ""); err != nil || len(got.Models) != 1 {
+		t.Fatalf("listed %+v (%v)", got, err)
+	}
+	if _, err := ListEndpointModels(context.Background(), "http://new.example:8000/v1", "typed"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 2 || sent[0] != "" || sent[1] != "typed" {
+		t.Fatalf("keys sent %q", sent)
+	}
+	if _, err := ListEndpointModels(context.Background(), "ftp://new.example/v1", ""); err == nil {
+		t.Fatal("a scheme other than http or https was asked")
+	}
+}

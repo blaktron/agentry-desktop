@@ -23,6 +23,13 @@ func (r *RunAPI) ProviderModels(id string) (*run.ProviderModels, error) {
 	return run.ListProviderModels(r.ctx(), id)
 }
 
+// EndpointModels asks an endpoint of the person's own being added for its
+// models, with the key typed for it or none; like ListModels, the key
+// reaches that endpoint and nothing else.
+func (r *RunAPI) EndpointModels(baseURL, key string) (*run.ProviderModels, error) {
+	return run.ListEndpointModels(r.ctx(), baseURL, key)
+}
+
 // AddSavedModel saves a model on the provider providerID, checked first. A
 // Claude subscription's check sends one message on the person's plan, so it
 // is only made once the draft says they agreed. A check that needs Claude

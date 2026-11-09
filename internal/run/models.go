@@ -863,6 +863,29 @@ func ListProviderModels(ctx context.Context, id string) (*ProviderModels, error)
 	return out, nil
 }
 
+// ListEndpointModels asks an endpoint of the person's own being added, at
+// baseURL, for its models with the key typed for it, or with none: never a
+// key this computer keeps for another provider, which would reach an address
+// it was not given for.
+func ListEndpointModels(ctx context.Context, baseURL, key string) (*ProviderModels, error) {
+	if err := checkBaseURL(policy.ProviderCustom, strings.TrimSpace(baseURL)); err != nil {
+		return nil, err
+	}
+	key = strings.TrimSpace(key)
+	cat, err := listModels(ctx, policy.ProviderCustom, strings.TrimSpace(baseURL), key)
+	if err != nil {
+		if key == "" {
+			return nil, err
+		}
+		return nil, errors.New(strings.ReplaceAll(err.Error(), key, "<key>"))
+	}
+	out := &ProviderModels{Models: []ListedModel{}, Suggested: []string{}, Warning: cat.Warning}
+	for _, lm := range cat.Models {
+		out.Models = append(out.Models, ListedModel{ID: lm.ID, DisplayName: lm.DisplayName, InputUSD: lm.InputUSD, OutputUSD: lm.OutputUSD})
+	}
+	return out, nil
+}
+
 // StoreProviderKey keeps key in the OS keychain for the provider np names
 // (provider:<id>), on its own, before AddProviderModel saves it; or for a
 // provider this computer has whose key is missing, setting its source to
@@ -895,8 +918,8 @@ func StoreProviderKey(np NewProvider, key string, logw io.Writer) (string, error
 	if !ok || pr.APIKeySource == modelkey.SourceKeyring || pr.APIKeyEnv == "" {
 		return id, nil
 	}
-	// A provider here that read its key from its variable alone now reads
-	// the keychain too, where the key just went.
+	// A provider here that reads its key from its variable alone reads the
+	// keychain after it from here on, where the key just went.
 	pr.APIKeySource = modelkey.SourceKeyring
 	if k := policy.CredentialKindOf(policy.ProviderVendor(id), key); k != policy.KeyKindAPI {
 		pr.APIKeyKind = k

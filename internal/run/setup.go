@@ -574,13 +574,13 @@ func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, e
 		// this app was launched from, then the keychain.
 		if v := keyFromPolicyVariable(provider); v != "" {
 			key = v
-		} else if stored, err := keychainLookup(provider); err == nil {
+		} else {
+			stored, err := keychainLookup(provider)
+			if err != nil {
+				return nil, fmt.Errorf("no key typed, the saved policy's variable is unset, and %w", err)
+			}
 			key = stored
-		} else if provider != policy.ProviderCustom {
-			return nil, fmt.Errorf("no key typed, the saved policy's variable is unset, and %w", err)
 		}
-		// An endpoint of the person's own may take no key: it is asked
-		// with none.
 	}
 	cat, err := listModels(ctx, provider, baseURL, key)
 	if err != nil {
