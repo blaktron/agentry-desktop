@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.28",
+      "highlights": [
+        "If your organization's managed settings forbid Unsafe Mode, its switch stays off and Settings says who set it.",
+        "Browse shows every result: Show more brings the next thirty, and the count says how many there are.",
+        "After Skip, Home lists what is left to set up, and each item opens the step it needs.",
+        "Where runs happen has one set of names everywhere: This computer, A runhost and In Agentry."
+      ]
+    },
+    {
       "version": "0.7.27",
       "highlights": [
         "The sidebar is grouped like Settings: Agents, Scheduled, Build, Library and Plugins, under Home.",
