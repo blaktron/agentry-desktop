@@ -106,12 +106,14 @@ func (m *mainLink) quickAgentFork(ref, into, name string) (string, error) {
 	made := v.Namespace + "/" + v.Name
 	deadline := time.Now().Add(m.forkWait())
 	for {
-		state, err := m.publisher.forkState(reg, v.Namespace, v.Name)
+		state, detail, err := m.publisher.forkState(reg, v.Namespace, v.Name)
 		switch {
 		case err != nil:
 			return "Forked " + ns + "/" + origin + " into " + made + "; its state could not be read now, so ask quickagent_mine for it before you fetch it.", nil
 		case state == "ready" || state == "":
 			return "Forked " + ns + "/" + origin + " into " + made + ", and it is ready: quickagent_fetch " + made + " to change it. It stays private for good.", nil
+		case state == "failed" && detail != "":
+			return "", fmt.Errorf("the registry made %s, but copying %s/%s into it failed. The registry says why: %s. Tell the person, who can delete it in the Publisher section", made, ns, origin, quoted(detail))
 		case state == "failed":
 			return "", fmt.Errorf("the registry made %s, but copying %s/%s into it failed; tell the person, who can delete it in the Publisher section", made, ns, origin)
 		case time.Now().After(deadline):
