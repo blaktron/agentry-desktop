@@ -43,6 +43,23 @@ type Item struct {
 	Runs       int    `json:"runs,omitempty"`
 	Next       string `json:"next,omitempty"`
 	Last       *Fire  `json:"last,omitempty"`
+	// UnsafeMode: its consents were given in Unsafe Mode, so managed
+	// settings that forbid Unsafe Mode hold its fires.
+	UnsafeMode bool `json:"unsafeMode,omitempty"`
+	// Held is why its fires and Run now are refused here, or "": the
+	// managed settings that forbid Unsafe Mode, for an UnsafeMode schedule.
+	Held string `json:"held,omitempty"`
+}
+
+// HoldUnsafeMode sets Held on every item made in Unsafe Mode to refusal, the
+// reason the managed settings held here forbid Unsafe Mode ("" when they do
+// not).
+func HoldUnsafeMode(items []Item, refusal string) {
+	for i := range items {
+		if items[i].UnsafeMode {
+			items[i].Held = refusal
+		}
+	}
 }
 
 // Fire is one occurrence, or a Run now, as the page shows it.
@@ -103,6 +120,7 @@ func (st Store) List(now time.Time) ([]Item, error) {
 			ID: sc.ID, Name: sc.Name, Ref: sc.Ref, Version: sc.Version, Registry: sc.Registry, Local: sc.Local != "",
 			Describe: sc.When.Describe(), When: whenOf(sc.When), OutDir: sc.Run.OutDir, Paused: sc.Paused,
 			Ended: state.Ended || sc.When.Remaining(state.Runs) == 0, SignedOut: sc.SignedOut, Runs: state.Runs,
+			UnsafeMode: sc.Run.UnsafeMode,
 		}
 		if sc.SignedOut {
 			if p, err := st.s.CredentialPath(sc.ID); err == nil {

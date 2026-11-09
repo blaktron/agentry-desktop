@@ -112,6 +112,14 @@ test("the calendars of this computer and In Agentry merge by time", () => {
   assert.deepEqual(mergeFires(a, b, true).map((r) => r.n), ["here", "there", "here"]);
 });
 
+test("a schedule held by managed settings says why, and says it before Paused", () => {
+  const why = "Unsafe Mode is forbidden by acme's managed settings (run.unsafeMode)";
+  assert.equal(scheduleState({ held: why }), `Held: ${why}. Its consents were given in Unsafe Mode, so it does not run until they stop forbidding it`);
+  assert.match(scheduleState({ held: why, paused: true }), /^Held: /);
+  assert.equal(scheduleState({ held: why, ended: true }), "Ended");
+  assert.equal(scheduleState({ held: "" }), "Runs while you are signed in");
+});
+
 test("a schedule In Agentry says who paused it, and the gaps have headings", () => {
   assert.match(scheduleState({ hosted: true }), /^Runs In Agentry/);
   assert.equal(scheduleState({ hosted: true, paused: true, pausedReason: "owner" }), "Paused");
