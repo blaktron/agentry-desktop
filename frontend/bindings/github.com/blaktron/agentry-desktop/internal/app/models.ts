@@ -34,6 +34,9 @@ import * as draft$0 from "../draft/models.js";
 import * as install$0 from "../install/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as library$0 from "../library/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as linkservice$0 from "../linkservice/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -4583,12 +4586,15 @@ export class KnowledgeHostedStartView {
 }
 
 /**
- * LibraryPreset is a preset of the library as Add from the library offers
- * it.
+ * LibraryPreset is a preset as Add from the library offers it: what it is,
+ * the server it sets up, the steps, the tools that run code, and whether
+ * an application of its id is on the list already.
  */
 export class LibraryPreset {
     "id": string;
     "application": string;
+    "category": string;
+    "summary": string;
     "package": string;
     "steps": string[];
 
@@ -4597,6 +4603,16 @@ export class LibraryPreset {
      */
     "exec": string[];
 
+    /**
+     * Asks are the variables the person fills in once it is added.
+     */
+    "asks": string[];
+
+    /**
+     * OnList says an application of this id is on the list.
+     */
+    "onList": boolean;
+
     /** Creates a new LibraryPreset instance. */
     constructor($$source: Partial<LibraryPreset> = {}) {
         if (!("id" in $$source)) {
@@ -4604,6 +4620,12 @@ export class LibraryPreset {
         }
         if (!("application" in $$source)) {
             this["application"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+        if (!("summary" in $$source)) {
+            this["summary"] = "";
         }
         if (!("package" in $$source)) {
             this["package"] = "";
@@ -4614,6 +4636,12 @@ export class LibraryPreset {
         if (!("exec" in $$source)) {
             this["exec"] = [];
         }
+        if (!("asks" in $$source)) {
+            this["asks"] = [];
+        }
+        if (!("onList" in $$source)) {
+            this["onList"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -4622,14 +4650,18 @@ export class LibraryPreset {
      * Creates a new LibraryPreset instance from a string or object.
      */
     static createFrom($$source: any = {}): LibraryPreset {
-        const $$createField3_0 = $$createType6;
-        const $$createField4_0 = $$createType6;
+        const $$createField5_0 = $$createType6;
+        const $$createField6_0 = $$createType6;
+        const $$createField7_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("steps" in $$parsedSource) {
-            $$parsedSource["steps"] = $$createField3_0($$parsedSource["steps"]);
+            $$parsedSource["steps"] = $$createField5_0($$parsedSource["steps"]);
         }
         if ("exec" in $$parsedSource) {
-            $$parsedSource["exec"] = $$createField4_0($$parsedSource["exec"]);
+            $$parsedSource["exec"] = $$createField6_0($$parsedSource["exec"]);
+        }
+        if ("asks" in $$parsedSource) {
+            $$parsedSource["asks"] = $$createField7_0($$parsedSource["asks"]);
         }
         return new LibraryPreset($$parsedSource as Partial<LibraryPreset>);
     }
@@ -13212,10 +13244,17 @@ export class YourComputerView {
     "listError"?: string;
 
     /**
-     * Library are the presets not on the list yet, for Add from the
+     * Library are the presets offered on this system, in the library's
+     * order, each saying whether its id is on the list: Add from the
      * library.
      */
     "library": LibraryPreset[];
+
+    /**
+     * LibraryStatus says which copy of the library is in use and how its
+     * last read from the repository went.
+     */
+    "libraryStatus": library$0.Status;
 
     /**
      * Using are the runs bound now.
@@ -13247,6 +13286,9 @@ export class YourComputerView {
         if (!("library" in $$source)) {
             this["library"] = [];
         }
+        if (!("libraryStatus" in $$source)) {
+            this["libraryStatus"] = (new library$0.Status());
+        }
         if (!("using" in $$source)) {
             this["using"] = [];
         }
@@ -13266,9 +13308,10 @@ export class YourComputerView {
     static createFrom($$source: any = {}): YourComputerView {
         const $$createField0_0 = $$createType294;
         const $$createField2_0 = $$createType296;
-        const $$createField3_0 = $$createType298;
-        const $$createField4_0 = $$createType300;
-        const $$createField7_0 = $$createType301;
+        const $$createField3_0 = $$createType297;
+        const $$createField4_0 = $$createType299;
+        const $$createField5_0 = $$createType301;
+        const $$createField8_0 = $$createType302;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("applications" in $$parsedSource) {
             $$parsedSource["applications"] = $$createField0_0($$parsedSource["applications"]);
@@ -13276,14 +13319,17 @@ export class YourComputerView {
         if ("library" in $$parsedSource) {
             $$parsedSource["library"] = $$createField2_0($$parsedSource["library"]);
         }
+        if ("libraryStatus" in $$parsedSource) {
+            $$parsedSource["libraryStatus"] = $$createField3_0($$parsedSource["libraryStatus"]);
+        }
         if ("using" in $$parsedSource) {
-            $$parsedSource["using"] = $$createField3_0($$parsedSource["using"]);
+            $$parsedSource["using"] = $$createField4_0($$parsedSource["using"]);
         }
         if ("recent" in $$parsedSource) {
-            $$parsedSource["recent"] = $$createField4_0($$parsedSource["recent"]);
+            $$parsedSource["recent"] = $$createField5_0($$parsedSource["recent"]);
         }
         if ("computer" in $$parsedSource) {
-            $$parsedSource["computer"] = $$createField7_0($$parsedSource["computer"]);
+            $$parsedSource["computer"] = $$createField8_0($$parsedSource["computer"]);
         }
         return new YourComputerView($$parsedSource as Partial<YourComputerView>);
     }
@@ -13587,8 +13633,9 @@ const $$createType293 = $Create.Array($$createType292);
 const $$createType294 = $Create.Array($$createType215);
 const $$createType295 = LibraryPreset.createFrom;
 const $$createType296 = $Create.Array($$createType295);
-const $$createType297 = linkservice$0.Bound.createFrom;
-const $$createType298 = $Create.Array($$createType297);
-const $$createType299 = linkservice$0.RecentRun.createFrom;
-const $$createType300 = $Create.Array($$createType299);
-const $$createType301 = ComputerUseView.createFrom;
+const $$createType297 = library$0.Status.createFrom;
+const $$createType298 = linkservice$0.Bound.createFrom;
+const $$createType299 = $Create.Array($$createType298);
+const $$createType300 = linkservice$0.RecentRun.createFrom;
+const $$createType301 = $Create.Array($$createType300);
+const $$createType302 = ComputerUseView.createFrom;

@@ -25,10 +25,10 @@ type DesktopAppTool struct {
 	Egress bool   `json:"egress,omitempty"`
 }
 
-// DesktopApps are the library's presets built into this app, in its order.
-// A withheld tool is never offered.
+// DesktopApps are the presets of the library in use, in its order. A
+// withheld tool is never offered.
 func DesktopApps() []DesktopApp {
-	all := library.Builtin().All()
+	all := library.Current().All()
 	out := make([]DesktopApp, 0, len(all))
 	for _, e := range all {
 		app := DesktopApp{ID: e.ID, Application: e.Application, Platforms: append([]string{}, e.Platforms...), Tools: []DesktopAppTool{}}

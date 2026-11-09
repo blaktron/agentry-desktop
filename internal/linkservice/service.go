@@ -125,7 +125,7 @@ type Options struct {
 	// Applications is the person's list; nil is an empty one.
 	Applications Applications
 	// Library is the library of presets, read for a preset's steps; nil
-	// is the built-in one.
+	// is the one in use, library.Current.
 	Library *library.Library
 	// Choose asks the person which of their applications an entry is; nil
 	// asks no one, and such a bind is refused with the step to take.
@@ -158,7 +158,6 @@ type Options struct {
 // Service is the link service. It implements desktop.Handler.
 type Service struct {
 	opt  Options
-	lib  library.Library
 	mu   sync.Mutex
 	runs map[string]*binding
 	// closed is set as the app quits: no run is bound after it.
@@ -168,11 +167,6 @@ type Service struct {
 // New builds a link service.
 func New(opt Options) *Service {
 	s := &Service{opt: opt, runs: map[string]*binding{}}
-	if opt.Library != nil {
-		s.lib = *opt.Library
-	} else {
-		s.lib = library.Builtin()
-	}
 	if s.opt.Launch == nil {
 		s.opt.Launch = startStdio
 	}
@@ -439,7 +433,7 @@ func (s *Service) resolve(ctx context.Context, req desktop.BindRequest, id strin
 		return yourcomputer.Application{}, refusal(receipt.DesktopNotGranted, key,
 			"this QuickAgent uses an application you choose, through %s, and none of your applications is approved for that: approve one in Agentry Desktop's Settings → Your computer, and run again", use)
 	}
-	if p, ok := s.lib.Lookup(id); ok && p.OfferedOn(s.opt.GOOS) {
+	if p, ok := s.library().Lookup(id); ok && p.OfferedOn(s.opt.GOOS) {
 		return yourcomputer.Application{}, refusal(receipt.DesktopNotInstalled, id,
 			"this QuickAgent uses %s, which is not set up in Agentry Desktop: add it from the library in Settings → Your computer, approve it, and run again", p.Application)
 	}

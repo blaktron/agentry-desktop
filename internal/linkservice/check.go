@@ -123,12 +123,21 @@ func (s *Service) State(ctx context.Context, id string) (AppState, bool) {
 	return s.check(ctx, a), true
 }
 
+// library is the library of presets: the one the service was built with,
+// else the one in use.
+func (s *Service) library() library.Library {
+	if s.opt.Library != nil {
+		return *s.opt.Library
+	}
+	return library.Current()
+}
+
 // preset is the library preset an application was set up from, if any.
 func (s *Service) preset(a yourcomputer.Application) (library.Preset, bool) {
 	if a.From.Preset == "" {
 		return library.Preset{}, false
 	}
-	return s.lib.Lookup(a.From.Preset)
+	return s.library().Lookup(a.From.Preset)
 }
 
 // check reads an application's state: its server's launcher and its
@@ -174,15 +183,30 @@ func (s *Service) check(ctx context.Context, a yourcomputer.Application) AppStat
 	if srv.Listener > 0 {
 		st.Listening = s.opt.Listening(ctx, srv.Listener) == nil
 	}
+	blank := blankVariable(st.Env)
 	switch {
 	case srv.Attachment == library.AttachmentStdio && !st.LauncherFound:
 		st.Missing = strings.TrimSpace(fmt.Sprintf("%s's MCP server needs %s, which is not on this computer. %s", a.Name, st.Launcher, stepAt(st.Steps, 0)))
+	case blank != nil:
+		st.Missing = strings.TrimSpace(fmt.Sprintf("%s's MCP server needs a value for %s: set it with Edit on its card. %s", a.Name, blank.Name, blank.Note))
 	case srv.Listener > 0 && !st.Listening:
 		st.Missing = strings.TrimSpace(fmt.Sprintf("%s does not answer on port %d on this computer: open %s and start its MCP server. %s", a.Name, srv.Listener, a.Name, stepNaming(st.Steps, fmt.Sprint(srv.Listener), len(st.Steps)-1)))
 	default:
 		st.Ready = true
 	}
 	return st
+}
+
+// blankVariable is the first variable a preset left for the person to fill
+// in that is still empty, nil when there is none. A variable the person
+// emptied themselves, with no note, is theirs to leave empty.
+func blankVariable(env []EnvState) *EnvState {
+	for i := range env {
+		if env[i].Value == "" && env[i].Note != "" {
+			return &env[i]
+		}
+	}
+	return nil
 }
 
 // stepAt is the step at i, "" when there is none there.

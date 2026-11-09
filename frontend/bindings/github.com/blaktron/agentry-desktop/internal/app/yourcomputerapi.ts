@@ -32,11 +32,24 @@ export function AddApplication(n: $models.NewApplication, tools: string[]): $Can
 }
 
 /**
- * AddFromLibrary puts a preset on the list as an application of the
- * person's, nothing approved.
+ * AddFromLibrary puts the checked presets on the list as applications of
+ * the person's, nothing approved, in one change: an id that is on the list
+ * already is left as it is, and an id the library does not offer on this
+ * computer adds nothing.
  */
-export function AddFromLibrary(id: string): $CancellablePromise<$models.YourComputerView> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.AddFromLibrary", id).then(($result: any) => {
+export function AddFromLibrary(ids: string[]): $CancellablePromise<$models.YourComputerView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.AddFromLibrary", ids).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
+ * CheckLibrary reads the library from the repository now: Check again.
+ * A library that could not be read leaves the one in use, and the view
+ * says why.
+ */
+export function CheckLibrary(): $CancellablePromise<$models.YourComputerView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.YourComputerAPI.CheckLibrary").then(($result: any) => {
         return $$createType1($result)!;
     });
 }
