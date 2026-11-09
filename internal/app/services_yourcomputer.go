@@ -34,6 +34,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/computeruse"
 	"github.com/blaktron/agentry-desktop/internal/library"
@@ -320,6 +321,11 @@ func computerUseView() ComputerUseView {
 // again in a native dialog; turning it off asks nothing, and stops every
 // run's computer use now.
 func (y *YourComputerAPI) SetComputerUse(on bool) (*YourComputerView, error) {
+	if on {
+		if reason := managedCalls.current().Forbidden(managedsettings.DesktopApplications); reason != "" {
+			return nil, errors.New(reason)
+		}
+	}
 	if on {
 		msg := "A QuickAgent that says it does computer use will be able to see and use the windows of the applications it names on this computer, while it runs and while you watch: Agentry Desktop shows that it is working and lets you pause or stop it from the tray, the banner or " + StopKeyName + ". " +
 			computerAskWords() + "\n\nTurn computer use on?"
