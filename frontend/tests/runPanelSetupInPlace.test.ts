@@ -162,8 +162,8 @@ test("no model: the model provider's setup is in the panel, and a save there tur
 
   assert.equal(panel.querySelector("[data-setup-gap]")?.getAttribute("data-setup-gap"), "model");
   const inPlace = panel.querySelector(".run-setup-in-place")!;
-  assert.match(text(inPlace), /The model provider first\. \$ANTHROPIC_API_KEY is not set/);
-  assert.match(text(inPlace.querySelector("h2")), /^Model provider$/);
+  assert.match(text(inPlace), /A model first\. \$ANTHROPIC_API_KEY is not set/);
+  assert.match(text(inPlace.querySelector("h2")), /^Your default model$/);
   assert.equal(runButton(panel).disabled, true);
   assert.match(why(panel), /^\$ANTHROPIC_API_KEY is not set/);
   assert.equal(panel.querySelector("[data-setup-gap]")?.closest(".run-panel") !== null, true, "the setup is inside the panel");

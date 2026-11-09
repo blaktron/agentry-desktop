@@ -422,7 +422,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       setKeyNotice(s.keyNotice ?? null);
       setNotice(pullImages
         ? "Setup complete — gateway, harness, and runner images ready; QuickAgents can run."
-        : `Provider settings written to ${s.policyPath}.`);
+        : `Saved: ${s.model} is your default model, in ${s.policyPath}.`);
     } catch (e) {
       setError(String(e));
     } finally {

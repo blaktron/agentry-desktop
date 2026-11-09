@@ -12,7 +12,8 @@ import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
 import { fmtDuration } from "../usage";
 import { rewrapLine } from "../knowledge";
-import { RuntimeSetup, PrereqCard, EngineWarnings, CHECKING_ENGINE, providerLabel } from "./RuntimeSetup";
+import { PrereqCard, EngineWarnings, CHECKING_ENGINE, providerLabel } from "./RuntimeSetup";
+import { ModelsSettings } from "./SettingsModels";
 import { paidBy } from "../modelSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
@@ -135,9 +136,7 @@ export default function Settings({
       )}
       {section === "provider" && (
         <>
-          <div id="settings-part-provider" className="settings-part">
-            <RuntimeSetup advanced heading="Model provider" onOpenPrereqs={() => onOpen("run-defaults")} />
-          </div>
+          <ModelsSettings onOpenAccount={() => onOpen("account", "registries")} />
           <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
           <PartSection id="web-search" title="Web search"><WebSearchKeyCard /></PartSection>
           <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>

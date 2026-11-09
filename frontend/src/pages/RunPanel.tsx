@@ -690,10 +690,10 @@ export default function RunPanel({
         </>
       ) : (
         <>
-          <p className="small"><strong>The model provider first.</strong> {modelGapLine(setup, !!hosted?.offered)}</p>
+          <p className="small"><strong>A model first.</strong> {modelGapLine(setup, !!hosted?.offered)}</p>
           <RuntimeSetup
-            heading="Model provider"
-            intro="Choose the provider runs on this computer use and how to pay for it: a plan you already have, a connected account, or an API key kept on this machine. Saving here writes the same runner policy as Settings → Model provider."
+            heading="Your default model"
+            intro="Choose the model runs on this computer use and how to pay for it: a plan you already have, a connected account, or an API key kept on this machine. Saving here sets your default model, which Settings → Models lists with the others."
             onStatus={takeSetup}
           />
         </>
@@ -2065,14 +2065,14 @@ export default function RunPanel({
                   </ul>
                   {/* A gap is fixed in place where the setup has the place:
                       the keys on Connect tools; the model key in
-                      the keychain is Settings → Model provider. */}
+                      the keychain is Settings → Models. */}
                   {scheduling && check.state === "done" && !check.ready && (
                     <p className="small" style={{ margin: "4px 0 0" }} data-when-fixes>
                       {check.gaps.some((g) => /secret/i.test(g)) && steps.includes("tools") && (
                         <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))}>Save the keys on Connect tools</Button>
                       )}
                       {check.gaps.some((g) => /model key/i.test(g)) && (
-                        <span> Keep the model key in this computer&apos;s keychain: Settings → Model provider, with the key saved there (a scheduled run does not see a key in the environment).</span>
+                        <span> Keep the model key in this computer&apos;s keychain: Settings → Models, Add the key (a scheduled run does not see a key in the environment).</span>
                       )}
                     </p>
                   )}
