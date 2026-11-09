@@ -51,6 +51,11 @@ var MinRunhostScheduleCLI = [3]int{0, 7, 12}
 // computer holds managed settings only it schedules.
 var MinManagedCLI = [3]int{0, 7, 35}
 
+// MinUnsafeModeScheduleCLI is the oldest agentry whose schedule add takes
+// --in-unsafe-mode, which holds a schedule made in Unsafe Mode while an
+// organization's managed settings forbid Unsafe Mode.
+var MinUnsafeModeScheduleCLI = [3]int{0, 7, 38}
+
 // MinDeliverCLI is the oldest agentry whose schedule add keeps where its fires
 // deliver (--deliver-to, --destination).
 var MinDeliverCLI = [3]int{0, 6, 139}
@@ -321,7 +326,10 @@ type Request struct {
 	AllowUnsigned      bool `json:"allowUnsigned,omitempty"`
 	AllowUnscanned     bool `json:"allowUnscanned,omitempty"`
 	AllowVulnerableMCP bool `json:"allowVulnerableMcp,omitempty"`
-	SignedOut          bool `json:"signedOut,omitempty"`
+	// InUnsafeMode says the consents above were given in Unsafe Mode
+	// (--in-unsafe-mode). The app sets it, never the page.
+	InUnsafeMode bool `json:"-"`
+	SignedOut    bool `json:"signedOut,omitempty"`
 	// DeliverTo is the absolute folder each fire copies its deliverables to
 	// (`--deliver-to`), Destinations the saved destinations each fire sends its
 	// result to (`--destination`, by name). Either needs an agentry that
@@ -413,6 +421,9 @@ func (r Request) AddArgs() ([]string, error) {
 	}
 	if r.AllowVulnerableMCP {
 		args = append(args, "--allow-vulnerable-mcp")
+	}
+	if r.InUnsafeMode {
+		args = append(args, "--in-unsafe-mode")
 	}
 	if r.SignedOut {
 		args = append(args, "--signed-out")

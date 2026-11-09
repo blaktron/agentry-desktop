@@ -480,6 +480,34 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 	if req.AllowVulnerableMCP && !unsafe {
 		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or schedule a release that pins a fixed version")
 	}
+	return markInUnsafeMode(req, func() (string, error) {
+		c, err := s.cli()
+		if err != nil {
+			return "", err
+		}
+		ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+		defer cancel()
+		return c.Version(ctx)
+	})
+}
+
+// markInUnsafeMode marks a schedule whose consent is an Unsafe Mode one
+// (a vulnerable declared server's, given only in Unsafe Mode), so that
+// managed settings that later forbid Unsafe Mode hold its fires. Only an
+// agentry that keeps the mark may make it; version answers the installed
+// agentry's version line.
+func markInUnsafeMode(req *schedules.Request, version func() (string, error)) error {
+	req.InUnsafeMode = req.AllowVulnerableMCP
+	if !req.InUnsafeMode {
+		return nil
+	}
+	line, err := version()
+	if err != nil {
+		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if why := schedules.OlderThan(line, schedules.MinUnsafeModeScheduleCLI, "scheduling a run that accepts a vulnerable declared MCP server"); why != "" {
+		return errors.New(why)
+	}
 	return nil
 }
 
@@ -685,7 +713,7 @@ func (s *ScheduleAPI) askScheduleConsent(req schedules.Request, ck *schedules.Ch
 		lines = append(lines, "Every run of it accepts "+strings.Join(accepting, ", and ")+". Each receipt records the consent.")
 	}
 	if unsafe && req.AllowVulnerableMCP {
-		lines = append(lines, "Unsafe Mode is on: every run of this schedule is an Unsafe Mode run, and its receipt names each server it let through.")
+		lines = append(lines, "Unsafe Mode is on: every run of this schedule is an Unsafe Mode run, and its receipt names each server it let through. If an organization's managed settings later forbid Unsafe Mode on this computer, the schedule waits until they stop.")
 	}
 	linger := req.SignedOut && !s.lingers()
 	if linger {
