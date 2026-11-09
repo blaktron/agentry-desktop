@@ -39,6 +39,14 @@ type fakePublisherOps struct {
 	forkView   *ForkView
 	forkStates []string
 	forkDetail string // why a failed copy failed
+	// owners are the owner actions taken, ns/name:act; retired and
+	// retiredAs what retirement answers; versionActs the version actions,
+	// ns/name@version:yank|withdraw:reason; actErr what either fails with.
+	owners      []string
+	retired     bool
+	retiredAs   string
+	versionActs []string
+	actErr      error
 	forks      []string
 	// exists and private are what standing answers; published what
 	// publish answers, and publishes the folders it was given, copied.
@@ -347,17 +355,16 @@ func TestQuickAgentFetchStaysInTheShare(t *testing.T) {
 	}
 }
 
-// TestTheOtherPublisherToolsAreNotAnsweredYet: the tools that change
-// something are answered as not yet answered here, and reach nothing.
-func TestTheOtherPublisherToolsAreNotAnsweredYet(t *testing.T) {
-	rig, ops, _ := newPublisherRig(t)
-	for _, tool := range []string{applink.QuickAgentManage} {
-		if got := rig.call(t, tool, map[string]any{}); !got.IsError || !strings.Contains(got.Text, "does not answer "+tool+" yet") {
+// TestEveryPublisherToolIsAnswered: this app answers every publisher
+// tool; none is left as not yet answered.
+func TestEveryPublisherToolIsAnswered(t *testing.T) {
+	rig, _, _ := newPublisherRig(t)
+	rig.m.reviser = &fakeReviser{}
+	rig.answer = false
+	for _, tool := range applink.Tools(applink.Compose(applink.PartPublisher)) {
+		if got := rig.call(t, tool, map[string]any{}); strings.Contains(got.Text, "does not answer") {
 			t.Errorf("%s: %+v", tool, got)
 		}
-	}
-	if len(ops.fetched) != 0 || len(rig.asked) != 0 {
-		t.Errorf("fetched %v, asked %v", ops.fetched, rig.asked)
 	}
 }
 
@@ -768,4 +775,28 @@ func TestQuickAgentMineNamesAFailedForksReason(t *testing.T) {
 	if got.IsError || !strings.Contains(got.Text, `- alice/broken: private, a fork of bob/tool@1.0.0, fork failed (the registry says: "The fork's first version was refused: the frontmatter names another agent.")`) {
 		t.Fatalf("mine: %+v", got)
 	}
+}
+
+func (f *fakePublisherOps) ownerAction(_, ns, name string, act publisherAct) (string, error) {
+	if f.actErr != nil {
+		return "", f.actErr
+	}
+	f.owners = append(f.owners, ns+"/"+name+":"+string(act))
+	return publisherActs[act].done(ns + "/" + name), nil
+}
+
+func (f *fakePublisherOps) retirement(string, string, string) (bool, string, error) {
+	return f.retired, f.retiredAs, nil
+}
+
+func (f *fakePublisherOps) versionAction(_, ns, name, version, reason string, withdraw bool) error {
+	if f.actErr != nil {
+		return f.actErr
+	}
+	what := "yank"
+	if withdraw {
+		what = "withdraw"
+	}
+	f.versionActs = append(f.versionActs, ns+"/"+name+"@"+version+":"+what+":"+reason)
+	return nil
 }

@@ -78,6 +78,16 @@ type publisherOps interface {
 	standing(reg, ns, name string) (exists, private bool, err error)
 	// cost is what a submission spends, in a sentence.
 	cost(reg string) string
+	// ownerAction takes one of the Publisher section's owner actions on
+	// ns/name once the person agreed: it asks nothing itself, and answers
+	// the section's done sentence, or its refusal as the error.
+	ownerAction(reg, ns, name string, act publisherAct) (string, error)
+	// retirement is whether ns/name is retired and, when it is, the
+	// visibility Restore gives back ("" when the registry does not say).
+	retirement(reg, ns, name string) (retired bool, visibility string, err error)
+	// versionAction yanks a published version, with its reason, or
+	// withdraws one held for review, once the person agreed.
+	versionAction(reg, ns, name, version, reason string, withdraw bool) error
 	// publish submits the folder dir, once the person agreed: privateTold
 	// is what the dialog said of an existing QuickAgent, createPrivate
 	// creates a missing one private.
@@ -190,6 +200,17 @@ func (m *mainLink) publisherCall(ctx context.Context, tool string, raw json.RawM
 			return "", err
 		}
 		return m.quickAgentRevise(ctx, a.Folder, a.Instructions, strings.TrimSpace(a.Where))
+	case applink.QuickAgentManage:
+		var a struct {
+			Ref     string `json:"ref"`
+			Action  string `json:"action"`
+			Version string `json:"version"`
+			Reason  string `json:"reason"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentManage(a.Ref, strings.TrimSpace(a.Action), strings.TrimSpace(a.Version), strings.TrimSpace(a.Reason))
 	case applink.QuickAgentSubmit:
 		var a struct {
 			Folder string `json:"folder"`
