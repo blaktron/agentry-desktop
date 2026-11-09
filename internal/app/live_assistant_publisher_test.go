@@ -14,6 +14,8 @@ package app
 //	AGENTRY_LIVE_PUBLISHER_NS=<a namespace the sign-in publishes in> \
 //	AGENTRY_LIVE_PUBLISHER_REF=<one of its QuickAgents to fetch, ns/name@version> \
 //	AGENTRY_LIVE_PUBLISHER_REVISE=<one of its QuickAgents to revise In Agentry, ns/name> \
+//	AGENTRY_LIVE_PUBLISHER_MANAGE=<a throwaway private QuickAgent of its, ns/name> \
+//	AGENTRY_LIVE_PUBLISHER_WITHDRAW=<a version of that one held for review, ns/name@version> \
 //	go test -run TestLiveAssistantPublisher -v -timeout 30m ./internal/app
 //
 // The model's key is read from the variable the policy names. The sign-in
@@ -200,6 +202,76 @@ func TestLiveAssistantRevise(t *testing.T) {
 		t.Errorf("%s has %d versions, want %d", target, len(after), len(before)+1)
 	}
 	_ = token
+}
+
+// TestLiveAssistantManage: the Assistant takes each owner action once on a
+// throwaway QuickAgent, each asked in a dialog (answered Yes here and
+// logged): make private, retire, restore (it was private when retired),
+// yank its published version, and withdraw a version held for review.
+// Skipped unless AGENTRY_LIVE_PUBLISHER=1, AGENTRY_LIVE_PUBLISHER_MANAGE
+// names a private QuickAgent in AGENTRY_LIVE_PUBLISHER_NS with a published
+// version, and AGENTRY_LIVE_PUBLISHER_WITHDRAW names one of its versions
+// held for review, as ns/name@version.
+func TestLiveAssistantManage(t *testing.T) {
+	target, held := os.Getenv("AGENTRY_LIVE_PUBLISHER_MANAGE"), os.Getenv("AGENTRY_LIVE_PUBLISHER_WITHDRAW")
+	if os.Getenv("AGENTRY_LIVE_PUBLISHER") != "1" || target == "" || held == "" {
+		t.Skip("changes a QuickAgent on a registry: set AGENTRY_LIVE_PUBLISHER=1, AGENTRY_LIVE_PUBLISHER_MANAGE and AGENTRY_LIVE_PUBLISHER_WITHDRAW (see the file's comment)")
+	}
+	reg, _, _, p, dialogs := liveAssistant(t)
+	ns, name, _ := strings.Cut(target, "/")
+	ops := appPublisherOps{pub: &PublisherAPI{app: &App{ctx: context.Background()}}}
+	vs, err := ops.versions(reg, ns, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published := ""
+	for _, v := range vs {
+		if v.Status == "published" {
+			published = v.Version
+		}
+	}
+	_, heldVersion, _ := strings.Cut(held, "@")
+	for _, ask := range []string{
+		"Use quickagent_manage on " + target + " with the action make_private, then with retire, then with restore. Tell me what each answered.",
+		"Use quickagent_manage on " + target + " to yank version " + published + " with the reason \"A live check of the yank.\", then to withdraw version " + heldVersion + ". Tell me what each answered.",
+	} {
+		if err := p.Send(assistantAgent, ask); err != nil {
+			t.Fatalf("Send: %v", err)
+		}
+	}
+	t.Logf("dialogs: %q", *dialogs)
+	for _, want := range []string{"Make " + target + " private?", "Retire " + target + "?", "Restore " + target + "?", "Yank " + target + "@" + published + "?", "Withdraw " + target + "@" + heldVersion + "?"} {
+		n := 0
+		for _, d := range *dialogs {
+			if strings.Contains(d, " asks: "+want) {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("%q was asked %d times, want once", want, n)
+		}
+	}
+	after, err := ops.versions(reg, ns, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range after {
+		t.Logf("%s@%s: %s", target, v.Version, v.Status)
+		switch v.Version {
+		case published:
+			if v.Status != "yanked" {
+				t.Errorf("%s is %s, want yanked", v.Version, v.Status)
+			}
+		case heldVersion:
+			if v.Status != "withdrawn" {
+				t.Errorf("%s is %s, want withdrawn", v.Version, v.Status)
+			}
+		}
+	}
+	exists, private, err := ops.standing(reg, ns, name)
+	if err != nil || !exists || !private {
+		t.Errorf("%s after restore: exists %v, private %v, %v", target, exists, private, err)
+	}
 }
 
 // liveAssistant signs in to the registry through an in-memory keychain,

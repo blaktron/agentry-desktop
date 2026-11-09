@@ -471,7 +471,14 @@ func (p *PublisherAPI) act(reg, ns, name string, act publisherAct, confirm strin
 		}
 		return nil, err
 	}
+	return p.perform(ctx, client, url, token, ns, name, act, confirm)
+}
 
+// perform makes an owner action's call once the person has agreed, and
+// answers its done sentence or its refusal in the site's words.
+func (p *PublisherAPI) perform(ctx context.Context, client *apiclient.ClientWithResponses, url, token, ns, name string, act publisherAct, confirm string) (*PublisherDone, error) {
+	words := publisherActs[act]
+	ref := ns + "/" + name
 	ans, err := sendOwnerAction(ctx, client, act, ns, name, confirm, false)
 	if err != nil {
 		return nil, errors.New(publisherUnreachable())
