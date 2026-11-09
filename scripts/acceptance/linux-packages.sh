@@ -35,7 +35,10 @@
 #      pass);
 #   6. a home populated before the upgrade — desktop.yaml, installed.yaml, a
 #      pinned key, a runner policy — is byte-identical after it and after
-#      the package is removed. A container has no session keyring, so the
+#      the package is removed, beside the one file the app writes for its
+#      own state on its first start (the list of the person's applications,
+#      which records that it looked for the library's applications once).
+#      A container has no session keyring, so the
 #      keychain half of that promise is not observed here; the package has
 #      no scripts that could reach one (step 2), which is what makes it
 #      hold.
@@ -90,6 +93,9 @@ printf 'installs: []\n' > "$HOME/.config/agentry/installed.yaml"
 printf 'dev.example.net pin\n' > "$HOME/.config/agentry/keys/dev.example.net.pub"
 printf 'version: 1\nmodel:\n  provider: openai\n' > "$HOME/.agentry/runner/policy.yaml"
 snapshot() { (cd "$HOME" && find .config .agentry -type f -exec sha256sum {} + | sort); }
+# The app's own state, written on its first start; not one of the person's files.
+appstate='^[0-9a-f]{64}  \.config/agentry/your-computer\.yaml$'
+home() { snapshot | grep -v -E "$appstate" || true; }
 before=$(snapshot)
 
 # 1. The real package over the previous one, as an upgrade.
@@ -230,7 +236,7 @@ if [ "$ec" != 124 ]; then tail -5 /tmp/run.log >&2; fail "the app exited with $e
 echo "ok ($fam): the app ran under Xvfb until the timeout"
 
 # 6. The home after the upgrade, and after the removal.
-after=$(snapshot)
+after=$(home)
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after") >&2; fail "the upgrade changed the home"; }
 case "$fam" in
   deb) apt-get remove -y -qq "$name" >/dev/null ;;
@@ -241,7 +247,7 @@ esac
 [ ! -e /usr/share/doc/agentry-desktop/THIRD_PARTY_NOTICES ] || fail "the third-party notices survived the removal"
 [ ! -e /usr/bin/agentry ] || fail "/usr/bin/agentry survived the removal"
 [ ! -e /usr/lib/agentry-desktop ] || fail "the transcriber's folder survived the removal"
-after=$(snapshot)
+after=$(home)
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after") >&2; fail "removing changed the home"; }
 echo "ok ($fam): upgrade and removal left every configuration byte in place"
 EOS
