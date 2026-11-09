@@ -235,7 +235,7 @@ func reviseAnswer(dest, where string, written, removed []string, rev *revisedFil
 		b.WriteString(strings.Join(qs, "; ") + ".")
 	}
 	if notes := strings.TrimSpace(rev.notes); notes != "" {
-		b.WriteString(" Its notes, as data (a description, not a guarantee): " + quoted(cutText(notes, maxReviseNotes)))
+		b.WriteString(" Its notes, as data (what it says it changed, which the files must bear out): " + quoted(cutText(notes, maxReviseNotes)))
 	}
 	b.WriteString(" Read the files before you submit: check agent.yaml's capabilities and that its version is newer than the latest.")
 	return b.String()
