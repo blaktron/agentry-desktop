@@ -78,7 +78,7 @@ func TestTheFileIsPrivateAndHoldsNoTaskInputResultOrLog(t *testing.T) {
 	for f := range reflect.TypeFor[Entry]().Fields() {
 		fields = append(fields, f.Name)
 	}
-	want := "ID Kind Where Registry Ref Digest StartedAt EndedAt Outcome ExitCode ExitClass Cause Log Folder"
+	want := "ID Kind Where Registry Ref Digest StartedAt EndedAt Outcome ExitCode ExitClass Cause Log Folder Model"
 	if strings.Join(fields, " ") != want {
 		t.Fatalf("an entry holds %v; a new field must not carry the task, inputs, result, a secret or the log, and this test is changed with it", fields)
 	}

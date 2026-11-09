@@ -63,6 +63,10 @@ type RunhostRequest struct {
 	MaxTurns        int
 	AcceptUnsigned  bool
 	AcceptUnscanned bool
+	// Model is the saved model the run is on, by its id or name, as the run
+	// setup picked it from this computer's; "" is the default. Its
+	// credential alone travels with the job.
+	Model string
 	// CLIVersion is the CLI release this app carries, which the runhost
 	// must run too.
 	CLIVersion string
@@ -142,9 +146,20 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	if err != nil {
 		return nil, ranOn, engine.Classify(engine.ExitPolicy, err)
 	}
-	modelKey, err := remote.ModelKey(pol)
+	// The run carries the saved model the run setup picked, else the
+	// default, with that one's key alone; the job names the saved model, so
+	// the runhost's receipt does.
+	chosen, err := localrun.ChooseRunModel(pol, req.Model, "")
+	if err != nil {
+		return nil, ranOn, err
+	}
+	modelKey, err := remote.ModelKey(chosen.Policy)
 	if err != nil {
 		return nil, ranOn, engine.Classify(engine.ExitPolicy, err)
+	}
+	runModel := job.ModelOf(chosen.Policy.Model)
+	if chosen.Saved.ID != "" {
+		runModel = job.ModelOfSaved(chosen.Policy.Model, chosen.Saved)
 	}
 
 	// The release as it is, held to what was verified here: the same digest,
@@ -216,7 +231,7 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	if run.MaxTurns == 0 {
 		run.MaxTurns = -1
 	}
-	run.Model, run.ModelKey = job.ModelOf(pol.Model), modelKey
+	run.Model, run.ModelKey = runModel, modelKey
 	// The applications on this computer: the run is bound here before
 	// anything is sent, or refused as a run on this computer would be. The
 	// binding is ended on every return but one: a job this app lost goes on

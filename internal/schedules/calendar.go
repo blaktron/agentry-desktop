@@ -43,6 +43,9 @@ type Item struct {
 	Runs       int    `json:"runs,omitempty"`
 	Next       string `json:"next,omitempty"`
 	Last       *Fire  `json:"last,omitempty"`
+	// Model is the id of the saved model each run is on; "" follows the
+	// default.
+	Model string `json:"model,omitempty"`
 	// UnsafeMode: its consents were given in Unsafe Mode, so managed
 	// settings that forbid Unsafe Mode hold its fires.
 	UnsafeMode bool `json:"unsafeMode,omitempty"`
@@ -120,7 +123,7 @@ func (st Store) List(now time.Time) ([]Item, error) {
 			ID: sc.ID, Name: sc.Name, Ref: sc.Ref, Version: sc.Version, Registry: sc.Registry, Local: sc.Local != "",
 			Describe: sc.When.Describe(), When: whenOf(sc.When), OutDir: sc.Run.OutDir, Paused: sc.Paused,
 			Ended: state.Ended || sc.When.Remaining(state.Runs) == 0, SignedOut: sc.SignedOut, Runs: state.Runs,
-			UnsafeMode: sc.Run.UnsafeMode,
+			Model: sc.Run.Model, UnsafeMode: sc.Run.UnsafeMode,
 		}
 		if sc.SignedOut {
 			if p, err := st.s.CredentialPath(sc.ID); err == nil {

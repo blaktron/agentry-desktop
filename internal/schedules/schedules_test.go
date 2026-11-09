@@ -453,3 +453,37 @@ func TestAddArgsOnARunhost(t *testing.T) {
 		t.Fatalf("said %q", got)
 	}
 }
+
+// A schedule names its saved model by id with --model, here or on a
+// runhost; none follows the default. An edit moves it, or puts it back on
+// the default with an empty value. Anything not shaped as a saved model's
+// id is refused before the command runs.
+func TestAScheduleNamesItsSavedModel(t *testing.T) {
+	r := Request{Ref: "acme/digest@1.2.0", OutDir: "/home/p/out", MaxTurns: -1, When: When{Kind: "daily", Time: "09:00"}, Model: "a1b2c3d4"}
+	got, err := r.AddArgs()
+	if err != nil || !slices.Contains(got, "--model") || got[slices.Index(got, "--model")+1] != "a1b2c3d4" {
+		t.Fatalf("args %q (%v)", got, err)
+	}
+	r.On, r.OutDir, r.Model = "lab", "", "default"
+	if got, err := r.AddArgs(); err != nil || got[slices.Index(got, "--model")+1] != "default" {
+		t.Fatalf("on a runhost %q (%v)", got, err)
+	}
+	r.Model = ""
+	if got, _ := r.AddArgs(); slices.Contains(got, "--model") {
+		t.Fatalf("no model named %q", got)
+	}
+	r.Model = "--yes"
+	if _, err := r.AddArgs(); err == nil {
+		t.Fatal("a flag was taken for a model's id")
+	}
+	id, none, bad := "a1b2c3d4", "", "Qwen 3"
+	if got, err := (Edit{Model: &id}).EditArgs("abcdef0123"); err != nil || !slices.Contains(got, "--model=a1b2c3d4") {
+		t.Fatalf("edit %q (%v)", got, err)
+	}
+	if got, err := (Edit{Model: &none}).EditArgs("abcdef0123"); err != nil || !slices.Contains(got, "--model=") {
+		t.Fatalf("back to the default %q (%v)", got, err)
+	}
+	if _, err := (Edit{Model: &bad}).EditArgs("abcdef0123"); err == nil {
+		t.Fatal("a name was taken for an id")
+	}
+}

@@ -17,6 +17,13 @@ func (r *RunAPI) SavedModels() (*run.ModelsList, error) {
 	return run.ListSavedModels()
 }
 
+// ModelChoices are the saved models a Model dropdown offers (run setup, the
+// schedule form, a persistent agent's settings): the default it starts on,
+// and each model with why a run on it would be refused on this computer now.
+func (r *RunAPI) ModelChoices() (*run.ModelChoices, error) {
+	return run.ListModelChoices()
+}
+
 // ProviderModels asks the provider id which models it offers, for the model
 // field; a list it cannot give is said, and the id can be typed.
 func (r *RunAPI) ProviderModels(id string) (*run.ProviderModels, error) {

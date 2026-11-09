@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
-import { agentCardHint, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
+import { agentCardHint, agentModelLine, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
 import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
 import { Button } from "../../ui";
 import { AgentTermBlocks } from "../AgentTerm";
+import { AgentConfigModal } from "../SettingsPersistentAgents";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
 // small. It runs the agent the person gave it, here in its switcher, in
@@ -15,9 +16,12 @@ import { AgentTermBlocks } from "../AgentTerm";
 // the agent's state and its last lines and starts nothing: its containers
 // start when the person sends the first message, which says "Starting…"
 // meanwhile. Without a model set up it says so and links to Settings →
-// Provider. The chat is the agents' store's, so it goes on while the person
-// is on another page.
-export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
+// Provider; with saved models it names the one the agent runs on, and
+// that line opens the agent's settings on its Model list. The chat is the
+// agents' store's, so it goes on while the person is on another page.
+export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel }: {
+  // The registry the app is on, for the agent's settings.
+  registry: string;
   // Agentry Helper's title: the Agents page, where it is listed.
   onOpenSettings: () => void;
   // Any other agent's title: its own page.
@@ -35,6 +39,8 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
   const [picking, setPicking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The agent's settings, opened from its model line.
+  const [configuring, setConfiguring] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const blocks = termBlocks(rec.chat);
   const inBackground = runningInBackground(blocks);
@@ -128,6 +134,13 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
             Set up a model to talk to {called}. <Button variant="link" onClick={onSetUpModel}>Settings → Provider</Button>
           </p>
         )}
+        {agent && agentModelLine(agent.model) && (
+          <p className="small muted main-card-model" data-home-agent-model={name}>
+            <Button variant="link" onClick={() => setConfiguring(true)} title={`Choose the model ${called} runs on`}>
+              {agentModelLine(agent.model)}
+            </Button>
+          </p>
+        )}
         {elsewhere && <p className="small muted">{called} is running in {agent?.holder || "another client"}; you can talk to it here.</p>}
         {(error || rec.error) && <p className="small agent-term-warn" role="alert">{error || rec.error}</p>}
         <form
@@ -155,6 +168,7 @@ export function AgentCard({ onOpenSettings, onOpenAgent, onSetUpModel }: {
           )}
         </form>
       </div>
+      {configuring && <AgentConfigModal name={name} registry={registry} onClose={() => setConfiguring(false)} />}
     </CardFrame>
   );
 }

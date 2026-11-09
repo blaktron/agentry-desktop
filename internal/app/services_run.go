@@ -232,7 +232,7 @@ func eventView(ev session.Event) SessionEventView {
 // of the person's turns, and its one limit is Run defaults' Chat idle
 // timeout, none by default, which Go reads here from desktop.yaml. maxTurns
 // is the tool-call budget, as a run's: -1 keeps the policy's, 0 lifts it.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign string) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
 		return nil, err
@@ -286,6 +286,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		RunID:                  live.id,
 		InFlightDir:            r.inFlightDir(),
 		Registry:               reg,
+		Model:                  model,
 		Ref:                    ref,
 		Task:                   task,
 		InputPaths:             inputPaths,
@@ -1112,6 +1113,9 @@ type RunResultView struct {
 	RetryLikelyHelps bool            `json:"retryLikelyHelps,omitempty"`
 	Stage            string          `json:"stage,omitempty"`
 	Reason           *receipt.Reason `json:"reason,omitempty"`
+	// SavedModel is the saved model the run was on, as its receipt names
+	// it; omitted for a run on a policy with no saved model.
+	SavedModel *receipt.SavedModel `json:"savedModel,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -1131,8 +1135,8 @@ type RunResultView struct {
 // sourceTokens are access tokens for this run's input sources, by question
 // id: each reaches that source's fetch step alone, and a source given none
 // uses the key saved for its host (services_sources.go).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign string) (*RunResultView, error) {
-	return r.runAgent(runHooks{}, reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign)
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
+	return r.runAgent(runHooks{}, reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign, model)
 }
 
 // runHooks are what a run Go starts on its own behalf (Main's) needs that a
@@ -1154,7 +1158,7 @@ type runHooks struct {
 }
 
 // runAgent is RunAgent with its hooks.
-func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign string) (*RunResultView, error) {
+func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -1252,6 +1256,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 		RunID:              live.id,
 		InFlightDir:        r.inFlightDir(),
 		Registry:           reg,
+		Model:              model,
 		Ref:                ref,
 		Task:               task,
 		InputPaths:         inputPaths,
@@ -1319,6 +1324,7 @@ func runResultView(res *run.Result) *RunResultView {
 		ExitClass:        res.ExitClass,
 		Stage:            res.Stage,
 		Reason:           res.Reason,
+		SavedModel:       res.SavedModel,
 	}
 	if res.Unsafe {
 		v.UnsafeExec = res.Exec

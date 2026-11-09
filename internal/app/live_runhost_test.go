@@ -84,7 +84,7 @@ func TestLiveRunhostFromTheApp(t *testing.T) {
 	// The output folder as the native picker would have returned it.
 	out := filepath.Join(t.TempDir(), "out")
 	app.markPicked(out)
-	res, err := run.RunOnRunhost("lab", reg, ref, "Write the report the release asks for.", nil, out, 0, -1, false, nil, false)
+	res, err := run.RunOnRunhost("lab", reg, ref, "Write the report the release asks for.", nil, out, 0, -1, false, nil, false, "")
 	if err != nil {
 		t.Fatalf("run on lab: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestLiveRunhostCreditsFromTheApp(t *testing.T) {
 
 	out := filepath.Join(t.TempDir(), "out")
 	app.markPicked(out)
-	res, err := run.RunOnRunhost("lab", reg, ref, "Write the report the release asks for.", nil, out, 0, -1, false, nil, false)
+	res, err := run.RunOnRunhost("lab", reg, ref, "Write the report the release asks for.", nil, out, 0, -1, false, nil, false, "")
 	if err != nil {
 		t.Fatalf("run on lab: %v", err)
 	}

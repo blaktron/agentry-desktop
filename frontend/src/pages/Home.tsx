@@ -351,7 +351,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
     // The agent card is drawn while an agent it can show is on.
-    ...(agentDrawn ? { main: () => <AgentCard onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} /> } : {}),
+    ...(agentDrawn ? { main: () => <AgentCard registry={registry} onOpenSettings={open.persistentAgents} onOpenAgent={open.persistentAgent} onSetUpModel={open.provider} /> } : {}),
     deliverables: () => (
       <DeliverablesCard view={deliverables.value} error={deliverables.error} onRetry={retry("deliverables")} now={new Date()} onOpenSettings={open.deliverables} />
     ),

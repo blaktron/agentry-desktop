@@ -193,3 +193,30 @@ function joinAnd(items: string[]): string {
 function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** A runhost's record of the saved models it holds, as this computer last
+ *  read it (runhost.ModelRecord); null before it was first asked. */
+export interface RunhostModels { name: string; models?: { id: string; name: string; default?: boolean }[] | null }
+
+/** Where a saved model is available: each runhost, whether it holds the
+ *  model (by its id, which a runhost keeps), and whether that is the
+ *  runhost's default. unknown: the runhost has not been asked yet. */
+export function availableOn(modelId: string, runhosts: RunhostModels[]): { runhost: string; holds: boolean; isDefault: boolean; unknown: boolean }[] {
+  return runhosts.map((r) => {
+    const held = (r.models ?? []).find((m) => m.id === modelId);
+    return { runhost: r.name, holds: !!held, isDefault: !!held?.default, unknown: r.models == null };
+  });
+}
+
+/** The "Available on" line of a saved model: the runhosts that hold it, or
+ *  that none does. */
+export function availableLine(modelId: string, runhosts: RunhostModels[]): string {
+  const on = availableOn(modelId, runhosts).filter((a) => a.holds).map((a) => a.isDefault ? `${a.runhost} (its default)` : a.runhost);
+  return on.length ? `Available on ${on.join(", ")}.` : "Available on this computer only.";
+}
+
+/** The saved models a removal from a runhost may move what names it to:
+ *  the runhost's others. */
+export function runhostMoveTargets(modelId: string, runhost: RunhostModels): { id: string; name: string }[] {
+  return (runhost.models ?? []).filter((m) => m.id !== modelId).map((m) => ({ id: m.id, name: m.name }));
+}

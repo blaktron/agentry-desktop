@@ -294,6 +294,12 @@ export function LocalRunDetails({ result, log }: { result: app.RunResultView; lo
             <span><strong className="mono">{result.ranOn.name}</strong> <span className="muted small">{result.ranOn.host}, host key {result.ranOn.fingerprint}</span></span>
           </div>
         )}
+        {result.savedModel && (
+          <div className="kv" data-run-saved-model={result.savedModel.id}>
+            <span className="k">model</span>
+            <span><strong>{result.savedModel.name}</strong> <span className="muted small">the saved model the receipt names</span></span>
+          </div>
+        )}
         <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
         <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
         <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>

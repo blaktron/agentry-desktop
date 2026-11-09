@@ -478,6 +478,11 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 	} else if err := s.app.requireOutputDir(req.OutDir); err != nil {
 		return err
 	}
+	if req.Model != "" {
+		if err := s.needsCLI(schedules.MinSavedModelCLI, "a schedule on a saved model"); err != nil {
+			return err
+		}
+	}
 	if req.AllowVulnerableMCP && !unsafe {
 		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or schedule a release that pins a fixed version")
 	}
@@ -490,6 +495,25 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 		defer cancel()
 		return c.Version(ctx)
 	})
+}
+
+// needsCLI refuses, naming what, when the installed agentry is older than
+// min.
+func (s *ScheduleAPI) needsCLI(min [3]int, what string) error {
+	c, err := s.cli()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(s.ctx(), cliTimeout)
+	line, err := c.Version(ctx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("the agentry command did not answer: %w", err)
+	}
+	if why := schedules.OlderThan(line, min, what); why != "" {
+		return errors.New(why)
+	}
+	return nil
 }
 
 // markInUnsafeMode marks a schedule whose consent is an Unsafe Mode one
@@ -738,6 +762,13 @@ func (s *ScheduleAPI) Edit(id string, e schedules.Edit) error {
 	c, err := s.cli()
 	if err != nil {
 		return err
+	}
+	if e.Model != nil {
+		// A moved schedule's next run is on the new model, with nothing new
+		// to agree to: the model is the person's own choice on their computer.
+		if err := s.needsCLI(schedules.MinSavedModelCLI, "moving a schedule to a saved model"); err != nil {
+			return err
+		}
 	}
 	yes := false
 	if e.SignedOut != nil && *e.SignedOut && !s.lingers() {

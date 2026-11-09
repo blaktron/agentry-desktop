@@ -162,6 +162,8 @@ export type RunForm = {
   /** The id of the report design the run's PDFs take, "" for the
    *  account's default. */
   reportDesign: string;
+  /** The id of the saved model the run is on, "" for the default. */
+  model?: string;
 };
 
 /** What the run setup does with a declared MCP server the registry's gate

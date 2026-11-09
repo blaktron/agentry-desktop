@@ -422,6 +422,11 @@ type Request struct {
 	// in the run setup puts one here; none sends nowhere, and a QuickAgent's
 	// default set is the setup's to preselect, not the engine's to apply.
 	Destinations []string
+	// Model is the saved model the run is on, by its id or name, as the run
+	// setup's Model list picked it; "" is the default. A model this computer
+	// does not keep, or whose key or sign-in is not here, refuses the run by
+	// its name (exit 11); it never runs on the default instead.
+	Model string
 	// KeepProfile overrides the completion choice (nil = stored profile,
 	// else the policy default).
 	KeepProfile *bool
@@ -556,6 +561,9 @@ type Result struct {
 	ExitClass string
 	Stage     string
 	Reason    *receipt.Reason
+	// SavedModel is the saved model the run was on, as its receipt names
+	// it; nil for a run on a policy with no saved model.
+	SavedModel *receipt.SavedModel
 }
 
 // Run executes the whole lifecycle for one registry release. Progress and
@@ -622,10 +630,20 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
-	pol, polSHA, err := policy.EnsureDefault(polFile.Path)
+	full, polSHA, err := policy.EnsureDefault(polFile.Path)
 	if err != nil {
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
+	// The saved model the run is on, the one the run setup picked or the
+	// default: the run compiles from the policy as that model reads, and
+	// from nothing of another provider's. A picked model the computer lacks,
+	// or whose key or sign-in is not here, is refused by its name before
+	// anything is installed; nothing falls back to the default.
+	chosen, err := chooseModel(home, full, req.Model)
+	if err != nil {
+		return nil, err
+	}
+	pol := chosen.Policy
 
 	sig, err := resolveForRun(ctx, req.Registry, req.Ref, true)
 	if err != nil {
@@ -656,9 +674,10 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// desktop runs share one consent history.
 	recordCapabilities(m, meta, home, logw)
 
-	// The harness model setup needs (adapter.DefaultFor): docker-agent for a
-	// key, the Codex, Claude Code or Copilot CLI image for a model sign-in.
-	adapterName := adapter.DefaultFor(pol)
+	// The harness the saved model's credential takes (adapter.DefaultFor
+	// on its view): docker-agent for a key, the Codex, Claude Code or
+	// Copilot CLI image for a model sign-in.
+	adapterName := chosen.Adapter
 	ad, err := adapter.Get(adapterName)
 	if err != nil {
 		return nil, err
@@ -1016,6 +1035,7 @@ func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 		ExitClass:        receipt.ExitClassName(env.ExitCode),
 		Stage:            env.Stage,
 		Reason:           env.Reason,
+		SavedModel:       env.Harness.SavedModel,
 	}
 }
 
@@ -1249,6 +1269,7 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 			plan.Digest == meta.Digest &&
 			plan.PolicySHA256 == polSHA &&
 			plan.Harness.Adapter == adapterName &&
+			reflect.DeepEqual(plan.Harness.SavedModel, compile.SavedModelOf(pol)) &&
 			reflect.DeepEqual(plan.MCPServers, serverSpecs) {
 			switch {
 			case plan.CompiledBy != version.Build():

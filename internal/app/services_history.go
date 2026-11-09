@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/examiner"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -113,6 +114,9 @@ func recordLocal(ctx context.Context, app *App, kind string, l *liveRun, ref str
 		}
 		e.Digest = res.Digest
 		e.Folder = cleanAbs(res.OutDir)
+		if res.SavedModel != nil {
+			e.Model = res.SavedModel.Name
+		}
 		if res.Status != "ok" {
 			e.ExitClass, e.Cause = res.ExitClass, res.Error
 		}
@@ -350,8 +354,29 @@ func fireEntry(f schedules.Fire) runhistory.Entry {
 	// is not offered.
 	if filepath.IsAbs(f.OutDir) && filepath.Clean(f.OutDir) == f.OutDir {
 		e.Folder = f.OutDir
+		e.Model = savedModelIn(f.OutDir)
 	}
 	return e
+}
+
+// savedModelIn is the name of the saved model the run whose folder is dir
+// was on, as its receipt (result.json) names it; "" when it names none or
+// cannot be read.
+func savedModelIn(dir string) string {
+	f, err := os.Open(filepath.Join(dir, "result.json"))
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	var env struct {
+		Harness struct {
+			SavedModel *receipt.SavedModel `json:"savedModel"`
+		} `json:"harness"`
+	}
+	if err := json.NewDecoder(io.LimitReader(f, maxResultBytes)).Decode(&env); err != nil || env.Harness.SavedModel == nil {
+		return ""
+	}
+	return env.Harness.SavedModel.Name
 }
 
 // scheduledRows is the runs schedules on this computer fired, as Recent
@@ -423,6 +448,9 @@ type RecentRunView struct {
 	// Schedule is that schedule's name.
 	Scheduled bool   `json:"scheduled,omitempty"`
 	Schedule  string `json:"schedule,omitempty"`
+	// Model is the name of the saved model a run here was on, as its
+	// receipt named it; omitted when it named none.
+	Model string `json:"model,omitempty"`
 }
 
 // RecentRunsView is Home's Recent runs.
@@ -455,7 +483,7 @@ func entryView(e runhistory.Entry) RecentRunView {
 		ID: e.ID, Kind: e.Kind, Where: e.Where, Registry: e.Registry, Ref: e.Ref,
 		StartedAt: rfc3339(e.StartedAt), EndedAt: rfc3339(e.EndedAt),
 		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Cause: e.Cause, LogKept: e.Log != "",
-		Kept: e.Folder != "", Source: sourceLocal,
+		Kept: e.Folder != "", Source: sourceLocal, Model: e.Model,
 	}
 	if e.Where == runhistory.WhereAgentry {
 		h := &hostedrun.Run{Status: hostedrun.StatusFinished, Outcome: e.Outcome}

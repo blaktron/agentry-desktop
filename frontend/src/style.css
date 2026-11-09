@@ -2000,3 +2000,6 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .saved-model-star.on { color: var(--color-accent); }
 .saved-model-fix { color: var(--color-sev-medium); }
 .saved-models-count { margin: 0; padding: 10px 16px; border-top: 1px solid var(--color-border); }
+/* A Model dropdown's greyed saved models, each with its reason. */
+.model-greyed { margin: 4px 0 0; padding-left: 18px; }
+.run-model, .agent-model { margin: 8px 0; }

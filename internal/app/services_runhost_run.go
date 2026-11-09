@@ -13,7 +13,7 @@ import (
 // queue, the same run log, and the result opened into the same output folder,
 // naming the runhost it ran on. What a run from the app does not carry to a
 // runhost yet is refused before anything is sent (run.RunhostCannotCarry).
-func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, outDir string, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, acceptUnscanned bool) (*RunResultView, error) {
+func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, outDir string, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, acceptUnscanned bool, model string) (*RunResultView, error) {
 	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, false, acceptUnscanned, false); err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, 
 	res, ranOn, err := r.runOnRunhost(ctx, run.RunhostRequest{
 		Runhost: name, Registry: reg, Ref: ref, Task: task, InputPaths: inputPaths, Intake: intakeAnswers,
 		OutDir: outDir, OutDirIsRoot: isSavedOutputDir(outDir), TimeoutSeconds: timeoutSec, MaxTurns: maxTurns,
-		AcceptUnsigned: acceptUnsigned, AcceptUnscanned: acceptUnscanned, CLIVersion: carriedCLIVersion(), Say: say,
+		AcceptUnsigned: acceptUnsigned, AcceptUnscanned: acceptUnscanned, CLIVersion: carriedCLIVersion(), Say: say, Model: model,
 		BindDesktop: r.bindDesktop,
 	}, logw)
 	recordLocal(ctx, r.app, runhistory.KindRun, live, ref, res, err)

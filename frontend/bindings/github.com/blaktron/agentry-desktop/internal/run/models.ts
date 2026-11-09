@@ -319,6 +319,94 @@ export class Managed {
 }
 
 /**
+ * ModelChoice is one saved model as a Model dropdown offers it.
+ */
+export class ModelChoice {
+    "id": string;
+    "name": string;
+    "provider": string;
+    "model": string;
+    "default": boolean;
+
+    /**
+     * Code is why it cannot be used now: savedmodels' key-missing or
+     * needs-sign-in, or cost-budget; empty when it can.
+     */
+    "code"?: string;
+
+    /**
+     * Refusal is that reason in a sentence.
+     */
+    "refusal"?: string;
+
+    /** Creates a new ModelChoice instance. */
+    constructor($$source: Partial<ModelChoice> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("default" in $$source)) {
+            this["default"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelChoice instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelChoice {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ModelChoice($$parsedSource as Partial<ModelChoice>);
+    }
+}
+
+/**
+ * ModelChoices are a computer's saved models as its dropdowns offer them.
+ */
+export class ModelChoices {
+    /**
+     * Default is the default saved model, which an empty pick follows;
+     * nil when the computer keeps none a person chose.
+     */
+    "default"?: ModelChoice | null;
+    "models": ModelChoice[];
+
+    /** Creates a new ModelChoices instance. */
+    constructor($$source: Partial<ModelChoices> = {}) {
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelChoices instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelChoices {
+        const $$createField0_0 = $$createType2;
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("default" in $$parsedSource) {
+            $$parsedSource["default"] = $$createField0_0($$parsedSource["default"]);
+        }
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField1_0($$parsedSource["models"]);
+        }
+        return new ModelChoices($$parsedSource as Partial<ModelChoices>);
+    }
+}
+
+/**
  * ModelDraft is a saved model as the page sends it to be saved.
  */
 export class ModelDraft {
@@ -365,6 +453,66 @@ export class ModelDraft {
     static createFrom($$source: any = {}): ModelDraft {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ModelDraft($$parsedSource as Partial<ModelDraft>);
+    }
+}
+
+/**
+ * ModelInUse is the saved model something runs on, as its setting shows
+ * it: one it names, or the default it follows.
+ */
+export class ModelInUse {
+    /**
+     * ID is the saved model it names; "" when it follows the default.
+     */
+    "id": string;
+
+    /**
+     * Name, Provider and Model are the saved model it runs on now.
+     */
+    "name": string;
+    "provider": string;
+    "model": string;
+
+    /**
+     * FollowsDefault says it names none and runs on the default.
+     */
+    "followsDefault": boolean;
+
+    /**
+     * Code and Refusal say why a turn or a run on it is refused now:
+     * missing (the computer no longer keeps the saved model it names), or
+     * a ModelChoice's code.
+     */
+    "code"?: string;
+    "refusal"?: string;
+
+    /** Creates a new ModelInUse instance. */
+    constructor($$source: Partial<ModelInUse> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("provider" in $$source)) {
+            this["provider"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("followsDefault" in $$source)) {
+            this["followsDefault"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelInUse instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelInUse {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ModelInUse($$parsedSource as Partial<ModelInUse>);
     }
 }
 
@@ -496,8 +644,8 @@ export class ModelsList {
      * Creates a new ModelsList instance from a string or object.
      */
     static createFrom($$source: any = {}): ModelsList {
-        const $$createField0_0 = $$createType2;
-        const $$createField1_0 = $$createType4;
+        const $$createField0_0 = $$createType5;
+        const $$createField1_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("providers" in $$parsedSource) {
             $$parsedSource["providers"] = $$createField0_0($$parsedSource["providers"]);
@@ -756,7 +904,7 @@ export class ProviderModels {
      * Creates a new ProviderModels instance from a string or object.
      */
     static createFrom($$source: any = {}): ProviderModels {
-        const $$createField0_0 = $$createType6;
+        const $$createField0_0 = $$createType9;
         const $$createField1_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("models" in $$parsedSource) {
@@ -871,7 +1019,7 @@ export class ReleaseConnections {
      * Creates a new ReleaseConnections instance from a string or object.
      */
     static createFrom($$source: any = {}): ReleaseConnections {
-        const $$createField2_0 = $$createType8;
+        const $$createField2_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("servers" in $$parsedSource) {
             $$parsedSource["servers"] = $$createField2_0($$parsedSource["servers"]);
@@ -917,8 +1065,8 @@ export class Removed {
      */
     static createFrom($$source: any = {}): Removed {
         const $$createField0_0 = $$createType0;
-        const $$createField1_0 = $$createType10;
-        const $$createField3_0 = $$createType10;
+        const $$createField1_0 = $$createType13;
+        const $$createField3_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("removed" in $$parsedSource) {
             $$parsedSource["removed"] = $$createField0_0($$parsedSource["removed"]);
@@ -976,8 +1124,8 @@ export class SaveResult {
      * Creates a new SaveResult instance from a string or object.
      */
     static createFrom($$source: any = {}): SaveResult {
-        const $$createField0_0 = $$createType11;
-        const $$createField1_0 = $$createType13;
+        const $$createField0_0 = $$createType14;
+        const $$createField1_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("saved" in $$parsedSource) {
             $$parsedSource["saved"] = $$createField0_0($$parsedSource["saved"]);
@@ -1033,7 +1181,7 @@ export class SavedModel {
      * Creates a new SavedModel instance from a string or object.
      */
     static createFrom($$source: any = {}): SavedModel {
-        const $$createField6_0 = $$createType10;
+        const $$createField6_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("users" in $$parsedSource) {
             $$parsedSource["users"] = $$createField6_0($$parsedSource["users"]);
@@ -1261,16 +1409,19 @@ export class WindowsEngine {
 
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = Provider.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = SavedModel.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = ListedModel.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = ServerConnection.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = savedmodels$0.User.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $Create.Nullable($$createType3);
-const $$createType12 = Refusal.createFrom;
-const $$createType13 = $Create.Nullable($$createType12);
+const $$createType1 = ModelChoice.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = $Create.Array($$createType1);
+const $$createType4 = Provider.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = SavedModel.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = ListedModel.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = ServerConnection.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = savedmodels$0.User.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $Create.Nullable($$createType6);
+const $$createType15 = Refusal.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
