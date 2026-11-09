@@ -3,9 +3,9 @@
     {
       "version": "0.7.32",
       "highlights": [
-        "The Assistant can list the QuickAgents you publish and say where each of their versions stands.",
-        "The Assistant can copy one of your QuickAgents into its share folder to read and work on.",
-        "It reads them with your sign-in, which it never sees, and only in your namespace and your organizations'.",
+        "The Assistant can list the QuickAgents you publish, say where each version stands, and copy one to work on.",
+        "It can fork a public QuickAgent, submit new versions, and create new private ones, asking you each time.",
+        "Before a submission, Agentry shows you the files and the capabilities that changed, and who receives it.",
         "Your organization's managed settings now also hold runs In Agentry, bug reports and the choices in Settings."
       ]
     },
