@@ -180,6 +180,16 @@ func (m *mainLink) publisherCall(ctx context.Context, tool string, raw json.RawM
 			return "", err
 		}
 		return m.quickAgentFork(a.Ref, a.Into, a.Name)
+	case applink.QuickAgentRevise:
+		var a struct {
+			Folder       string `json:"folder"`
+			Instructions string `json:"instructions"`
+			Where        string `json:"where"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentRevise(ctx, a.Folder, a.Instructions, strings.TrimSpace(a.Where))
 	case applink.QuickAgentSubmit:
 		var a struct {
 			Folder string `json:"folder"`

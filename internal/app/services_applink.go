@@ -135,6 +135,9 @@ type mainLink struct {
 	// where its fetches are kept; nil where this link answers none of them.
 	publisher   publisherOps
 	fetchedPath func() (string, error)
+	// reviser has the Drafter revise a QuickAgent's folder for
+	// quickagent_revise; nil where this link answers it not.
+	reviser reviserOps
 	// forkFollow bounds how long a fork's copy is followed; zero is
 	// forkWait.
 	forkFollow time.Duration
