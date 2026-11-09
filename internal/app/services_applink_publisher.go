@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -39,6 +41,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/runnerimage/applink"
 
+	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -64,17 +67,38 @@ type publisherOps interface {
 	// fetch downloads ref's archive, holds it to the registry's digest and
 	// unpacks it into a folder of its own, which the caller removes.
 	fetch(ctx context.Context, reg, ref string) (*fetchedRelease, error)
+	// fork forks ns/name into target, as newName ("" keeps the name),
+	// once the person agreed: it asks nothing itself.
+	fork(reg, ns, name, target, newName string) (*ForkView, error)
+	// forkState is a fork's copy: copying, ready or failed; "" for a
+	// QuickAgent that is not a fork.
+	forkState(reg, ns, name string) (string, error)
+	// standing is whether ns/name exists, and whether it is private.
+	standing(reg, ns, name string) (exists, private bool, err error)
+	// cost is what a submission spends, in a sentence.
+	cost(reg string) string
+	// publish submits the folder dir, once the person agreed: privateTold
+	// is what the dialog said of an existing QuickAgent, createPrivate
+	// creates a missing one private.
+	publish(ctx context.Context, reg, dir string, privateTold, createPrivate bool) (*build.PublishResult, error)
 }
 
-// publisherAccount is the signed-in person: their handle and the handles of
-// the organizations they are an active member of.
+// publisherAccount is the signed-in person: their handle, the handles of
+// the organizations they are an active member of, and of those the ones
+// they publish for (as an admin or a member; a security reviewer
+// publishes nothing).
 type publisherAccount struct {
-	handle string
-	orgs   []string
+	handle      string
+	orgs        []string
+	publishOrgs []string
 }
 
 // namespaces are the person's own namespace, then their organizations'.
 func (a *publisherAccount) namespaces() []string { return append([]string{a.handle}, a.orgs...) }
+
+// publishes are the namespaces a fork or a submission may go into: the
+// person's own, then the organizations they publish for.
+func (a *publisherAccount) publishes() []string { return append([]string{a.handle}, a.publishOrgs...) }
 
 // fetchedRelease is a release as fetch unpacked it.
 type fetchedRelease struct {
@@ -145,6 +169,24 @@ func (m *mainLink) publisherCall(ctx context.Context, tool string, raw json.RawM
 			return "", err
 		}
 		return m.quickAgentFetch(ctx, a.Ref)
+	case applink.QuickAgentFork:
+		var a struct {
+			Ref  string `json:"ref"`
+			Into string `json:"into"`
+			Name string `json:"name"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentFork(a.Ref, a.Into, a.Name)
+	case applink.QuickAgentSubmit:
+		var a struct {
+			Folder string `json:"folder"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentSubmit(ctx, a.Folder)
 	}
 	return "", fmt.Errorf("this version of Agentry Desktop does not answer %s yet", tool)
 }
@@ -504,8 +546,70 @@ func (o appPublisherOps) account(reg string) (*publisherAccount, error) {
 	out := &publisherAccount{handle: acct.handle}
 	for _, mb := range acct.orgs {
 		out.orgs = append(out.orgs, mb.handle)
+		if mb.role == "admin" || mb.role == "member" {
+			out.publishOrgs = append(out.publishOrgs, mb.handle)
+		}
 	}
 	return out, nil
+}
+
+func (o appPublisherOps) fork(reg, ns, name, target, newName string) (*ForkView, error) {
+	// The person was asked by the agent's own dialog, which named it.
+	return o.pub.fork(reg, ns, name, target, newName, func(string, string) error { return nil })
+}
+
+func (o appPublisherOps) forkState(reg, ns, name string) (string, error) {
+	client, regURL, token, err := o.client(reg)
+	if err != nil {
+		return "", err
+	}
+	res, err := client.GetAgentWithResponse(o.pub.ctx(), ns, name)
+	if err != nil {
+		return "", withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
+	}
+	if res.JSON200 == nil {
+		return "", withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
+	}
+	if res.JSON200.ForkState == nil {
+		return "", nil
+	}
+	return string(*res.JSON200.ForkState), nil
+}
+
+func (o appPublisherOps) standing(reg, ns, name string) (bool, bool, error) {
+	client, regURL, token, err := o.client(reg)
+	if err != nil {
+		return false, false, err
+	}
+	res, err := client.GetAgentWithResponse(o.pub.ctx(), ns, name)
+	if err != nil {
+		return false, false, withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
+	}
+	switch {
+	case res.StatusCode() == http.StatusNotFound:
+		return false, false, nil
+	case res.JSON200 == nil:
+		return false, false, withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
+	}
+	return true, res.JSON200.Visibility == apiclient.AgentVisibilityPrivate, nil
+}
+
+func (o appPublisherOps) cost(reg string) string {
+	regURL, token, err := storedCredential(reg)
+	if err != nil {
+		return submissionCostLine(nil, errSignedOut)
+	}
+	sub, subErr := fetchSubscriptionStrictly(o.pub.ctx(), regURL, token)
+	return submissionCostLine(sub, withoutToken(subErr, token))
+}
+
+func (o appPublisherOps) publish(ctx context.Context, reg, dir string, privateTold, createPrivate bool) (*build.PublishResult, error) {
+	regURL, token, err := storedCredential(reg)
+	if err != nil {
+		return nil, errSignedOut
+	}
+	res, err := build.PublishWith(ctx, regURL, token, dir, privateTold, build.PublishOptions{CreatePrivate: createPrivate}, io.Discard)
+	return res, withoutToken(err, token)
 }
 
 func (o appPublisherOps) list(reg, ns, query string) ([]PublisherAgent, error) {

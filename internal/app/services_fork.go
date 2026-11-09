@@ -63,8 +63,20 @@ func (p *PublisherAPI) ForkTargets(reg string) ([]string, error) {
 }
 
 // Fork forks ns/name into target, as newName when it is not "" (else the
-// origin's name).
+// origin's name), after the native dialog.
 func (p *PublisherAPI) Fork(reg, ns, name, target, newName string) (*ForkView, error) {
+	return p.fork(reg, ns, name, target, newName, func(origin, fork string) error {
+		if p.app == nil {
+			return errors.New("no confirmation dialog is available; refusing")
+		}
+		return p.app.askConsent("Fork "+origin+" into "+fork+"?", strings.Join(forkTerms, "\n\n"))
+	})
+}
+
+// fork is Fork with the question asked by ask, given the origin's and the
+// fork's references, before anything is sent: a No (errNotConfirmed)
+// sends nothing.
+func (p *PublisherAPI) fork(reg, ns, name, target, newName string, ask func(origin, fork string) error) (*ForkView, error) {
 	if !manifest.ValidNamespace(ns) || !manifest.ValidName(name) {
 		return nil, fmt.Errorf("%q is not a QuickAgent's name", ns+"/"+name)
 	}
@@ -87,11 +99,8 @@ func (p *PublisherAPI) Fork(reg, ns, name, target, newName string) (*ForkView, e
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	if p.app == nil {
-		return nil, errors.New("no confirmation dialog is available; refusing")
-	}
 	origin, fork := ns+"/"+name, target+"/"+forkName
-	if err := p.app.askConsent("Fork "+origin+" into "+fork+"?", strings.Join(forkTerms, "\n\n")); err != nil {
+	if err := ask(origin, fork); err != nil {
 		if errors.Is(err, errNotConfirmed) {
 			return &ForkView{Cancelled: true}, nil
 		}
