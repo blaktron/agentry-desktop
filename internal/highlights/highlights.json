@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.29",
+      "highlights": [
+        "Your computer lists your own applications: add any, from the library or by hand, and approve its server or its windows.",
+        "A QuickAgent names an application by id: Agentry Desktop uses yours with that id, or lets you choose one and remembers.",
+        "A tool nobody has classed asks you before each call; class it read or act on its card and it asks no more.",
+        "A run's receipt says whether each application came from the library or from you, and counts its calls."
+      ]
+    },
+    {
       "version": "0.7.28",
       "highlights": [
         "If your organization's managed settings forbid Unsafe Mode, its switch stays off and Settings says who set it.",
