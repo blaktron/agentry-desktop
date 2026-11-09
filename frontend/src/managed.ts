@@ -194,6 +194,24 @@ export function forbids(row: ManagedRow | null): boolean {
   return typeof v === "string" && RESTRICTIVE.has(v);
 }
 
+/** Whether a lock on where runs may go leaves this place ("local", "hosted",
+ *  "runhost", "target-host"); with no lock, every place is left. */
+export function whereLeaves(rows: ManagedRow[] | null | undefined, place: string): boolean {
+  const members = lockedMembers(rowOf(rows, "run.where"));
+  return !members || members.includes(place);
+}
+
+/** The slug of a refusal the managed settings held on this computer give
+ *  before anything is sent to the registry. */
+export const MANAGED_REFUSAL = "managed-settings";
+
+/** The heading over a refusal the managed settings gave, for what was being
+ *  started ("run", "session", "schedule"); the refusal's own sentence names
+ *  the organization and the setting. */
+export function managedRefusalHeading(what: string): string {
+  return `Your organization's managed settings do not allow this ${what}.`;
+}
+
 /** The words and the control state of a row; null when no document sets it,
  *  so the part shows nothing. */
 export function rowNote(row: ManagedRow | null | undefined): RowNote | null {
