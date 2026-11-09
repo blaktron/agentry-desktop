@@ -15,7 +15,7 @@ import { rewrapLine } from "../knowledge";
 import { PrereqCard, EngineWarnings, CHECKING_ENGINE, providerLabel } from "./RuntimeSetup";
 import { ModelsSettings } from "./SettingsModels";
 import { paidBy } from "../modelSetup";
-import { CodingAgentsCard, CodingToolPlugins, codingAgentName, exportLabel } from "./CodingAgents";
+import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
 import { HybridAnalysisKeyCard } from "./HybridAnalysisKey";
@@ -127,7 +127,7 @@ export default function Settings({
               </div>
             </Card>
           </PartSection>
-          <PartSection id="coding-tools" title="Coding tools"><CodingAgentsCard /><CodingToolPlugins /></PartSection>
+          <PartSection id="coding-tools" title="Coding tools"><CodingAgentsCard /></PartSection>
         </>
       )}
       {section === "run-defaults" && (

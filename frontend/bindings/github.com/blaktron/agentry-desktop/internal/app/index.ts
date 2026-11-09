@@ -60,7 +60,6 @@ export {
     CatalogView,
     ChangedInstallView,
     CodingAgentsView,
-    CodingToolInstall,
     ComputerUseView,
     ConnectView,
     ContextWindowView,

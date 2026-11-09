@@ -13,9 +13,8 @@
 //   Connections      the sign-ins to MCP servers and the destinations a run
 //                    may send its result to: every outside service this
 //                    computer keeps credentials for
-//   Updates and installs  this app's updates, QuickAgents' updates, the
-//                    coding tool Install also writes to, and the Agentry
-//                    plugin in each coding tool
+//   Updates and installs  this app's updates, QuickAgents' updates, and the
+//                    coding tool Install also writes to
 //   Home             the theme and Home's cards
 //   Licences
 //
@@ -83,7 +82,7 @@ export const SECTIONS: SectionMeta[] = [
   },
   {
     id: "updates", title: "Updates and installs",
-    sentence: "Whether this app looks for a newer Agentry Desktop, the agentry command it carries on a Mac, how QuickAgents installed here are updated, the coding tool Install also puts them in, and the Agentry plugin in each coding tool on this computer.",
+    sentence: "Whether this app looks for a newer Agentry Desktop, the agentry command it carries on a Mac, how QuickAgents installed here are updated, and the coding tool Install also puts them in.",
     parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "quickagents", label: "QuickAgents" }, { id: "coding-tools", label: "Coding tools" }],
   },
   {

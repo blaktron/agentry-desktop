@@ -214,32 +214,6 @@ const codingView = () => ({
       ? { target: "agents-md", dir: "", needsDir: true, enabled: false }
       : { target: "claude-skill", dir: "/home/me/.claude/skills", needsDir: false, enabled: codingSwitch },
 });
-// Coding tools' plugin list: what Go's file check would find on a Linux
-// machine with Claude Code (plugin in), the Claude app sharing its plugins,
-// Codex, OpenCode, pi, Qwen Code and T3 Code, and Cursor added in its own
-// window; the rest are not here. Install answers as Go would after a Yes.
-type ToolFixture = {
-  id: string; name: string; kind: string; site: string; found: boolean; path: string; source: string; plugin: string;
-  repository: string; commands: string[] | null; blocked: string; via: string; manual: string; manualUrl: string;
-  uses: string[] | null; note: string;
-};
-const tool = (t: Partial<ToolFixture> & { id: string; name: string; kind: string }): ToolFixture => ({
-  site: "", found: false, path: "", source: "", plugin: "unknown", repository: "", commands: null, blocked: "",
-  via: "", manual: "", manualUrl: "", uses: null, note: "", ...t,
-});
-let codingTools = [
-  tool({ id: "claude-code", name: "Claude Code", kind: "command-line tool", found: true, path: "/home/me/.local/bin/claude", source: "PATH", plugin: "installed", repository: "https://github.com/blaktron/agentry-plugin-claude-code", commands: ["/home/me/.local/bin/claude plugin marketplace add blaktron/agentry-plugin-claude-code", "/home/me/.local/bin/claude plugin install agentry@agentry --scope user"] }),
-  tool({ id: "claude-app", name: "Claude", kind: "desktop app", found: true, path: "/home/me/.claude/remote/ccd-cli/2.1.321", source: "usual location", plugin: "installed", repository: "https://github.com/blaktron/agentry-plugin-claude-code", via: "Claude Code", commands: ["/home/me/.local/bin/claude plugin marketplace add blaktron/agentry-plugin-claude-code", "/home/me/.local/bin/claude plugin install agentry@agentry --scope user"], note: "The app's Code tab reads the same plugins as Claude Code, so one install serves both." }),
-  tool({ id: "codex", name: "Codex", kind: "command-line tool", found: true, path: "/usr/local/bin/codex", source: "PATH", plugin: "not installed", repository: "https://github.com/blaktron/agentry-plugin-codex", commands: ["/usr/local/bin/codex plugin marketplace add blaktron/agentry-plugin-codex", "/usr/local/bin/codex plugin add agentry@agentry"] }),
-  tool({ id: "opencode", name: "OpenCode", kind: "command-line tool", found: true, path: "/home/me/.opencode/bin/opencode", source: "usual location", plugin: "not installed", repository: "https://github.com/blaktron/agentry-plugin-opencode", commands: ["/home/me/.opencode/bin/opencode plugin add github:blaktron/agentry-plugin-opencode"] }),
-  tool({ id: "pi", name: "pi", kind: "command-line tool", found: true, path: "/home/me/.npm-global/bin/pi", source: "PATH", plugin: "not installed", repository: "https://github.com/blaktron/agentry-plugin-pi", commands: ["/home/me/.npm-global/bin/pi install git:github.com/blaktron/agentry-plugin-pi"] }),
-  tool({ id: "qwen", name: "Qwen Code", kind: "command-line tool", found: true, path: "/home/me/.local/bin/qwen", source: "PATH", plugin: "not installed", repository: "https://github.com/blaktron/agentry-plugin-claude-code", commands: ["/home/me/.local/bin/qwen extensions install https://github.com/blaktron/agentry-plugin-claude-code:agentry --consent"], note: "Qwen Code installs the Claude Code package." }),
-  tool({ id: "t3code", name: "T3 Code", kind: "desktop app", found: true, path: "/home/me/Applications/T3-Code.AppImage", source: "usual location", uses: ["Claude Code", "Codex"], note: "T3 Code has no plugins of its own: it runs Claude Code, Codex and the other agents, and their plugins come with them." }),
-  tool({ id: "cursor", name: "Cursor", kind: "editor", found: true, path: "/usr/share/cursor/cursor", source: "usual location", repository: "https://github.com/blaktron/agentry-plugin-cursor", manual: "Cursor adds plugins in its own window. Until Agentry is in the Cursor Marketplace, copy the plugin's repository into ~/.cursor/plugins/local/agentry and reload the window; its README has the steps.", manualUrl: "https://github.com/blaktron/agentry-plugin-cursor#install" }),
-  tool({ id: "gemini-cli", name: "Gemini CLI", kind: "command-line tool", site: "https://github.com/google-gemini/gemini-cli" }),
-  tool({ id: "copilot", name: "GitHub Copilot CLI", kind: "command-line tool", site: "https://github.com/github/copilot-cli" }),
-  tool({ id: "kiro", name: "Kiro", kind: "editor", site: "https://kiro.dev" }),
-];
 const runnerRecForShown = {
   registry: "runner", origin: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: agentInstalledOlder ? "1.1.0" : "1.2.0",
   target: "runner", dir: "/home/me/.agentry/runner/agents/demo1/incident-summarizer", managed: true, installedAt: "2026-09-21T12:00:00Z",
@@ -1483,14 +1457,6 @@ g.go = { app: {
       return profileView().user;
     },
     CodingAgents: async () => codingView(),
-    CodingTools: async () => codingTools,
-    InstallCodingToolPlugin: async (id: string) => {
-      const t = codingTools.find((x) => x.id === id)!;
-      const done = { ...t, plugin: "installed" };
-      codingTools = codingTools.map((x) => (x.id === id ? done : x));
-      return { steps: (t.commands ?? []).map((c) => ({ command: c, output: "Installed agentry@agentry.", exitCode: 0 })), tool: done, error: "" };
-    },
-    OpenCodingToolLink: async () => undefined,
     // Settings → Runs: the saves answer as Go
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
