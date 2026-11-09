@@ -62,6 +62,8 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
   const models = (list.models ?? []) as SavedModelRow[];
   const providers = (list.providers ?? []) as ProviderRow[];
   const held = addHeld(models.length, list.max);
+  // What the last act did, in place of any error an earlier one left.
+  const say = (line: string) => { setError(null); setNotice(line); };
   const providerOf = (m: SavedModelRow) => providers.find((p) => p.id === m.provider);
 
   async function makeDefault(m: SavedModelRow) {
@@ -90,7 +92,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
       } else if (res?.refusal) {
         setError(refusalLine(res.refusal));
       } else {
-        setNotice(`${m.name} answered: it works.${res?.resolved && res.resolved !== m.model ? ` ${m.model} is ${res.resolved} today.` : ""}`);
+        setNotice(`${m.name} passed its check.${res?.resolved && res.resolved !== m.model ? ` ${m.model} is ${res.resolved} today.` : ""}`);
       }
       await refresh();
     } catch (e) {
@@ -216,7 +218,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
           kept={kept}
           onKept={() => void refresh()}
           onClose={() => setAdding(false)}
-          onSaved={(sm) => { setAdding(false); setNotice(savedNotice(sm)); void refresh(); }}
+          onSaved={(sm) => { setAdding(false); say(savedNotice(sm)); void refresh(); }}
         />
       )}
       {addOn && (
@@ -224,7 +226,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
           provider={addOn}
           names={models.map((m) => m.name)}
           onClose={() => setAddOn(null)}
-          onSaved={(sm) => { setAddOn(null); setNotice(savedNotice(sm)); void refresh(); }}
+          onSaved={(sm) => { setAddOn(null); say(savedNotice(sm)); void refresh(); }}
         />
       )}
       {editing && (
@@ -232,7 +234,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
           model={editing}
           provider={providerOf(editing)}
           onClose={() => setEditing(null)}
-          onSaved={(sm) => { setEditing(null); setNotice(`${sm.saved?.name ?? "The model"} is saved.`); void refresh(); }}
+          onSaved={(sm) => { setEditing(null); say(`${sm.saved?.name ?? "The model"} is saved.`); void refresh(); }}
         />
       )}
       {removing && (
@@ -241,11 +243,11 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
           model={removing.model}
           provider={removing.provider}
           onClose={() => setRemoving(null)}
-          onRemoved={(line) => { setRemoving(null); setNotice(line); void refresh(); }}
+          onRemoved={(line) => { setRemoving(null); say(line); void refresh(); }}
         />
       )}
       {keyFor && (
-        <KeyDialog provider={keyFor} onClose={() => setKeyFor(null)} onSaved={() => { setKeyFor(null); setNotice(`The key for ${providerName(keyFor)} is kept in this computer's keychain.`); void refresh(); }} />
+        <KeyDialog provider={keyFor} onClose={() => setKeyFor(null)} onSaved={() => { setKeyFor(null); say(`The key for ${providerName(keyFor)} is kept in this computer's keychain.`); void refresh(); }} />
       )}
       {signInFor && (
         <Modal title={`Sign in again: ${providerName(signInFor)}`} onClose={() => setSignInFor(null)}>

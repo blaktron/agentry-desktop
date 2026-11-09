@@ -179,8 +179,8 @@ export function refusalLine(r: { kind: string; reason: string }): string {
   switch (r.kind) {
     case "cannot-check": return `${reason}. Nothing was saved.`;
     case "not-offered": return `${reason}. Pick one it offers.`;
-    case "needs-sign-in": return `${reason}. Sign in again, then save.`;
-    case "key-missing": return `${reason}. Add the key, then save.`;
+    case "needs-sign-in": return `${reason}. Sign in again first.`;
+    case "key-missing": return `${reason}. Add the key first.`;
   }
   return `${reason}.`;
 }

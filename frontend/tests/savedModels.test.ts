@@ -108,4 +108,6 @@ test("a refusal of the check says what to do next", () => {
   assert.equal(refusalLine({ kind: "cannot-check", reason: "could not check the model: dial tcp: connection refused" }),
     "Could not check the model: dial tcp: connection refused. Nothing was saved.");
   assert.match(refusalLine({ kind: "not-offered", reason: "custom-lab does not offer \"gemma\"" }), /Pick one it offers\.$/);
+  assert.match(refusalLine({ kind: "key-missing", reason: "could not check the model: no key for anthropic" }), /\. Add the key first\.$/);
+  assert.match(refusalLine({ kind: "needs-sign-in", reason: "could not check the model: Claude Code is not signed in" }), /\. Sign in again first\.$/);
 });
