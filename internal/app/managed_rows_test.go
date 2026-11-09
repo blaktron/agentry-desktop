@@ -40,8 +40,8 @@ func TestManagedRowsReportLockedDefaultAndNotManaged(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("rows = %+v; want the three the document sets", rows)
 	}
-	if r := got["malwareCheck"]; r.State != ManagedLocked || r.Value != `"required"` || r.Organization != "acme" || r.Applied {
-		t.Fatalf("malwareCheck = %+v; want locked, required, acme, not applied by this client", r)
+	if r := got["malwareCheck"]; r.State != ManagedLocked || r.Value != `"required"` || r.Organization != "acme" || !r.Applied {
+		t.Fatalf("malwareCheck = %+v; want locked, required, acme, applied", r)
 	}
 	if r := got["run.timeout"]; r.State != ManagedDefault || r.Value != "900" {
 		t.Fatalf("run.timeout = %+v; want a default of 900", r)
@@ -64,11 +64,65 @@ func TestManagedRowsAreEmptyWithNoDocument(t *testing.T) {
 	}
 }
 
-func TestOnlyUnsafeModeIsAppliedByTheLinkedAgentry(t *testing.T) {
-	holdManaged(t, managed.Effective{Documents: []managed.State{docOf("acme", map[string]string{"!run.unsafeMode": `"forbidden"`})}})
-	rows := (&SettingsAPI{}).ManagedRows()
-	if len(rows) != 1 || !rows[0].Applied {
-		t.Fatalf("rows = %+v; want run.unsafeMode applied", rows)
+// Every row of the catalogue is applied here: the runner's, and the two
+// this app holds through its own paths (runs In Agentry, bug reports).
+func TestEveryCatalogueRowIsApplied(t *testing.T) {
+	for _, r := range managedsettings.Catalogue() {
+		if !managed.Applies(r.ID) {
+			t.Errorf("%s is not applied by this app", r.ID)
+		}
+	}
+	holdManaged(t, managed.Effective{Documents: []managed.State{docOf("acme", map[string]string{"!bugReports": `"forbidden"`, "!run.where": `["local"]`})}})
+	if r := managedCalls.current().RunRefusal(); r != "" {
+		t.Errorf("a lock on a row the app holds refuses every run: %q", r)
+	}
+}
+
+// Report a bug is refused, with the organization's words, while an
+// organization forbids bug reports; nothing is sent.
+func TestABugReportIsRefusedWhileBugReportsAreForbidden(t *testing.T) {
+	holdManaged(t, managed.Effective{Documents: []managed.State{docOf("acme", map[string]string{"!bugReports": `"forbidden"`})}})
+	got, err := (&SettingsAPI{}).ReportBug("https://r.example", "The run panel froze after I pressed Stop.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Filed || got.Reason != "refused" || !strings.Contains(got.Message, "acme's managed settings (bugReports)") {
+		t.Fatalf("ReportBug = %+v", got)
+	}
+}
+
+// The setters refuse a value a lock leaves out, in the runner's words, and
+// write nothing.
+func TestSettersRefuseALockedValue(t *testing.T) {
+	isolateHomes(t)
+	isolateDeliverables(t)
+	holdManaged(t, managed.Effective{Documents: []managed.State{docOf("acme", map[string]string{
+		"!run.where":                 `["local"]`,
+		"!run.timeout":               `600`,
+		"!deliverables.destinations": `["webhook"]`,
+		"!desktop.applications":      `"forbidden"`,
+	})}})
+	api := &SettingsAPI{}
+	if _, err := api.SetRunWhere("agentry"); err == nil || !strings.Contains(err.Error(), "run.where") {
+		t.Errorf("SetRunWhere(agentry) = %v", err)
+	}
+	if _, err := api.SetRunWhere("here"); err != nil {
+		t.Errorf("SetRunWhere(here) = %v", err)
+	}
+	if _, err := api.SetRunBudgets(3600, 0); err == nil || !strings.Contains(err.Error(), "capped at 600 seconds by acme's managed settings (run.timeout)") {
+		t.Errorf("SetRunBudgets(3600) = %v", err)
+	}
+	if _, err := api.SetRunBudgets(0, 0); err == nil {
+		t.Error("SetRunBudgets with no timeout under a cap was accepted")
+	}
+	if _, err := api.SetDeliverables(true); err == nil || !strings.Contains(err.Error(), "deliverables.destinations") {
+		t.Errorf("SetDeliverables(true) = %v", err)
+	}
+	if _, err := api.SetDeliverables(false); err != nil {
+		t.Errorf("SetDeliverables(false) = %v", err)
+	}
+	if _, err := (&YourComputerAPI{}).SetComputerUse(true); err == nil || !strings.Contains(err.Error(), "desktop.applications") {
+		t.Errorf("SetComputerUse(true) = %v", err)
 	}
 }
 
