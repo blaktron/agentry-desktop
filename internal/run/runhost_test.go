@@ -10,6 +10,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/runnerimage/desktoplink"
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
@@ -117,4 +118,18 @@ func detail(err error) string {
 		return r.Detail
 	}
 	return ""
+}
+
+// The job carries where each application's set-up came from and the
+// application the person chose, so a runhost's run of an application the
+// person added is held to the runhost's policy and named in its receipt as
+// a run here is.
+func TestTheRunhostJobCarriesWhereEachApplicationCameFrom(t *testing.T) {
+	link := &engine.DesktopLink{Token: "t", Servers: map[string][]desktoplink.Tool{"my-cad": {{Name: "export_drawing", Class: "read"}}, "chosen": {{Name: "x", Class: "exec"}}},
+		From: map[string]string{"my-cad": desktop.FromPerson, "chosen": desktop.FromLibrary}, Chosen: &desktop.ChosenApplication{ID: "blender", Name: "Blender"}}
+	j := jobDesktop("job1", link)
+	if j.Run != "job1" || j.Bound.Token != "t" || j.Bound.From["my-cad"] != desktop.FromPerson || j.Bound.Chosen == nil || j.Bound.Chosen.ID != "blender" ||
+		j.Bound.Servers["my-cad"][0].Class != "read" {
+		t.Fatalf("the job's binding: %+v", j.Bound)
+	}
 }

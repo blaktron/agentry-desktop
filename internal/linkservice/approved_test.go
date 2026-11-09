@@ -221,3 +221,40 @@ func TestNoBranchOnALibraryID(t *testing.T) {
 		}
 	}
 }
+
+// A persistent agent's segment binds a hand-added application lazily: with
+// the application closed, the tools the list knows stand for its server's
+// and a call is refused with the step; once it opens, the next call starts
+// its server and is answered, the class the person gave it applied.
+func TestAHandAddedApplicationBindsLazilyForAnAgent(t *testing.T) {
+	cad := yourcomputer.Application{ID: "my-cad", Name: "My CAD",
+		Server:  &yourcomputer.Server{Attachment: library.AttachmentLoopbackHTTP, Endpoint: "http://127.0.0.1:9123/mcp", Listener: 9123},
+		Tools:   []yourcomputer.Tool{{Name: "export_drawing", Class: library.ClassRead}},
+		Approve: yourcomputer.Approval{MCP: true}}
+	r, _ := personRig(t, []string{"export_drawing"}, cad)
+	open := false
+	r.s.opt.Listening = func(context.Context, int) error {
+		if open {
+			return nil
+		}
+		return errors.New("refused")
+	}
+	r.s.opt.DialHTTP = func(context.Context, string) (Session, error) { return r.sess, nil }
+	b, ref := r.s.Bind(context.Background(), desktop.BindRequest{Protocol: desktop.Protocol, Run: "R", Agent: "acme.helper", Lazy: true, Servers: []desktop.BindServer{{ID: "my-cad"}}})
+	if ref != nil {
+		t.Fatal(ref)
+	}
+	if len(b.Servers["my-cad"]) != 1 || b.Servers["my-cad"][0].Name != "export_drawing" || b.Servers["my-cad"][0].Class != "read" || b.From["my-cad"] != desktop.FromPerson {
+		t.Fatalf("the lazy binding: %+v %+v", b.Servers, b.From)
+	}
+	if _, ref := call(r, b.Token, "my-cad", "export_drawing", `{}`); ref == nil || ref.Reason != receipt.DesktopNotInstalled || !strings.Contains(ref.Message, "port 9123") {
+		t.Fatalf("a call while My CAD is closed: %+v", ref)
+	}
+	open = true
+	if _, ref := call(r, b.Token, "my-cad", "export_drawing", `{}`); ref != nil {
+		t.Fatalf("a call once My CAD is open: %+v", ref)
+	}
+	if len(r.questions()) != 0 {
+		t.Fatal("a tool the person classed read asked")
+	}
+}

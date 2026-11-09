@@ -236,7 +236,7 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 				_ = link.Unbind(ctx)
 			}
 		}()
-		run.Desktop = &job.Desktop{Run: id, Bound: desktop.Bound{Token: link.Token, Servers: link.Servers, Computer: link.Computer}}
+		run.Desktop = jobDesktop(id, link)
 	}
 	j := &job.Job{V: job.Version, ID: id, Device: rec.DeviceID, Release: rel, Run: run}
 	if err := j.Validate(); err != nil {
@@ -493,6 +493,15 @@ func bindRunhostDesktop(ctx context.Context, bind DesktopBinder, m *manifest.Des
 		return nil, desktopBindError(d, err)
 	}
 	return link, nil
+}
+
+// jobDesktop is the binding as the job carries it to the runhost: the
+// token, each application's tools, computer use, where each application's
+// set-up came from and the application the person chose, so the runhost's
+// run holds a person's own set-up to its policy and names it in the receipt
+// as a run here does.
+func jobDesktop(id string, link *engine.DesktopLink) *job.Desktop {
+	return &job.Desktop{Run: id, Bound: desktop.Bound{Token: link.Token, Servers: link.Servers, Computer: link.Computer, From: link.From, Chosen: link.Chosen}}
 }
 
 // keepRunhostLink keeps job id's desktop link open while the job runs, and
