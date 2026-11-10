@@ -77,7 +77,7 @@ func New(notices string) *Services {
 	yourComputer := newYourComputerAPI(app, run)
 	return &Services{
 		app:           app,
-		settings:      &SettingsAPI{app: app},
+		settings:      &SettingsAPI{app: app, installs: installs},
 		browse:        browse,
 		install:       installs,
 		validate:      &ValidateAPI{app: app},

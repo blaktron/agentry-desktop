@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
+import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
 import * as installed from "../../bindings/github.com/blaktron/agentry-cli/pkg/installed/models";
 import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
@@ -7,6 +8,11 @@ import {
   AgentRow, Button, EmptyState, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar, fmtDate,
 } from "../ui";
 import { filterInstalled, registryQuery, registrySearchLabel } from "../library";
+import {
+  assignmentAction, assignmentLine, fromOrganization, groupByOrganization, presetLine, requiredBadge, requiredFor, uninstallExplanation,
+  type Assignment,
+} from "../assignments";
+import { EventsOn } from "../host";
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
 import { PinButton, homeFullLine, useHomeLayout } from "./home/PinButton";
@@ -65,7 +71,21 @@ export default function Library({
   const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
   const homeFull = homeFullLine(homeLayout);
 
+  // What the organization's managed settings give: its required QuickAgents
+  // (installed for you, kept while they require them) and the ones it
+  // offers. Read again when they change and when a required one installs.
+  const [assigned, setAssigned] = useState<Assignment[]>([]);
+  const [installingRef, setInstallingRef] = useState<string | null>(null);
+  const installStage = useInstallStage(installingRef !== null);
+  const readAssigned = useCallback(() => {
+    Promise.resolve()
+      .then(() => SettingsAPI.ManagedAssignments())
+      .then((a) => setAssigned(a as unknown as Assignment[]))
+      .catch(() => setAssigned([]));
+  }, []);
+
   const refresh = useCallback(() => {
+    readAssigned();
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
     // What the launch check (and the agent pages) found, so the
     // badges are there without a click; "Check for
@@ -75,8 +95,35 @@ export default function Library({
       for (const u of v.updates) map[keyOf(u.key)] = u;
       setUpdates(map);
     }).catch(() => {});
-  }, []);
+  }, [readAssigned]);
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    const offManaged = EventsOn("managed:changed", refresh);
+    const offLibrary = EventsOn("library:changed", refresh);
+    return () => { offManaged(); offLibrary(); };
+  }, [refresh]);
+
+  // An offered QuickAgent is installed the way any is: one click, the gates
+  // as native dialogs. A required one that is not installed is tried again
+  // as the organization's install, with no consent recorded.
+  async function installAssigned(a: Assignment) {
+    setError(null);
+    setWarning(null);
+    setInstallingRef(a.ref);
+    try {
+      if (assignmentAction(a) === "retry") {
+        await SettingsAPI.InstallRequired(a.ref);
+      } else {
+        const res = await InstallAPI.InstallRunner(a.registry, a.selector);
+        if (res.warning) setWarning(`${a.ref}: ${res.warning}`);
+      }
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setInstallingRef(null);
+    }
+  }
 
   async function checkUpdates() {
     setChecking(true);
@@ -232,6 +279,45 @@ export default function Library({
         </EmptyState>
       )}
 
+      {/* What the organization's managed settings give: one heading per
+          organization, its required QuickAgents (installed for you) and the
+          ones it offers. */}
+      {groupByOrganization(assigned).map((g) => (
+        <section key={g.organization} data-from-organization={g.organization}>
+          <h3 className="muted small" style={{ marginTop: "1rem" }}>{fromOrganization(g.organization)}</h3>
+          {g.items.map((a) => {
+            const action = assignmentAction(a);
+            const [ns, name] = a.ref.split("/");
+            const note = presetLine(a.preset);
+            return (
+              <AgentRow
+                key={a.ref}
+                title={a.ref}
+                badges={<>
+                  {a.required ? <span className="badge">{requiredBadge(a.organization)}</span> : <span className="badge">Offered</span>}
+                  {a.installed && a.installedVersion && <span className="mono small">v{a.installedVersion}</span>}
+                </>}
+                summary={<span className="small">{assignmentLine(a)}</span>}
+                meta={note || undefined}
+                actions={action === "open" ? (
+                  <Button onClick={() => onOpenAgent(a.registry, ns, name)}>Open</Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={() => installAssigned(a)}
+                    busy={installingRef === a.ref}
+                    busyLabel={action === "retry" ? "Installing…" : installStage || "Installing…"}
+                  >
+                    {action === "retry" ? "Try again" : "Install"}
+                  </Button>
+                )}
+                onClick={action === "open" ? () => onOpenAgent(a.registry, ns, name) : undefined}
+              />
+            );
+          })}
+        </section>
+      ))}
+
       {/* Three sections: what this app can manage,
           the runner home's installs among them, records of a
           target this app does not know (shown, not managed), and records
@@ -263,6 +349,7 @@ export default function Library({
                 );
               }
               const u = updates[keyOf(rec)];
+              const req = requiredFor(assigned, rec.namespace, rec.name);
               return (
                 <AgentRow
                   key={keyOf(rec)}
@@ -270,16 +357,21 @@ export default function Library({
                   badges={<>
                     <span className="mono small">v{rec.version}</span>
                     <span className="badge">{rec.target}</span>
+                    {req && <span className="badge" data-required-by={req.organization}>{requiredBadge(req.organization)}</span>}
                     {u?.updateAvailable && <span className="badge warn">update: {u.latest}</span>}
                     {u && !u.updateAvailable && !u.error && <span className="badge ok">up to date</span>}
                   </>}
                   summary={<span className="mono small selectable">{rec.dir}</span>}
-                  meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.origin.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
+                  meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.origin.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}{req && <span id={`required-${keyOf(rec)}`}> · {uninstallExplanation(req)}</span>}</>}
                   actions={<>
                     <Button onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}>Details</Button>
                     {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)} busy={updatingRunner === keyOf(rec)} busyLabel={updateStage || "Updating…"}>Update</Button>}
                     <PinButton agentRef={`${rec.namespace}/${rec.name}`} registry={rec.origin} layout={homeLayout} onLayout={setHomeLayout} />
-                    <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
+                    {req ? (
+                      <Button variant="danger" disabled title={uninstallExplanation(req)} aria-describedby={`required-${keyOf(rec)}`}>Uninstall</Button>
+                    ) : (
+                      <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
+                    )}
                   </>}
                   onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}
                 />

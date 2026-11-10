@@ -33,11 +33,11 @@ const eventManagedChanged = "managed:changed"
 // seam. Production code never reassigns it.
 var managedCalls = struct {
 	current  func() managed.Effective
-	sync     func(ctx context.Context, hc *http.Client, registryURL, token string, maxAge time.Duration) (*managed.State, error)
+	sync     func(ctx context.Context, hc *http.Client, registryURL, token string, maxAge time.Duration) (st *managed.State, fetched bool, err error)
 	refresh  func(ctx context.Context, hc *http.Client, registryURL, token string) (*managed.State, error)
 	signedIn func(registryURL, accountID string) error
 	forget   func(registryURL string) error
-}{managed.Current, managed.Sync, managed.Refresh, managed.SignedIn, managed.Forget}
+}{managed.Current, managed.SyncFetched, managed.Refresh, managed.SignedIn, managed.Forget}
 
 // managedCheckEvery is how often the app looks whether its copy is due;
 // Sync asks the registry only when the last answer is over
@@ -166,10 +166,13 @@ func (s *SettingsAPI) syncManaged(ctx context.Context) {
 			continue
 		}
 		actx, cancel := context.WithTimeout(ctx, managedAskTimeout)
-		_, err := managedCalls.sync(actx, registry.HTTPClient, reg, token, managed.FetchInterval)
+		st, fetched, err := managedCalls.sync(actx, registry.HTTPClient, reg, token, managed.FetchInterval)
 		cancel()
 		if err != nil {
 			slog.Warn("managed settings: not read again; the last verified copy applies", "registry", originOf(reg), "err", err)
+		}
+		if fetched {
+			s.installRequired(ctx, st)
 		}
 	}
 	if managedFingerprint(managedCalls.current()) != before {
@@ -204,8 +207,11 @@ func (s *SettingsAPI) signedInManaged(reg, accountID, token string) {
 	}
 	ctx, cancel := context.WithTimeout(s.app.ctxOrBackground(), managedAskTimeout)
 	defer cancel()
-	if _, err := managedCalls.refresh(ctx, registry.HTTPClient, reg, token); err != nil {
+	st, err := managedCalls.refresh(ctx, registry.HTTPClient, reg, token)
+	if err != nil {
 		slog.Warn("managed settings: not read at sign-in", "registry", originOf(reg), "err", err)
+	} else {
+		s.installRequired(s.app.ctxOrBackground(), st)
 	}
 	emitEvent(s.app, eventManagedChanged)
 }

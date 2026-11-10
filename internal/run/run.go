@@ -194,8 +194,13 @@ type ProfileInfo struct {
 	Exists            bool
 	Keep              bool
 	StoredSecretNames []string
-	CapabilityLines   []string                  // Intake are the release's up-front questions.
-	Intake            []manifest.IntakeQuestion // Modes are the run modes the release declares; Opening its interactive
+	// RequiredBy is the organization whose managed settings installed the
+	// release and whose contract the person has yet to accept: its record
+	// names the organization and holds no capabilities, or holds ones this
+	// version widens. The run setup asks for the contract under it.
+	RequiredBy      string
+	CapabilityLines []string                  // Intake are the release's up-front questions.
+	Intake          []manifest.IntakeQuestion // Modes are the run modes the release declares; Opening its interactive
 	// opening line.
 	Modes   []string
 	Opening string
@@ -281,6 +286,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 	}
 	info := &ProfileInfo{
 		Ref:             sig.Ref,
+		RequiredBy:      requiredBy(home, sig),
 		Digest:          sig.Digest,
 		DeclaredSecrets: allSecretNames(sig.Manifest),
 		OptionalSecrets: optionalSecretNames(sig.Manifest),
@@ -313,6 +319,28 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		info.StoredSecretNames = prof.SecretNames()
 	}
 	return info, nil
+}
+
+// requiredBy is the organization a release's install record names while the
+// person's consent to its contract is owed: a record the organization made
+// with no capabilities (a first run always asks, whatever the contract
+// declares), or one whose contract this release widens. "" for an install
+// the person made or already accepted.
+func requiredBy(home string, sig *Signature) string {
+	state, err := installed.Load()
+	if err != nil {
+		return ""
+	}
+	rec := state.Find(installdir.ConsentKey(home, sig.Namespace, sig.Name))
+	switch {
+	case rec == nil || rec.AssignedBy == "":
+		return ""
+	case rec.AwaitsConsent():
+		return rec.AssignedBy
+	case installed.DiffCapabilities(rec.Capabilities, installed.Snapshot(sig.Manifest.Contract())).HasWidened():
+		return rec.AssignedBy
+	}
+	return ""
 }
 
 // SaveProfile writes (or replaces) the signature's MCP profile from the

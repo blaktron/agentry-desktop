@@ -238,6 +238,9 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	if err != nil {
 		return nil, err
 	}
+	if _, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereLocal, 0, maxTurns, intakeAnswers); err != nil {
+		return nil, err
+	}
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -954,6 +957,13 @@ type ProfileStatusView struct {
 	Keep              bool     `json:"keep"`
 	StoredSecretNames []string `json:"storedSecretNames"`
 	CapabilityLines   []string `json:"capabilityLines"`
+	// RequiredBy is the organization that installed the release and whose
+	// contract the person has yet to accept: the run setup shows the
+	// contract under "Required by <organization>" and asks every time.
+	RequiredBy string `json:"requiredBy,omitempty"`
+	// Preset is what the organization gave the run setup for this release,
+	// nil when none.
+	Preset *PresetView `json:"preset,omitempty"`
 	// Intake are the release's up-front questions (manifest v2), answered
 	// in the run panel before either mode starts.
 	Intake []IntakeQuestionView `json:"intake"`
@@ -1022,6 +1032,8 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Keep:              p.Keep,
 		StoredSecretNames: emptyNotNil(p.StoredSecretNames),
 		CapabilityLines:   emptyNotNil(p.CapabilityLines),
+		RequiredBy:        p.RequiredBy,
+		Preset:            presetOf(p.Ref),
 		Intake:            []IntakeQuestionView{},
 		Modes:             emptyNotNil(p.Modes),
 		Opening:           p.Opening,
@@ -1166,6 +1178,10 @@ type runHooks struct {
 
 // runAgent is RunAgent with its hooks.
 func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
+	var err error
+	if timeoutSec, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereLocal, timeoutSec, maxTurns, intakeAnswers); err != nil {
+		return nil, err
+	}
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -1572,6 +1588,9 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 	}
 	if allowVulnerableMCP && !unsafe {
 		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or run a release that pins a fixed version")
+	}
+	if err := r.askRequiredConsent(reg, ref); err != nil {
+		return err
 	}
 	var accepting []string
 	if acceptUnsigned {

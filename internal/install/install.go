@@ -294,6 +294,10 @@ type Plan struct {
 	// target's env placeholders the user fills in; DeclaredSecrets above is
 	// every declared name, for the consent.
 	Secrets []string `json:"secrets,omitempty"`
+	// AssignedBy is the organization whose managed settings require this
+	// install; "" for an install the person asked for. Such an install
+	// records no consent: the person's first run asks.
+	AssignedBy string `json:"assignedBy,omitempty"`
 }
 
 // Result reports a completed install.
@@ -363,6 +367,19 @@ func extractLimits() pkgarchive.ExtractLimits { return registry.ExtractLimits() 
 // Prepare runs everything up to the consent gates and parks the verified
 // archive under the returned plan ID.
 func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (*Plan, error) {
+	p, err := e.prepare(ctx, regURL, ref, target, dir, nil)
+	if err != nil {
+		return nil, err
+	}
+	e.pending[p.plan.ID] = p
+	plan := p.plan
+	return &plan, nil
+}
+
+// prepare is Prepare's work: the verified archive and its plan, parked
+// nowhere. With asg set, the install is an organization's: held to its
+// managed settings before any byte is written, and with no consent to ask.
+func (e *Engine) prepare(ctx context.Context, regURL, ref, target, dir string, asg *Assignment) (*pending, error) {
 	if _, err := manifest.ParseRef(ref); err != nil {
 		return nil, err
 	}
@@ -388,6 +405,20 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if err != nil {
 		return nil, err
 	}
+	if asg != nil {
+		if res.Yanked {
+			return nil, fmt.Errorf("%s/%s@%s is yanked; a required install never lays down a yanked version", res.Namespace, res.Name, res.Version)
+		}
+		if r := asg.Held.SourceRefusal(res.Namespace); r != "" {
+			return nil, errors.New(r)
+		}
+		if current, err := installIsCurrent(res); err != nil || current {
+			if err != nil {
+				return nil, err
+			}
+			return nil, ErrCurrent
+		}
+	}
 	m, err := registry.ManifestFromResolve(res)
 	if err != nil {
 		return nil, err
@@ -408,6 +439,24 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	// registry SAID; the attestation says who vouched for them, verified
 	// against the digest just computed from the actual bytes.
 	att := verifyAttestation(ctx, regURL, token, res, computed)
+	if asg != nil {
+		// Nothing is accepted for the person: a release that is not
+		// verified is never laid down, and the organization's own rule on
+		// accepting a risk is read first so its refusal is the one said.
+		consent := ""
+		switch att.State {
+		case trust.StateUnsigned:
+			consent = receipt.ConsentAllowUnsigned
+		case trust.StateUnscanned:
+			consent = receipt.ConsentAllowUnscanned
+		}
+		if r := asg.Held.AcceptRiskRefusal(consent); r != "" {
+			return nil, errors.New(r)
+		}
+		if att.State == trust.StateUnsigned || att.State == trust.StateUnscanned {
+			return nil, fmt.Errorf("%s/%s@%s is %s; a required install is never laid down without a verified attestation", res.Namespace, res.Name, res.Version, att.State)
+		}
+	}
 	switch att.State {
 	case trust.StateVerified, trust.StateUnsigned, trust.StateUnscanned:
 		// verified proceeds; unsigned proceeds only behind acceptUnsigned at
@@ -478,6 +527,9 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Paths:           paths,
 		Secrets:         append([]string(nil), m.Capabilities.Secrets...),
 	}
+	if asg != nil {
+		plan.AssignedBy = asg.Organization
+	}
 	// The packs the release ships, with their sizes from the verified
 	// archive's headers, for the consent: a size that cannot be read
 	// leaves the name alone.
@@ -495,16 +547,25 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	vr := mcpvuln.Check(ctx, regURL, m.Capabilities.MCPServers)
 	plan.Vulnerabilities, plan.VulnerabilityLine, plan.VulnerabilityRefusal = vr.Statuses, vr.Line, vr.Refusal
 
-	readRecord(&plan, m)
+	if asg == nil {
+		readRecord(&plan, m)
+	} else {
+		plan.Confirms = confirmedCapabilities(m.Capabilities)
+		plan.ServerReach = ServerReach(m.Capabilities)
+	}
 	if target == installdir.Target {
 		var changed *installdir.ChangedError
 		if _, ierr := installdir.Inspect(paths.ReleaseDir, computed); errors.As(ierr, &changed) {
+			if asg != nil {
+				// A copy that changed after it was laid down is the
+				// person's to replace, never an organization's.
+				return nil, fmt.Errorf("the installed copy of %s/%s@%s changed after it was installed; replace it from the Library to go on", res.Namespace, res.Name, res.Version)
+			}
 			plan.Changed = ChangedInstallOf(changed)
 		}
 	}
 
-	e.pending[plan.ID] = &pending{plan: plan, archive: archive, manifest: m}
-	return &plan, nil
+	return &pending{plan: plan, archive: archive, manifest: m}, nil
 }
 
 // readRecord fills what the plan owes to the record already at its key:
@@ -691,6 +752,13 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	// while writing must not leave the archive's bytes pending under an id
 	// the page could confirm again.
 	defer delete(e.pending, id)
+	return e.write(p)
+}
+
+// write lays a verified plan down and records it. The gates are the
+// caller's.
+func (e *Engine) write(p *pending) (*Result, error) {
+	plan := p.plan
 	staging, err := os.MkdirTemp("", "agentry-install-*")
 	if err != nil {
 		return nil, fmt.Errorf("create staging dir: %w", err)
@@ -759,7 +827,12 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if serr != nil {
 		state = installed.State{}
 	}
-	state.Upsert(recordKey(plan), plan.Version, plan.Capabilities, plan.Paths.Managed)
+	if plan.AssignedBy != "" {
+		// No consent is recorded: the person's first run asks.
+		state.UpsertAssigned(recordKey(plan), plan.Version, plan.Paths.Managed, plan.AssignedBy)
+	} else {
+		state.Upsert(recordKey(plan), plan.Version, plan.Capabilities, plan.Paths.Managed)
+	}
 	recorded := true
 	if err := installed.Save(state); err != nil {
 		recorded = false

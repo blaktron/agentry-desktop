@@ -41,6 +41,15 @@ type SettingsAPI struct {
 	// knowledgeEnv is the local knowledge store's wiring, for the rewrap a
 	// sign-in makes; nil is this app's.
 	knowledgeEnv *knowledge.Env
+	// installs installs the QuickAgents an organization requires; nil in a
+	// test that installs none.
+	installs *InstallAPI
+	// installOne replaces the engine's assigned install in tests.
+	installOne func(ctx context.Context, a install.Assignment) (*install.Result, error)
+	// assignProblems is, by ref, why the last install of a required
+	// QuickAgent did not happen; assignMu guards it.
+	assignMu       sync.Mutex
+	assignProblems map[string]string
 }
 
 // RegistryView is one configured registry as the frontend sees it.
@@ -1451,6 +1460,11 @@ func (i *InstallAPI) CheckUpdates() ([]install.UpdateInfo, error) {
 // and its pin when no other install of it is left, and its connections when
 // no runner install of it is.
 func (i *InstallAPI) Uninstall(k installed.Key) (string, error) {
+	// A QuickAgent a held document requires stays; once none does, it is the
+	// person's own install and goes like any other.
+	if reason := managedCalls.current().UninstallRefusal(k.Namespace + "/" + k.Name); reason != "" {
+		return "", errors.New(reason)
+	}
 	msg, err := install.Uninstall(k)
 	if err == nil {
 		i.refreshRow(k)

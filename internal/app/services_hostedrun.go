@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blaktron/agentry/pkg/managedsettings"
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -446,6 +447,14 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	}
 	if err := r.hostedIdle(); err != nil {
 		return nil, err
+	}
+	// The organization's preset for this release: its answers fill the
+	// questions left blank, and a locked preset that sends runs elsewhere,
+	// or answers a question otherwise, refuses the run.
+	if _, _, answers, perr := applyPreset(managedCalls.current(), ref, managedsettings.WhereHosted, 0, -1, intakeAnswers); perr != nil {
+		return nil, perr
+	} else {
+		intakeAnswers = answers
 	}
 	// A new start replaces one waiting for its connections.
 	r.dropAwaiting(nil)

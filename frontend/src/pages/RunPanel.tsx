@@ -56,6 +56,9 @@ import { SendTo } from "./SendTo";
 import { ChangedInstallNotice } from "./ChangedInstall";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { MANAGED_REFUSAL, managedRefusalHeading, whereLeaves } from "../managed";
+import {
+  answerLocked, contractAsk, contractHeading, placeLockedOut, presetAnswers, presetNote, presetNumber, type Preset,
+} from "../assignments";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
 import { ModelPicker, useModelChoices } from "./ModelPicker";
@@ -116,7 +119,12 @@ export default function RunPanel({
 
   // Run form.
   const [task, setTask] = useState(f0?.task ?? "");
-  const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
+  // What an organization's managed settings gave this QuickAgent's run
+  // setup: its answers fill the questions left blank (and fix them when
+  // locked), its timeout and turns the two limits, its place the modes.
+  const preset = (profile?.preset ?? null) as Preset | null;
+  const [typedIntake, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
+  const intakeValues = useMemo(() => presetAnswers(typedIntake, preset), [typedIntake, preset]);
   // An input source's access token typed for this run, by question id,
   // with the host it was typed for: sent with the run
   // for its fetch step alone, and not kept with the setup's answers
@@ -285,8 +293,9 @@ export default function RunPanel({
   // leaves out is shown disabled with the lock's note, as Settings shows it,
   // rather than offered and then refused.
   const managedRows = useManagedRows();
-  const hostedLockedOut = !whereLeaves(managedRows, "hosted");
-  const runhostLockedOut = !whereLeaves(managedRows, "runhost");
+  const hostedLockedOut = !whereLeaves(managedRows, "hosted") || placeLockedOut(preset, "hosted");
+  const runhostLockedOut = !whereLeaves(managedRows, "runhost") || placeLockedOut(preset, "runhost");
+  const localLockedOut = placeLockedOut(preset, "local");
   // Whether the offer has been read (or failed to be): until then Run
   // defaults' fallback sentence has nothing to say.
   const [hostedKnown, setHostedKnown] = useState(false);
@@ -547,6 +556,14 @@ export default function RunPanel({
       if (mode !== "runhost:" + defaults.runhost) setMode("runhost:" + defaults.runhost);
       return;
     }
+    // A locked preset that sends runs to In Agentry starts there.
+    if (preset?.locked && preset.where === "hosted" && hosted?.offered && hosted.available && !unscanned && !hostedLockedOut) {
+      if (!inAgentry) {
+        byDefault.current = true;
+        setMode("hosted");
+      }
+      return;
+    }
     const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned, hostedLockedOut);
     if (allowed && !inAgentry) {
       byDefault.current = true;
@@ -555,7 +572,7 @@ export default function RunPanel({
       byDefault.current = false;
       setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
     }
-  }, [defaults, hosted, unscanned, profile, initialMode, mode, runhosts, hostedLockedOut, runhostLockedOut]);
+  }, [defaults, hosted, unscanned, profile, initialMode, mode, runhosts, hostedLockedOut, runhostLockedOut, preset, inAgentry]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned, hostedLockedOut);
   // The run and the chat the app follows above the pages: the registry runs
   // one per account and this app follows one at a time, so while one In
@@ -904,10 +921,13 @@ export default function RunPanel({
     return DestinationsAPI.SetDefault(`${ns}/${name}`, sendNames()).then(() => undefined).catch(() => undefined);
   };
   // The answers as the run's own calls take them.
+  // The two limits the preset may fill or fix.
+  const timeoutField = presetNumber(timeoutSec, preset?.timeoutSeconds, !!preset?.locked);
+  const turnsField = presetNumber(maxTurns, preset?.maxTurns, !!preset?.locked);
   function limits(): { timeout: number; turns: number } {
     return {
-      timeout: timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0),
-      turns: maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0),
+      timeout: timeoutField.value.trim() === "" ? 0 : Math.max(0, parseInt(timeoutField.value, 10) || 0),
+      turns: turnsField.value.trim() === "" ? -1 : Math.max(0, parseInt(turnsField.value, 10) || 0),
     };
   }
 
@@ -1279,7 +1299,7 @@ export default function RunPanel({
                   <div className="row" style={{ gap: 14 }}>
                     {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
                       <label key={m} className="check-row" style={{ margin: 0 }}>
-                        <input type="radio" name="run-mode" checked={mode === m} onChange={() => chooseMode(m)} disabled={running} />
+                        <input type="radio" name="run-mode" checked={mode === m} onChange={() => chooseMode(m)} disabled={running || localLockedOut} />
                         <span>
                           <strong>{m}</strong>{" "}
                           <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
@@ -1408,7 +1428,8 @@ export default function RunPanel({
               )}
               {profile && profile.capabilityLines.length > 0 && (
                 <>
-                  <h4>What it may reach</h4>
+                  <h4 data-required-by={profile.requiredBy || undefined}>{contractHeading(profile.requiredBy)}</h4>
+                  {profile.requiredBy && <p className="small" data-required-ask>{contractAsk(profile.requiredBy)}</p>}
                   <ul className="run-need selectable">
                     {profile.capabilityLines.map((l) => <li key={l}>{l}</li>)}
                   </ul>
@@ -1762,7 +1783,7 @@ export default function RunPanel({
                         onForm={(f) => setHostForms((forms) => ({ ...forms, [q.id]: f }))}
                         recent={recentHosts}
                         onRecent={setRecentHosts}
-                        disabled={running}
+                        disabled={running || answerLocked(preset, q.id)}
                         onError={setRunErr}
                         scheduling={schedulingHere}
                       />
@@ -1772,7 +1793,7 @@ export default function RunPanel({
                         q={q}
                         value={intakeValues[q.id] ?? ""}
                         onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
-                        disabled={running}
+                        disabled={running || answerLocked(preset, q.id)}
                       />
                     ) : isSourceType(q.type) ? (
                       <SourceQuestion
@@ -1784,7 +1805,7 @@ export default function RunPanel({
                         onKey={(key) => setSourceChecks((c) => ({ ...c, [q.id]: { answer: (intakeValues[q.id] ?? "").trim(), key } }))}
                         typed={shownToken(sourceTokens[q.id], sourceKeys[q.id])}
                         onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: { host: sourceKeys[q.id]?.host ?? "", token: t } }))}
-                        disabled={running}
+                        disabled={running || answerLocked(preset, q.id)}
                         onError={setRunErr}
                         inAgentry={inAgentry}
                       />
@@ -1792,7 +1813,7 @@ export default function RunPanel({
                       <div className="row" key={q.id} style={{ marginBottom: 8 }}>
                         <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
                         {q.type === "choice" ? (
-                          <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
+                          <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running || answerLocked(preset, q.id)}>
                             <option value="">—</option>
                             {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
                           </select>
@@ -1832,7 +1853,7 @@ export default function RunPanel({
                             aria-label={q.prompt}
                             value={intakeValues[q.id] ?? ""}
                             onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
-                            disabled={running}
+                            disabled={running || answerLocked(preset, q.id)}
                           />
                         )}
                       </div>
@@ -1846,6 +1867,9 @@ export default function RunPanel({
                           there for that host before, and you can delete it on the site&rsquo;s Secrets page.
                         </span>
                       </label>
+                    )}
+                    {profile.intake.some((q) => answerLocked(preset, q.id)) && (
+                      <p className="muted small" data-preset-note>{presetNote(preset)}</p>
                     )}
                     {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
                   </Card>
@@ -2041,6 +2065,9 @@ export default function RunPanel({
                       Settings → Runs, if you set one.
                     </p>
                   )}
+                  {presetNote(preset) && (
+                    <p className="muted small" style={{ margin: "2px 0 6px" }} data-preset-note>{presetNote(preset)}</p>
+                  )}
                   <div className="row">
                     {/* A chat's only time limit is Run defaults' Chat idle timeout,
                         which Go reads itself. */}
@@ -2049,7 +2076,7 @@ export default function RunPanel({
                       <input
                         type="number" min={1} style={{ width: 110 }}
                         placeholder={setup ? String(setup.timeoutSeconds) : ""}
-                        value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
+                        value={timeoutField.value} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running || timeoutField.disabled}
                       />
                     </label>}
                     <label className="row" style={{ gap: 6 }}>
@@ -2057,7 +2084,7 @@ export default function RunPanel({
                       <input
                         type="number" min={0} style={{ width: 110 }}
                         placeholder={setup ? String(setup.maxTurns) : ""}
-                        value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} disabled={running}
+                        value={turnsField.value} onChange={(e) => setMaxTurns(e.target.value)} disabled={running || turnsField.disabled}
                       />
                     </label>
                     <label className="check-row" style={{ margin: 0 }}>
