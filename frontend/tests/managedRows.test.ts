@@ -27,6 +27,13 @@ const CASES: [ManagedPart, string, string, string, string][] = [
   ["scheduled", "schedules", '"forbidden"', '"allowed"', "Scheduled runs: not allowed."],
   ["updates", "updates.minimumVersion", '"0.7.30"', '"0.7.30"', "The oldest Agentry client that may run: version 0.7.30 or later."],
   ["bug-report", "bugReports", '"forbidden"', '"allowed"', "Bug reports: not allowed."],
+  ["provider", "model.source", '{"source":"organization-key"}', '{"source":"agentry-credits"}',
+    "What pays for your models: acme's own model key, which stays with the registry."],
+  ["review-key", "review.source", '{"source":"organization-key","key":{"id":"k","rev":2}}', '{"source":"agentry-credits"}',
+    "What pays for AI Review: a key acme provides, kept in your keychain and never shown."],
+  ["search-key", "webSearch.source", '{"source":"agentry-credits"}', '{"source":"organization-key","provider":"brave"}',
+    "What pays for web search: acme's credits, through Agentry."],
+  ["coding-tools", "codingTools.allowed", '["claude-code","codex"]', '["codex"]', "The coding tools runs may use: Claude Code and Codex."],
 ];
 
 for (const [part, id, lockedValue, defaultValue, sentence] of CASES) {
@@ -85,6 +92,26 @@ test("an install source list is worded, and a row this client does not apply say
   const unappliedDefault = rowNote(row("bugReports", '"forbidden"', "default", false))!;
   assert.equal(unappliedDefault.lines.at(-1), "This version of the agentry command does not apply it yet.");
   assert.equal(rowNote(row("bugReports", '"forbidden"'))!.lines.length, 1);
+});
+
+test("the models-and-keys rows are worded, and a source lock other than the member's own disables the key", () => {
+  assert.equal(valueWords(row("model.providers", '["anthropic","openai","custom"]')), "Anthropic, OpenAI and an endpoint of your own");
+  assert.equal(valueWords(row("model.signIns", "[]")), "none");
+  assert.equal(valueWords(row("model.signIns", '["claude-signin","chatgpt-plan"]')), "a Claude sign-in and a ChatGPT plan");
+  assert.equal(valueWords(row("model.default", '{"provider":"anthropic","model":"claude-sonnet-5-5"}')), "claude-sonnet-5-5 on Anthropic");
+  assert.equal(valueWords(row("webSearch.source", '{"source":"organization-key","provider":"brave","key":{"id":"k","rev":1}}')),
+    "a key acme provides (Brave), kept in your keychain and never shown");
+  assert.equal(valueWords(row("review.source", '{"source":"off"}')), "off");
+  for (const src of ["organization-key", "agentry-credits", "off"]) {
+    assert.equal(rowNote(row("review.source", `{"source":"${src}"}`))!.disabled, true, src);
+  }
+  assert.equal(rowNote(row("review.source", '{"source":"member"}'))!.disabled, false, "the member's own key stays usable");
+  assert.equal(valueWords(row("review.source", '{"source":"member"}')), "your own keys");
+  const httpsOnly = rowNote(row("model.customEndpoints", '"https-only"'))!;
+  assert.deepEqual(httpsOnly.lines, ["A model endpoint of your own: allowed over https only."], "https only does not leave the choice to the member");
+  const order = partNotes([row("model.customEndpoints", '"forbidden"'), row("model.providers", '["openai"]'), row("model.source", '{"source":"member"}', "default")], "provider")
+    .map((n) => n.id);
+  assert.deepEqual(order, ["model.source", "model.providers", "model.customEndpoints"]);
 });
 
 test("a row is found by its id", () => {

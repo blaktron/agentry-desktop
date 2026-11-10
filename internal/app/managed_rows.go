@@ -105,6 +105,25 @@ func refuseIfManagedLock(id string) error {
 	return nil
 }
 
+// refuseManagedKeySource is a key setter's refusal while a lock decides
+// that no key of the member's own pays for the service (id is review.source
+// or webSearch.source): the organization's own key, its credits, or none.
+func refuseManagedKeySource(id, what string) error {
+	ks := managedCalls.current().KeySourceOf(id)
+	if !ks.Decided || !ks.Locked || ks.Source == managedsettings.SourceMember {
+		return nil
+	}
+	switch ks.Source {
+	case managedsettings.SourceOff:
+		return fmt.Errorf("%s is off by %s's managed settings (%s)", capitalize(what), ks.Org, id)
+	case managedsettings.SourceAgentryCredits:
+		return fmt.Errorf("%s's managed settings pay for %s with its credits (%s), so no key of yours is used", ks.Org, what, id)
+	case managedsettings.SourceOrganizationKey:
+		return fmt.Errorf("%s's managed settings use a key %s provides for %s (%s), so no key of yours is used", ks.Org, ks.Org, what, id)
+	}
+	return nil
+}
+
 // UseManagedMalwareCheck forgets the member's own malware check choice, so
 // the organization's default applies. A lock leaves nothing to forget.
 func (s *SettingsAPI) UseManagedMalwareCheck() (*RunDefaultsView, error) {

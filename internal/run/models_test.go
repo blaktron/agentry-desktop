@@ -6,6 +6,7 @@ package run
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,9 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/blaktron/agentry/pkg/managedsettings"
+
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelcheck"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/savedmodels"
@@ -413,5 +417,38 @@ func TestAnEndpointBeingAddedIsNeverSentAnotherProvidersKey(t *testing.T) {
 	}
 	if _, err := ListEndpointModels(context.Background(), "ftp://new.example/v1", ""); err == nil {
 		t.Fatal("a scheme other than http or https was asked")
+	}
+}
+
+// A model the organization's managed settings leave out is refused before
+// its provider is asked anything, as a save the check refuses: nothing is
+// written, and the refusal names the organization and the setting. It
+// cannot be made the default either, and a model the lock allows can.
+func TestAModelTheManagedSettingsLeaveOutIsRefusedAndWritesNothing(t *testing.T) {
+	l := newLab(t)
+	mustSave(t)(AddProviderModel(context.Background(), labEndpoint, ModelDraft{Name: "Qwen", Model: "qwen3"}, io.Discard))
+	second := mustSave(t)(AddModel(context.Background(), "custom-lab", ModelDraft{Name: "Llama", Model: "llama4"}, io.Discard))
+	before, _ := os.ReadFile(l.path)
+	asked := l.asks
+
+	holdManaged(t, managed.Effective{Documents: []managed.State{{
+		Registry: "https://r.example",
+		Document: managedsettings.Document{Registry: "https://r.example", Org: "acme", Version: 3, Settings: map[string]managedsettings.Setting{
+			managedsettings.ModelProviders: {Value: json.RawMessage(`["anthropic"]`), Locked: true},
+		}},
+	}}})
+	res, err := AddModel(context.Background(), "custom-lab", ModelDraft{Name: "Gemma", Model: "gemma4"}, io.Discard)
+	if err != nil || res.Saved != nil || res.Refusal == nil || res.Refusal.Kind != RefusalManaged || !strings.Contains(res.Refusal.Reason, "acme") ||
+		!strings.Contains(res.Refusal.Reason, managedsettings.ModelProviders) {
+		t.Fatalf("a provider the lock leaves out: %+v (%v)", res, err)
+	}
+	if l.asks != asked {
+		t.Fatal("the provider was asked before the managed settings refused the save")
+	}
+	if err := SetDefaultModel(second.ID); err == nil || !strings.Contains(err.Error(), "acme") {
+		t.Fatalf("a default the lock leaves out: %v", err)
+	}
+	if after, _ := os.ReadFile(l.path); string(after) != string(before) {
+		t.Fatal("a refused save or default changed the policy")
 	}
 }

@@ -13,6 +13,8 @@ import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../keyRecommendation";
+import { noteOf } from "../managed";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 
 /** The link to TypeSafe, where a person gets a key: the system browser
  *  opens it (App.OpenExternal), at the one address keyRecommendation.ts
@@ -46,6 +48,10 @@ export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tested, setTested] = useState<app.JevKeyTestView | null>(null);
+  // A lock on what pays for AI Review that is not the member's own key
+  // leaves no key of theirs to save.
+  const managedRows = useManagedRows();
+  const held = !!noteOf(managedRows, "review.source")?.disabled;
 
   useEffect(() => {
     RunAPI.JevKeyStatus().then(setStatus).catch((e) => setError(String(e)));
@@ -99,6 +105,7 @@ export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => 
         What it flags is held back. Submitting needs no key of yours: Agentry scans every submission itself. The key is
         kept in this computer&apos;s keychain next to your model key: not in a file, and never shown here.
       </p>
+      <ManagedNotes rows={managedRows} part="review-key" use={status?.stored ? forget : undefined} busy={!!busy} />
       {status && <p className="small" role="status">{jevKeySentence(status)}</p>}
       {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}
       <label className="field">
@@ -107,9 +114,9 @@ export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => 
           <Input
             type="password" className="grow mono" autoComplete="off" aria-label="Jev key"
             placeholder={status?.stored ? "saved on this computer — paste a new one to replace it" : "Paste your TypeSafe Jev key"}
-            value={key} onChange={(e) => setKey(e.target.value)} disabled={!!busy}
+            value={key} onChange={(e) => setKey(e.target.value)} disabled={!!busy || held}
           />
-          <Button variant="primary" disabled={!!busy || !key.trim()} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
+          <Button variant="primary" disabled={!!busy || held || !key.trim()} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
         </div>
       </label>
       <div className="row">

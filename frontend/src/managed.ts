@@ -76,7 +76,8 @@ export type RowNote = {
 /** The parts that show managed rows, and the rows each governs. */
 export type ManagedPart =
   | "budgets" | "where" | "runhosts" | "deliverables" | "destinations" | "malware" | "unsafe"
-  | "applications" | "screen" | "agents" | "installs" | "scheduled" | "updates" | "bug-report";
+  | "applications" | "screen" | "agents" | "installs" | "scheduled" | "updates" | "bug-report"
+  | "provider" | "review-key" | "search-key" | "coding-tools";
 
 export const PART_ROWS: Record<ManagedPart, string[]> = {
   budgets: ["run.timeout", "run.maxTurns", "run.maxCost"],
@@ -93,6 +94,10 @@ export const PART_ROWS: Record<ManagedPart, string[]> = {
   scheduled: ["schedules"],
   updates: ["updates.minimumVersion"],
   "bug-report": ["bugReports"],
+  provider: ["model.source", "model.providers", "model.default", "model.signIns", "model.customEndpoints"],
+  "review-key": ["review.source"],
+  "search-key": ["webSearch.source"],
+  "coding-tools": ["codingTools.allowed"],
 };
 
 // What each row decides, as the part's sentence names it.
@@ -101,6 +106,7 @@ const LABELS: Record<string, string> = {
   "agents.codingAgent": "The Coding agent",
   "browser.publicWeb": "A run's browser reaching the public web",
   bugReports: "Bug reports",
+  "codingTools.allowed": "The coding tools runs may use",
   "deliverables.destinations": "Where a run may send its result",
   "desktop.applications": "Runs using applications on this computer",
   "desktop.customServers": "Runs using applications you set up yourself",
@@ -111,7 +117,13 @@ const LABELS: Record<string, string> = {
   malwareCheck: "The malware check",
   "mcpServers.allowVulnerable": "MCP servers rated high or critical",
   messengers: "Messengers for persistent agents",
+  "model.customEndpoints": "A model endpoint of your own",
+  "model.default": "The model runs use",
+  "model.providers": "The model providers runs may use",
+  "model.signIns": "Subscriptions and plans runs may spend",
+  "model.source": "What pays for your models",
   persistentReleases: "Persistent QuickAgents from the registry",
+  "review.source": "What pays for AI Review",
   "run.maxCost": "The most a run may cost",
   "run.maxTurns": "The most turns a run may take",
   "run.timeout": "The longest a run may take",
@@ -119,15 +131,61 @@ const LABELS: Record<string, string> = {
   "run.where": "Where runs may go",
   schedules: "Scheduled runs",
   "updates.minimumVersion": "The oldest Agentry client that may run",
+  "webSearch.source": "What pays for web search",
 };
 
 const CAP_UNITS: Record<string, string> = { "run.timeout": "seconds", "run.maxTurns": "turns", "run.maxCost": "US dollars" };
 
 const PLACES: Record<string, string> = { local: "this computer", hosted: "In Agentry", runhost: "a runhost", "target-host": "a target host" };
 const DESTINATIONS: Record<string, string> = { folder: "a folder", webhook: "a webhook", s3: "an S3 bucket" };
-const CHOICES: Record<string, string> = { allowed: "allowed", forbidden: "not allowed", optional: "optional", required: "required" };
+const CHOICES: Record<string, string> = {
+  allowed: "allowed", forbidden: "not allowed", optional: "optional", required: "required", "https-only": "allowed over https only",
+};
 // The values that restrict the member: a lock on one fixes the control.
 const RESTRICTIVE = new Set(["forbidden", "required"]);
+// The values that leave a choice to the member.
+const OPEN = new Set(["allowed", "optional"]);
+const PROVIDERS: Record<string, string> = {
+  anthropic: "Anthropic", openai: "OpenAI", google: "Google", vultr: "Vultr", openrouter: "OpenRouter", poe: "Poe",
+  huggingface: "Hugging Face", copilot: "GitHub Copilot", agentry: "Agentry", custom: "an endpoint of your own",
+};
+const SIGN_INS: Record<string, string> = {
+  subscription: "a provider subscription", "claude-signin": "a Claude sign-in", "chatgpt-plan": "a ChatGPT plan", "copilot-signin": "a Copilot sign-in",
+};
+const CODING_TOOLS: Record<string, string> = { "claude-code": "Claude Code", codex: "Codex", copilot: "Copilot CLI" };
+const SEARCH_PROVIDERS: Record<string, string> = { brave: "Brave", tavily: "Tavily", exa: "Exa", perplexity: "Perplexity", youcom: "You.com" };
+// The source rows: what pays for a service.
+const SOURCE_ROWS = new Set(["model.source", "review.source", "webSearch.source"]);
+
+/** The source a source row names, or "" for a row that is not one. */
+export function sourceOf(row: ManagedRow | null): string {
+  if (!row || !SOURCE_ROWS.has(row.id)) return "";
+  const v = rowValue(row);
+  return v && typeof v === "object" && typeof (v as { source?: unknown }).source === "string" ? (v as { source: string }).source : "";
+}
+
+/** Whether a source row leaves the member's own keys in use: no row, or the
+ *  member's own source. */
+export function ownKeysUsed(row: ManagedRow | null): boolean {
+  const src = sourceOf(row);
+  return src === "" || src === "member";
+}
+
+function sourceWords(row: ManagedRow, org: string): string {
+  const v = (rowValue(row) ?? {}) as { source?: string; provider?: string };
+  switch (v.source) {
+    case "member": return "your own keys";
+    case "agentry-credits": return `${org}'s credits, through Agentry`;
+    case "organization-key": {
+      const at = v.provider ? ` (${SEARCH_PROVIDERS[v.provider] ?? v.provider})` : "";
+      return row.id === "model.source"
+        ? `${org}'s own model key, which stays with the registry`
+        : `a key ${org} provides${at}, kept in your keychain and never shown`;
+    }
+    case "off": return "off";
+  }
+  return row.value;
+}
 
 /** The row's value, parsed; undefined when the text is not JSON. */
 export function rowValue(row: Pick<ManagedRow, "value">): unknown {
@@ -147,13 +205,20 @@ export function rowOf(rows: ManagedRow[] | null | undefined, id: string): Manage
  *  and In Agentry", "version 0.7.30 or later". */
 export function valueWords(row: ManagedRow): string {
   const v = rowValue(row);
+  if (SOURCE_ROWS.has(row.id)) return sourceWords(row, row.organization || "your organization");
+  if (row.id === "model.default" && v && typeof v === "object") {
+    const m = v as { provider?: string; model?: string };
+    return `${m.model ?? ""} on ${PROVIDERS[m.provider ?? ""] ?? m.provider ?? ""}`.trim();
+  }
   if (typeof v === "string") {
     if (row.id === "updates.minimumVersion") return `version ${v} or later`;
     return CHOICES[v] ?? v;
   }
   if (typeof v === "number") return `at most ${v} ${CAP_UNITS[row.id] ?? ""}`.trim();
   if (Array.isArray(v)) {
-    const names = row.id === "run.where" ? PLACES : DESTINATIONS;
+    const names = ({ "run.where": PLACES, "model.providers": PROVIDERS, "model.signIns": SIGN_INS, "codingTools.allowed": CODING_TOOLS } as
+      Record<string, Record<string, string>>)[row.id] ?? DESTINATIONS;
+    if (!v.length) return "none";
     return joinAnd(v.map((x) => names[String(x)] ?? String(x)));
   }
   if (v && typeof v === "object") {
@@ -191,6 +256,7 @@ export function lockedMembers(row: ManagedRow | null): string[] | null {
 export function forbids(row: ManagedRow | null): boolean {
   if (!row || row.state !== "locked") return false;
   const v = rowValue(row);
+  if (SOURCE_ROWS.has(row.id)) return !ownKeysUsed(row);
   return typeof v === "string" && RESTRICTIVE.has(v);
 }
 
@@ -220,7 +286,7 @@ export function rowNote(row: ManagedRow | null | undefined): RowNote | null {
   const org = row.organization || "your organization";
   const locked = row.state === "locked";
   const lines = [`${label}: ${valueWords(row)}.`];
-  if (locked && !forbids(row) && typeof rowValue(row) === "string" && row.id !== "updates.minimumVersion") {
+  if (locked && OPEN.has(String(rowValue(row)))) {
     lines.push(`${capital(org)} leaves this to you.`);
   }
   if (!row.applied) {
