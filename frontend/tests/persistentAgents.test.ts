@@ -23,6 +23,8 @@ import {
   persistentOnly,
   refreshesView,
   serverRowOf,
+  serverListLine,
+  serverSearchNote,
   agentStateWords,
   applyAgentEvent,
   chatFromTranscript,
@@ -545,4 +547,21 @@ test("a change the running agent could not start with is named with why", () => 
   assert.equal(notAppliedWords({ reason: "the image did not pull", entries: ["server:github"] }),
     "Your last change could not be applied, so the agent goes on without server:github, now switched off: the image did not pull");
   assert.match(notAppliedWords({ reason: "x", entries: [] }), /without your last change/);
+});
+
+test("a server the list saw working says what is added, its tools, the keys it names and when it worked", () => {
+  assert.equal(serverListLine({ kind: "npm", ref: "@scope/weather@1.2.3", toolCount: 3, secrets: ["WEATHER_KEY"], tested: "2026-10-20" }),
+    "npm · @scope/weather@1.2.3 · 3 tools · may take WEATHER_KEY · worked on 2026-10-20");
+  assert.equal(serverListLine({ kind: "pypi", ref: "tool@0.4.0", toolCount: 1 }), "PyPI · tool@0.4.0 · 1 tool");
+  assert.equal(serverListLine({ kind: "remote", ref: "https://mcp.example/mcp", toolCount: 0, secrets: [""] }), "Remote · https://mcp.example/mcp");
+});
+
+test("the server search's note", () => {
+  assert.equal(serverSearchNote({ query: "", total: 0, shown: 0, partial: false }), "");
+  assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false }), /^No server in the list matches/);
+  assert.equal(serverSearchNote({ query: "x", total: 3, shown: 3, partial: false }), "");
+  assert.match(serverSearchNote({ query: "x", total: 40, shown: 12, partial: false }), /best 12 of 40/);
+  assert.match(serverSearchNote({ query: "x y", total: 2, shown: 2, partial: true }), /^Nothing matches every word/);
+  assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "Error: this registry has no MCP server list" }), /has no MCP server list to search/);
+  assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "timeout" }), /could not be searched: timeout/);
 });
