@@ -8548,6 +8548,13 @@ export class RecentRunView {
      */
     "model"?: string;
 
+    /**
+     * Runhost is the remote runhost a run here ran on, by its name: a
+     * one-off run sent there, or a run of its schedule collected here;
+     * omitted for a run on this computer.
+     */
+    "runhost"?: string;
+
     /** Creates a new RecentRunView instance. */
     constructor($$source: Partial<RecentRunView> = {}) {
         if (!("id" in $$source)) {

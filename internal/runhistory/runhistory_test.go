@@ -78,7 +78,7 @@ func TestTheFileIsPrivateAndHoldsNoTaskInputResultOrLog(t *testing.T) {
 	for f := range reflect.TypeFor[Entry]().Fields() {
 		fields = append(fields, f.Name)
 	}
-	want := "ID Kind Where Registry Ref Digest StartedAt EndedAt Outcome ExitCode ExitClass Cause Log Folder Model"
+	want := "ID Kind Where Registry Ref Digest StartedAt EndedAt Outcome ExitCode ExitClass Cause Log Folder Model Runhost"
 	if strings.Join(fields, " ") != want {
 		t.Fatalf("an entry holds %v; a new field must not carry the task, inputs, result, a secret or the log, and this test is changed with it", fields)
 	}
@@ -335,5 +335,36 @@ func TestAnUnreadableFileIsSaid(t *testing.T) {
 	_ = os.WriteFile(path, []byte("version: 9\nruns: []\n"), 0o600)
 	if runs, err := List(); err != nil || len(runs) != 0 {
 		t.Fatalf("a newer version: %v, %v", runs, err)
+	}
+}
+
+// An entry keeps the runhost a run ran on; one written before runs named
+// their runhost reads as a run on this computer, and a runhost name that is
+// not one, or one on a run In Agentry, is dropped.
+func TestAnEntryKeepsItsRunhost(t *testing.T) {
+	path := useTemp(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := `version: 1
+runs:
+  - {id: old12345, kind: run, where: here, outcome: ok, endedAt: 2026-10-05T12:00:00Z}
+  - {id: bad12345, kind: run, where: here, runhost: "../lab", outcome: ok}
+  - {id: hosted12, kind: run, where: agentry, runhost: lab, outcome: succeeded}
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e := entry("new12345", time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC))
+	e.Runhost, e.Model = "lab", "Haiku"
+	if err := Add(e); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 || runs[0].ID != "new12345" || runs[0].Runhost != "lab" || runs[1].ID != "old12345" || runs[1].Runhost != "" {
+		t.Fatalf("read %+v", runs)
 	}
 }
