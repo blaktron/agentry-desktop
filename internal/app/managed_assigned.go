@@ -274,20 +274,24 @@ func (r *RunAPI) askRequiredConsent(reg, ref string) error {
 	if !ok {
 		return nil
 	}
+	// What cannot be read refuses the run: a record that cannot be checked
+	// might be one an organization left with no consent in it.
 	home, err := policy.Home()
 	if err != nil {
-		return nil
+		return fmt.Errorf("the runner home could not be found to check your consent to %s: %w", ref, err)
 	}
 	state, err := installed.Load()
 	if err != nil {
-		return nil
+		return fmt.Errorf("the record of what you accepted could not be read to check your consent to %s: %w", ref, err)
 	}
 	if rec := state.Find(installdir.ConsentKey(home, ns, name)); rec == nil || rec.AssignedBy == "" {
 		return nil
 	}
 	info, err := run.ProfileStatus(r.app.ctxOrBackground(), reg, ref)
-	if err != nil || info.RequiredBy == "" {
-		// A release that cannot be read is the run's own error to report.
+	if err != nil {
+		return fmt.Errorf("%s was installed by your organization's managed settings, and its contract could not be read to ask your consent: %w", ref, err)
+	}
+	if info.RequiredBy == "" {
 		return nil
 	}
 	return r.app.askConsent("Accept what "+ref+" may do?", requiredConsentText(ref, info))
