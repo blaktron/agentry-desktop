@@ -379,6 +379,16 @@ export function ResetPart(name: string, kind: string): $CancellablePromise<$mode
 }
 
 /**
+ * SearchServers searches the default registry's MCP server list for
+ * working servers matching q. An empty q answers no items.
+ */
+export function SearchServers(q: string): $CancellablePromise<$models.ServerListView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.SearchServers", q).then(($result: any) => {
+        return $$createType9($result)!;
+    });
+}
+
+/**
  * Send sends the person's message as the agent's next turn and returns
  * once it is answered; its events stream meanwhile. A change waiting for
  * the next turn is applied first, which the stream says. An agent another
@@ -617,7 +627,7 @@ export function Tasks(name: string): $CancellablePromise<$models.PersistentTaskV
  */
 export function Transcript(name: string): $CancellablePromise<$models.SessionEventView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Transcript", name).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType11($result);
     });
 }
 
@@ -655,5 +665,7 @@ const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = $models.PersistentExportView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
 const $$createType7 = $Create.Array($$createType0);
-const $$createType8 = $models.SessionEventView.createFrom;
-const $$createType9 = $Create.Array($$createType8);
+const $$createType8 = $models.ServerListView.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $models.SessionEventView.createFrom;
+const $$createType11 = $Create.Array($$createType10);

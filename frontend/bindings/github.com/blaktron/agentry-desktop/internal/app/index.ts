@@ -253,6 +253,8 @@ export {
     SelfUpdateProgress,
     SelfUpdateView,
     SendView,
+    ServerListItem,
+    ServerListView,
     SessionEventView,
     SessionView,
     SettingsView,

@@ -1837,6 +1837,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .config-suggestions h4 { margin: 0 0 6px; font-size: 13px; }
 .config-suggestion { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .config-suggestion .config-card-text { flex: 1; }
+.config-server-search { margin-top: 12px; }
+.config-server-search input[type="search"] { width: 100%; margin-bottom: 4px; }
+.config-direct-add { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
 .agent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); vertical-align: middle; }
 .agent-dot.on { background: var(--color-ok); }
 .nav-item.nav-agent { display: flex; align-items: center; gap: 8px; }
@@ -1845,6 +1848,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .persistent-agent-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .persistent-server-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: start; margin: 8px 0; }
 .persistent-server-form > button { grid-column: 1 / -1; justify-self: start; }
+.modal .persistent-server-form { grid-template-columns: 1fr; margin: 0; }
+.modal .persistent-server-form > .row { justify-content: flex-end; }
 @media (max-width: 900px) {
   .agent-screen { grid-template-columns: 1fr; grid-template-rows: 1fr auto auto; }
   .agent-term { grid-row: 1; }
