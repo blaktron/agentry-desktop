@@ -18,6 +18,7 @@
 // roster's full cards with their Add cards and, for an agent that keeps
 // time, its Tasks. Every view sends, stops, adds files and starts alike.
 import { useEffect, useRef, useState } from "react";
+import { ChatAnnouncer, sayTermBlock } from "../chatAnnounce";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
@@ -189,7 +190,7 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
           </div>
         </header>
         <StartFailure agent={agent} />
-        <div className="agent-term-scroll" ref={scroller} role="log" aria-live="polite">
+        <div className="agent-term-scroll" ref={scroller} role="log" aria-live="off" aria-busy={!!rec.chat.streaming} aria-label={`Chat with ${agent.displayName}`}>
           {blocks.length === 0 && !rec.chat.streaming && (
             <p className="agent-term-note">{running ? "Say hello to start the conversation." : "Start the agent to talk to it. The conversation picks up where it left off."}</p>
           )}
@@ -199,6 +200,7 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
             : <div className="agent-term-agent streaming">{rec.chat.streaming}</div>)}
           {answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
+        <ChatAnnouncer items={blocks} say={sayTermBlock(agent.displayName)} />
         {pendingChange(agent) && running && <p className="agent-term-pending">Applying your change at the next turn.</p>}
         {agent.status?.held && <p className="agent-term-pending">Waiting between turns while {agent.status.held} is set up.</p>}
         {agent.notApplied && running && <p className="agent-term-pending">{notAppliedWords(agent.notApplied)}</p>}
