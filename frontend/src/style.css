@@ -2146,3 +2146,28 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   .agent-row-open:focus-visible::after, .build-way-main:focus-visible::after, .settings-card-link:focus-visible::after { outline-color: Highlight; }
   :focus-visible { outline-color: Highlight; }
 }
+
+/* A narrow window: 720 CSS pixels or less, as the smallest window is at 125%
+   text size and up. The sidebar becomes a bar across the top with the brand,
+   the bell and a Pages button that opens the rows beneath it; the content
+   takes the full width, and page headers, tabs and toolbars wrap rather than
+   scroll sideways. */
+.nav-toggle { display: none; }
+@media (max-width: 720px) {
+  .shell { flex-direction: column; }
+  .sidebar {
+    width: auto; flex-direction: row; flex-wrap: wrap; align-items: center;
+    border-right: none; border-bottom: 1px solid var(--color-border); padding: 4px 8px;
+  }
+  .brand { flex: 1 1 auto; padding: 4px 6px; }
+  .nav-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+  .sidebar-nav { display: none; flex: 1 0 100%; max-height: 55vh; padding: 6px 0; }
+  .sidebar-nav.is-open { display: flex; }
+  .sidebar .foot { display: none; flex: 1 0 100%; padding: 4px 6px; }
+  .sidebar:has(.sidebar-nav.is-open) .foot { display: block; }
+  .content { flex: 1 1 auto; min-height: 0; padding: 12px 14px 40px; }
+  .page-header, .page-header .page-header-actions, .tabs, .toolbar { flex-wrap: wrap; }
+  .page-header .page-header-actions { flex: 1 1 100%; }
+  /* A path, an image reference or a digest breaks where it must. */
+  .content .mono { overflow-wrap: anywhere; }
+}
