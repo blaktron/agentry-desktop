@@ -169,6 +169,14 @@
    also offer to open it in a new window or save it, so it stays hidden
    there. The window toolkit's runtime reads this property. */
 a[href], a[href] *, img { --default-contextmenu: hide; }
+/* Settings → Home → Accessibility's Reduce motion: what prefers-reduced-motion
+   stills, stilled whatever the computer says. */
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
 
 html, body, #root {
   height: 100%;
@@ -2099,3 +2107,13 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .library-picker-text { display: flex; flex-direction: column; min-width: 0; }
 .library-picker-summary { display: block; }
 .library-picker-foot { gap: 0.75rem; align-items: center; padding-top: 8px; }
+
+/* Settings → Home → Accessibility. */
+.a11y-choices { border: none; margin: 0 0 14px; padding: 0; }
+.a11y-choices legend { padding: 0; margin-bottom: 6px; }
+.a11y-choice {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px;
+  padding: 4px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); cursor: pointer;
+}
+.a11y-choice.is-chosen { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.a11y-choice:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }

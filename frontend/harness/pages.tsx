@@ -16,6 +16,8 @@ import renderHouseCustomPdf from "./fixtures/render-house-custom.pdf?url";
 import renderHouseCustomDrawnPdf from "./fixtures/render-house-custom-drawn.pdf?url";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
+// ?textsize=<percent> is the text size Settings → Home → Accessibility shows.
+let harnessTextSize = Number(new URLSearchParams(window.location.search).get("textsize")) || 100;
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
 const harnessTheme = new URLSearchParams(window.location.search).get("theme");
 // ?homeagent=assistant gives Home's agent card the Assistant; a pick is kept
@@ -1252,6 +1254,20 @@ g.go = { app: {
     Theme: async () => harnessTheme ?? "system",
     // Recorded on the body, so a shot can say what was kept.
     SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
+    // Settings → Home → Accessibility: ?textsize=<percent> starts at that
+    // size; a choice and a step are kept here and recorded on the body.
+    TextSizes: async () => [100, 110, 125, 150, 175, 200],
+    TextSize: async () => harnessTextSize,
+    SetTextSize: async (p: number) => { harnessTextSize = p; document.body.dataset.textSizeKept = String(p); return p; },
+    StepTextSize: async (step: number) => {
+      const sizes = [100, 110, 125, 150, 175, 200];
+      const i = sizes.indexOf(harnessTextSize);
+      harnessTextSize = step === 0 ? 100 : sizes[Math.max(0, Math.min(sizes.length - 1, i + step))];
+      document.body.dataset.textSizeKept = String(harnessTextSize);
+      return harnessTextSize;
+    },
+    Motion: async () => (document.documentElement.dataset.motion === "reduce" ? "reduce" : "system"),
+    SetMotion: async (choice: string) => { document.body.dataset.motionKept = choice; },
     UnpinScheduled: async () => harnessUnpinScheduled(),
     Agent: async () => harnessHomeAgent,
     SetAgent: async (name: string) => { harnessHomeAgent = name; document.body.dataset.homeAgent = name; return name; },

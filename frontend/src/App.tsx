@@ -48,6 +48,7 @@ import type { WizardStep } from "./wizardPath";
 import WhatsNew from "./pages/WhatsNew";
 import type { WhatsNewData } from "./whatsNew";
 import { Recover } from "./Recover";
+import { TextSizeKeys } from "./TextSizeKeys";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
 import MeetingNotes from "./pages/MeetingNotes";
@@ -439,6 +440,7 @@ export default function App() {
   return (
     <CornerHost.Provider value={corner}>
       <div className="shell">
+        <TextSizeKeys />
         <div className="sidebar">
           <div className="brand">
             <Wordmark sub="Desktop" />

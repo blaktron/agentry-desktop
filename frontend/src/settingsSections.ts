@@ -16,7 +16,8 @@
 //   Updates and installs  this app's updates, QuickAgents' updates, the
 //                    coding tool Install also writes to, and the Agentry
 //                    plugin in each coding tool
-//   Home             the theme and Home's cards
+//   Home             the theme, accessibility (text size and motion) and
+//                    Home's cards
 //   Licences
 //
 // The persistent agents are managed on the Agents page, Meeting notes on its
@@ -33,7 +34,7 @@ export type SettingsPart =
   | "budgets" | "chats" | "where" | "runhosts" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images"
   | "connections" | "own-clients" | "destinations"
   | "desktop" | "quickagents" | "coding-tools"
-  | "theme" | "home-agent" | "home-cards" | "pins" | "reset-home";
+  | "theme" | "accessibility" | "home-agent" | "home-cards" | "pins" | "reset-home";
 
 /** A part as the landing links it. needsSignIn: linked only while the
  *  active registry is signed in, as the section page shows it. */
@@ -88,8 +89,8 @@ export const SECTIONS: SectionMeta[] = [
   },
   {
     id: "home", title: "Home",
-    sentence: "The theme Agentry Desktop is drawn in, which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
-    parts: [{ id: "theme", label: "Theme" }, { id: "home-agent", label: "Agent on Home" }, { id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
+    sentence: "The theme Agentry Desktop is drawn in, its text size and motion, which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
+    parts: [{ id: "theme", label: "Theme" }, { id: "accessibility", label: "Accessibility" }, { id: "home-agent", label: "Agent on Home" }, { id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
   },
   {
     id: "licences", title: "Licences",

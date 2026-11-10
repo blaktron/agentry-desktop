@@ -28,11 +28,12 @@ Object.defineProperty(globalThis, "go", { get: () => w.go, configurable: true })
 Object.defineProperty(globalThis, "runtime", { get: () => w.runtime, configurable: true });
 
 /** Renders a harness entry ("pages", "modals", "wizard") in the state its
- *  hash names, and waits for its first reads to be answered. */
-export async function renderHarness(entry: string, hash = ""): Promise<Element> {
+ *  hash and query name, and waits for its first reads to be answered. */
+export async function renderHarness(entry: string, hash = "", query = ""): Promise<Element> {
   const root = window.document.createElement("div");
   root.id = "root";
   window.document.body.appendChild(root);
+  if (query) window.history.replaceState(null, "", `/?${query}`);
   if (hash) window.location.hash = hash;
   await import(`../harness/${entry}.tsx`);
   for (let i = 0; i < 50; i++) await new Promise((r) => setTimeout(r, 0));
