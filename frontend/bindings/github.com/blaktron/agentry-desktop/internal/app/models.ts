@@ -2369,6 +2369,40 @@ export class EngineChoicesView {
 }
 
 /**
+ * EngineMemoryView is what Runs at once says of the engine's virtual
+ * machine.
+ */
+export class EngineMemoryView {
+    /**
+     * Line says how much memory the machine has and how many runs it fits;
+     * "" when the engine runs on this computer or its memory is unknown.
+     */
+    "line"?: string;
+
+    /**
+     * Short says the machine fits fewer runs than Runs at once is set to.
+     */
+    "short": boolean;
+
+    /** Creates a new EngineMemoryView instance. */
+    constructor($$source: Partial<EngineMemoryView> = {}) {
+        if (!("short" in $$source)) {
+            this["short"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new EngineMemoryView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): EngineMemoryView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new EngineMemoryView($$parsedSource as Partial<EngineMemoryView>);
+    }
+}
+
+/**
  * EngineView is the container engine detection found, for the pages: what
  * answers, where, how it was found, and the traps seen on the way.
  */

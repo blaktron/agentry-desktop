@@ -513,3 +513,45 @@ func TestTheVMDirectoryIsTheAppsOnlyWhenItMadeIt(t *testing.T) {
 		doneOther()
 	}
 }
+
+// The size the app sets is the size every later start passes to Colima; with
+// none set, Colima's own default is left alone, and the size is held to at
+// least 2 GB and 2 processors.
+func TestTheVMStartsWithTheSizeSet(t *testing.T) {
+	e, done := testPublisher(t, "")
+	defer done()
+	e.VMDir = filepath.Join(shortTempDir(t), vmDirName)
+	if err := e.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	e.Command = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		calls = append(calls, strings.Join(args, " "))
+		return exec.CommandContext(ctx, "true")
+	}
+	if err := e.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || strings.Contains(calls[0], "--memory") || strings.Contains(calls[0], "--cpu") {
+		t.Fatalf("a start with no size set: %q", calls)
+	}
+	if r, err := e.Resources(); err != nil || r != (Resources{}) {
+		t.Fatalf("Resources with none set: %+v, %v", r, err)
+	}
+	if err := e.SetResources(14, 7); err != nil {
+		t.Fatal(err)
+	}
+	calls = nil
+	if err := e.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || !strings.HasSuffix(calls[0], "--memory 14 --cpu 7") {
+		t.Fatalf("a start after the size was set: %q", calls)
+	}
+	if err := e.SetResources(1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := e.Resources(); r != (Resources{MemoryGiB: 2, CPUs: 2}) {
+		t.Fatalf("a size below the floor: %+v", r)
+	}
+}

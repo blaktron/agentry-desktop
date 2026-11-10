@@ -1539,6 +1539,9 @@ g.go = { app: {
     SetRunWhere: async (w: string) => (runDefaultsView = { ...runDefaultsView, where: w }),
     SetChatIdleTimeout: async (sec: number) => (runDefaultsView = { ...runDefaultsView, chatIdleTimeoutSeconds: sec }),
     SetRunsAtOnce: async (n: number) => (runDefaultsView = { ...runDefaultsView, runsAtOnce: n }),
+    EngineMemory: async () => ({ line: location.hash === "#runs-at-once-short"
+      ? "Agentry's engine has 2 GB of memory, enough for 1 run at once. 3 runs need about 8 GB: choose the number again to give it that memory."
+      : "Agentry's engine has 6 GB of memory, enough for 2 runs at once.", short: location.hash === "#runs-at-once-short" }),
     ChooseDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "/home/me/agentry-runs" }),
     ClearDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "" }),
     SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },

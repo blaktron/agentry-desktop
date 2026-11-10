@@ -2,6 +2,7 @@ package managedengine
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,8 +17,9 @@ import (
 // The live check, on a Mac, with the real publishers: the three pinned
 // files are fetched and verified, the engine's VM starts under a temporary
 // engine directory, the engine's own docker command answers through the
-// socket and runs a container that reads a file the Mac shares, the VM
-// stops and Remove leaves nothing. It downloads about 80 MB and boots a
+// socket and runs a container that reads a file the Mac shares, the VM is
+// given a size and started again with it, the VM stops and Remove leaves
+// nothing. It downloads about 80 MB and boots a
 // virtual machine, so it runs only when asked:
 //
 //	AGENTRY_LIVE_MANAGED_ENGINE=1 go test ./internal/managedengine -run TestLiveManagedEngineOnThisMac -v -timeout 20m
@@ -132,6 +134,33 @@ func TestLiveManagedEngineOnThisMac(t *testing.T) {
 		out, _ := exec.Command("grep", "-rl", "colima", filepath.Join(home, ".docker", "contexts")).Output()
 		if strings.TrimSpace(string(out)) != "" {
 			t.Errorf("a colima context landed in the person's docker contexts:\n%s", out)
+		}
+	}
+
+	// The VM is given a size and started again with it, as Runs at once
+	// does: the daemon then reports that memory and those processors.
+	before = docker("info", "--format", "{{.MemTotal}} {{.NCPU}}")
+	t.Logf("the VM before it is sized: %s (bytes, processors)", before)
+	if err := e.SetResources(6, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Stop(ctx); err != nil {
+		t.Fatalf("stop before the resize: %v", err)
+	}
+	start = time.Now()
+	if err := e.Start(ctx); err != nil {
+		t.Fatalf("start with a size: %v", err)
+	}
+	sized := strings.Fields(docker("info", "--format", "{{.MemTotal}} {{.NCPU}}"))
+	t.Logf("the VM sized and answering in %s: %v (bytes, processors)", time.Since(start).Round(time.Second), sized)
+	if len(sized) != 2 || sized[1] != "3" {
+		t.Errorf("the sized VM has %v processors, want 3", sized)
+	}
+	if len(sized) == 2 {
+		var mem uint64
+		_, _ = fmt.Sscan(sized[0], &mem)
+		if gib := (mem + 1<<29) >> 30; gib != 6 {
+			t.Errorf("the sized VM has %d GiB of memory (%s bytes), want 6", gib, sized[0])
 		}
 	}
 

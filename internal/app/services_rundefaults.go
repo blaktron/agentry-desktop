@@ -172,7 +172,9 @@ func (s *SettingsAPI) SetBuiltinNoLimit(on bool) (*RunDefaultsView, error) {
 
 // SetRunsAtOnce records how many runs on this computer may run at the same
 // time and applies it at once: raising it starts the runs waiting at the
-// head of the queue, lowering it stops nothing. A number below one or above
+// head of the queue, lowering it stops nothing. Raising it past what the
+// engine's virtual machine fits offers to give the machine more memory
+// first (services_vmmemory.go). A number below one or above
 // the ceiling this computer's memory sets is refused, and the file is left
 // as it was.
 func (s *SettingsAPI) SetRunsAtOnce(n int) (*RunDefaultsView, error) {
@@ -182,6 +184,13 @@ func (s *SettingsAPI) SetRunsAtOnce(n int) (*RunDefaultsView, error) {
 	}
 	st, err := settings.Load()
 	if err != nil {
+		return nil, err
+	}
+	if n, err = s.fitVM(n, runsAtOnce(st)); err != nil {
+		return nil, err
+	}
+	// The file is read again: a resize can take minutes.
+	if st, err = settings.Load(); err != nil {
 		return nil, err
 	}
 	st.RunsAtOnce = n

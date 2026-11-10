@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -634,7 +635,12 @@ func (e *Engine) Start(ctx context.Context) error {
 		return fmt.Errorf("start Agentry's engine: %w", err)
 	}
 	e.logf("Starting Agentry's engine (Colima)…")
-	cmd := e.command(ctx, "start", Profile, "--vm-type", "vz", "--mount-type", "virtiofs", "--activate=false", "--save-config=false")
+	args := []string{"start", Profile, "--vm-type", "vz", "--mount-type", "virtiofs", "--activate=false", "--save-config=false"}
+	if r, err := e.Resources(); err == nil && r.MemoryGiB > 0 {
+		args = append(args, "--memory", strconv.Itoa(r.MemoryGiB), "--cpu", strconv.Itoa(max(r.CPUs, 2)))
+		e.logf("Its virtual machine has %d GB of memory and %d processors.", r.MemoryGiB, max(r.CPUs, 2))
+	}
+	cmd := e.command(ctx, args...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("start Agentry's engine: %w", err)
 	}
@@ -652,6 +658,52 @@ func (e *Engine) Start(ctx context.Context) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// resourcesFile holds the size the engine's VM starts with, when the app
+// has set one (Settings → Runs → Runs at once); without it the VM has
+// Colima's default size.
+const resourcesFile = "resources.json"
+
+// Resources is the size of the engine's virtual machine.
+type Resources struct {
+	MemoryGiB int `json:"memoryGiB"`
+	CPUs      int `json:"cpus"`
+}
+
+// Resources reads the size the VM starts with; a zero Resources with no
+// error when none was set.
+func (e *Engine) Resources() (Resources, error) {
+	b, err := os.ReadFile(filepath.Join(e.Dir, resourcesFile)) //nolint:gosec // a fixed name under the app's own directory
+	if errors.Is(err, os.ErrNotExist) {
+		return Resources{}, nil
+	}
+	if err != nil {
+		return Resources{}, err
+	}
+	var r Resources
+	if err := json.Unmarshal(b, &r); err != nil {
+		return Resources{}, fmt.Errorf("%s: %w", resourcesFile, err)
+	}
+	return r, nil
+}
+
+// SetResources records the size the VM starts with from its next start: at
+// least 2 GB of memory and 2 processors.
+func (e *Engine) SetResources(memoryGiB, cpus int) error {
+	r := Resources{MemoryGiB: max(memoryGiB, 2), CPUs: max(cpus, 2)}
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(e.Dir, 0o700); err != nil {
+		return err
+	}
+	tmp := filepath.Join(e.Dir, resourcesFile+".tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(e.Dir, resourcesFile))
 }
 
 // Stop stops the VM; the install stays.
