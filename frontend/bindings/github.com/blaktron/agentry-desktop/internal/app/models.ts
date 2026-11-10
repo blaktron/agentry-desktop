@@ -4131,7 +4131,8 @@ export class ImagesView {
 }
 
 /**
- * InFlightView names the local job holding the run lock.
+ * InFlightView names the local job holding the lock, or the runs holding
+ * the slots.
  */
 export class InFlightView {
     /**
@@ -4140,7 +4141,8 @@ export class InFlightView {
     "kind": string;
 
     /**
-     * Line names the job in a sentence's subject position.
+     * Line names the job in a sentence's subject position: "3 runs" when
+     * several runs are under way.
      */
     "line": string;
 
@@ -8508,7 +8510,7 @@ export class PublisherView {
 }
 
 /**
- * QueuedRunView is one run waiting for the run lock, for its card.
+ * QueuedRunView is one run waiting for a slot, for its card.
  */
 export class QueuedRunView {
     "runId": string;
@@ -8520,8 +8522,9 @@ export class QueuedRunView {
     "position": number;
 
     /**
-     * WaitingFor names the job that holds the run lock now, in a
-     * sentence's subject position.
+     * WaitingFor names what the queue waits for now, in a sentence's
+     * subject position: the job holding the lock, the one run under way, or
+     * "One of the N runs under way".
      */
     "waitingFor": string;
 

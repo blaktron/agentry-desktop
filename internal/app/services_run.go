@@ -67,11 +67,24 @@ var errBusy = errors.New("another job is under way on this computer, and one job
 // RunAPI drives QuickAgent runs from the app.
 type RunAPI struct {
 	app *App
-	// mu serializes the docker-touching operations: one run (or image setup)
-	// at a time keeps the log streams and the engine's teardown sweeps
-	// unambiguous. An interactive session holds it from StartSession to
-	// EndSession (one session per app).
-	mu sync.Mutex
+	// The lock and the slots (services_runqueue.go), under queueMu: the
+	// docker-touching operations other than runs hold the lock alone
+	// (exclusive), so the engine's setup steps never act beneath a run;
+	// runs hold up to runsAtOnce slots (running, in the order they
+	// started). An interactive session holds the lock from StartSession to
+	// EndSession (one session per app). queue is the runs waiting for a
+	// slot, in the order they were started: a free slot goes to the first
+	// of them. queueClosed is set as the app quits, when nothing more
+	// waits.
+	queueMu     sync.Mutex
+	exclusive   *jobHolder
+	running     []runSlot
+	runsAtOnce  int
+	queue       []*queuedRun
+	queueClosed bool
+	// queueEmitMu orders the queue's reports, so the page never hears an
+	// older one after a newer.
+	queueEmitMu sync.Mutex
 	// images lists and removes Docker images (Run defaults' Docker images);
 	// nil is the docker CLI. A test passes its own.
 	images dockerimages.Docker
@@ -103,29 +116,17 @@ type RunAPI struct {
 	awaitMu  sync.Mutex
 	awaiting *awaitingStart
 
-	// holder is what holds mu, for the busy refusal and InFlight
-	// (services_runflow.go), under its own lock.
-	holderMu sync.Mutex
-	holder   *jobHolder
-	// queue is the runs waiting for mu, in the order they were started
-	// (services_runqueue.go): release hands mu to the first of them.
-	// Taken before holderMu. queueClosed is set as the app quits, when
-	// nothing more waits.
-	queueMu     sync.Mutex
-	queue       []*queuedRun
-	queueClosed bool
-	// queueEmitMu orders the queue's reports, so the page never hears an
-	// older one after a newer.
-	queueEmitMu sync.Mutex
-
-	// live is the run or session in flight, so quitting can end it and sweep
-	// what it built (services_quit.go).
+	// lives are the runs and the one other job in flight, by run id, so
+	// Stop can end the run it names and quitting can end them all and sweep
+	// what they built (services_quit.go).
 	liveMu sync.Mutex
-	live   *liveRun
+	lives  map[string]*liveRun
 	// unsafeMu serializes a live run's Unsafe Mode flag with the event that
 	// tells the shell, so the shell never hears them out of order
-	// (setUnsafeLive, endRun). Taken before liveMu.
-	unsafeMu sync.Mutex
+	// (setUnsafeLive, endRun); unsafeLive counts the live runs in Unsafe
+	// Mode. Taken before liveMu.
+	unsafeMu   sync.Mutex
+	unsafeLive int
 	// Engine seams for tests; nil means internal/run.
 	newRunID  func() (string, error)
 	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
@@ -368,7 +369,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	}
 	res, err := s.End(r.app.ctx, finish)
 	r.session = nil
-	if l := r.current(); l != nil {
+	if l := r.liveJob(); l != nil {
 		// A chat's end is how the person ends it, not a stop: its outcome
 		// is the engine's.
 		recordLocal(context.Background(), r.app, runhistory.KindChat, l, s.Ref(), res, err)
@@ -897,10 +898,10 @@ func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
 	if err := refuseManagedKeySource(managedsettings.WebSearchSource, "web search"); err != nil {
 		return nil, err
 	}
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "a change to the web search key"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.StoreSearchKey(provider, key, logw); err != nil {
@@ -913,10 +914,10 @@ func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
 // ForgetSearchKey removes the web search key from the keychain and the
 // provider from the policy.
 func (r *RunAPI) ForgetSearchKey() (*SearchKeyView, error) {
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "a change to the web search key"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.ForgetSearchKey(logw); err != nil {
@@ -1215,7 +1216,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	if err := r.acquireRun(id, ref, queued); err != nil {
 		return nil, err
 	}
-	defer r.release()
+	defer r.releaseRun(id)
 	// The run's own context: quitting and Stop cancel it, the engine
 	// returns and tears down, and shutdown waits for that
 	// (services_quit.go).

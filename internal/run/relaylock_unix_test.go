@@ -38,7 +38,7 @@ func TestRunTakesTheHostRelayLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare: %v\nlog:\n%s", err, log.String())
 	}
-	defer finishProfile(&log, p.prof, p.profDir, p.keep)
+	defer finishProfile(&log, p.prof, p.profDir, p.keep, p.hold)
 	if p.params.RunnerHome != home {
 		t.Fatalf("engine.Params.RunnerHome = %q, want the shared runner home %q", p.params.RunnerHome, home)
 	}

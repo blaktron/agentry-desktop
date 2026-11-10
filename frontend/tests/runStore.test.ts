@@ -12,19 +12,20 @@ function harness() {
   const listeners: Record<string, Cb[]> = {};
   const forgotten: string[] = [];
   let stops = 0;
+  const stopped: string[] = [];
   const store = createRunStore<string>({
     on: (event, cb) => {
       (listeners[event] ??= []).push(cb);
       return () => { listeners[event] = (listeners[event] ?? []).filter((c) => c !== cb); };
     },
-    stop: async () => { stops++; },
+    stop: async (id) => { stops++; stopped.push(id); },
     forget: (id) => { forgotten.push(id); },
   });
   const fire = (event: string, v: unknown) => (listeners[event] ?? []).forEach((cb) => cb(v as never));
   const report = (runId: string, ref: string, turns = 0) =>
     fire("runner:run-progress", { runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true } as RunProgress);
   const line = (runId: string, text: string) => fire("runner:run-line", { runId, line: text });
-  return { store, fire, report, line, forgotten, stops: () => stops, listening: () => Object.values(listeners).flat().length };
+  return { store, fire, report, line, forgotten, stopped, stops: () => stops, listening: () => Object.values(listeners).flat().length };
 }
 
 // A call standing in for RunAPI.RunAgent, settled by the test.
@@ -129,7 +130,7 @@ test("a new run that begins over a card that is over forgets the earlier run", a
   assert.deepEqual(h.store.state().run?.log, []);
 });
 
-test("Stop reaches the run followed, and a result after it says it was stopped", async () => {
+test("Stop reaches the run followed, by its id, and a result after it says it was stopped", async () => {
   const h = harness();
   const a = pending();
   const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
@@ -137,6 +138,7 @@ test("Stop reaches the run followed, and a result after it says it was stopped",
   await aBegun;
   await h.store.stop();
   assert.equal(h.stops(), 1);
+  assert.deepEqual(h.stopped, ["r1"]);
   assert.equal(h.store.state().run?.stopping, true);
   a.resolve(result("r1", "error", 130));
   await tick();

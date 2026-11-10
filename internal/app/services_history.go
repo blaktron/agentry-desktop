@@ -203,8 +203,8 @@ func (r *RunAPI) keepFolder(runID, dir string) {
 		return
 	}
 	r.liveMu.Lock()
-	if r.live != nil && r.live.id == runID {
-		r.live.folder = dir
+	if l := r.lives[runID]; l != nil {
+		l.folder = dir
 	}
 	r.liveMu.Unlock()
 	r.rememberFolder(runID, dir)

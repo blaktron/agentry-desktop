@@ -459,10 +459,11 @@ func (v *VoiceAPI) StopWrite() error {
 	r := v.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.ref != voiceRunRef {
+	l := r.liveJobLocked()
+	if l == nil || l.ref != voiceRunRef {
 		return errors.New("the Voice Writer is not running on this computer")
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 

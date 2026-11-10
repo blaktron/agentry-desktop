@@ -511,3 +511,20 @@ func waitForEnd(errc <-chan error) {
 	err := <-errc
 	_ = err
 }
+
+// current is the one run or job in flight, the earliest when there are
+// several; nil when there is none.
+func (r *RunAPI) current() *liveRun {
+	if l := r.liveNow(); len(l) > 0 {
+		return l[0]
+	}
+	return nil
+}
+
+// holdLock takes the lock as a setup step would, for a test of what is
+// refused meanwhile; release gives it back.
+func (r *RunAPI) holdLock() {
+	if err := r.acquire(jobSetup, "another job"); err != nil {
+		panic(err)
+	}
+}

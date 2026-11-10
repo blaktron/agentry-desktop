@@ -95,7 +95,7 @@ func TestAStoppedRunIsRecordedStopped(t *testing.T) {
 	})
 	done := make(chan error, 1)
 	go func() { _, err := runAgent(r); done <- err }()
-	for r.StopRun() != nil {
+	for r.StopRun("ab12cd34") != nil {
 		time.Sleep(5 * time.Millisecond)
 	}
 	if err := <-done; err != nil {
@@ -323,7 +323,7 @@ func TestABuiltinsJobIsRecordedWithItsKind(t *testing.T) {
 	}
 	_ = runhistory.Clear()
 	_ = r.asRun(jobBuild, "a run of the Voice Writer", voiceRunRef, "e", func(ctx context.Context, _ string, _ io.Writer) error {
-		r.live.cancel()
+		r.current().cancel()
 		<-ctx.Done()
 		return ctx.Err()
 	})

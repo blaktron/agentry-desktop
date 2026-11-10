@@ -127,10 +127,10 @@ func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 
 	// Another docker operation holds the lock: refused before any dialog.
 	u.pull = nil
-	u.r.mu.Lock()
+	u.r.holdLock()
 	before := len(u.asked)
 	_, err = u.r.SetUnsafeMode(true)
-	u.r.mu.Unlock()
+	u.r.release()
 	if !errors.Is(err, errBusy) || len(u.asked) != before || savedUnsafeMode(t) {
 		t.Fatalf("while busy: err = %v, dialogs %d→%d, saved %v", err, before, len(u.asked), savedUnsafeMode(t))
 	}

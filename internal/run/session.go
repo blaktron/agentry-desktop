@@ -63,23 +63,23 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	// plan and meta.json say none rather than the policy's. The policy file and
 	// the installed plan.json are not changed.
 	if p.plan.Harness.Session == nil {
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, fmt.Errorf("the interactive plan for %s has no session block", p.sig.Ref)
 	}
 	p.plan.Harness.Session.Budgets = spec.SessionBudgets{IdleTimeoutSeconds: req.ChatIdleTimeoutSeconds}
 	p.plan.Budgets.TimeoutSeconds, p.params.Budgets.TimeoutSeconds = 0, 0
 	if err := p.openCredits(ctx, logw); err != nil {
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, err
 	}
 	if err := p.bindDesktop(ctx, req.BindDesktop); err != nil {
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, err
 	}
 	inner, err := engine.StartSession(ctx, p.docker, p.params)
 	if err != nil {
 		p.unbindDesktop()
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, err
 	}
 	return &Session{inner: inner, ref: p.sig.Ref, prof: p, logw: logw}, nil
@@ -114,7 +114,7 @@ func (s *Session) End(ctx context.Context, finish bool) (*Result, error) {
 	s.ended = true
 	env, err := s.inner.End(ctx, finish)
 	s.prof.unbindDesktop()
-	finishProfile(s.logw, s.prof.prof, s.prof.profDir, s.prof.keep)
+	finishProfile(s.logw, s.prof.prof, s.prof.profDir, s.prof.keep, s.prof.hold)
 	if env != nil {
 		s.result = resultFromEnvelope(env, s.prof.plan)
 		s.endErr = nil

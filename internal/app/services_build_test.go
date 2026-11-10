@@ -212,11 +212,13 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
 
-	f.b.run.mu.Lock()
+	if err := f.b.run.acquire(jobSetup, "a setup step"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil, nil); !errors.Is(err, errBusy) {
 		t.Fatalf("describe while a run holds the lock: %v", err)
 	}
-	f.b.run.mu.Unlock()
+	f.b.run.release()
 	if f.scan.read != 0 {
 		t.Fatal("scanned while another run held the lock")
 	}

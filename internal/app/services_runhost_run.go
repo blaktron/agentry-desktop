@@ -30,7 +30,7 @@ func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, 
 	if err := r.acquireRun(id, ref, nil); err != nil {
 		return nil, err
 	}
-	defer r.release()
+	defer r.releaseRun(id)
 	ctx, cancel := context.WithCancel(r.app.ctx)
 	defer cancel()
 	live, err := r.beginRunAs(jobRun, ref, id, cancel)
