@@ -4,6 +4,7 @@ import './style.css'
 // After the base table, so a theme's block wins over it.
 import './themes.css'
 import App from './App'
+import {CardWindow} from './pages/CardWindow'
 import {ComputerUseBanner} from './pages/ComputerUseBanner'
 import {Recover} from './Recover'
 import {installDropGuard} from './dropGuard'
@@ -24,8 +25,10 @@ root.render(
             leave a blank window. */}
         <Recover subject="Agentry Desktop" recoverLabel="Reload" onRecover={() => window.location.reload()}
                  hint="Reload starts it again from the beginning.">
-            {/* The computer-use banner is a window of its own on the same page. */}
-            {window.location.hash === '#computer-use' ? <ComputerUseBanner/> : <App/>}
+            {/* The computer-use banner and a card are each a window of their
+                own on the same page. */}
+            {window.location.hash === '#computer-use' ? <ComputerUseBanner/>
+                : window.location.hash === '#card' ? <CardWindow/> : <App/>}
         </Recover>
     </React.StrictMode>
 )

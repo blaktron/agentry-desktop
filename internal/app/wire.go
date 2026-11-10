@@ -241,5 +241,8 @@ func (s *Services) Bind() []application.Service {
 		application.NewService(s.meeting),
 		application.NewService(s.yourComputer),
 		application.NewService(s.notifications),
+		// The card windows' own two calls, which answer only the card's
+		// window (cardwindow.go).
+		application.NewService(cards),
 	}
 }
