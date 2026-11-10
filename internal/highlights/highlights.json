@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.41",
+      "highlights": [
+        "Your organization can set your Assistant's name and personality, and whether it starts with Agentry.",
+        "Servers and knowledge packs your organization adds to an agent say so, and a locked one stays on."
+      ]
+    },
+    {
       "version": "0.7.40",
       "highlights": [
         "A QuickAgent your organization assigns with a model runs on your saved model of it, unless you pick another.",
