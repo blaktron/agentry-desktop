@@ -9,6 +9,7 @@ import (
 	"embed"
 	"log/slog"
 	"os"
+	"runtime"
 	"slices"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -139,8 +140,11 @@ func run(services *app.Services, hidden bool) {
 	})
 
 	// The menu bar (appMenu): on macOS it carries the editing commands a
-	// text field's shortcuts need, and the text size's zoom keys.
-	wails.Menu.Set(appMenu(services.StepTextSize))
+	// text field's shortcuts need, and the text size's zoom keys. Elsewhere
+	// none is set (usesAppMenu).
+	if usesAppMenu(runtime.GOOS) {
+		wails.Menu.Set(appMenu(services.StepTextSize))
+	}
 
 	window := wails.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:      windowName,

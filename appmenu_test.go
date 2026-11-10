@@ -45,3 +45,13 @@ func TestTheViewMenuStepsTheTextSize(t *testing.T) {
 		}
 	}
 }
+
+// The application menu is macOS's alone: on Linux it would be drawn inside
+// every window, and Windows needs none.
+func TestTheAppMenuIsSetOnMacOSOnly(t *testing.T) {
+	for goos, want := range map[string]bool{"darwin": true, "linux": false, "windows": false, "freebsd": false} {
+		if got := usesAppMenu(goos); got != want {
+			t.Errorf("usesAppMenu(%q) = %v, want %v", goos, got, want)
+		}
+	}
+}
