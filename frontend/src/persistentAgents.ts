@@ -481,6 +481,33 @@ export function canAddServer(f: ServerForm): boolean {
   return f.source === "url" ? f.url.trim() !== "" : f.package.trim() !== "" && f.version.trim() !== "" && f.args.every((a) => a !== "");
 }
 
+/** The facts line of a server the MCP server list saw working: its kind,
+ *  what is added (the package at the version tested, or the address), its
+ *  tools, the key names its catalogue gives (it ran without them) and the
+ *  day it was tested. */
+export function serverListLine(it: { kind: string; ref: string; toolCount: number; secrets?: string[]; tested?: string }): string {
+  const kind = it.kind === "npm" ? "npm" : it.kind === "pypi" ? "PyPI" : "Remote";
+  const parts = [`${kind} · ${it.ref}`];
+  if (it.toolCount > 0) parts.push(it.toolCount === 1 ? "1 tool" : `${it.toolCount} tools`);
+  const keys = (it.secrets ?? []).filter(Boolean);
+  if (keys.length > 0) parts.push(`may take ${keys.join(", ")}`);
+  if (it.tested) parts.push(`worked on ${it.tested}`);
+  return parts.join(" · ");
+}
+
+/** What the server search says when it has nothing to show. */
+export function serverSearchNote(s: { query: string; total: number; shown: number; partial: boolean; error?: string }): string {
+  if (s.error) {
+    return /no MCP server list/.test(s.error)
+      ? "This registry has no MCP server list to search. Add a server directly instead."
+      : `The MCP server list could not be searched: ${s.error}`;
+  }
+  if (s.query.trim() === "") return "";
+  if (s.shown === 0) return "No server in the list matches and worked when it was tested. Try other words, or add it directly.";
+  const more = s.total > s.shown ? ` The best ${s.shown} of ${s.total} are shown; more words narrow it.` : "";
+  return s.partial ? `Nothing matches every word, so these match most of them.${more}` : more.trim();
+}
+
 /** A port name the CLI takes: 1 to 32 lower-case letters, digits and
  *  hyphens, not starting with a hyphen. */
 export const PORT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;

@@ -1215,6 +1215,22 @@ g.go = { app: {
     ChooseShare: async () => harnessAssistant,
     AddServer: async () => harnessAssistant,
     AddSuggested: async () => harnessAssistant,
+    // The registry's MCP server list, as its lookup answers a search for
+    // working servers.
+    SearchServers: async (q: string) => {
+      const all = [
+        { id: "npm:@modelcontextprotocol/server-everything", kind: "npm", name: "Everything", ref: "@modelcontextprotocol/server-everything@2026.1.26", description: "Exercises every feature of the protocol: tools, prompts and resources.", version: "2026.1.26", toolCount: 11, tested: "2026-10-26",
+          row: { source: "npm", package: "@modelcontextprotocol/server-everything", version: "2026.1.26", args: [], url: "", auth: "", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+        { id: "pypi:office-word-mcp-server", kind: "pypi", name: "Office Word", ref: "office-word-mcp-server@1.1.11", description: "Create, read and edit Word documents.", version: "1.1.11", toolCount: 54, tested: "2026-10-20",
+          row: { source: "pypi", package: "office-word-mcp-server", version: "1.1.11", args: [], url: "", auth: "", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+        { id: "remote:https://mcp.weather.example/mcp", kind: "remote", name: "Weather", ref: "https://mcp.weather.example/mcp", description: "Forecasts and alerts by place name.", toolCount: 4, secrets: ["WEATHER_API_KEY"], tested: "2026-10-22",
+          row: { source: "url", package: "", version: "", args: [], url: "https://mcp.weather.example/mcp", auth: "none", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+      ];
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      if (words.includes("selfhosted")) throw new Error("this registry has no MCP server list");
+      const items = all.filter((it) => words.some((w) => `${it.id} ${it.name} ${it.description}`.toLowerCase().includes(w)));
+      return { registry: "https://secureagentry.net", query: q, items, total: items.length, partial: false, page: "https://secureagentry.net/build/mcp-servers" };
+    },
     AddSkill: async () => harnessAssistant,
     RemoveSkill: async () => harnessAssistant,
     SetSecret: async () => harnessAssistant,
