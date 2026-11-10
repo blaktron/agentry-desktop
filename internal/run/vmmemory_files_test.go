@@ -74,13 +74,7 @@ func fakeDocker(t *testing.T) (calls string) {
 // Docker Desktop is quit, its memoryMiB raised and started again; a file
 // already as large is left alone and Docker Desktop is not touched.
 func TestDockerDesktopIsQuitSizedAndStarted(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	dir := filepath.Join(home, ".docker", "desktop")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "settings-store.json")
+	path := scratchDockerDesktopSettings(t)
 	if err := os.WriteFile(path, []byte(`{"cpus": 4, "memoryMiB": 4096}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -141,16 +135,16 @@ func TestWSLIsShutDownBetweenTheQuitAndTheStart(t *testing.T) {
 // WSL unless its settings turn the WSL 2 engine off, when its own machine
 // is set in its settings; with neither, the machine is named and not sized.
 func TestWindowsEnginesAreNamedByTheirMachine(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	path := scratchDockerDesktopSettings(t)
 	old := windowsInstaller
 	windowsInstaller = func() *windowsengine.Installer { return nil }
 	t.Cleanup(func() { windowsInstaller = old })
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
 	if v := windowsVM(context.Background()); v.Kind != VMOther || v.Resizable {
 		t.Errorf("neither installed: %+v", v)
 	}
-	dir := filepath.Join(home, ".docker", "desktop")
-	_ = os.MkdirAll(dir, 0o700)
 	for _, c := range []struct {
 		settings  string
 		kind      string
@@ -160,7 +154,7 @@ func TestWindowsEnginesAreNamedByTheirMachine(t *testing.T) {
 		{`{"memoryMiB": 2048}`, VMWSL, true},
 		{`{"wslEngineEnabled": false, "memoryMiB": 2048}`, VMDockerDesktop, false},
 	} {
-		if err := os.WriteFile(filepath.Join(dir, "settings-store.json"), []byte(c.settings), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte(c.settings), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		if v := windowsVM(context.Background()); v.Kind != c.kind || v.Resizable != c.resizable || v.Name != "Docker Desktop" {
@@ -170,4 +164,20 @@ func TestWindowsEnginesAreNamedByTheirMachine(t *testing.T) {
 	if n := restartNote(VM{Kind: VMWSL, Name: "Docker Desktop"}); !strings.Contains(n, "every WSL distribution") {
 		t.Errorf("the WSL question does not say what stops: %q", n)
 	}
+}
+
+// scratchDockerDesktopSettings points the home and the application data
+// folder at a temporary one, and returns where Docker Desktop's settings
+// file is there for this system, its folder made.
+func scratchDockerDesktopSettings(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	path := dockerDesktopSettingsPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
