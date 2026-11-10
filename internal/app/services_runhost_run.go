@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/blaktron/agentry/pkg/managedsettings"
+
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/runhistory"
 )
@@ -14,6 +16,10 @@ import (
 // naming the runhost it ran on. What a run from the app does not carry to a
 // runhost yet is refused before anything is sent (run.RunhostCannotCarry).
 func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, outDir string, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, acceptUnscanned bool, model string) (*RunResultView, error) {
+	var err error
+	if timeoutSec, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereRunhost, timeoutSec, maxTurns, intakeAnswers); err != nil {
+		return nil, err
+	}
 	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, false, acceptUnscanned, false); err != nil {
 		return nil, err
 	}

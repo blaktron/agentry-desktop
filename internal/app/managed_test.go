@@ -218,12 +218,12 @@ func recordManaged(t *testing.T) *managedLog {
 	l := &managedLog{}
 	was := managedCalls
 	t.Cleanup(func() { managedCalls = was })
-	managedCalls.sync = func(_ context.Context, hc *http.Client, reg, token string, maxAge time.Duration) (*managed.State, error) {
+	managedCalls.sync = func(_ context.Context, hc *http.Client, reg, token string, maxAge time.Duration) (*managed.State, bool, error) {
 		if hc == nil {
 			t.Error("sync without the app's client")
 		}
 		l.add("sync " + reg + " " + token + " " + maxAge.String())
-		return nil, nil
+		return nil, false, nil
 	}
 	managedCalls.refresh = func(_ context.Context, hc *http.Client, reg, token string) (*managed.State, error) {
 		if hc == nil {
@@ -370,9 +370,9 @@ func TestSyncAsksEachSignedInRegistry(t *testing.T) {
 	// The sync brought a document: the page is told.
 	held := managed.Effective{}
 	managedCalls.current = func() managed.Effective { return held }
-	managedCalls.sync = func(context.Context, *http.Client, string, string, time.Duration) (*managed.State, error) {
+	managedCalls.sync = func(context.Context, *http.Client, string, string, time.Duration) (*managed.State, bool, error) {
 		held = forbidding("acme")
-		return nil, nil
+		return nil, false, nil
 	}
 	s.syncManaged(context.Background())
 	if got := events(); !equalStrings(got, []string{eventManagedChanged}) {
@@ -380,9 +380,9 @@ func TestSyncAsksEachSignedInRegistry(t *testing.T) {
 	}
 
 	// A token the registry refused is not sent again.
-	managedCalls.sync = func(_ context.Context, _ *http.Client, reg, _ string, _ time.Duration) (*managed.State, error) {
+	managedCalls.sync = func(_ context.Context, _ *http.Client, reg, _ string, _ time.Duration) (*managed.State, bool, error) {
 		t.Errorf("synced %s with a refused token", reg)
-		return nil, nil
+		return nil, false, nil
 	}
 	markTokenRejected(secure)
 	t.Cleanup(func() { tokenAccepted(secure) })

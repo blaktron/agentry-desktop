@@ -9,6 +9,7 @@ import (
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
@@ -467,5 +468,58 @@ func TestProfileStatusCarriesTheGuide(t *testing.T) {
 	}
 	if plain.Guide != nil {
 		t.Fatalf("a release without a guide reports one: %+v", plain.Guide)
+	}
+}
+
+// TestProfileInfoNamesTheOrganizationWhileItsContractIsOwed: a record an
+// organization made holds no capabilities, so the run setup asks for the
+// contract under its name, whatever the release declares; once the person
+// has accepted, it asks nothing until a version widens the contract.
+func TestProfileInfoNamesTheOrganizationWhileItsContractIsOwed(t *testing.T) {
+	home := isolateRunEnv(t)
+	key := installdir.ConsentKey(home, "acme", "reporter")
+	sig := testSig(t, nil)
+	save := func(f func(*installed.State)) {
+		t.Helper()
+		st, _ := installed.Load()
+		f(&st)
+		if err := installed.Save(st); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requiredBy := func() string {
+		t.Helper()
+		info, err := profileInfo(sig)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return info.RequiredBy
+	}
+
+	if got := requiredBy(); got != "" {
+		t.Fatalf("no record: required by %q", got)
+	}
+	save(func(st *installed.State) { st.Upsert(key, "1.2.3", installed.Snapshot(sig.Manifest.Contract()), true) })
+	if got := requiredBy(); got != "" {
+		t.Fatalf("the person's own install: required by %q", got)
+	}
+	// An organization's install, whatever the contract declares (none here).
+	save(func(st *installed.State) { st.UpsertAssigned(key, "1.2.3", true, "acme") })
+	if got := requiredBy(); got != "acme" {
+		t.Fatalf("an assigned install awaiting consent: required by %q, want acme", got)
+	}
+	// Accepted at a run: the record keeps what was accepted and no longer awaits.
+	sig.Manifest.Capabilities.Network.Egress.Hosts = []string{"api.example"}
+	save(func(st *installed.State) {
+		st.Reconsent(key, "1.2.3", installed.Snapshot(sig.Manifest.Contract()), sig.Digest)
+		st.UpsertAssigned(key, "1.2.3", true, "acme")
+	})
+	if got := requiredBy(); got != "" {
+		t.Fatalf("accepted: required by %q", got)
+	}
+	// A version that widens the contract asks again.
+	sig.Manifest.Capabilities.Network.Egress.Hosts = []string{"api.example", "more.example"}
+	if got := requiredBy(); got != "acme" {
+		t.Fatalf("a widened contract: required by %q, want acme", got)
 	}
 }
