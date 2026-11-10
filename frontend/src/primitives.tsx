@@ -126,29 +126,109 @@ export function AgentRow({ title, badges, summary, meta, actions, onClick }: {
   title: React.ReactNode; badges?: React.ReactNode; summary?: React.ReactNode;
   meta?: React.ReactNode; actions?: React.ReactNode; onClick?: () => void;
 }) {
+  // A clickable row opens through its title, a real button whose hit area
+  // is stretched over the row (style.css), so the row is reached with Tab
+  // and opened with Enter or Space, and its actions stay their own buttons.
   return (
-    <div className={`agent-row${onClick ? " clickable" : ""}`} onClick={onClick}>
+    <div className={`agent-row${onClick ? " clickable" : ""}`}>
       <div className="agent-row-main">
         <div className="agent-row-head">
-          <span className="agent-row-title mono">{title}</span>
+          {onClick
+            ? <button type="button" className="agent-row-title agent-row-open mono" onClick={onClick}>{title}</button>
+            : <span className="agent-row-title mono">{title}</span>}
           {badges && <span className="row agent-row-badges">{badges}</span>}
         </div>
         {summary && <div className="agent-row-summary muted">{summary}</div>}
         {meta && <div className="agent-row-meta muted small">{meta}</div>}
       </div>
-      {actions && <div className="row nowrap agent-row-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>}
+      {actions && <div className="row nowrap agent-row-actions">{actions}</div>}
     </div>
   );
 }
 
-/** A modal dialog over a scrim. `wide` widens it for diffs and forms. */
-export function Modal({ title, onClose, wide, children }: {
-  title?: React.ReactNode; onClose: () => void; wide?: boolean; children: React.ReactNode;
+// What Tab can reach inside a dialog.
+const FOCUSABLE = [
+  "a[href]", "button:not(:disabled)", "input:not(:disabled):not([type=\"hidden\"])", "select:not(:disabled)",
+  "textarea:not(:disabled)", "[tabindex]:not([tabindex=\"-1\"])", "[contenteditable=\"true\"]",
+].join(",");
+
+function focusables(box: HTMLElement): HTMLElement[] {
+  const all = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if (el.closest("[hidden],[inert]") || getComputedStyle(el).visibility === "hidden") return false;
+    // Tab stops once in a group of radio buttons, on the checked one when
+    // there is one, else on the first.
+    if (el instanceof HTMLInputElement && el.type === "radio" && el.name) {
+      const group = Array.from(box.querySelectorAll<HTMLInputElement>("input[type=\"radio\"]")).filter((r) => r.name === el.name && !r.disabled);
+      return el === (group.find((r) => r.checked) ?? group[0]);
+    }
+    return true;
+  });
+  // What is drawn; a document that lays nothing out (a test's) reports no
+  // boxes for anything, and then every candidate counts.
+  const drawn = all.filter((el) => el.getClientRects().length > 0);
+  return drawn.length > 0 ? drawn : all;
+}
+
+/** A modal dialog's keyboard behaviour, as props for the dialog element:
+ *  focus moves into it when it opens (to the element already focused inside
+ *  it, else to the dialog itself, which announces its name), Tab and
+ *  Shift+Tab stay inside it, Escape calls onClose (and does nothing while
+ *  there is none to call), and focus returns to where it was when it
+ *  closes. The keys are React's, so a menu or a nested dialog inside it that
+ *  handles a key and stops it keeps the key from this one. */
+export function useDialog<T extends HTMLElement>(onClose?: () => void) {
+  const ref = React.useRef<T>(null);
+  React.useEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    const before = document.activeElement as HTMLElement | null;
+    if (!box.contains(document.activeElement)) box.focus({ preventScroll: true });
+    return () => {
+      if (before && before.isConnected && typeof before.focus === "function") before.focus({ preventScroll: true });
+    };
+  }, []);
+  const onKeyDown = (e: React.KeyboardEvent<T>) => {
+    if (e.defaultPrevented) return;
+    const box = ref.current;
+    if (!box) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose?.();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    e.stopPropagation();
+    const list = focusables(box);
+    if (list.length === 0) { e.preventDefault(); box.focus(); return; }
+    const first = list[0], last = list[list.length - 1];
+    const at = document.activeElement;
+    if (e.shiftKey && (at === first || at === box || !box.contains(at))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (at === last || !box.contains(at))) { e.preventDefault(); first.focus(); }
+  };
+  return { ref, onKeyDown, tabIndex: -1 } as const;
+}
+
+/** A modal dialog over a scrim, named by its title (or `label` where it has
+ *  none), with useDialog's keyboard behaviour. `wide` widens it for diffs
+ *  and forms. */
+export function Modal({ title, label, onClose, wide, children }: {
+  title?: React.ReactNode; label?: string; onClose: () => void; wide?: boolean; children: React.ReactNode;
 }) {
+  const dialog = useDialog<HTMLDivElement>(onClose);
+  const titleId = React.useId();
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className={`modal${wide ? " modal-wide" : ""}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        {title && <h2 style={{ marginTop: 0 }}>{title}</h2>}
+      <div
+        {...dialog}
+        className={`modal${wide ? " modal-wide" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : label}
+      >
+        {title && <h2 id={titleId} style={{ marginTop: 0 }}>{title}</h2>}
         {children}
       </div>
     </div>
@@ -238,7 +318,9 @@ export function OptionsMenu({ label = "Options", ariaLabel, items }: {
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
   return (
-    <div className="options-menu" ref={box}>
+    // Escape closes the open list and goes no further, so a dialog around
+    // the menu stays open.
+    <div className="options-menu" ref={box} onKeyDown={(e) => { if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
       <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ariaLabel} data-options-menu onClick={() => setOpen((o) => !o)}>
         {label} <span aria-hidden>▾</span>
       </button>

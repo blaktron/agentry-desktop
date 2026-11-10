@@ -1385,7 +1385,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <h2>{s.label}</h2>
             <p className="muted small">{s.intro}</p>
             <div className="card">{sections[s.key as SectionKey]}</div>
-            {check?.problems?.[s.key] && <p className="step-problem">{check.problems[s.key]}</p>}
+            {check?.problems?.[s.key] && <p className="step-problem" role="alert">{check.problems[s.key]}</p>}
           </section>
         ))}
         {actions}
@@ -1475,7 +1475,7 @@ function ValidateCard({ result }: { result: validate.Result }) {
   return (
     <Card className="mt">
       <strong>{result.passed ? "validate: PASSED" : "validate: FAILED"}</strong>
-      {result.manifestError && <div className="error-box selectable">{result.manifestError}</div>}
+      {result.manifestError && <div className="error-box selectable" role="alert">{result.manifestError}</div>}
       {issues.map((iss, i) => (
         <div key={`i${i}`} className="finding">
           <div className="row">

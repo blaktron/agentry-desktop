@@ -127,7 +127,7 @@ export default function ReviseDialog({
         )}
       </Card>
 
-      {(instructions !== "" || problems !== "") && problem && <p className="small step-problem">{problem}</p>}
+      {(instructions !== "" || problems !== "") && problem && <p className="small step-problem" role="alert">{problem}</p>}
       {d.inFlight && <Notice tone="warn">A draft is already in progress. Wait for it to finish, or stop it, before you start another.</Notice>}
       <ErrorBox error={error} />
       <div className="row mt" style={{ justifyContent: "flex-end" }}>

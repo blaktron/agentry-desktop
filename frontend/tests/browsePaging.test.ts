@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 const text = (node: Element | null) => (node?.textContent ?? "").replace(/\s+/g, " ").trim();
-const rows = (node: Element) => Array.from(node.querySelectorAll("[role=button], .agent-row, button")).filter((b) => /^acme\/agent-\d+/.test(text(b)));
+const rows = (node: Element) => Array.from(node.querySelectorAll(".agent-row")).filter((b) => /^acme\/agent-\d+/.test(text(b)));
 
 /** A registry of n results, answering each page; total is sent unless told otherwise. */
 function mockRegistry(n: number, sendTotal = true) {

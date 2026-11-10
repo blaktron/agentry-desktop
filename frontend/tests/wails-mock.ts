@@ -44,3 +44,9 @@ export function emit(name: string, data: unknown): void {
 
 export const Clipboard = { async SetText(_text: string): Promise<void> {} };
 export const Browser = { async OpenURL(_url: string): Promise<void> {} };
+
+// The window a page is in: a card window sizes and centres itself.
+export const Window = {
+  async SetSize(_width: number, _height: number): Promise<void> {},
+  async Center(): Promise<void> {},
+};

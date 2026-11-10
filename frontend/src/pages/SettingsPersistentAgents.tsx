@@ -126,7 +126,7 @@ export default function PersistentAgentsSettings({ registry, onOpenAgent }: { re
           <Card key={a.name} className="persistent-agent-card">
             <div className="persistent-agent-head">
               <div>
-                <h3 style={{ margin: 0 }}>{a.displayName}{a.displayName !== a.title && <span className="small muted"> · {a.title}</span>}</h3>
+                <h2 className="section-heading" style={{ margin: 0 }}>{a.displayName}{a.displayName !== a.title && <span className="small muted"> · {a.title}</span>}</h2>
                 <span className="small muted">
                   <span className={`agent-dot ${running ? "on" : ""}`} aria-hidden="true" /> {agentStateWords(a)}
                 </span>
