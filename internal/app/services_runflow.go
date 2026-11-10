@@ -1,5 +1,6 @@
 // A run on this computer followed above the pages: the page's store follows
-// the run by its id through runner:run-progress and runner:run-line, Stop
+// the run by its id through runner:run-progress and runner:run-line, and
+// learns how a run it did not start ended through runner:run-ended, Stop
 // ends it (StopRun, which stops the run it names and nothing else), the busy
 // refusal and InFlight say which job holds the lock or the slots, and
 // Dismiss removes the
@@ -23,6 +24,9 @@ const (
 	// so a setup open on another QuickAgent never shows its lines.
 	eventRunProgress = "runner:run-progress"
 	eventRunLine     = "runner:run-line"
+	// eventRunEnded carries a RunEnded once a run that began has ended and
+	// given its slot back.
+	eventRunEnded = "runner:run-ended"
 )
 
 // jobKind is the kind of local job the lock or a slot is held for.
@@ -166,6 +170,26 @@ type RunProgress struct {
 type RunLine struct {
 	RunID string `json:"runId"`
 	Line  string `json:"line"`
+}
+
+// RunEnded is how a run on this computer ended: its id, and either its
+// result or, when the run ended with no result, the error. The page that
+// started the run takes the same from the call's own return; the event is
+// for a page following a run it did not start (one the Agentry Helper or an
+// agent started), which has no call to wait on.
+type RunEnded struct {
+	RunID  string         `json:"runId"`
+	Result *RunResultView `json:"result,omitempty"`
+	Error  string         `json:"error,omitempty"`
+}
+
+// emitRunEnded reports the end of run id, whose call returned view and err.
+func (r *RunAPI) emitRunEnded(id string, view *RunResultView, err error) {
+	e := RunEnded{RunID: id, Result: view}
+	if err != nil {
+		e.Error = err.Error()
+	}
+	emitEvent(r.app, eventRunEnded, e)
 }
 
 // runMeter is a run's progress meter: its first report says the run has

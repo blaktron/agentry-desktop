@@ -103,6 +103,6 @@ test("a blocked run says who stopped it, as a warning", () => {
 
 test("a queued run's line says what it waits for", () => {
   assert.equal(queuedLine({ runId: "r1", ref: "acme/a@1.0.0", position: 1, waitingFor: "A run of acme/x@1.0.0" }), "Starts when a run of acme/x@1.0.0 ends.");
-  assert.equal(queuedLine({ runId: "r2", ref: "acme/a@1.0.0", position: 2, waitingFor: "The container engine install" }), "Starts after the container engine install and the run queued before it.");
-  assert.equal(queuedLine({ runId: "r3", ref: "acme/a@1.0.0", position: 4, waitingFor: "A chat with acme/x@1.0.0" }), "Starts after a chat with acme/x@1.0.0 and the 3 runs queued before it.");
+  assert.equal(queuedLine({ runId: "r2", ref: "acme/a@1.0.0", position: 2, waitingFor: "The container engine install" }), "Starts after the run queued before it.");
+  assert.equal(queuedLine({ runId: "r3", ref: "acme/a@1.0.0", position: 4, waitingFor: "A chat with acme/x@1.0.0" }), "Starts after the 3 runs queued before it.");
 });

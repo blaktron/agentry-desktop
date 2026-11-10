@@ -2369,6 +2369,40 @@ export class EngineChoicesView {
 }
 
 /**
+ * EngineMemoryView is what Runs at once says of the engine's virtual
+ * machine.
+ */
+export class EngineMemoryView {
+    /**
+     * Line says how much memory the machine has and how many runs it fits;
+     * "" when the engine runs on this computer or its memory is unknown.
+     */
+    "line"?: string;
+
+    /**
+     * Short says the machine fits fewer runs than Runs at once is set to.
+     */
+    "short": boolean;
+
+    /** Creates a new EngineMemoryView instance. */
+    constructor($$source: Partial<EngineMemoryView> = {}) {
+        if (!("short" in $$source)) {
+            this["short"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new EngineMemoryView instance from a string or object.
+     */
+    static createFrom($$source: any = {}): EngineMemoryView {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new EngineMemoryView($$parsedSource as Partial<EngineMemoryView>);
+    }
+}
+
+/**
  * EngineView is the container engine detection found, for the pages: what
  * answers, where, how it was found, and the traps seen on the way.
  */
@@ -10410,6 +10444,15 @@ export class RunDefaultsView {
     "chatIdleTimeoutSeconds": number;
 
     /**
+     * RunsAtOnce is how many runs on this computer run at the same time, 1
+     * to RunsAtOnceMax; RunsAtOnceMax is the ceiling this computer's memory
+     * sets, and RunsAtOnceLine the sentence that says why.
+     */
+    "runsAtOnce": number;
+    "runsAtOnceMax": number;
+    "runsAtOnceLine": string;
+
+    /**
      * UnsafeMode is the switch (desktop.yaml's unsafeMode), written only by
      * RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands are
      * installed on, the runner policy's images.unsafe or the pinned default.
@@ -10476,6 +10519,15 @@ export class RunDefaultsView {
         if (!("chatIdleTimeoutSeconds" in $$source)) {
             this["chatIdleTimeoutSeconds"] = 0;
         }
+        if (!("runsAtOnce" in $$source)) {
+            this["runsAtOnce"] = 0;
+        }
+        if (!("runsAtOnceMax" in $$source)) {
+            this["runsAtOnceMax"] = 0;
+        }
+        if (!("runsAtOnceLine" in $$source)) {
+            this["runsAtOnceLine"] = "";
+        }
         if (!("unsafeMode" in $$source)) {
             this["unsafeMode"] = false;
         }
@@ -10505,10 +10557,10 @@ export class RunDefaultsView {
      * Creates a new RunDefaultsView instance from a string or object.
      */
     static createFrom($$source: any = {}): RunDefaultsView {
-        const $$createField9_0 = $$createType227;
+        const $$createField12_0 = $$createType227;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("unsafeLock" in $$parsedSource) {
-            $$parsedSource["unsafeLock"] = $$createField9_0($$parsedSource["unsafeLock"]);
+            $$parsedSource["unsafeLock"] = $$createField12_0($$parsedSource["unsafeLock"]);
         }
         return new RunDefaultsView($$parsedSource as Partial<RunDefaultsView>);
     }

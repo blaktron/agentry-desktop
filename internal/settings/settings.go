@@ -143,6 +143,11 @@ type Settings struct {
 	// quits. It lives here, not in the runner policy, which the CLI's chats
 	// read and which keeps their limits.
 	ChatIdleTimeoutSeconds int `yaml:"chatIdleTimeoutSeconds,omitempty" json:"chatIdleTimeoutSeconds,omitempty"`
+	// RunsAtOnce is Settings → Runs → Runs at once: how many runs on this
+	// computer may run at the same time, the rest waiting their turn. 0, the
+	// default, is one. The app reads it clamped to the ceiling this
+	// computer's memory sets (internal/sysmem).
+	RunsAtOnce int `yaml:"runsAtOnce,omitempty" json:"runsAtOnce,omitempty"`
 	// UnsafeMode is Settings → Runs → Unsafe Mode: while it is on, a
 	// run on this computer is compiled without this machine's exec
 	// catalogue, its declared commands installed from the Unsafe Mode image

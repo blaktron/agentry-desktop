@@ -15,8 +15,14 @@
 //                     all drawn as text
 //   #run-card-stacked the run's card and a draft In Agentry's card stacked
 //                     in App's corner, neither covering the other
-//   #run-queue        the run's card, and above it the card of two runs
-//                     waiting to start, each with what it waits for and Cancel
+//   #run-queue        the runs card: the run, and two runs waiting to start,
+//                     each with what it waits for and Cancel
+//   #runs-many        the runs card with three runs under way, one over and
+//                     47 waiting: the first five, then "and 42 more"
+//   #runs-helper      the runs card with runs Go started itself (the Agentry
+//                     Helper's, an agent's) and none the page started: two
+//                     under way, each with Stop and Open, one over with
+//                     Dismiss and Open, and one waiting
 //
 // A run In Agentry, followed the same way:
 //   #hosted-queued      the dialog while it waits: its place in the queue,
@@ -88,6 +94,9 @@ const RUN_ID = "7c1e4a90";
 const hostile = hash === "run-hostile" || hash === "hosted-hostile" || hash === "runpage-hostile";
 const runPage = hash.startsWith("runpage-");
 const hostedOnly = (hash.startsWith("hosted-") && hash !== "hosted-card-stacked") || hash.startsWith("chat-") || runPage;
+// The runs Go starts on its own behalf: the page follows them from their
+// reports alone, with no call of its own.
+const goStarted = hash === "runs-helper";
 const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
 const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
 const hostedBase = {
@@ -265,7 +274,12 @@ g.go = { app: {
     QueuedRuns: async () => (hash === "run-queue" ? [
       { runId: "q1000001", ref: "demo1/incident-summarizer@1.2.0", position: 1, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
       { runId: "q1000002", ref: "acme/meeting-actions@0.4.1", position: 2, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
-    ] : []),
+    ] : hash === "runs-helper" ? [
+      { runId: "q1000001", ref: "demo1/csv-quality-check@0.1.0", position: 1, waitingFor: "One of the 2 runs under way" },
+    ] : hash === "runs-many" ? Array.from({ length: 47 }, (_, i) => ({
+      runId: `q${String(1000001 + i)}`, ref: i % 3 === 0 ? "acme/meeting-actions@0.4.1" : i % 3 === 1 ? "demo1/csv-quality-check@0.1.0" : "demo1/incident-summarizer@1.2.0",
+      position: i + 1, waitingFor: "One of the 3 runs under way",
+    })) : []),
     CancelQueuedRun: async () => {},
     // The star ask after a run In Agentry that ended well, of someone
     // else's QuickAgent not yet starred.
@@ -451,7 +465,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Preview() {
   const [corner, setCorner] = useState<HTMLElement | null>(null);
-  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "run-queue" || hash === "hosted-card-stacked";
+  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "run-queue" || hash === "runs-many" || hash === "hosted-card-stacked";
   return (
     <CornerHost.Provider value={corner}>
       <div data-preview="runs">
@@ -485,13 +499,37 @@ else if (hash.startsWith("hosted-") && !hash.startsWith("chat-")) {
     if (hash === "hosted-cancel") void cancelHostedRun();
   });
 }
-if (!hostedOnly) void startLocalRun(
+if (goStarted) {
+  // Two runs Go started report progress and log lines; a third begins and
+  // ends, with its result.
+  for (const [id, ref, turns, ends] of [["c1d2e3f4", "acme/meeting-actions@0.4.1", 4, false], ["d2e3f4a5", "demo1/incident-summarizer@1.2.0", 0, false], ["e3f4a5b6", "demo1/csv-quality-check@0.1.0", 5, true]] as const) {
+    setTimeout(() => {
+      fire("runner:run-progress", { runId: id, ref, startedAt: Date.now() - 40_000, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 9_000, outputTokens: 700, prepared: turns > 0 });
+      fire("runner:run-line", { runId: id, line: `${ref}: the Helper started this run` });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (ends) setTimeout(() => fire("runner:run-ended", { runId: id, result: { ...result, runId: id, ref } as any }), 60);
+    }, 100);
+  }
+}
+if (!hostedOnly && !goStarted) void startLocalRun(
   { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form },
   REF,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   () => g.go.app.RunAPI.RunAgent() as Promise<any>,
-).then(() => {
+).then(async () => {
   if (hash === "run-stopped") setTimeout(() => void stopLocalRun(), 120);
+  if (hash === "runs-many") {
+    // Three more runs, one of them over, each a run of its own beside the first.
+    for (const [id, ref, turns, ends] of [["8d2f5b01", "acme/meeting-actions@0.4.1", 3, false], ["9e3a6c12", "demo1/csv-quality-check@0.1.0", 0, false], ["a04b7d23", "demo1/csv-quality-check@0.1.0", 5, true]] as const) {
+      const [ns, rest] = ref.split("/");
+      const [name, version] = rest.split("@");
+      await startLocalRun({ panel: { registry: REG, ns, name, version, attestation: null }, form }, ref, () => new Promise((resolve) => {
+        setTimeout(() => fire("runner:run-progress", { runId: id, ref, startedAt: Date.now() - 40_000, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 9_000, outputTokens: 700, prepared: turns > 0 }), 10);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (ends) setTimeout(() => resolve({ ...result, runId: id, ref } as any), 60);
+      }));
+    }
+  }
 });
 if (hash === "run-card-stacked") startDraft(REG, "agentry", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
 createRoot(document.getElementById("root")!).render(runPage ? <RunPagePreview /> : <Preview />);
