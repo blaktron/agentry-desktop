@@ -153,7 +153,16 @@ const FOCUSABLE = [
 ].join(",");
 
 function focusables(box: HTMLElement): HTMLElement[] {
-  const all = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.closest("[hidden],[inert]"));
+  const all = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if (el.closest("[hidden],[inert]") || getComputedStyle(el).visibility === "hidden") return false;
+    // Tab stops once in a group of radio buttons, on the checked one when
+    // there is one, else on the first.
+    if (el instanceof HTMLInputElement && el.type === "radio" && el.name) {
+      const group = Array.from(box.querySelectorAll<HTMLInputElement>("input[type=\"radio\"]")).filter((r) => r.name === el.name && !r.disabled);
+      return el === (group.find((r) => r.checked) ?? group[0]);
+    }
+    return true;
+  });
   // What is drawn; a document that lays nothing out (a test's) reports no
   // boxes for anything, and then every candidate counts.
   const drawn = all.filter((el) => el.getClientRects().length > 0);
@@ -163,11 +172,11 @@ function focusables(box: HTMLElement): HTMLElement[] {
 /** A modal dialog's keyboard behaviour, as props for the dialog element:
  *  focus moves into it when it opens (to the element already focused inside
  *  it, else to the dialog itself, which announces its name), Tab and
- *  Shift+Tab stay inside it, Escape calls onClose unless `closable` is
- *  false, and focus returns to where it was when it closes. The keys are
- *  React's, so a menu or a nested dialog inside it that handles a key and
- *  stops it keeps the key from this one. */
-export function useDialog<T extends HTMLElement>(onClose: () => void, closable = true) {
+ *  Shift+Tab stay inside it, Escape calls onClose (and does nothing while
+ *  there is none to call), and focus returns to where it was when it
+ *  closes. The keys are React's, so a menu or a nested dialog inside it that
+ *  handles a key and stops it keeps the key from this one. */
+export function useDialog<T extends HTMLElement>(onClose?: () => void) {
   const ref = React.useRef<T>(null);
   React.useEffect(() => {
     const box = ref.current;
@@ -185,7 +194,7 @@ export function useDialog<T extends HTMLElement>(onClose: () => void, closable =
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      if (closable) onClose();
+      onClose?.();
       return;
     }
     if (e.key !== "Tab") return;

@@ -2,7 +2,8 @@
 // dialog takes the focus and is named by its title, Tab and Shift+Tab stay
 // inside it, Escape closes it (but first closes a menu open inside it, and
 // never a dialog that cannot be closed), and the focus goes back to where it
-// was; a clickable row opens through a real button.
+// was; a group of radio buttons is one stop; a clickable row opens through
+// a real button.
 import { window } from "./dom.ts";
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
@@ -92,20 +93,40 @@ test("Escape closes a menu open inside a modal before the modal", async () => {
   assert.ok(node.querySelector('[role="dialog"]'));
 });
 
-test("a dialog that cannot be closed keeps Escape and still keeps Tab inside", async () => {
-  let closed = 0;
+test("a dialog with nothing to close it keeps Escape to itself and still keeps Tab inside", async () => {
+  let outside = 0;
   function Setup() {
-    const dialog = useDialog<HTMLDivElement>(() => { closed++; }, false);
-    return React.createElement("div", { ...dialog, role: "dialog", "aria-modal": "true", "aria-label": "Setup" },
-      React.createElement("button", { id: "only" }, "Next"));
+    const dialog = useDialog<HTMLDivElement>();
+    return React.createElement("div", { onKeyDown: () => { outside++; } },
+      React.createElement("div", { ...dialog, role: "dialog", "aria-modal": "true", "aria-label": "Setup" },
+        React.createElement("button", { id: "only" }, "Next")));
   }
   const node = await render(React.createElement(Setup));
   const only = node.querySelector<HTMLButtonElement>("#only")!;
   await key(node.querySelector('[role="dialog"]')!, "Escape");
-  assert.equal(closed, 0);
+  assert.equal(outside, 0, "Escape went past the dialog");
+  assert.ok(node.querySelector('[role="dialog"]'));
   only.focus();
   await key(only, "Tab");
   assert.equal(focused(), only);
+});
+
+test("Tab in a dialog counts a group of radio buttons as one stop, the checked one", async () => {
+  function Choice() {
+    const dialog = useDialog<HTMLDivElement>(() => {});
+    return React.createElement("div", { ...dialog, role: "dialog", "aria-modal": "true", "aria-label": "Install as" },
+      React.createElement("input", { type: "radio", name: "target", id: "a", defaultChecked: false }),
+      React.createElement("input", { type: "radio", name: "target", id: "b", defaultChecked: true }),
+      React.createElement("button", { id: "next" }, "Next"));
+  }
+  const node = await render(React.createElement(Choice));
+  const checked = node.querySelector<HTMLInputElement>("#b")!;
+  const next = node.querySelector<HTMLButtonElement>("#next")!;
+  next.focus();
+  await key(next, "Tab");
+  assert.equal(focused(), checked, "Tab from the last stop did not wrap to the checked radio button");
+  await key(checked, "Tab", true);
+  assert.equal(focused(), next, "Shift+Tab from the checked radio button did not wrap to the last stop");
 });
 
 test("a clickable row opens through its title, a button, and its actions stay their own", async () => {

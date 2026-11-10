@@ -73,7 +73,7 @@ export default function Wizard({
   }
   // The setup holds the keyboard while it is open; it closes by Skip or
   // Finish, never by Escape.
-  const dialog = useDialog<HTMLDivElement>(() => {}, false);
+  const dialog = useDialog<HTMLDivElement>();
   function choose(p: WizardPath) {
     setPath(p);
     setStep(stepAfter("where", p) ?? "where");

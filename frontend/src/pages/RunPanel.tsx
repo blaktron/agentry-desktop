@@ -245,7 +245,7 @@ export default function RunPanel({
   // consent comes first), when this setup closes.
   const [running, setRunning] = useState(false);
   // Escape closes the run setup as its ✕ does, never while a run is starting.
-  const dialog = useDialog<HTMLDivElement>(onClose, !running);
+  const dialog = useDialog<HTMLDivElement>(running ? undefined : onClose);
   const [runErr, setRunErr] = useState<string | null>(null);
   // The installed copy of this release, when its files changed after it was
   // laid down: read when the setup opens and again after a refused start.

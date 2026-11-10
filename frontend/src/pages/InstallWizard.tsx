@@ -103,7 +103,8 @@ export default function InstallWizard({
     onClose();
   }
 
-  const dialog = useDialog<HTMLDivElement>(close);
+  // Escape closes the review as its ✕ does, but not while the install runs.
+  const dialog = useDialog<HTMLDivElement>(busy === "Installing…" ? undefined : close);
   const titleId = useId();
 
   const gatesOK =

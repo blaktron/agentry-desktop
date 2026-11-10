@@ -5,9 +5,8 @@
 // index, one that names a .js the bundler would have made is its .ts
 // source, a stylesheet import is an empty module, an asset imported with
 // ?url is its address, as the bundler answers it, a JSON file is its value,
-// and "@wailsio/runtime" is
-// tests/wails-mock.ts, whose bound calls are answered by the test's own
-// mocks on globalThis.go. The pure-module tests load through the same
+// and "@wailsio/runtime" is tests/wails-mock.ts, whose bound calls are
+// answered by the test's own mocks on globalThis.go. The pure-module tests load through the same
 // hooks: their modules are compiled here rather than stripped by node.
 import { readFileSync } from "node:fs";
 import path from "node:path";
