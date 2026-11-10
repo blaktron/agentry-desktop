@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  forbids, lockedCap, lockedMembers, partNotes, PART_ROWS, rowNote, rowOf, valueWords,
+  forbids, lockedCap, lockedMembers, ownKeysUsed, partNotes, PART_ROWS, providerLocks, rowNote, rowOf, valueWords,
   type ManagedPart, type ManagedRow,
 } from "../src/managed.ts";
 
@@ -112,6 +112,18 @@ test("the models-and-keys rows are worded, and a source lock other than the memb
   const order = partNotes([row("model.customEndpoints", '"forbidden"'), row("model.providers", '["openai"]'), row("model.source", '{"source":"member"}', "default")], "provider")
     .map((n) => n.id);
   assert.deepEqual(order, ["model.source", "model.providers", "model.customEndpoints"]);
+});
+
+test("the provider tiles a lock leaves out say who does not allow them", () => {
+  const locks = providerLocks([row("model.providers", '["anthropic","custom"]'), row("model.customEndpoints", '"forbidden"')]);
+  assert.equal(locks.openai, "Not allowed by acme");
+  assert.equal(locks.anthropic, undefined);
+  assert.equal(locks.custom, "Not allowed by acme", "a forbidden endpoint locks the custom tile even when the provider list has it");
+  assert.deepEqual(providerLocks([row("model.providers", '["openai"]', "default")]), {}, "a default locks no tile");
+  assert.deepEqual(providerLocks(null), {});
+  assert.equal(ownKeysUsed(row("review.source", '{"source":"member"}', "default")), true);
+  assert.equal(ownKeysUsed(row("review.source", '{"source":"agentry-credits"}', "default")), false);
+  assert.equal(ownKeysUsed(null), true);
 });
 
 test("a row is found by its id", () => {

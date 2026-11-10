@@ -309,5 +309,22 @@ export function partNotes(rows: ManagedRow[] | null | undefined, part: ManagedPa
   return PART_ROWS[part].map((id) => rowNote(rowOf(rows, id))).filter((n): n is RowNote => n !== null);
 }
 
+/** The provider tiles a lock leaves out, each with the words drawn across
+ *  it: a provider model.providers does not list, and an endpoint of the
+ *  member's own when model.customEndpoints forbids one. */
+export function providerLocks(rows: ManagedRow[] | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const providers = rowOf(rows, "model.providers");
+  const allowed = lockedMembers(providers);
+  if (allowed) {
+    for (const id of Object.keys(PROVIDERS)) {
+      if (!allowed.includes(id)) out[id] = `Not allowed by ${providers!.organization || "your organization"}`;
+    }
+  }
+  const custom = rowOf(rows, "model.customEndpoints");
+  if (forbids(custom)) out.custom = `Not allowed by ${custom!.organization || "your organization"}`;
+  return out;
+}
+
 /** The note of one row, or null. */
 export const noteOf = (rows: ManagedRow[] | null | undefined, id: string) => rowNote(rowOf(rows, id));

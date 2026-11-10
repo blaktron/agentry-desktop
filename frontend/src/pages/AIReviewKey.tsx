@@ -13,7 +13,7 @@ import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../keyRecommendation";
-import { noteOf } from "../managed";
+import { noteOf, ownKeysUsed, rowOf } from "../managed";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 
 /** The link to TypeSafe, where a person gets a key: the system browser
@@ -105,7 +105,7 @@ export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => 
         What it flags is held back. Submitting needs no key of yours: Agentry scans every submission itself. The key is
         kept in this computer&apos;s keychain next to your model key: not in a file, and never shown here.
       </p>
-      <ManagedNotes rows={managedRows} part="review-key" use={status?.stored ? forget : undefined} busy={!!busy} />
+      <ManagedNotes rows={managedRows} part="review-key" use={status?.stored && !ownKeysUsed(rowOf(managedRows, "review.source")) ? forget : undefined} busy={!!busy} />
       {status && <p className="small" role="status">{jevKeySentence(status)}</p>}
       {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}
       <label className="field">
