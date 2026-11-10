@@ -1,7 +1,8 @@
-// The one run on this computer this app is following, kept outside every page as
-// drafts.ts keeps a draft: the run setup hands the run over at Run, closes
-// once Go reports the run has begun, and RunFlow (mounted by App above the
-// pages) follows it in its dialog and corner card. The run is followed by
+// The runs on this computer this app is following, kept outside every page as
+// drafts.ts keeps a draft: the run setup hands each run over at Run, closes
+// once Go reports the run has begun or queued it, and RunFlow (mounted by App
+// above the pages) follows one of them in its dialog and lists them all, with
+// the runs waiting to start, in the runs card. The run is followed by
 // its id (localRun.ts), so a setup open on another QuickAgent never shows its
 // lines or its result. Dismiss makes the app forget it (RunAPI.ForgetRun);
 // quitting forgets it too, since nothing of it is kept.
@@ -78,17 +79,20 @@ export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<app.
   return store.start(s, ref, call);
 }
 
-/** Stop: the run ends and its receipts are written as far as it got. */
-export const stopLocalRun = (): Promise<void> => store.stop();
+/** Stop: the run ends and its receipts are written as far as it got; the
+ *  followed run when no id is given. */
+export const stopLocalRun = (runId?: string): Promise<void> => store.stop(runId);
 
 /** Cancel on a queued run: it leaves the queue without starting. */
 export const cancelQueuedRun = (runId: string): Promise<void> => store.cancelQueued(runId);
 
-/** Opens the flow as the dialog. */
-export const showLocalRun = (): void => store.show();
+/** Opens the flow as the dialog: the followed run's, or the named run's,
+ *  which the window then follows. */
+export const showLocalRun = (runId?: string): void => store.show(runId);
 
-/** Dismiss: the flow goes, and the app forgets the run. */
-export const dismissLocalRun = (): void => store.dismiss();
+/** Dismiss: the flow goes, and the app forgets the run; the followed run
+ *  when no id is given. */
+export const dismissLocalRun = (runId?: string): void => store.dismiss(runId);
 
 /** Back to the setup: the run is dismissed, and its setup is returned for
  *  the caller to open again with the answers as they were. */

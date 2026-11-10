@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log"
+	"math"
 	"os"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry-desktop/internal/sysmem"
 )
 
 // RunDefaultsView is Settings → Runs. The timeout and max turns are
@@ -32,6 +35,12 @@ type RunDefaultsView struct {
 	// ChatIdleTimeoutSeconds is the Chat idle timeout (desktop.yaml), 0 for
 	// none: a chat on this computer has no limit but this one.
 	ChatIdleTimeoutSeconds int `json:"chatIdleTimeoutSeconds"`
+	// RunsAtOnce is how many runs on this computer run at the same time, 1
+	// to RunsAtOnceMax; RunsAtOnceMax is the ceiling this computer's memory
+	// sets, and RunsAtOnceLine the sentence that says why.
+	RunsAtOnce     int    `json:"runsAtOnce"`
+	RunsAtOnceMax  int    `json:"runsAtOnceMax"`
+	RunsAtOnceLine string `json:"runsAtOnceLine"`
 	// UnsafeMode is the switch (desktop.yaml's unsafeMode), written only by
 	// RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands are
 	// installed on, the runner policy's images.unsafe or the pinned default.
@@ -161,6 +170,64 @@ func (s *SettingsAPI) SetBuiltinNoLimit(on bool) (*RunDefaultsView, error) {
 	return runDefaultsView()
 }
 
+// SetRunsAtOnce records how many runs on this computer may run at the same
+// time and applies it at once: raising it starts the runs waiting at the
+// head of the queue, lowering it stops nothing. A number below one or above
+// the ceiling this computer's memory sets is refused, and the file is left
+// as it was.
+func (s *SettingsAPI) SetRunsAtOnce(n int) (*RunDefaultsView, error) {
+	ceiling, _ := runsAtOnceCeiling()
+	if n < 1 || n > ceiling {
+		return nil, fmt.Errorf("runs at once is 1 to %d on this computer, not %d", ceiling, n)
+	}
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.RunsAtOnce = n
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	if s.run != nil {
+		s.run.setRunsAtOnce(n)
+	}
+	return runDefaultsView()
+}
+
+// memoryTotal reads this computer's physical memory; a test substitutes
+// its own.
+var memoryTotal = sysmem.Total
+
+// runsAtOnceCeiling is how many runs at once this computer is offered, and
+// the sentence that says why.
+func runsAtOnceCeiling() (int, string) {
+	total, err := memoryTotal()
+	ceiling := sysmem.Ceiling(total)
+	if err != nil || total == 0 {
+		return ceiling, fmt.Sprintf("This computer's memory could not be read, so up to %d runs can run at once.", ceiling)
+	}
+	gb := int(math.Round(float64(total) / sysmem.GiB))
+	return ceiling, fmt.Sprintf("This computer has %d GB of memory, so up to %d runs can run at once.", gb, ceiling)
+}
+
+// runsAtOnce is the number in effect: the setting, at least one and at most
+// the ceiling.
+func runsAtOnce(st settings.Settings) int {
+	ceiling, _ := runsAtOnceCeiling()
+	return min(max(st.RunsAtOnce, 1), ceiling)
+}
+
+// applyRunsAtOnce gives the run slots the number the settings hold; a
+// settings file that cannot be read leaves one.
+func (r *RunAPI) applyRunsAtOnce() {
+	st, err := settings.Load()
+	if err != nil {
+		log.Printf("agentry-desktop: runs at once: %v; one run at a time", err)
+		return
+	}
+	r.setRunsAtOnce(runsAtOnce(st))
+}
+
 // chatIdleTimeout is Run defaults' Chat idle timeout, 0 for none. A
 // settings file that cannot be read, or holds a value its save would refuse,
 // refuses the chat: a person who chose an idle timeout is told, not given a
@@ -245,6 +312,8 @@ func runDefaultsView() (*RunDefaultsView, error) {
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 		Deliverables: dOn, DeliverablesDir: dDir, DeliverablesDefault: dDefault,
 	}
+	v.RunsAtOnceMax, v.RunsAtOnceLine = runsAtOnceCeiling()
+	v.RunsAtOnce = runsAtOnce(st)
 	if lock := unsafeLock(managedCalls.current(), st.UnsafeMode); lock != nil {
 		v.UnsafeMode, v.UnsafeLock = false, lock
 	}

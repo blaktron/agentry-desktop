@@ -431,6 +431,9 @@ const runDefaults = {
   where: view.startsWith("runpanel-default-agentry") ? "agentry" : "here",
   outputDir: view === "runpanel-default-folder" || view.startsWith("runpanel-schedule") ? "/home/me/agentry-runs" : "",
   chatIdleTimeoutSeconds: 0,
+  runsAtOnce: 1,
+  runsAtOnceMax: 6,
+  runsAtOnceLine: "This computer has 32 GB of memory, so up to 6 runs can run at once.",
 };
 
 // #runpanel-default-agentry-signedout: signed out, where Go offers no run In

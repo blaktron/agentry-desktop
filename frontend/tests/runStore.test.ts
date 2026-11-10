@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { createRunStore, type RunProgress } from "../src/localRun.ts";
+import { WAITING_SHOWN, createRunStore, runsCardShown, runsCardTitle, starting, waitingShown, type RunProgress } from "../src/localRun.ts";
 
 type Cb = (v: never) => void;
 
@@ -273,4 +273,105 @@ test("a queued run cancelled while another start waits leaves that start waiting
   a.reject("the run was cancelled before it started");
   await tick();
   await assert.rejects(h.store.start("C", "acme/c@1.0.0", pending().call), /being started/);
+});
+
+test("two runs under way at once: the second takes the window, the first goes on in the runs card", async () => {
+  const h = harness();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  const b = pending();
+  const bBegun = h.store.start("setup B", "acme/a@1.0.0", b.call);
+  h.report("r2", "acme/a@1.0.0");
+  await bBegun;
+  let s = h.store.state();
+  assert.equal(s.run?.runId, "r2", "the run just started is the one the window follows");
+  assert.deepEqual(s.runs.map((r) => r.runId), ["r1", "r2"]);
+  assert.deepEqual(h.forgotten, [], "a run still under way was forgotten");
+  // Each run's reports and lines reach its own record only.
+  h.report("r1", "acme/a@1.0.0", 4);
+  h.line("r2", "B's line");
+  s = h.store.state();
+  assert.equal(s.runs[0].progress?.turns, 4);
+  assert.deepEqual(s.runs[0].log, []);
+  assert.deepEqual(s.runs[1].log, ["B's line"]);
+  // Stop names the run in the background.
+  await h.store.stop("r1");
+  assert.deepEqual(h.stopped, ["r1"]);
+  assert.equal(h.store.state().runs[0].stopping, true);
+  assert.equal(h.store.state().runs[1].stopping, false);
+  a.resolve(result("r1", "error", 130));
+  b.resolve(result("r2"));
+  await tick();
+  s = h.store.state();
+  assert.equal(s.runs[0].stopped, true);
+  assert.equal(s.runs[1].over, true);
+  // Open on the first makes the window follow it; Dismiss forgets it alone.
+  h.store.show("r1");
+  assert.equal(h.store.state().run?.runId, "r1");
+  h.store.dismiss("r1");
+  s = h.store.state();
+  assert.deepEqual(h.forgotten, ["r1"]);
+  assert.deepEqual(s.runs.map((r) => r.runId), ["r2"]);
+  assert.equal(s.run, null);
+});
+
+test("a queued run that begins while the followed run goes on joins the runs card without taking the window", async () => {
+  const h = harness();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  const raised = h.store.state().raised;
+  const b = pending();
+  const bQueued = h.store.start("setup B", "acme/b@1.0.0", b.call);
+  h.fire("runner:run-queue", [{ runId: "r2", ref: "acme/b@1.0.0", position: 1, waitingFor: "A run of acme/a@1.0.0" }]);
+  await bQueued;
+  h.fire("runner:run-queue", []);
+  h.report("r2", "acme/b@1.0.0");
+  const s = h.store.state();
+  assert.equal(s.run?.runId, "r1", "the queued run took the window from a run still under way");
+  assert.equal(s.raised, raised, "the queued run raised the dialog");
+  assert.deepEqual(s.runs.map((r) => r.runId), ["r1", "r2"]);
+});
+
+test("the runs card keeps the ten newest runs that are over", async () => {
+  const h = harness();
+  const calls = [];
+  // Twelve runs under way at once, each started while the others go on.
+  for (let i = 1; i <= 12; i++) {
+    const c = pending();
+    calls.push(c);
+    const begun = h.store.start(`setup ${i}`, "acme/a@1.0.0", c.call);
+    h.report(`r${i}`, "acme/a@1.0.0");
+    await begun;
+  }
+  assert.equal(h.store.state().runs.length, 12);
+  calls.forEach((c, i) => c.resolve(result(`r${i + 1}`)));
+  await tick();
+  const s = h.store.state();
+  assert.equal(s.run?.runId, "r12");
+  assert.equal(s.runs.length, 10, `kept ${s.runs.length}`);
+  assert.equal(s.runs[0].runId, "r3");
+  assert.deepEqual(h.forgotten, ["r1", "r2"]);
+});
+
+test("the runs card's title, when it is drawn, and how many waiting runs it lists", () => {
+  const going = (ref: string) => ({ ...starting(ref), runId: ref, over: false });
+  const ended = (ref: string) => ({ ...starting(ref), runId: ref, over: true });
+  const q = (n: number) => Array.from({ length: n }, (_, i) => ({ runId: `q${i}`, ref: "acme/b@1.0.0", position: i + 1, waitingFor: "One of the 3 runs under way" }));
+  assert.equal(runsCardShown([going("a")], []), false);
+  assert.equal(runsCardShown([going("a")], q(1)), true);
+  assert.equal(runsCardShown([going("a"), going("b")], []), true);
+  assert.equal(runsCardTitle([going("a"), going("b"), going("c")], q(47)), "3 running · 47 waiting");
+  assert.equal(runsCardTitle([going("a"), ended("b")], []), "1 running · 1 over");
+  assert.equal(runsCardTitle([], q(1)), "1 run waiting to start");
+  assert.equal(runsCardTitle([], q(2)), "2 runs waiting to start");
+  assert.equal(runsCardTitle([going("acme/a@1.0.0")], []), "Running acme/a@1.0.0");
+  const few = waitingShown(q(47), false);
+  assert.equal(few.shown.length, WAITING_SHOWN);
+  assert.equal(few.more, 42);
+  assert.deepEqual(waitingShown(q(47), true), { shown: q(47), more: 0 });
+  assert.deepEqual(waitingShown(q(3), false), { shown: q(3), more: 0 });
 });

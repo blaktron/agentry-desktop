@@ -546,6 +546,19 @@ export function SetRunWhere(where: string): $CancellablePromise<$models.RunDefau
 }
 
 /**
+ * SetRunsAtOnce records how many runs on this computer may run at the same
+ * time and applies it at once: raising it starts the runs waiting at the
+ * head of the queue, lowering it stops nothing. A number below one or above
+ * the ceiling this computer's memory sets is refused, and the file is left
+ * as it was.
+ */
+export function SetRunsAtOnce(n: number): $CancellablePromise<$models.RunDefaultsView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetRunsAtOnce", n).then(($result: any) => {
+        return $$createType6($result)!;
+    });
+}
+
+/**
  * SignIn validates a PAT against the registry, stores it, and pins the
  * registry's signing keys (TOFU) — login is the moment a human deliberately
  * chose this registry, which is exactly when trust should be established.

@@ -20,13 +20,14 @@ export type RunLine = { runId: string; line: string };
  *  RunAPI's QueuedRunView): Go sends the whole queue each time it changes. */
 export type QueuedRun = { runId: string; ref: string; position: number; waitingFor: string };
 
-/** The line a queued run's card says: where it stands and what it waits
- *  for. */
+/** The line a queued run's row says: the next to start says what it waits
+ *  for; the others say only how many are ahead of them, so a long queue
+ *  reads as a list and not as one sentence repeated. */
 export function queuedLine(q: QueuedRun): string {
   const job = lowerFirst(q.waitingFor);
   if (q.position <= 1) return `Starts when ${job} ends.`;
   const before = q.position - 1;
-  return `Starts after ${job} and the ${before === 1 ? "run" : `${before} runs`} queued before it.`;
+  return `Starts after the ${before === 1 ? "run" : `${before} runs`} queued before it.`;
 }
 
 function lowerFirst(s: string): string {
@@ -155,25 +156,41 @@ export type RunStoreDeps = {
   cancelQueued?: (runId: string) => Promise<void>;
 };
 
-export type RunStoreState<S> = { run: LocalRun | null; setup: S | null; shown: boolean; raised: number; queue: QueuedRun[] };
+export type RunStoreState<S> = {
+  /** The run the window follows: its dialog, or its card when it is the
+   *  only one; null when none is followed. */
+  run: LocalRun | null;
+  setup: S | null;
+  shown: boolean;
+  raised: number;
+  /** Every run this app follows, the followed one included, in the order
+   *  they began: those under way and those over, until each is dismissed. */
+  runs: LocalRun[];
+  queue: QueuedRun[];
+};
 
-/** The one run on this computer the app follows, and the runs waiting to
- *  start after it. A start owns nothing shared until its own run has begun:
- *  the run being followed (in the background, or a card that is over) is
- *  left as it is while a second Run waits for its consent and for Go's
- *  answer, and a start Go refuses changes nothing. A start Go queues behind
- *  another job closes its setup once the queue names it, and takes the
- *  card over when it begins. setup is whatever reopens the run's setup. */
+/** How many runs that are over the store keeps for the runs card, the
+ *  newest first; older ones are forgotten (the run history keeps them). */
+export const MAX_ENDED_RUNS = 10;
+
+/** The runs on this computer the app follows, and the runs waiting to start
+ *  after them. Several runs can be under way at once; the window follows one
+ *  of them, and the runs card lists them all. A start owns nothing shared
+ *  until its own run has begun: the runs being followed are left as they are
+ *  while a second Run waits for its consent and for Go's answer, and a start
+ *  Go refuses changes nothing. A start Go queues closes its setup once the
+ *  queue names it, and when it begins it joins the runs card, taking the
+ *  window over only if the window follows no run that is still under way.
+ *  setup is whatever reopens the run's setup. */
 export function createRunStore<S>(deps: RunStoreDeps) {
-  let run: LocalRun | null = null;
-  let setup: S | null = null;
-  // owner is the start whose run is the one followed: only it writes run,
-  // and markStopping is how Stop reaches that start's own record.
-  let owner: object | null = null;
-  let markStopping: (() => void) | null = null;
-  // starting: a start is waiting for its run to begin. Go runs one local
-  // job at a time and a report does not say which start it answers, so a
-  // second start waits for the first to begin or be refused.
+  type Entry = { run: LocalRun; setup: S; markStopping: () => void };
+  // entries are the runs followed, by id, in the order they began.
+  const entries = new Map<string, Entry>();
+  // followed is the run the window follows.
+  let followed: string | null = null;
+  // starting: a start is waiting for its run to begin. A report does not
+  // say which start it answers, so a second start waits for the first to
+  // begin, be queued or be refused.
   let starting_ = false;
   let shown = false;
   let raised = 0;
@@ -181,8 +198,31 @@ export function createRunStore<S>(deps: RunStoreDeps) {
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((f) => f());
 
+  // forgetEnded keeps at most MAX_ENDED_RUNS runs that are over, letting the
+  // oldest go; the followed run is kept.
+  const forgetEnded = () => {
+    const ended = [...entries.entries()].filter(([id, e]) => e.run.over && id !== followed);
+    const room = MAX_ENDED_RUNS - (followed && entries.get(followed)?.run.over ? 1 : 0);
+    for (const [id] of ended.slice(0, Math.max(0, ended.length - room))) {
+      entries.delete(id);
+      deps.forget(id);
+    }
+  };
+
+  const forgetOne = (id: string) => {
+    entries.delete(id);
+    deps.forget(id);
+    if (id === followed) {
+      followed = null;
+      shown = false;
+    }
+  };
+
   return {
-    state: (): RunStoreState<S> => ({ run, setup, shown, raised, queue }),
+    state: (): RunStoreState<S> => {
+      const e = followed ? entries.get(followed) : undefined;
+      return { run: e?.run ?? null, setup: e?.setup ?? null, shown, raised, runs: [...entries.values()].map((x) => x.run), queue };
+    },
 
     /** The runs waiting to start, as Go last reported them. */
     setQueue(q: QueuedRun[]): void {
@@ -202,18 +242,20 @@ export function createRunStore<S>(deps: RunStoreDeps) {
     start(s: S, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
       if (starting_) return Promise.reject("A run is being started on this computer; wait for it to begin, then start another.");
       starting_ = true;
-      const token = {};
-      // The run followed when this start began is not this start's,
-      // whatever its reports say, and nor is a run already queued.
-      const followed = run && !run.over ? run.runId : null;
-      const known = new Set(queue.map((q) => q.runId));
+      // The runs followed and queued when this start began are not this
+      // start's, whatever their reports say.
+      const known = new Set<string>(entries.keys());
+      const queuedBefore = new Set(queue.map((q) => q.runId));
       let mine = starting(ref);
       let begun = false;
       // queued: Go put this start's run in the queue, and the setup closed.
       let queued = false;
       const publish = () => {
-        if (owner !== token) return;
-        run = mine;
+        const id = mine.runId;
+        const e = id ? entries.get(id) : undefined;
+        if (!e) return;
+        e.run = mine;
+        if (mine.over) forgetEnded();
         notify();
       };
       return new Promise((resolve, reject) => {
@@ -221,23 +263,35 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           if (begun) return;
           begun = true;
           starting_ = false;
-          // An earlier run whose card was still up is forgotten now.
-          if (run?.runId && run.runId !== mine.runId) deps.forget(run.runId);
-          owner = token;
-          markStopping = () => {
-            mine = stopAsked(mine);
-            publish();
-          };
-          setup = s;
-          shown = true;
-          // A queued run takes the card over as it was, open or in the
-          // corner, rather than opening a dialog nobody asked for then.
-          if (!queued) raised++;
+          const id = mine.runId ?? "";
+          const prev = followed ? entries.get(followed) : undefined;
+          // A run the person just started takes the window; a queued run
+          // that begins takes it only from a run that is over, or none.
+          const takeOver = !queued || !prev || prev.run.over;
+          entries.set(id, {
+            run: mine,
+            setup: s,
+            markStopping: () => {
+              mine = stopAsked(mine);
+              publish();
+            },
+          });
+          if (takeOver) {
+            // An earlier run whose card was still up, and is over, is
+            // forgotten now; one still under way stays in the runs card.
+            if (prev?.run.over && followed && followed !== id) forgetOne(followed);
+            followed = id;
+            shown = true;
+            // A queued run takes the window over as it was, open or in the
+            // corner, rather than opening a dialog nobody asked for then.
+            if (!queued) raised++;
+          }
+          forgetEnded();
           resolve();
         };
         const offQueue = deps.on("runner:run-queue", (q: QueuedRun[]) => {
           if (queued || begun) return;
-          const entry = (q ?? []).find((e) => e.ref === ref && !known.has(e.runId) && e.runId !== followed);
+          const entry = (q ?? []).find((e) => e.ref === ref && !queuedBefore.has(e.runId) && !known.has(e.runId));
           if (!entry) return;
           queued = true;
           starting_ = false;
@@ -245,7 +299,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           resolve();
         });
         const offProgress = deps.on("runner:run-progress", (p: RunProgress) => {
-          if (p.runId === followed || (!queued && known.has(p.runId))) return;
+          if (known.has(p.runId) || (!queued && queuedBefore.has(p.runId))) return;
           const next = withProgress(mine, p);
           if (next === mine) return;
           mine = next;
@@ -293,33 +347,66 @@ export function createRunStore<S>(deps: RunStoreDeps) {
       await deps.cancelQueued?.(runId);
     },
 
-    /** Stop: the run ends and its receipts are written as far as it got. */
-    async stop(): Promise<void> {
-      if (!run || run.over || !run.runId) return;
-      markStopping?.();
+    /** Stop: the run ends and its receipts are written as far as it got.
+     *  The followed run when no id is given. */
+    async stop(runId?: string): Promise<void> {
+      const id = runId ?? followed;
+      const e = id ? entries.get(id) : undefined;
+      if (!id || !e || e.run.over) return;
+      e.markStopping();
       try {
-        await deps.stop(run.runId);
+        await deps.stop(id);
       } catch {
         // The run ended as Stop was pressed: its own result is what shows.
       }
     },
 
-    /** Opens the flow as the dialog. */
-    show(): void {
+    /** Opens the flow of the run as the dialog: the followed run when no id
+     *  is given, else the one named, which the window then follows. */
+    show(runId?: string): void {
+      if (runId && entries.has(runId)) followed = runId;
       shown = true;
       raised++;
       notify();
     },
 
-    /** Dismiss: the flow goes, and the app forgets the run. */
-    dismiss(): void {
-      if (run?.runId) deps.forget(run.runId);
-      run = null;
-      setup = null;
-      owner = null;
-      markStopping = null;
-      shown = false;
+    /** Dismiss: the run's flow goes, and the app forgets it. The followed
+     *  run when no id is given. */
+    dismiss(runId?: string): void {
+      const id = runId ?? followed;
+      if (id) forgetOne(id);
+      else shown = false;
       notify();
     },
   };
+}
+
+/** How many waiting runs the runs card lists before "and N more". */
+export const WAITING_SHOWN = 5;
+
+/** Whether the runs card is drawn: with more than one run followed, or any
+ *  run waiting to start. One run alone is drawn by its own card. */
+export function runsCardShown(runs: LocalRun[], queue: QueuedRun[]): boolean {
+  return runs.length > 1 || queue.length > 0;
+}
+
+/** The runs card's title: how many runs are under way, waiting and over,
+ *  the counts that are zero left out. */
+export function runsCardTitle(runs: LocalRun[], queue: QueuedRun[]): string {
+  const running = runs.filter((r) => !r.over).length;
+  const ended = runs.length - running;
+  if (running === 0 && ended === 0) return queue.length === 1 ? "1 run waiting to start" : `${queue.length} runs waiting to start`;
+  if (running === 1 && ended === 0 && queue.length === 0) return `Running ${runs[0].ref}`;
+  const parts: string[] = [];
+  if (running > 0) parts.push(`${running} running`);
+  if (queue.length > 0) parts.push(`${queue.length} waiting`);
+  if (ended > 0) parts.push(`${ended} over`);
+  return parts.join(" · ");
+}
+
+/** The waiting runs the card lists, and how many it leaves to "and N more":
+ *  the first WAITING_SHOWN, or all of them once expanded. */
+export function waitingShown(queue: QueuedRun[], expanded: boolean): { shown: QueuedRun[]; more: number } {
+  if (expanded || queue.length <= WAITING_SHOWN) return { shown: queue, more: 0 };
+  return { shown: queue.slice(0, WAITING_SHOWN), more: queue.length - WAITING_SHOWN };
 }

@@ -77,7 +77,7 @@ func New(notices string) *Services {
 	yourComputer := newYourComputerAPI(app, run)
 	return &Services{
 		app:           app,
-		settings:      &SettingsAPI{app: app, installs: installs},
+		settings:      &SettingsAPI{app: app, run: run, installs: installs},
 		browse:        browse,
 		install:       installs,
 		validate:      &ValidateAPI{app: app},
@@ -108,6 +108,8 @@ func (s *Services) Startup(ctx context.Context) {
 	// The person's text size, on the window before anything else is drawn
 	// into it.
 	applyTextSize()
+	// Runs at once, from the settings, before anything can start a run.
+	s.run.applyRunsAtOnce()
 	// The engine the app manages itself, where one is installed, is
 	// started; in its own goroutine, since a VM boot takes a while and
 	// the card says what detection finds meanwhile.
