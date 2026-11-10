@@ -99,17 +99,18 @@ export default function Browse({
           type="search"
           className="grow"
           placeholder="Search agents…"
+          aria-label="Search agents"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
-        <Select value={mode} onChange={(e) => setMode(e.target.value)} title="Run mode">
+        <Select value={mode} onChange={(e) => setMode(e.target.value)} title="Run mode" aria-label="Run mode">
           {MODES.map((k) => <option key={k} value={k}>{k === "" ? "any mode" : k}</option>)}
         </Select>
-        <Select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability">
+        <Select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability" aria-label="Declared capability">
           {CAPABILITIES.map((c) => <option key={c} value={c}>{c === "" ? "any capability" : `asks for ${c}`}</option>)}
         </Select>
-        <Select value={sort} onChange={(e) => setSort(e.target.value)} title="Sort">
+        <Select value={sort} onChange={(e) => setSort(e.target.value)} title="Sort" aria-label="Sort">
           {SORTS.map((s) => <option key={s} value={s}>{s}</option>)}
         </Select>
         <Button variant="primary" onClick={search}>Search</Button>

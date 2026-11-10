@@ -326,7 +326,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
         <section className="card scheduled-calendar" aria-label="Calendar">
           <div className="spread">
             <Button onClick={() => shift(-1)} aria-label="Previous month">←</Button>
-            <h3 style={{ margin: 0 }}>{monthTitle(month.year, month.month)}</h3>
+            <h2 className="section-heading" style={{ margin: 0 }}>{monthTitle(month.year, month.month)}</h2>
             <Button onClick={() => shift(1)} aria-label="Next month">→</Button>
           </div>
           <MonthGrid weeks={weeks} days={days} chosen={day} onChoose={setDay} />
@@ -334,13 +334,13 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
         </section>
 
         <section className="card scheduled-day" aria-label="The chosen day">
-          <h3>{new Date(day + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</h3>
+          <h2 className="section-heading">{new Date(day + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</h2>
           {dayRows.length === 0 ? <p className="muted small">Nothing scheduled on this day.</p> : (
             <ul className="home-card-list" data-day-list>
               {dayRows.map((r, k) => <FireLine key={k} f={r} onOpenRun={onOpenRun} />)}
             </ul>
           )}
-          <h3>Upcoming</h3>
+          <h2 className="section-heading">Upcoming</h2>
           {upcoming.length === 0 ? <p className="muted small">Nothing due in this month&apos;s view.</p> : (
             <ul className="home-card-list" data-upcoming>
               {upcoming.map((r, k) => <li key={k}><span>{whenOf(r.at)}</span> · <span className="mono small">{r.name}</span>{r.hosted && <InAgentry />}</li>)}
@@ -350,7 +350,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       </div>
 
       <section className="card" aria-label="Schedules">
-        <h3>Schedules</h3>
+        <h2 className="section-heading">Schedules</h2>
         {list && items.length === 0 && (
           <EmptyState title="No schedules yet">
             Schedule a new run, or choose Later or Repeat under When on a run&apos;s Review and start, on this computer or
@@ -420,7 +420,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       </section>
 
       <section className="card" aria-label="History">
-        <h3>History</h3>
+        <h2 className="section-heading">History</h2>
         {allHistory.length === 0 ? <p className="muted small">No scheduled run has rung yet.</p> : (
           <ul className="home-card-list" data-history>
             {allHistory.map((r, k) => <FireLine key={k} f={r} onOpenRun={onOpenRun} withDate />)}
@@ -535,7 +535,7 @@ function EditSchedule({ item, registry, availability, now, models, onClose, onSa
         <ModelPicker models={models} value={model} onChange={setModel} disabled={saving} testId="schedule-edit"
           hint="Its next run is on it." />
       )}
-      {modelProblem && <p className="run-step-problem">{modelProblem}</p>}
+      {modelProblem && <p className="run-step-problem" role="alert">{modelProblem}</p>}
       {!item.hosted && item.signedOut && !item.keysSealed && (
         <p className="small">Its keys are not sealed, so it does not run while you are signed out: Save with the box ticked seals them again.</p>
       )}
@@ -543,7 +543,7 @@ function EditSchedule({ item, registry, availability, now, models, onClose, onSa
         It keeps running the version it was made for, {item.ref}@{item.version}, with the same task and files
         {item.hosted ? ", In Agentry. Agentry checks it again when you save" : ""}.
       </p>
-      {problem && <p className="run-step-problem">{problem}</p>}
+      {problem && <p className="run-step-problem" role="alert">{problem}</p>}
       <ErrorBox error={err} />
       <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
         <Button onClick={onClose} disabled={saving}>Cancel</Button>

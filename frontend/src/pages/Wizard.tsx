@@ -10,7 +10,7 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import { ClipboardSetText } from "../host";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
+import { Button, ErrorBox, Input, Mark, Notice, useDialog } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
 import { AgentryCommandCard } from "./AgentryCommand";
@@ -71,6 +71,9 @@ export default function Wizard({
     setStep(prev);
     setPath(pathAt(prev, path));
   }
+  // The setup holds the keyboard while it is open; it closes by Skip or
+  // Finish, never by Escape.
+  const dialog = useDialog<HTMLDivElement>(() => {}, false);
   function choose(p: WizardPath) {
     setPath(p);
     setStep(stepAfter("where", p) ?? "where");
@@ -78,17 +81,22 @@ export default function Wizard({
 
   return (
     <div className="wizard-backdrop">
-      <div className="wizard" role="dialog" aria-modal="true" aria-label="Agentry setup">
+      <div {...dialog} className="wizard" role="dialog" aria-modal="true" aria-label="Agentry setup">
         <div className="wizard-head">
           <div className="row">
             <Mark size={24} />
             <strong>Set up Agentry Desktop</strong>
           </div>
-          <div className="wizard-steps" aria-hidden>
+          {/* The dots are drawn; each step's name and place is text for a
+              screen reader, and the current one is marked as the step. */}
+          <ol className="wizard-steps" aria-label="Setup steps">
             {steps.map((name, i) => (
-              <span key={name} className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} title={LABELS[name]} />
+              <li key={name} className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} title={LABELS[name]}
+                aria-current={i === at ? "step" : undefined}>
+                <span className="sr-only">{`Step ${i + 1} of ${steps.length}: ${LABELS[name]}${i < at ? ", done" : ""}`}</span>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
 
         {step === "welcome" && <Welcome onSetUp={next} onSkip={() => onFinish({ kind: "skipped" })} />}

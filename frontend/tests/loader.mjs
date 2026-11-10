@@ -4,7 +4,8 @@
 // an import that names no extension is tried as .ts, .tsx or a folder's
 // index, one that names a .js the bundler would have made is its .ts
 // source, a stylesheet import is an empty module, an asset imported with
-// ?url is its address, as the bundler answers it, and "@wailsio/runtime" is
+// ?url is its address, as the bundler answers it, a JSON file is its value,
+// and "@wailsio/runtime" is
 // tests/wails-mock.ts, whose bound calls are answered by the test's own
 // mocks on globalThis.go. The pure-module tests load through the same
 // hooks: their modules are compiled here rather than stripped by node.
@@ -49,6 +50,10 @@ export async function load(url, context, next) {
     return { format: "module", source: code, shortCircuit: true };
   }
   if (url.endsWith(".css")) return { format: "module", source: "export default {};", shortCircuit: true };
+  // A JSON import without an attribute, as the bundler takes one.
+  if (url.endsWith(".json") && url.startsWith("file:") && !context.importAttributes?.type) {
+    return { format: "module", source: `export default ${readFileSync(fileURLToPath(url), "utf8")};`, shortCircuit: true };
+  }
   if (new URL(url).search === "?url") return { format: "module", source: `export default ${JSON.stringify(url)};`, shortCircuit: true };
   return next(url, context);
 }

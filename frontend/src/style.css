@@ -164,6 +164,11 @@
 }
 
 * { box-sizing: border-box; }
+/* The webview's own context menu shows only over a text field or selected
+   text (cut, copy, paste, select all); over a link or an image it would
+   also offer to open it in a new window or save it, so it stays hidden
+   there. The window toolkit's runtime reads this property. */
+a[href], a[href] *, img { --default-contextmenu: hide; }
 
 html, body, #root {
   height: 100%;
@@ -345,6 +350,9 @@ code, pre, .mono {
 h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
 h2 { font-size: 15px; font-weight: 650; margin: 22px 0 8px; }
 h3 { font-size: 13.5px; font-weight: 650; margin: 14px 0 6px; }
+/* A page section's heading where the page has no h2 of its own: an h2 in
+   the outline, drawn as an h3. */
+h2.section-heading { font-size: 13.5px; margin: 14px 0 6px; }
 .page-sub { color: var(--color-muted); margin: 0 0 18px; }
 .page-sub .wizard-lead { display: block; color: var(--color-fg); margin-bottom: 6px; }
 
@@ -820,7 +828,19 @@ button.ghost:hover, .btn.ghost:hover {
   padding: 12px 14px;
   margin: 8px 0;
 }
+.agent-row.clickable { position: relative; }
 .agent-row.clickable:hover { border-color: var(--color-accent); }
+/* A clickable row's title is its button; the button's hit area is
+   stretched over the whole row, and the actions and any selectable text
+   sit above that stretch. */
+.agent-row-open {
+  border: none; background: none; padding: 0; margin: 0; text-align: left; cursor: pointer;
+}
+.agent-row-open::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.agent-row-open:focus-visible { outline: none; }
+.agent-row-open:focus-visible::after { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.agent-row.clickable .agent-row-actions,
+.agent-row.clickable .selectable { position: relative; z-index: 1; }
 .agent-row-main { flex: 1; min-width: 0; }
 .agent-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agent-row-title { font-weight: 600; font-size: 14px; color: var(--color-fg); }
@@ -911,6 +931,9 @@ button.ghost:hover, .btn.ghost:hover {
   display: flex;
   gap: 8px;
   align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .wizard-dot {
   width: 8px;

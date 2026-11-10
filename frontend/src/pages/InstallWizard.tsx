@@ -3,11 +3,11 @@
 // review → Confirm. The two consent gates (unsigned release, widened or
 // egress/exec capabilities) are explicit checkboxes; the primary button
 // stays disabled until every applicable one is ticked.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import * as InstallAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/installapi";
 import { ChooseDirectory } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import * as install from "../../bindings/github.com/blaktron/agentry-desktop/internal/install/models";
-import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
+import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest, useDialog } from "../ui";
 import { secretsRow } from "../requiredKeys";
 import { browserCap, browserLine } from "../browser";
 import { acceptSentence } from "../installConsent";
@@ -103,6 +103,9 @@ export default function InstallWizard({
     onClose();
   }
 
+  const dialog = useDialog<HTMLDivElement>(close);
+  const titleId = useId();
+
   const gatesOK =
     (!plan?.unsigned || acceptUnsigned) &&
     (!plan?.unscanned || acceptUnscanned) &&
@@ -110,10 +113,10 @@ export default function InstallWizard({
 
   return (
     <div className="modal-backdrop" onClick={close}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div {...dialog} className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="spread">
-          <h2 style={{ margin: 0 }}>Install {agentRef}</h2>
-          <button onClick={close}>✕</button>
+          <h2 id={titleId} style={{ margin: 0 }}>Install {agentRef}</h2>
+          <button onClick={close} aria-label="Close">✕</button>
         </div>
 
         {/* Step 1: target + directory */}

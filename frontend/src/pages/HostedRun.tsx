@@ -512,7 +512,7 @@ export function HostedResult({ run }: { run: app.HostedRunView }) {
         <span className="muted small">{hostedUseLine(run)}</span>
       </div>
       <p className="muted small" style={{ margin: "6px 0" }}>{run.outcomeLine}</p>
-      {run.error && <div className="error-box selectable">{run.error}</div>}
+      {run.error && <div className="error-box selectable" role="alert">{run.error}</div>}
       <div className="kv">
         <span className="k">credits</span>
         {run.session ? (

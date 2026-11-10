@@ -138,6 +138,10 @@ func run(services *app.Services, hidden bool) {
 		},
 	})
 
+	// The menu bar (appMenu): on macOS it carries the editing commands a
+	// text field's shortcuts need.
+	wails.Menu.Set(appMenu())
+
 	window := wails.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:      windowName,
 		Title:     "Agentry Desktop",
@@ -147,8 +151,10 @@ func run(services *app.Services, hidden bool) {
 		MinHeight: 600,
 		Hidden:    hidden,
 		URL:       "/",
-		// No browser context menu over the page.
-		DefaultContextMenuDisabled: true,
+		// The webview's own context menu is left on: the runtime shows it
+		// only over a text field or selected text (cut, copy, paste, select
+		// all), and the page hides it over links and images (style.css), so
+		// it never offers to open either in a new window.
 	})
 	// The window's close, before it happens: the services may keep the
 	// window and hide it, or ask first.

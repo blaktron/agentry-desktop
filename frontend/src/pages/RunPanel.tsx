@@ -31,7 +31,7 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import * as schedules from "../../bindings/github.com/blaktron/agentry-desktop/internal/schedules/models";
 import * as trust from "../../bindings/github.com/blaktron/agentry-cli/pkg/trust/models";
-import { Button, Card, DeclaredServersTable, ErrorBox, Notice, Select, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
+import { Button, Card, DeclaredServersTable, ErrorBox, Notice, Select, SignedBadge, Textarea, fmtBytes, shortDigest, useDialog } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { askedHere, intakeToSend, secretAnswerRefusal, secretQuestionLine, type IntakeQuestion } from "../secretIntake";
@@ -244,6 +244,8 @@ export default function RunPanel({
   // run's flow, from Run until Go reports that it has begun (the native
   // consent comes first), when this setup closes.
   const [running, setRunning] = useState(false);
+  // Escape closes the run setup as its ✕ does, never while a run is starting.
+  const dialog = useDialog<HTMLDivElement>(onClose, !running);
   const [runErr, setRunErr] = useState<string | null>(null);
   // The installed copy of this release, when its files changed after it was
   // laid down: read when the setup opens and again after a refused start.
@@ -1227,7 +1229,7 @@ export default function RunPanel({
 
   return (
     <div className="modal-backdrop" onClick={() => !running && onClose()}>
-      <div className="modal modal-wide run-panel" role="dialog" aria-modal="true" aria-label={`Run ${agentRef}`} onClick={(e) => e.stopPropagation()}>
+      <div {...dialog} className="modal modal-wide run-panel" role="dialog" aria-modal="true" aria-label={`Run ${agentRef}`} onClick={(e) => e.stopPropagation()}>
         <div className="spread">
           <h2 style={{ margin: 0 }}>Run {agentRef}</h2>
           <Button onClick={onClose} disabled={running} title={running ? "A run is starting" : ""} aria-label="Close">✕</Button>
@@ -2124,7 +2126,7 @@ export default function RunPanel({
                 </label>
               )}
               {vuln.showRefusal && (
-                <div className="error-box selectable">{mcp?.refusal}.</div>
+                <div className="error-box selectable" role="alert">{mcp?.refusal}.</div>
               )}
               {!refused && mcp?.vulnerabilityLine && (
                 <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
