@@ -13,6 +13,10 @@ export default defineConfig({
   testDir: ".",
   testMatch: /.*\.spec\.ts$/,
   fullyParallel: true,
+  // A CI runner shares its host with other jobs: fewer pages at once, and
+  // more time for one whose first load compiles the harness.
+  workers: process.env.CI ? 4 : undefined,
+  timeout: 60_000,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: [["list"]],
