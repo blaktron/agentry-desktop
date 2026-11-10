@@ -14,7 +14,8 @@ import { EventsOn } from "../host";
 import { Button, Card, ErrorBox, Field, Input, Notice } from "../primitives";
 import { runhostNameProblem, signInWords, unsafeModeWords, updateWords, type RunhostUpdate } from "../runhosts";
 import { ModelPicker } from "./ModelPicker";
-import { modelSaid, type PickModel } from "../modelPick";
+import { type PickModel } from "../modelPick";
+import { scheduleExtraOption, scheduleModelSaid, scheduleMove, scheduleValue } from "../runhostSchedules";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { lockedMembers, rowOf } from "../managed";
 
@@ -464,8 +465,9 @@ function RunhostCard({ runhost, onChange, onGone }: { runhost: app.RunhostView; 
 }
 
 /** The schedules a runhost runs with nobody present, from its store: each
- *  one's next run and what it keeps there, never a value, and Remove, which
- *  takes it off the runhost with everything it kept. */
+ *  one's next run and what it keeps there, never a value; its Model list,
+ *  which moves it to another saved model the runhost holds from its next
+ *  run; and Remove, which takes it off the runhost with everything it kept. */
 function RunhostSchedules({ name }: { name: string }) {
   const [store, setStore] = useState<app.RunhostStoreView | null>(null);
   const { models } = useRunhostModels(name);
@@ -474,8 +476,18 @@ function RunhostSchedules({ name }: { name: string }) {
   useEffect(() => {
     RunhostsAPI.Store(name).then(setStore).catch((e) => setError(String(e)));
   }, [name]);
-  if (error) return <ErrorBox error={error} />;
-  if (!store) return null;
+  const act = async (f: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await f();
+    } catch (e) {
+      if (!/not confirmed/i.test(String(e))) setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!store) return error ? <ErrorBox error={error} /> : null;
   return (
     <div className="small" data-runhost-schedules={name}>
       <p style={{ marginBottom: 4 }}>
@@ -486,31 +498,38 @@ function RunhostSchedules({ name }: { name: string }) {
             ? "none. Choose this runhost and Later or Repeat in a run's setup to make one."
             : `${store.schedules.length}, each run collected here when this computer reaches the runhost.`}
       </p>
-      {store.schedules.map((sc) => (
-        <p key={sc.id} className="row" style={{ justifyContent: "space-between", margin: "2px 0" }} data-runhost-schedule={sc.id}>
-          <span className="selectable">
-            <span className="mono">{sc.name}</span> <span className="muted">{sc.ref}</span>{" "}
-            <span className="muted">
-              {sc.ended ? "ended" : sc.next ? `next ${new Date(sc.next).toLocaleString()}` : "no run left"} · keeps {sc.keeps}
-              {sc.model
-                ? <span data-runhost-schedule-model> · on {models ? modelSaid(models, sc.model) : sc.model === "default" ? "the default" : "a saved model"}</span>
-                : <span data-runhost-schedule-model> · on the model it was made with</span>}
+      {store.schedules.map((sc) => {
+        const pick = !!models && models.length > 0 && !sc.ended;
+        return (
+          <div key={sc.id} className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", margin: "2px 0" }} data-runhost-schedule={sc.id}>
+            <span className="selectable">
+              <span className="mono">{sc.name}</span> <span className="muted">{sc.ref}</span>{" "}
+              <span className="muted">
+                {sc.ended ? "ended" : sc.next ? `next ${new Date(sc.next).toLocaleString()}` : "no run left"} · keeps {sc.keeps}
+                {!pick && <span data-runhost-schedule-model> · {sc.ended ? "ran" : "runs"} on {scheduleModelSaid(models, sc.model)}</span>}
+              </span>
+              {pick && (
+                <ModelPicker models={models} value={scheduleValue(sc.model)} extra={scheduleExtraOption(models, sc.model)}
+                  disabled={busy} testId={`runhost-schedule-${sc.id}`} label={`Model for ${sc.name}`}
+                  hint="A change is taken from its next run."
+                  onChange={(choice) => {
+                    const to = scheduleMove(sc.model, choice);
+                    if (to === null) return;
+                    void act(async () => {
+                      const v = await RunhostsAPI.MoveSchedule(name, sc.id, to);
+                      if (v) setStore((st) => st && { ...st, schedules: st.schedules.map((x) => (x.id === v.id ? v : x)) });
+                    });
+                  }} />
+              )}
             </span>
-          </span>
-          <Button disabled={busy} onClick={async () => {
-            setBusy(true);
-            setError(null);
-            try {
+            <Button disabled={busy} onClick={() => act(async () => {
               const v = await RunhostsAPI.RemoveSchedule(name, sc.id);
               if (v) setStore(v);
-            } catch (e) {
-              if (!/not confirmed/i.test(String(e))) setError(String(e));
-            } finally {
-              setBusy(false);
-            }
-          }}>Remove</Button>
-        </p>
-      ))}
+            })}>Remove</Button>
+          </div>
+        );
+      })}
+      <ErrorBox error={error} />
     </div>
   );
 }

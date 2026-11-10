@@ -1,7 +1,8 @@
 package app
 
 // A runhost's schedules from the app: Settings → Runs → Runhosts lists what each
-// runhost's store keeps (never a value) and removes a schedule there; and
+// runhost's store keeps (never a value), moves a schedule there to another of
+// the runhost's saved models and removes one; and
 // CollectSchedules, which the app calls at its start and then while it runs,
 // opens each finished run of a runhost schedule into the output folder and
 // the run history, so Home shows it as any run.
@@ -17,7 +18,9 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runhost"
+	"github.com/blaktron/agentry-cli/pkg/runhost/job"
 	"github.com/blaktron/agentry-cli/pkg/runhost/remote"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/runhistory"
@@ -98,18 +101,65 @@ func (r *RunhostsAPI) Store(name string) (*RunhostStoreView, error) {
 		v.SignIns = append(v.SignIns, k.Vendor)
 	}
 	for _, s := range list.Schedules {
-		sv := RunhostScheduleView{ID: s.ID, Name: s.Name, Ref: s.Ref, Ended: s.Ended, Keeps: entriesSaid(s.Entries), Model: s.Model}
-		if s.Next != nil {
-			sv.Next = s.Next.UTC().Format(time.RFC3339)
-		}
-		for _, f := range s.Fires {
-			if f.Job != "" {
-				sv.Runs++
-			}
-		}
-		v.Schedules = append(v.Schedules, sv)
+		v.Schedules = append(v.Schedules, scheduleView(s))
 	}
 	return v, nil
+}
+
+// scheduleView is one of a runhost's schedules as Settings lists it.
+func scheduleView(s runhost.ScheduleInfo) RunhostScheduleView {
+	sv := RunhostScheduleView{ID: s.ID, Name: s.Name, Ref: s.Ref, Ended: s.Ended, Keeps: entriesSaid(s.Entries), Model: s.Model}
+	if s.Next != nil {
+		sv.Next = s.Next.UTC().Format(time.RFC3339)
+	}
+	for _, f := range s.Fires {
+		if f.Job != "" {
+			sv.Runs++
+		}
+	}
+	return sv
+}
+
+// runhostMoveSchedule asks runhost name to move schedule id to its saved
+// model ref; a test replaces it.
+var runhostMoveSchedule = func(ctx context.Context, r *RunhostsAPI, name, id, ref string) (runhost.ScheduleInfo, error) {
+	_, c, err := r.dialSame(ctx, name)
+	if err != nil {
+		return runhost.ScheduleInfo{}, err
+	}
+	defer func() { _ = c.Close() }()
+	moves, err := remote.MovesScheduleModels(ctx, c)
+	if err != nil {
+		return runhost.ScheduleInfo{}, err
+	}
+	if !moves {
+		return runhost.ScheduleInfo{}, fmt.Errorf("runhost %s cannot move a schedule to another saved model: update it from its card first", name)
+	}
+	return remote.MoveSchedule(ctx, c, id, ref, nil)
+}
+
+// MoveSchedule has schedule id on runhost name run on the saved model
+// model the runhost holds (by its id), or on the runhost's default when
+// model is "", from its next run. Nothing of this computer's is sent: the
+// runhost refuses a model it does not hold or cannot use now, before
+// anything changes, and reads the model and its credential from its own
+// store at each run. It answers the schedule as the runhost now keeps it.
+func (r *RunhostsAPI) MoveSchedule(name, id, model string) (*RunhostScheduleView, error) {
+	ref := model
+	if ref == "" {
+		ref = job.RunhostDefault
+	} else if !policy.IsModelID(ref) {
+		return nil, fmt.Errorf("%q is not a saved model's id", model)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx(), 30*time.Second)
+	defer cancel()
+	info, err := runhostMoveSchedule(ctx, r, name, id, ref)
+	if err != nil {
+		return nil, err
+	}
+	emitEvent(r.app, eventSchedulesChanged)
+	v := scheduleView(info)
+	return &v, nil
 }
 
 // RemoveSchedule takes schedule id off runhost name, with everything it

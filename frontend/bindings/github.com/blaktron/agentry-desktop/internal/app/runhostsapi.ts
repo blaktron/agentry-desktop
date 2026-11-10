@@ -115,6 +115,20 @@ export function Models(name: string): $CancellablePromise<$models.RunhostModelsV
 }
 
 /**
+ * MoveSchedule has schedule id on runhost name run on the saved model
+ * model the runhost holds (by its id), or on the runhost's default when
+ * model is "", from its next run. Nothing of this computer's is sent: the
+ * runhost refuses a model it does not hold or cannot use now, before
+ * anything changes, and reads the model and its credential from its own
+ * store at each run. It answers the schedule as the runhost now keeps it.
+ */
+export function MoveSchedule(name: string, id: string, model: string): $CancellablePromise<$models.RunhostScheduleView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.MoveSchedule", name, id, model).then(($result: any) => {
+        return $$createType8($result)!;
+    });
+}
+
+/**
  * Pair pairs this computer with a runhost set up from another of the
  * person's: with the server's admin sign-in, for this call alone, it
  * installs this computer's own run key and sealing key and nothing else.
@@ -180,7 +194,7 @@ export function RemoveRunhostModel(name: string, ref: string, moveTo: string, ke
  */
 export function RemoveSchedule(name: string, id: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.RemoveSchedule", name, id).then(($result: any) => {
-        return $$createType8($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -271,7 +285,7 @@ export function StartAgent(name: string, agent: string): $CancellablePromise<$mo
  */
 export function Status(name: string): $CancellablePromise<$models.RunhostStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Status", name).then(($result: any) => {
-        return $$createType10($result)!;
+        return $$createType12($result)!;
     });
 }
 
@@ -290,7 +304,7 @@ export function StopAgent(name: string, agent: string): $CancellablePromise<$mod
  */
 export function Store(name: string): $CancellablePromise<$models.RunhostStoreView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunhostsAPI.Store", name).then(($result: any) => {
-        return $$createType8($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -323,7 +337,9 @@ const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = $Create.Array($$createType0);
 const $$createType5 = $models.RunhostModelsView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
-const $$createType7 = $models.RunhostStoreView.createFrom;
+const $$createType7 = $models.RunhostScheduleView.createFrom;
 const $$createType8 = $Create.Nullable($$createType7);
-const $$createType9 = $models.RunhostStatusView.createFrom;
+const $$createType9 = $models.RunhostStoreView.createFrom;
 const $$createType10 = $Create.Nullable($$createType9);
+const $$createType11 = $models.RunhostStatusView.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);

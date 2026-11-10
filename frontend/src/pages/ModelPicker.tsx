@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { Select } from "../primitives";
-import { greyedLines, modelOptions, pickLine, type PickModel } from "../modelPick";
+import { greyedLines, modelOptions, pickLine, type PickModel, type PickOption } from "../modelPick";
 
-export function ModelPicker({ models, value, onChange, disabled, label = "Model", hint, testId }: {
+export function ModelPicker({ models, value, onChange, disabled, label = "Model", hint, testId, extra }: {
   models: PickModel[];
   value: string;
   onChange: (id: string) => void;
@@ -15,9 +15,12 @@ export function ModelPicker({ models, value, onChange, disabled, label = "Model"
   /** A sentence after the picked model's line: what the pick applies to. */
   hint?: string;
   testId?: string;
+  /** An option before the default, for a value that is none of the list's
+   *  (a runhost schedule's model it was made with); its reason is the line. */
+  extra?: PickOption | null;
 }) {
-  const options = modelOptions(models);
-  const line = pickLine(models, value);
+  const options = extra ? [extra, ...modelOptions(models)] : modelOptions(models);
+  const line = extra && value === extra.value ? extra.reason : pickLine(models, value);
   return (
     <label className="field" data-model-picker={testId ?? ""}>
       <span className="field-label">{label}</span>
