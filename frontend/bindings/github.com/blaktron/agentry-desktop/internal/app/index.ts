@@ -91,6 +91,7 @@ export {
     EditView,
     EngineCandidateView,
     EngineChoicesView,
+    EngineMemoryView,
     EngineView,
     ExportView,
     FindingView,

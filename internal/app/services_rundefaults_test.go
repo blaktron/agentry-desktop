@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -394,6 +395,7 @@ func TestRunsAtOnceFollowsTheMemory(t *testing.T) {
 	_, s := runDefaultsApp(t, "")
 	s.run = &RunAPI{app: s.app}
 	withMemory(t, 32<<30)
+	withVM(t, run.VM{}, nil)
 	v, err := s.RunDefaults()
 	if err != nil {
 		t.Fatal(err)
@@ -430,5 +432,117 @@ func TestRunsAtOnceFollowsTheMemory(t *testing.T) {
 	withMemory(t, 0)
 	if v, _ = s.RunDefaults(); v.RunsAtOnceMax != 2 || !strings.Contains(v.RunsAtOnceLine, "could not be read") {
 		t.Fatalf("with the memory unread: %d, %q", v.RunsAtOnceMax, v.RunsAtOnceLine)
+	}
+}
+
+// withVM makes the engine's virtual machine vm for the test, and its resize
+// resize (nil refuses); a resize that succeeds gives the machine its size.
+func withVM(t *testing.T, vm run.VM, resize func(memGiB, cpus int) error) {
+	t.Helper()
+	oldVM, oldResize := engineVM, resizeVM
+	engineVM = func(context.Context) run.VM { return vm }
+	resizeVM = func(_ context.Context, _ run.VM, memGiB, cpus int, _ io.Writer) error {
+		if resize == nil {
+			t.Fatal("the machine was resized")
+		}
+		if err := resize(memGiB, cpus); err != nil {
+			return err
+		}
+		vm.MemoryBytes = uint64(memGiB) << 30
+		return nil
+	}
+	t.Cleanup(func() { engineVM, resizeVM = oldVM, oldResize })
+}
+
+// Raising Runs at once past what the engine's virtual machine fits asks to
+// give the machine more memory: Yes resizes it and saves the number, No
+// saves the number it fits now, and a resize that fails saves nothing.
+// Lowering the number, or a machine the app cannot resize, asks nothing.
+func TestRaisingRunsAtOnceOffersToRaiseTheVMsMemory(t *testing.T) {
+	app, s := runDefaultsApp(t, "")
+	s.run = &RunAPI{app: app}
+	withMemory(t, 32<<30)
+	colima := run.VM{Kind: run.VMManaged, Name: "Agentry's engine", MemoryBytes: 2<<30 - 100<<20, Resizable: true}
+	var asked []string
+	answer := true
+	app.confirm = func(_ context.Context, title, msg string) (bool, error) {
+		asked = append(asked, title+" | "+msg)
+		return answer, nil
+	}
+	var resized []int
+	withVM(t, colima, func(memGiB, cpus int) error { resized = append(resized, memGiB, cpus); return nil })
+
+	v, err := s.SetRunsAtOnce(3)
+	if err != nil || v.RunsAtOnce != 3 {
+		t.Fatalf("Yes: %+v, %v", v, err)
+	}
+	if len(asked) != 1 || !strings.HasPrefix(asked[0], "Give Agentry's engine 8 GB of memory? | 3 runs at once need about 8 GB of memory in Agentry's engine's virtual machine, which has 2 GB now.") ||
+		!strings.Contains(asked[0], "With No, Runs at once is set to 1, which its memory fits now.") {
+		t.Fatalf("the question: %q", asked)
+	}
+	if len(resized) != 2 || resized[0] != 8 || resized[1] < 2 {
+		t.Fatalf("resized to %v", resized)
+	}
+	if s.run.runsAtOnce != 3 {
+		t.Fatalf("the slots hold %d", s.run.runsAtOnce)
+	}
+
+	// Lower: nothing is asked or resized.
+	asked, resized = nil, nil
+	if v, err = s.SetRunsAtOnce(2); err != nil || v.RunsAtOnce != 2 || len(asked) != 0 || len(resized) != 0 {
+		t.Fatalf("lowering: %+v %v asked %d resized %v", v, err, len(asked), resized)
+	}
+
+	// No: the number the machine fits now, 3 in its 8 GB.
+	answer = false
+	if v, err = s.SetRunsAtOnce(5); err != nil || v.RunsAtOnce != 3 || len(resized) != 0 {
+		t.Fatalf("No: %+v %v resized %v", v, err, resized)
+	}
+
+	// A resize that fails saves nothing.
+	answer = true
+	withVM(t, colima, func(int, int) error { return errors.New("colima start: exit status 1") })
+	if _, err = s.SetRunsAtOnce(5); err == nil || !strings.Contains(err.Error(), "as it was") {
+		t.Fatalf("a failed resize: %v", err)
+	}
+	if st, _ := settings.Load(); st.RunsAtOnce != 3 {
+		t.Fatalf("a failed resize saved %d", st.RunsAtOnce)
+	}
+
+	// Busy: refused before the resize, nothing saved.
+	s.run.holdLock()
+	withVM(t, colima, nil)
+	if _, err = s.SetRunsAtOnce(5); !errors.Is(err, errBusy) {
+		t.Fatalf("while busy: %v", err)
+	}
+	s.run.release()
+
+	// A machine the app cannot resize: saved as asked, nothing asked.
+	asked = nil
+	withVM(t, run.VM{Kind: run.VMDockerDesktop, Name: "Docker Desktop", MemoryBytes: 4 << 30}, nil)
+	if v, err = s.SetRunsAtOnce(6); err != nil || v.RunsAtOnce != 6 || len(asked) != 0 {
+		t.Fatalf("Docker Desktop: %+v %v asked %d", v, err, len(asked))
+	}
+}
+
+// What Runs at once says of the engine's virtual machine.
+func TestTheEngineMemoryLine(t *testing.T) {
+	withMemory(t, 32<<30)
+	for _, c := range []struct {
+		vm    run.VM
+		n     int
+		line  string
+		short bool
+	}{
+		{run.VM{}, 3, "", false},
+		{run.VM{Kind: run.VMManaged, Name: "Agentry's engine"}, 3, "", false},
+		{run.VM{Kind: run.VMManaged, Name: "Agentry's engine", MemoryBytes: 6 << 30, Resizable: true}, 2, "Agentry's engine has 6 GB of memory, enough for 2 runs at once.", false},
+		{run.VM{Kind: run.VMManaged, Name: "Agentry's engine", MemoryBytes: 2 << 30, Resizable: true}, 3, "Agentry's engine has 2 GB of memory, enough for 1 run at once. 3 runs need about 8 GB: choose the number again to give it that memory.", true},
+		{run.VM{Kind: run.VMDockerDesktop, Name: "Docker Desktop", MemoryBytes: 4 << 30}, 6, "Docker Desktop has 4 GB of memory, enough for 1 run at once. 6 runs need about 14 GB: raise its memory in Docker Desktop's own settings.", true},
+	} {
+		got := engineMemoryView(c.vm, c.n)
+		if got.Line != c.line || got.Short != c.short {
+			t.Errorf("%s at %d:\n got %q %v\nwant %q %v", c.vm.Name, c.n, got.Line, got.Short, c.line, c.short)
+		}
 	}
 }

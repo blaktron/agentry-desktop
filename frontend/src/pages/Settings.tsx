@@ -399,10 +399,25 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
     setTimeoutText(String(v.timeoutSeconds));
     setTurns(String(v.maxTurns));
   };
+  // What the engine's virtual machine fits, beside Runs at once: read apart
+  // from Run defaults, since it asks the engine.
+  const [engineMem, setEngineMem] = useState<app.EngineMemoryView | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const readEngineMem = () => SettingsAPI.EngineMemory().then(setEngineMem).catch(() => setEngineMem(null));
   useEffect(() => {
     read();
     SettingsAPI.RunDefaults().then((v) => { show(v, true); setIdleText(idleField(v.chatIdleTimeoutSeconds)); }).catch((e) => setErr(String(e)));
+    void readEngineMem();
   }, []);
+  async function setRunsAtOnce(n: number) {
+    setResizing(true);
+    try {
+      await act(() => SettingsAPI.SetRunsAtOnce(n));
+    } finally {
+      setResizing(false);
+      void readEngineMem();
+    }
+  }
   // The organization's managed settings changed (a sign-in, a sign-out, the
   // hourly read): Unsafe Mode's lock is read again.
   useEffect(() => EventsOn("managed:changed", () => {
@@ -556,18 +571,29 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
               <div className="row">
                 <label htmlFor="runs-at-once" className="grow">How many runs on this computer run at the same time</label>
                 <select id="runs-at-once" value={defaults.runsAtOnce} disabled={busy} data-runs-at-once
-                  onChange={(e) => void act(() => SettingsAPI.SetRunsAtOnce(parseInt(e.target.value, 10)))}>
+                  onChange={(e) => void setRunsAtOnce(parseInt(e.target.value, 10))}>
                   {Array.from({ length: defaults.runsAtOnceMax }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
               </div>
               <p className="small" data-runs-at-once-line>{defaults.runsAtOnceLine}</p>
+              {resizing && (
+                <p className="small" role="status">
+                  Saving. When the container engine needs more memory for this many, Agentry Desktop asks first, then restarts
+                  it with more, which takes a minute or two.
+                </p>
+              )}
+              {!resizing && engineMem?.line && (
+                <p className={`small${engineMem.short ? " run-outcome-warn" : ""}`} data-engine-memory>{engineMem.line}</p>
+              )}
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A run started while this many are under way waits its turn, and starts as one ends, in the order they were
                 started. Raising the number starts waiting runs at once; lowering it lets the runs under way finish. A chat,
                 a draft, a build and a review still run alone, when no run is under way. A run sent to one of your runhosts counts
-                too; a run In Agentry does not count.
+                too; a run In Agentry does not count. On macOS and Windows the container engine runs in a virtual machine with
+                memory of its own: raising the number past what it fits offers to give it more (2 GB, and 2 GB a run), and it is
+                never made smaller.
               </p>
             </Card>
           </PartSection>
