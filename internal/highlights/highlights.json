@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.38",
+      "highlights": [
+        "QuickAgents your organization requires are installed for you, and their first run still asks you.",
+        "The Library lists the QuickAgents your organization offers, under its name.",
+        "A preset your organization sets fills a QuickAgent's run settings, or fixes them when locked."
+      ]
+    },
+    {
       "version": "0.7.37",
       "highlights": [
         "Settings, Home, Accessibility: text and layout up to twice the size, also with the zoom keys, and less motion.",
