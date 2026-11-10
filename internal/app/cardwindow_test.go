@@ -33,9 +33,26 @@ func from(id uint) context.Context { return context.WithValue(context.Background
 type fakeCardWindow struct {
 	id     uint
 	title  string
+	at     cardRect
 	closed func()
 	mu     sync.Mutex
 	shut   bool
+	placed []cardRect
+}
+
+func (w *fakeCardWindow) place(r cardRect) {
+	w.mu.Lock()
+	w.placed = append(w.placed, r)
+	w.mu.Unlock()
+}
+
+func (w *fakeCardWindow) lastPlaced() (cardRect, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.placed) == 0 {
+		return cardRect{}, false
+	}
+	return w.placed[len(w.placed)-1], true
 }
 
 func (w *fakeCardWindow) ID() uint { return w.id }
@@ -55,8 +72,8 @@ func newCardRig(t *testing.T) *cardRig {
 	r := &cardRig{opened: make(chan *fakeCardWindow, 4)}
 	r.api = &CardWindowAPI{
 		turn: make(chan struct{}, 1),
-		open: func(title string, closed func()) (cardWindow, error) {
-			w := &fakeCardWindow{id: cardWin, title: title, closed: closed}
+		open: func(title string, at cardRect, closed func()) (cardWindow, error) {
+			w := &fakeCardWindow{id: cardWin, title: title, at: at, closed: closed}
 			r.mu.Lock()
 			r.last = w
 			r.mu.Unlock()
@@ -67,9 +84,19 @@ func newCardRig(t *testing.T) *cardRig {
 			id, ok := ctx.Value(windowKey{}).(uint)
 			return id, ok
 		},
+		anchor:      func() cardAnchor { return twoScreens(cardRect{X: 2200, Y: 200, Width: 1200, Height: 800}, true) },
 		loadTimeout: 5 * time.Second,
 	}
 	return r
+}
+
+// twoScreens is a primary screen 1920x1080 with a 25-high menu bar, and a
+// second 2560x1440 one to its right, with the main window at main.
+func twoScreens(main cardRect, shown bool) cardAnchor {
+	return cardAnchor{Main: main, Shown: shown, Screens: []cardScreen{
+		{Bounds: cardRect{0, 0, 1920, 1080}, Work: cardRect{0, 25, 1920, 1055}, Primary: true},
+		{Bounds: cardRect{1920, 0, 2560, 1440}, Work: cardRect{1920, 0, 2560, 1400}},
+	}}
 }
 
 type askResult struct {
@@ -248,7 +275,7 @@ func TestNoCardWindowLeavesTheQuestionToTheSystem(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 	r := newCardRig(t)
-	r.api.open = func(string, func()) (cardWindow, error) { return nil, errNoApplication }
+	r.api.open = func(string, cardRect, func()) (cardWindow, error) { return nil, errNoApplication }
 	if _, err := r.api.ask(context.Background(), confirmCard("x", "y")); !errors.Is(err, errNoCardWindow) {
 		t.Fatalf("err %v", err)
 	}
@@ -315,5 +342,78 @@ func TestTheNativeQuestionsMapTheCardsAnswers(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the notice did not return once answered")
+	}
+}
+
+func TestACardIsCentredOverTheMainWindowOnItsScreen(t *testing.T) {
+	main := cardRect{X: 2200, Y: 200, Width: 1200, Height: 800}
+	for _, c := range []struct {
+		name   string
+		anchor cardAnchor
+		w, h   int
+		want   cardRect
+	}{
+		{"over the window on the second screen", twoScreens(main, true), 520, 260,
+			cardRect{X: 2540, Y: 470, Width: 520, Height: 260}},
+		{"over the window on the primary screen", twoScreens(cardRect{X: 100, Y: 100, Width: 800, Height: 600}, true), 520, 260,
+			cardRect{X: 240, Y: 270, Width: 520, Height: 260}},
+		{"hidden: centred on the window's screen", twoScreens(main, false), 520, 260,
+			cardRect{X: 2940, Y: 570, Width: 520, Height: 260}},
+		{"window near an edge: kept inside its screen", twoScreens(cardRect{X: 4300, Y: 1300, Width: 300, Height: 200}, true), 520, 260,
+			cardRect{X: 3960, Y: 1140, Width: 520, Height: 260}},
+		{"window above the menu bar: below it", twoScreens(cardRect{X: 0, Y: 0, Width: 600, Height: 100}, true), 520, 260,
+			cardRect{X: 40, Y: 25, Width: 520, Height: 260}},
+		{"taller than the screen: as tall as its work area", twoScreens(cardRect{X: 0, Y: 25, Width: 1920, Height: 1055}, true), 520, 2000,
+			cardRect{X: 700, Y: 25, Width: 520, Height: 1055}},
+		{"window off every screen: the primary screen", twoScreens(cardRect{X: -5000, Y: -5000, Width: 800, Height: 600}, false), 520, 260,
+			cardRect{X: 700, Y: 422, Width: 520, Height: 260}},
+		{"no main window: the primary screen", cardAnchor{Screens: twoScreens(main, true).Screens}, 520, 260,
+			cardRect{X: 700, Y: 422, Width: 520, Height: 260}},
+		{"no screens: left to the system", cardAnchor{Main: main, Shown: true}, 520, 260, cardRect{}},
+	} {
+		if got := c.anchor.bounds(c.w, c.h); got != c.want {
+			t.Errorf("%s: %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestACardOpensOverTheMainWindowAndStaysThereAsItGrows(t *testing.T) {
+	r := newCardRig(t)
+	got := r.ask(context.Background(), confirmCard("Q", "M"))
+	w := r.window(t)
+	if want := (cardRect{X: 2540, Y: 470, Width: cardWidth, Height: cardHeight}); w.at != want {
+		t.Fatalf("opened at %+v, want %+v", w.at, want)
+	}
+
+	if err := r.api.FitCard(from(mainWin), 400); err == nil {
+		t.Fatal("the main window sized the card")
+	}
+	if _, placed := w.lastPlaced(); placed {
+		t.Fatal("a refused fit moved the card")
+	}
+
+	if err := r.api.FitCard(from(cardWin), 400); err != nil {
+		t.Fatal(err)
+	}
+	if at, _ := w.lastPlaced(); at != (cardRect{X: 2540, Y: 400, Width: cardWidth, Height: 400}) {
+		t.Fatalf("fitted to %+v", at)
+	}
+	if err := r.api.FitCard(from(cardWin), 5000); err != nil {
+		t.Fatal(err)
+	}
+	if at, _ := w.lastPlaced(); at.Height != cardMaxHeight || at.Y != 280 {
+		t.Fatalf("a long card fitted to %+v, want %d tall over the window", at, cardMaxHeight)
+	}
+
+	c, err := r.api.Card(from(cardWin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.api.AnswerCard(from(cardWin), c.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, got)
+	if err := r.api.FitCard(from(cardWin), 300); err == nil {
+		t.Fatal("an answered card's window sized itself")
 	}
 }
