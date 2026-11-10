@@ -49,6 +49,7 @@ import WhatsNew from "./pages/WhatsNew";
 import type { WhatsNewData } from "./whatsNew";
 import { Recover } from "./Recover";
 import { TextSizeKeys } from "./TextSizeKeys";
+import { usePageArrival } from "./pageArrival";
 import { SidebarNav } from "./nav";
 import PersistentAgentPage from "./pages/PersistentAgentPage";
 import MeetingNotes from "./pages/MeetingNotes";
@@ -151,6 +152,10 @@ type KnowledgeFlow = { registry: string; addTo?: string; place?: KnowledgePlace 
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: "home" });
+  // The content area: a page change moves the focus to its heading and
+  // names the window after it.
+  const content = useRef<HTMLElement>(null);
+  usePageArrival(JSON.stringify(route), content);
   const [knowledgeFlow, setKnowledgeFlow] = useState<KnowledgeFlow | null>(null);
   const [flowMinimized, setFlowMinimized] = useState(false);
   const [flowInFlight, setFlowInFlight] = useState(false);
@@ -531,7 +536,7 @@ export default function App() {
         )}
         {/* A persistent agent's page lays its three panes over the whole
             content area, with no scroller of the content's own. */}
-        <div className={route.page === "persistent" ? "content content-full" : "content"}>
+        <main ref={content} className={route.page === "persistent" ? "content content-full" : "content"}>
           {/* A render fault shows its way back here, under a sidebar that
               still works. */}
           <Recover subject="This page" resetKey={JSON.stringify(route)}>
@@ -699,7 +704,7 @@ export default function App() {
               />
             )}
           </Recover>
-        </div>
+        </main>
         <DraftFlow
           registry={registry}
           onOpenDraft={() => {
