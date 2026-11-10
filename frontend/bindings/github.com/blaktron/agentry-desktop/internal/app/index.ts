@@ -4,6 +4,7 @@
 import * as App from "./app.js";
 import * as BrowseAPI from "./browseapi.js";
 import * as BuildAPI from "./buildapi.js";
+import * as CardWindowAPI from "./cardwindowapi.js";
 import * as DesignerAPI from "./designerapi.js";
 import * as DestinationsAPI from "./destinationsapi.js";
 import * as HomeAPI from "./homeapi.js";
@@ -27,6 +28,7 @@ export {
     App,
     BrowseAPI,
     BuildAPI,
+    CardWindowAPI,
     DesignerAPI,
     DestinationsAPI,
     HomeAPI,
@@ -57,6 +59,8 @@ export {
     CLICommandView,
     CLIInstallView,
     CalendarFire,
+    CardButton,
+    CardView,
     CatalogView,
     ChangedInstallView,
     CodingAgentsView,

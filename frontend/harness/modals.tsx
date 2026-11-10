@@ -45,6 +45,15 @@
 //   #whatsnew-settings     opened from Settings: the version running
 //   #whatsnew-hostile      a line holding markup, shown as the text it is
 //
+// A card window, the app's own question or notice in a window of its own,
+// drawn at the size the window fits itself to:
+//   #card-confirm          a consent: Yes, and No with the focus
+//   #card-exec             an exec call: the command quoted, three answers
+//   #card-choose           which application: one button per candidate
+//   #card-notice           a notice with one OK
+//   #card-hostile          a message holding markup, shown as the text it is
+//   #card-long             a long consent that scrolls inside the card
+//
 // The guided run setup shows one step at a time, so
 // each state opens on the step that shows it (STEP_OF below), and four
 // more show the steps themselves:
@@ -804,6 +813,7 @@ import type { WhatsNewData } from "../src/whatsNew";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
+import { CardWindow } from "../src/pages/CardWindow";
 
 // #runpanel-local-install: a QuickAgent installed
 // from a folder on this computer, run from the Library.
@@ -846,8 +856,53 @@ function ChatSample() {
   );
 }
 
+// The card windows' cards, as Go builds them.
+const CARDS: Record<string, { kind: string; title: string; message: string; buttons: { label: string; tone: string }[]; cancel: number }> = {
+  "card-confirm": { kind: "question", title: "Install demo1/incident-summarizer on this computer?", cancel: 1,
+    message: "demo1/incident-summarizer@1.2.0 is unsigned: no signature says who built it.\n\nIt installs for this computer only, and nothing is submitted.",
+    buttons: [{ label: "Yes", tone: "primary" }, { label: "No", tone: "" }] },
+  "card-exec": { kind: "question", title: "Run code inside Blender?", cancel: 2,
+    message: "demo1/scene-builder asks to run this inside Blender on your computer, through its tool execute_blender_code:\n\nimport bpy\nbpy.ops.mesh.primitive_cube_add(size=2)\n\nIt runs as you, with your files and your network, outside the run's sandbox.",
+    buttons: [{ label: "Run it", tone: "primary" }, { label: "Allow every exec call for this run", tone: "" }, { label: "Don't run it", tone: "" }] },
+  "card-choose": { kind: "question", title: "Which application should it use?", cancel: 2,
+    message: "demo1/scene-builder uses an application you choose, through its MCP server. Which of yours should it use? Agentry Desktop remembers your choice for this QuickAgent.",
+    buttons: [{ label: "Blender", tone: "" }, { label: "Blender 4.2 LTS", tone: "" }, { label: "None of these", tone: "" }] },
+  "card-notice": { kind: "notice", title: "Agentry is still running", cancel: 0,
+    message: "Your persistent agents keep running with the window closed. The Agentry icon in the system tray opens the window again, or quits Agentry and stops them.",
+    buttons: [{ label: "OK", tone: "primary" }] },
+  "card-hostile": { kind: "question", title: "Run <b>it</b>?", cancel: 1,
+    message: "<script>alert(1)</script> **bold** [a link](https://example.org)",
+    buttons: [{ label: "Yes", tone: "primary" }, { label: "No", tone: "" }] },
+  "card-long": { kind: "question", title: "Ship the knowledge pack incident-runbooks?", cancel: 1,
+    message: Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of what ships: runbooks/service-${i + 1}.md (12 KiB)`).join("\n") + "\n\nShip it?",
+    buttons: [{ label: "Yes", tone: "primary" }, { label: "No", tone: "" }] },
+};
+
 const el = document.getElementById("root")!;
-if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge" || view === "install-target-host" || view === "install-browser") {
+if (view.startsWith("card-")) {
+  const card = { id: "c0ffee", ...CARDS[view] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  w.go = w.go ?? {};
+  w.go.app = w.go.app ?? {};
+  w.go.app.CardWindowAPI = {
+    Card: () => card,
+    AnswerCard: (id: string, i: number) => {
+      const line = document.createElement("p");
+      line.dataset.cardAnswered = "";
+      line.textContent = `answered ${id}: ${card.buttons[i].label}`;
+      document.body.appendChild(line);
+    },
+  };
+  // The window fits itself to the card up to 640 pixels; the frame stands
+  // in for it.
+  createRoot(el).render(
+    <div style={{ width: 520 }} data-card-frame>
+      <style>{".card-window { min-height: 0; max-height: 640px; }"}</style>
+      <CardWindow />
+    </div>,
+  );
+} else if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge" || view === "install-target-host" || view === "install-browser") {
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
