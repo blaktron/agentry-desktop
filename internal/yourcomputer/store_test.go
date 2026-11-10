@@ -118,10 +118,40 @@ func TestDiscoveredApplicationsAreAddedUnapproved(t *testing.T) {
 	if added := Discover(context.Background(), &none, lib, "linux", noUV, nil); len(added) != 0 {
 		t.Fatalf("a preset whose launcher is missing was added: %v", added)
 	}
+	// A port that answers is not the application: Unreal's preset names
+	// where the editor is installed, so the port alone finds nothing, and
+	// the editor on the PATH finds it.
 	var listening Doc
-	unreal := Probe{Listening: func(_ context.Context, port int) bool { return port == 8000 }}
-	if added := Discover(context.Background(), &listening, lib, "linux", unreal, nil); !slices.Equal(added, []string{"unreal"}) {
-		t.Fatalf("an application whose listener answers: %v", added)
+	portOnly := Probe{
+		LookPath:  func(string) (string, error) { return "", errors.New("not found") },
+		Listening: func(_ context.Context, port int) bool { return port == 8000 },
+	}
+	if added := Discover(context.Background(), &listening, lib, "linux", portOnly, nil); len(added) != 0 {
+		t.Fatalf("a port that answers, with nothing installed: %v", added)
+	}
+	var installed Doc
+	editor := portOnly
+	editor.LookPath = func(name string) (string, error) {
+		if name == "UnrealEditor" {
+			return "/opt/unreal/UnrealEditor", nil
+		}
+		return "", errors.New("not found")
+	}
+	if added := Discover(context.Background(), &installed, lib, "linux", editor, nil); !slices.Equal(added, []string{"unreal"}) {
+		t.Fatalf("the editor on the PATH: %v", added)
+	}
+	// Docker Desktop is not the docker command.
+	var engine Doc
+	dockerOnly := portOnly
+	dockerOnly.LookPath = func(name string) (string, error) {
+		if name == "docker" {
+			return "/usr/bin/docker", nil
+		}
+		return "", errors.New("not found")
+	}
+	dockerOnly.Exists = func(string) bool { return false }
+	if added := Discover(context.Background(), &engine, lib, "linux", dockerOnly, nil); slices.Contains(added, "docker-desktop") {
+		t.Fatalf("docker on the PATH was taken for Docker Desktop: %v", added)
 	}
 }
 

@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.33",
+      "highlights": [
+        "The Assistant can have the Drafter revise one of your QuickAgents, In Agentry or on this computer, asking you first.",
+        "It can make one private, retire or restore it, yank a version or withdraw one held for review, asking each time.",
+        "It reads a QuickAgent it fetched or revised in the same reply, and a failed fork now says why it failed.",
+        "Your computer's library: presets fill in their optional settings, and an open port alone no longer counts as installed."
+      ]
+    },
+    {
       "version": "0.7.32",
       "highlights": [
         "The Assistant can list the QuickAgents you publish, say where each version stands, and copy one to work on.",

@@ -69,6 +69,9 @@ func New(notices string) *Services {
 	publisher := &PublisherAPI{app: app}
 	links[assistantAgent].publisher = appPublisherOps{pub: publisher}
 	links[assistantAgent].fetchedPath = fetchedRecordPath(assistantAgent)
+	// and has the Drafter revise them through the Build tab's revisions.
+	buildAPI := &BuildAPI{app: app, run: run}
+	links[assistantAgent].reviser = appReviserOps{build: buildAPI}
 	notifications := newNotificationsAPI(app)
 	app.notifications = notifications
 	yourComputer := newYourComputerAPI(app, run)
@@ -79,7 +82,7 @@ func New(notices string) *Services {
 		install:       installs,
 		validate:      &ValidateAPI{app: app},
 		run:           run,
-		build:         &BuildAPI{app: app, run: run},
+		build:         buildAPI,
 		knowledge:     &KnowledgeAPI{app: app, run: run},
 		voice:         &VoiceAPI{app: app, run: run},
 		designer:      &DesignerAPI{app: app, run: run},

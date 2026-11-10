@@ -70,13 +70,24 @@ type publisherOps interface {
 	// fork forks ns/name into target, as newName ("" keeps the name),
 	// once the person agreed: it asks nothing itself.
 	fork(reg, ns, name, target, newName string) (*ForkView, error)
-	// forkState is a fork's copy: copying, ready or failed; "" for a
-	// QuickAgent that is not a fork.
-	forkState(reg, ns, name string) (string, error)
+	// forkState is a fork's copy: copying, ready or failed ("" for a
+	// QuickAgent that is not a fork), and why a failed copy failed, in the
+	// registry's words.
+	forkState(reg, ns, name string) (state, detail string, err error)
 	// standing is whether ns/name exists, and whether it is private.
 	standing(reg, ns, name string) (exists, private bool, err error)
 	// cost is what a submission spends, in a sentence.
 	cost(reg string) string
+	// ownerAction takes one of the Publisher section's owner actions on
+	// ns/name once the person agreed: it asks nothing itself, and answers
+	// the section's done sentence, or its refusal as the error.
+	ownerAction(reg, ns, name string, act publisherAct) (string, error)
+	// retirement is whether ns/name is retired and, when it is, the
+	// visibility Restore gives back ("" when the registry does not say).
+	retirement(reg, ns, name string) (retired bool, visibility string, err error)
+	// versionAction yanks a published version, with its reason, or
+	// withdraws one held for review, once the person agreed.
+	versionAction(reg, ns, name, version, reason string, withdraw bool) error
 	// publish submits the folder dir, once the person agreed: privateTold
 	// is what the dialog said of an existing QuickAgent, createPrivate
 	// creates a missing one private.
@@ -179,6 +190,27 @@ func (m *mainLink) publisherCall(ctx context.Context, tool string, raw json.RawM
 			return "", err
 		}
 		return m.quickAgentFork(a.Ref, a.Into, a.Name)
+	case applink.QuickAgentRevise:
+		var a struct {
+			Folder       string `json:"folder"`
+			Instructions string `json:"instructions"`
+			Where        string `json:"where"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentRevise(ctx, a.Folder, a.Instructions, strings.TrimSpace(a.Where))
+	case applink.QuickAgentManage:
+		var a struct {
+			Ref     string `json:"ref"`
+			Action  string `json:"action"`
+			Version string `json:"version"`
+			Reason  string `json:"reason"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.quickAgentManage(a.Ref, strings.TrimSpace(a.Action), strings.TrimSpace(a.Version), strings.TrimSpace(a.Reason))
 	case applink.QuickAgentSubmit:
 		var a struct {
 			Folder string `json:"folder"`
@@ -263,6 +295,11 @@ func (m *mainLink) mineLine(reg string, a PublisherAgent) string {
 	}
 	if a.ForkState != "" && a.ForkState != "ready" {
 		parts = append(parts, "fork "+a.ForkState)
+		if a.ForkState == "failed" {
+			if _, detail, err := m.publisher.forkState(reg, a.Namespace, a.Name); err == nil && detail != "" {
+				parts[len(parts)-1] += " (the registry says: " + quoted(detail) + ")"
+			}
+		}
 	}
 	line := "- " + a.Namespace + "/" + a.Name + ": " + strings.Join(parts, ", ")
 	switch vs, err := m.publisher.versions(reg, a.Namespace, a.Name); {
@@ -558,22 +595,26 @@ func (o appPublisherOps) fork(reg, ns, name, target, newName string) (*ForkView,
 	return o.pub.fork(reg, ns, name, target, newName, func(string, string) error { return nil })
 }
 
-func (o appPublisherOps) forkState(reg, ns, name string) (string, error) {
+func (o appPublisherOps) forkState(reg, ns, name string) (string, string, error) {
 	client, regURL, token, err := o.client(reg)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	res, err := client.GetAgentWithResponse(o.pub.ctx(), ns, name)
 	if err != nil {
-		return "", withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
+		return "", "", withoutToken(fmt.Errorf("reach %s: %w", originOf(regURL), err), token)
 	}
 	if res.JSON200 == nil {
-		return "", withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
+		return "", "", withoutToken(registry.Problem("read "+ns+"/"+name, res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body), token)
 	}
 	if res.JSON200.ForkState == nil {
-		return "", nil
+		return "", "", nil
 	}
-	return string(*res.JSON200.ForkState), nil
+	detail := ""
+	if res.JSON200.ForkDetail != nil {
+		detail = *res.JSON200.ForkDetail
+	}
+	return string(*res.JSON200.ForkState), detail, nil
 }
 
 func (o appPublisherOps) standing(reg, ns, name string) (bool, bool, error) {
