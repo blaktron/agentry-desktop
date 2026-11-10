@@ -17,8 +17,8 @@ package app
 // defaults to 2 and the runs started to 3 (AGENTRY_LIVE_RUNS_AT_ONCE_N,
 // AGENTRY_LIVE_RUNS_AT_ONCE_RUNS).
 //
-// What it holds: no more runs are under way than the number, and that many
-// are under way together at some point; the run past the number waits in
+// What it holds: no more runs hold a slot than the number, and that many
+// hold one together at some point; the run past the number waits in
 // the queue and starts as one ends; every run ends ok with its own output
 // folder; and nothing labelled with any of the runs' ids is left in the
 // container engine.
@@ -52,10 +52,12 @@ func TestLiveRunsAtOnce(t *testing.T) {
 	n, _ := strconv.Atoi(cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_N"), "2"))
 	runs, _ := strconv.Atoi(cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_RUNS"), "3"))
 
-	// Each run's progress: the most runs seen under way together, from the
-	// first report of each (begun) to its RunAgent's return.
+	// The most runs holding a slot together, read from the slots each time a
+	// run begins. A run gives its slot back before its RunAgent returns, so a
+	// count kept from the returns would see the next run begin first.
+	var r *RunAPI
 	var mu sync.Mutex
-	underWay, most := map[string]bool{}, 0
+	begun, most := map[string]bool{}, 0
 	old := emitEvent
 	emitEvent = func(_ *App, name string, data ...any) {
 		if len(data) != 1 {
@@ -64,11 +66,14 @@ func TestLiveRunsAtOnce(t *testing.T) {
 		switch v := data[0].(type) {
 		case RunProgress:
 			if name == eventRunProgress {
+				r.queueMu.Lock()
+				holding := len(r.running)
+				r.queueMu.Unlock()
 				mu.Lock()
-				if !underWay[v.RunID] {
-					underWay[v.RunID] = true
-					most = max(most, len(underWay))
-					t.Logf("%s began: %d under way", v.RunID, len(underWay))
+				if !begun[v.RunID] {
+					begun[v.RunID] = true
+					most = max(most, holding)
+					t.Logf("%s began: %d under way", v.RunID, holding)
 				}
 				mu.Unlock()
 			}
@@ -78,7 +83,7 @@ func TestLiveRunsAtOnce(t *testing.T) {
 	}
 	t.Cleanup(func() { emitEvent = old })
 
-	r := &RunAPI{app: &App{ctx: context.Background()}}
+	r = &RunAPI{app: &App{ctx: context.Background()}}
 	r.setRunsAtOnce(n)
 
 	type outcome struct {
@@ -89,11 +94,6 @@ func TestLiveRunsAtOnce(t *testing.T) {
 	for i := 0; i < runs; i++ {
 		go func() {
 			res, err := r.RunAgent(reg, ref, "Say that the smoke check answered.", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, "", "")
-			if res != nil {
-				mu.Lock()
-				delete(underWay, res.RunID)
-				mu.Unlock()
-			}
 			results <- outcome{res, err}
 		}()
 		// Started one after the other, as a person's clicks are.
