@@ -567,7 +567,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
                 A run started while this many are under way waits its turn, and starts as one ends, in the order they were
                 started. Raising the number starts waiting runs at once; lowering it lets the runs under way finish. A chat,
                 a draft, a build and a review still run alone, when no run is under way. A run sent to one of your runhosts counts
-                too; a run In Agentry runs there and does not.
+                too; a run In Agentry does not count.
               </p>
             </Card>
           </PartSection>

@@ -364,7 +364,8 @@ export function createRunStore<S>(deps: RunStoreDeps) {
     /** Opens the flow of the run as the dialog: the followed run when no id
      *  is given, else the one named, which the window then follows. */
     show(runId?: string): void {
-      if (runId && entries.has(runId)) followed = runId;
+      if (runId && !entries.has(runId)) return;
+      if (runId) followed = runId;
       shown = true;
       raised++;
       notify();
@@ -384,10 +385,12 @@ export function createRunStore<S>(deps: RunStoreDeps) {
 /** How many waiting runs the runs card lists before "and N more". */
 export const WAITING_SHOWN = 5;
 
-/** Whether the runs card is drawn: with more than one run followed, or any
- *  run waiting to start. One run alone is drawn by its own card. */
-export function runsCardShown(runs: LocalRun[], queue: QueuedRun[]): boolean {
-  return runs.length > 1 || queue.length > 0;
+/** Whether the runs card is drawn: with more than one run followed, any run
+ *  waiting to start, or a run the window does not follow (followed is the
+ *  id of the run it does). One run alone that the window follows is drawn by
+ *  its own card. */
+export function runsCardShown(runs: LocalRun[], queue: QueuedRun[], followed: string | null): boolean {
+  return runs.length > 1 || queue.length > 0 || (runs.length === 1 && runs[0].runId !== followed);
 }
 
 /** The runs card's title: how many runs are under way, waiting and over,

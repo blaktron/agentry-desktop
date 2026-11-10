@@ -6,16 +6,16 @@ package app
 // unless AGENTRY_LIVE_RUNS_AT_ONCE=1:
 //
 //	AGENTRY_LIVE_RUNS_AT_ONCE=1 \
+//	AGENTRY_LIVE_RUNS_AT_ONCE_REGISTRY=<the registry> \
+//	AGENTRY_LIVE_RUNS_AT_ONCE_REF=<an autonomous release, namespace/name@version> \
 //	AGENTRY_CONFIG_DIR=<a scratch config dir> \
 //	AGENTRY_RUNNER_HOME=<a scratch runner home whose policy names the stand-in> \
 //	HOME=<a scratch home: the default output folder is under it> \
 //	go test -run TestLiveRunsAtOnce -v -timeout 30m ./internal/app
 //
-// It refuses to run on the person's own settings. The registry and release
-// default to dev's runs-checker-125725/hosted-smoke@0.1.0
-// (AGENTRY_LIVE_RUNS_AT_ONCE_REGISTRY, AGENTRY_LIVE_RUNS_AT_ONCE_REF), the
-// number of runs at once to 2 and the runs started to 3
-// (AGENTRY_LIVE_RUNS_AT_ONCE_N, AGENTRY_LIVE_RUNS_AT_ONCE_RUNS).
+// It refuses to run on the person's own settings. The number of runs at once
+// defaults to 2 and the runs started to 3 (AGENTRY_LIVE_RUNS_AT_ONCE_N,
+// AGENTRY_LIVE_RUNS_AT_ONCE_RUNS).
 //
 // What it holds: no more runs are under way than the number, and that many
 // are under way together at some point; the run past the number waits in
@@ -45,8 +45,10 @@ func TestLiveRunsAtOnce(t *testing.T) {
 	if os.Getenv(configdir.EnvVar) == "" || os.Getenv(policy.HomeEnv) == "" || os.Getenv("HOME") == "" {
 		t.Fatalf("set %s, %s and HOME to scratch directories", configdir.EnvVar, policy.HomeEnv)
 	}
-	reg := cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_REGISTRY"), "https://dev.secureagentry.net")
-	ref := cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_REF"), "runs-checker-125725/hosted-smoke@0.1.0")
+	reg, ref := os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_REGISTRY"), os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_REF")
+	if reg == "" || ref == "" {
+		t.Fatal("set AGENTRY_LIVE_RUNS_AT_ONCE_REGISTRY and AGENTRY_LIVE_RUNS_AT_ONCE_REF to the registry and the release to run")
+	}
 	n, _ := strconv.Atoi(cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_N"), "2"))
 	runs, _ := strconv.Atoi(cmp.Or(os.Getenv("AGENTRY_LIVE_RUNS_AT_ONCE_RUNS"), "3"))
 

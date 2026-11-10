@@ -15,13 +15,14 @@
 // its progress, Open and Stop; each run over with how it ended, Open and
 // Dismiss; and the first waiting runs with Cancel, then "and N more", which
 // lists the rest in a scrolling list. The followed run's own card gives way
-// to it. Any other job started meanwhile is refused with what is running.
+// to it; a run the window does not follow is always in it. Any other job
+// started meanwhile is refused with what is running.
 // Every string the run wrote (the log, the error, the result) is drawn as
 // text.
 import { useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { failureOf, localFailureInput, reportText } from "../failedRun";
-import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, runsCardShown, runsCardTitle, shownLog, waitingShown } from "../localRun";
+import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, runsCardShown, runsCardTitle, shownLog, WAITING_SHOWN, waitingShown } from "../localRun";
 import { BytesBar, CornerCard, ProgressView, StepBar, StopButton } from "../progress";
 import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button } from "../ui";
@@ -58,7 +59,7 @@ export default function RunFlow(props: RunFlowActions & {
   initialMinimized?: boolean;
 }) {
   const s = useLocalRun();
-  const many = runsCardShown(s.runs, s.queue);
+  const many = runsCardShown(s.runs, s.queue, s.run?.runId ?? null);
   return (
     <>
       <FollowedRun {...props} cardElsewhere={many} />
@@ -146,7 +147,7 @@ function RunsCard({ runs, queue }: { runs: LocalRun[]; queue: QueuedRun[] }) {
           {`and ${waiting.more} more`}
         </Button>
       )}
-      {expanded && queue.length > 5 && (
+      {expanded && queue.length > WAITING_SHOWN && (
         <Button variant="link" onClick={() => setExpanded(false)}>Show fewer</Button>
       )}
     </CornerCard>

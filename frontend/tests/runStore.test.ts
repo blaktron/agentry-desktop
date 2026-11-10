@@ -313,6 +313,10 @@ test("two runs under way at once: the second takes the window, the first goes on
   h.store.dismiss("r1");
   s = h.store.state();
   assert.deepEqual(h.forgotten, ["r1"]);
+  // Open of a run the store does not follow opens nothing.
+  const raised = s.raised;
+  h.store.show("nope");
+  assert.equal(h.store.state().raised, raised);
   assert.deepEqual(s.runs.map((r) => r.runId), ["r2"]);
   assert.equal(s.run, null);
 });
@@ -361,9 +365,10 @@ test("the runs card's title, when it is drawn, and how many waiting runs it list
   const going = (ref: string) => ({ ...starting(ref), runId: ref, over: false });
   const ended = (ref: string) => ({ ...starting(ref), runId: ref, over: true });
   const q = (n: number) => Array.from({ length: n }, (_, i) => ({ runId: `q${i}`, ref: "acme/b@1.0.0", position: i + 1, waitingFor: "One of the 3 runs under way" }));
-  assert.equal(runsCardShown([going("a")], []), false);
-  assert.equal(runsCardShown([going("a")], q(1)), true);
-  assert.equal(runsCardShown([going("a"), going("b")], []), true);
+  assert.equal(runsCardShown([going("a")], [], "a"), false);
+  assert.equal(runsCardShown([going("a")], [], null), true, "a run the window does not follow has no card");
+  assert.equal(runsCardShown([going("a")], q(1), "a"), true);
+  assert.equal(runsCardShown([going("a"), going("b")], [], "b"), true);
   assert.equal(runsCardTitle([going("a"), going("b"), going("c")], q(47)), "3 running · 47 waiting");
   assert.equal(runsCardTitle([going("a"), ended("b")], []), "1 running · 1 over");
   assert.equal(runsCardTitle([], q(1)), "1 run waiting to start");
