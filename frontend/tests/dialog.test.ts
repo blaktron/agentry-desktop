@@ -152,3 +152,37 @@ test("a row that opens nothing has no button", async () => {
   assert.equal(node.querySelector("button"), null);
   assert.equal(node.querySelector(".agent-row-title")?.textContent, "acme/agent");
 });
+
+test("an open options menu moves with the arrow keys, Home and End, and Escape gives the focus back to its button", async () => {
+  const chosen: string[] = [];
+  const node = await render(React.createElement(OptionsMenu, { items: [
+    { label: "Copy", onSelect: () => chosen.push("copy") },
+    { label: "Held", onSelect: () => {}, disabled: true },
+    { label: "Install", onSelect: () => chosen.push("install") },
+    { label: "Remove", onSelect: () => chosen.push("remove") },
+  ] }));
+  const button = node.querySelector<HTMLButtonElement>("[data-options-menu]")!;
+  await React.act(async () => { button.click(); });
+  const item = (label: string) => Array.from(node.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent === label)!;
+  assert.equal(focused(), item("Copy"), "the first item did not take the focus");
+
+  await key(item("Copy"), "ArrowDown");
+  assert.equal(focused(), item("Install"), "Down did not skip the held item");
+  await key(item("Install"), "End");
+  assert.equal(focused(), item("Remove"));
+  await key(item("Remove"), "ArrowDown");
+  assert.equal(focused(), item("Copy"), "Down from the last did not wrap");
+  await key(item("Copy"), "ArrowUp");
+  assert.equal(focused(), item("Remove"), "Up from the first did not wrap");
+  await key(item("Remove"), "Home");
+  assert.equal(focused(), item("Copy"));
+
+  await key(item("Copy"), "Escape");
+  assert.equal(node.querySelector('[role="menu"]'), null);
+  assert.equal(focused(), button, "Escape did not give the focus back to the menu's button");
+
+  await React.act(async () => { button.click(); });
+  await key(item("Copy"), "Tab");
+  assert.equal(node.querySelector('[role="menu"]'), null, "Tab left the menu open");
+  assert.deepEqual(chosen, []);
+});

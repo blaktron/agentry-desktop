@@ -12,8 +12,10 @@ import { pickHomeAgent, rereadHomeAgent, useAgents, useHomeAgent } from "../agen
 import { homeAgentDrawn } from "../homeAgent";
 import { MAIN_AGENT } from "../persistentAgents";
 import { AgentTiles } from "./AgentTiles";
+import { AccessibilitySettings } from "./SettingsAccessibility";
 
-// Settings → Home: the theme, which default cards Home shows, the
+// Settings → Home: the theme, the text size and motion
+// (SettingsAccessibility.tsx), which default cards Home shows, the
 // QuickAgents pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
 // Unpin and Reset is one change Go makes and answers with the layout as it
 // now is, so the page never writes it whole. Hiding a card keeps its place,
@@ -148,6 +150,8 @@ export function HomeSettings() {
           <Said said={said} part="theme" />
         </Card>
       </section>
+
+      <AccessibilitySettings />
 
       <section id="settings-part-home-agent" className="settings-part">
         <h2>Agent on Home</h2>

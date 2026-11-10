@@ -187,6 +187,12 @@ type Settings struct {
 	Home *HomeLayout `yaml:"home,omitempty" json:"-"`
 	// Theme is Settings → Home → Theme: one of Themes, "" for System.
 	Theme string `yaml:"theme,omitempty" json:"theme,omitempty"`
+	// TextSize is Settings → Home → Accessibility's text size: one of
+	// TextSizes, 0 for the default (accessibility.go).
+	TextSize int `yaml:"textSize,omitempty" json:"textSize,omitempty"`
+	// Motion is Settings → Home → Accessibility's motion choice:
+	// MotionReduce, or "" to follow the computer.
+	Motion string `yaml:"motion,omitempty" json:"motion,omitempty"`
 	// HomeAgent is the persistent agent Home's agent card runs, by its
 	// name: "" for Agentry Helper, the default (home.go).
 	HomeAgent string `yaml:"homeAgent,omitempty" json:"homeAgent,omitempty"`

@@ -105,6 +105,9 @@ func New(notices string) *Services {
 // runs.
 func (s *Services) Startup(ctx context.Context) {
 	s.app.startup(ctx)
+	// The person's text size, on the window before anything else is drawn
+	// into it.
+	applyTextSize()
 	// The engine the app manages itself, where one is installed, is
 	// started; in its own goroutine, since a VM boot takes a while and
 	// the card says what detection finds meanwhile.

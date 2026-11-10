@@ -6,8 +6,8 @@ require (
 	aead.dev/minisign v0.3.0
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.7.11
-	github.com/blaktron/agentry-cli v0.7.46
+	github.com/blaktron/agentry v0.7.12
+	github.com/blaktron/agentry-cli v0.7.48
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/jezek/xgb v1.3.1

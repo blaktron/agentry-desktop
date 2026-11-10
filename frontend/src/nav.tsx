@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { inBuild, navRows, type NavAgent, type NavPage, type NavRow, type NavSection } from "./navTree";
 
 // The sidebar, one component shared by the app and the design harness so
 // the harness shows the navigation the app has. Which rows there are, and
-// which is lit, is navTree.ts's.
+// which is lit, is navTree.ts's. In a narrow window (a small one, or a
+// large text size) the rows fold under a Pages button at the top
+// (style.css), which opens them, and a choice or Escape folds them again.
 
 export type { NavAgent, NavPage, NavSection };
 
@@ -30,8 +32,14 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
   const [buildOpen, setBuildOpen] = useState(() => inBuild(page));
   useEffect(() => { if (inBuild(page)) setBuildOpen(true); }, [page]);
 
+  // The folded rows' state in a narrow window; a wide one shows them always.
+  const [open, setOpen] = useState(false);
+  const navId = useId();
+  const toggle = useRef<HTMLButtonElement>(null);
+
   const click = (r: NavRow) => {
     const t = r.target;
+    if (t.kind !== "toggle") setOpen(false);
     if (t.kind === "page") onNav?.(t.page);
     else if (t.kind === "agent") onOpenAgent?.(t.id);
     else if (t.kind === "section") onOpenSection?.(t.id);
@@ -77,8 +85,14 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
 
   const rows = navRows({ page, signedIn, agents, agent, meetings, sections, section, buildOpen });
   return (
-    <nav className="sidebar-nav" aria-label="Pages">
-      {rows.map((r) => draw(r, 0))}
-    </nav>
+    <>
+      <button ref={toggle} type="button" className="nav-toggle" aria-expanded={open} aria-controls={navId} onClick={() => setOpen((o) => !o)}>
+        <span aria-hidden="true">☰</span> Pages
+      </button>
+      <nav id={navId} className={`sidebar-nav${open ? " is-open" : ""}`} aria-label="Pages"
+        onKeyDown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); setOpen(false); toggle.current?.focus(); } }}>
+        {rows.map((r) => draw(r, 0))}
+      </nav>
+    </>
   );
 }

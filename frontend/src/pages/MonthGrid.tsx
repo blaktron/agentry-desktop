@@ -28,7 +28,10 @@ export function MonthGrid({ weeks, days, chosen, onChoose, mini }: {
           <tr key={i}>
             {w.map((g) => {
               const rows = days.get(g.date) ?? [];
-              const label = `${g.date}: ${rows.length === 0 ? "nothing scheduled" : rows.map((r) => `${r.name} ${outcomeLabel(r)}`).join(", ")}`;
+              // The day as it reads ("1 October 2026" or as the locale writes
+              // it), so the name holds the number shown on the day.
+              const day = new Date(`${g.date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+              const label = `${day}: ${rows.length === 0 ? "nothing scheduled" : rows.map((r) => `${r.name} ${outcomeLabel(r)}`).join(", ")}`;
               const inner = (
                 <>
                   <span className="cal-num">{g.day}</span>

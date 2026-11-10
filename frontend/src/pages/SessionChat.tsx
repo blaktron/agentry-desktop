@@ -16,11 +16,13 @@
 // idle close, and the transport sentence sits beside the input. The result,
 // once it ends, is the chat's flow's result view (ChatFlow) over the sealed
 // output, which holds transcript.md.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import { Button, ErrorBox, Input, Spinner } from "../ui";
+import { ChatAnnouncer } from "../chatAnnounce";
+import { plainName } from "../reveal";
 import { addChatFiles, endChat, sendChat } from "../runs";
-import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord } from "../sessionChat";
+import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
 
 // The chat's store (runs.ts over sessionChat.ts's
 // createChatStore) starts the session and owns its events, messages, files
@@ -53,6 +55,15 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const running = !inAgentry || state?.status === "running";
   const busy = working(c);
   const outOfCredits = !!state?.session?.outOfCredits;
+  // What a screen reader hears of each new line: the agent's replies, the
+  // warnings and the end.
+  const sayChatLine = useCallback((l: Line) => {
+    const said = l.kind === "assistant" || l.kind === "told" ? `Agent: ${l.text}`
+      : l.kind === "warn" ? l.text
+      : l.kind === "end" ? endText(l.reason, outOfCredits)
+      : null;
+    return said === null ? null : plainName(said);
+  }, [outOfCredits]);
 
   function send() {
     const text = input.trim();
@@ -93,7 +104,7 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   return (
     <div>
       <h3>Session{inAgentry ? " In Agentry" : ""}</h3>
-      <div ref={paneRef} className="chat-pane" aria-live="polite" aria-label="The conversation">
+      <div ref={paneRef} className="chat-pane" role="log" aria-live="off" aria-busy={!!chat.streaming} aria-label="The conversation">
         {starting && <Spinner label="Starting the sandbox and the agent…" />}
         {waiting && (
           <Spinner label={state?.status === "running" ? "Starting the sandbox and the agent…" : "Queued In Agentry — waiting for a sandbox host…"} />
@@ -113,6 +124,7 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
           <div className="chat-msg assistant"><div className="chat-bubble"><div className="chat-who">Agent</div>{chat.streaming}</div></div>
         )}
       </div>
+      <ChatAnnouncer items={chat.lines} say={sayChatLine} />
       <p className="muted small" style={{ margin: "6px 0" }} aria-label="Session status">{line}</p>
       <ErrorBox error={c.error} />
       <div className="row">

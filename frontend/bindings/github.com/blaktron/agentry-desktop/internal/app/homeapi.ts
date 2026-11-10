@@ -35,6 +35,15 @@ export function Layout(): $CancellablePromise<$models.HomeLayoutView> {
 }
 
 /**
+ * Motion is Settings → Home → Accessibility's motion choice: "system" to
+ * follow the computer's reduced-motion setting, "reduce" to reduce motion
+ * whatever it says.
+ */
+export function Motion(): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.Motion");
+}
+
+/**
  * Move puts the card at from, of kind, at to in Home's order. The index is
  * the layout's, hidden cards included; kind is the card the page drew there.
  */
@@ -96,6 +105,13 @@ export function SetAgent(name: string): $CancellablePromise<string> {
 }
 
 /**
+ * SetMotion keeps the motion choice; the page applies it.
+ */
+export function SetMotion(choice: string): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.SetMotion", choice);
+}
+
+/**
  * SetShown shows or hides one of the default cards, keeping its place.
  */
 export function SetShown(kind: string, shown: boolean): $CancellablePromise<$models.HomeLayoutView> {
@@ -105,10 +121,41 @@ export function SetShown(kind: string, shown: boolean): $CancellablePromise<$mod
 }
 
 /**
+ * SetTextSize keeps a text size and puts it on the window at once.
+ */
+export function SetTextSize(percent: number): $CancellablePromise<number> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.SetTextSize", percent);
+}
+
+/**
  * SetTheme keeps the person's theme in desktop.yaml; the page applies it.
  */
 export function SetTheme(name: string): $CancellablePromise<void> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.SetTheme", name);
+}
+
+/**
+ * StepTextSize moves the text size one offered size larger (1) or smaller
+ * (-1), or back to the default (0): the zoom keys. It answers the new size.
+ */
+export function StepTextSize(step: number): $CancellablePromise<number> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.StepTextSize", step);
+}
+
+/**
+ * TextSize is Settings → Home → Accessibility's text size, in percent.
+ */
+export function TextSize(): $CancellablePromise<number> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.TextSize");
+}
+
+/**
+ * TextSizes are the sizes Settings offers, in order.
+ */
+export function TextSizes(): $CancellablePromise<number[]> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.HomeAPI.TextSizes").then(($result: any) => {
+        return $$createType2($result);
+    });
 }
 
 /**
@@ -139,3 +186,4 @@ export function UnpinScheduled(): $CancellablePromise<$models.HomeLayoutView> {
 // Private type creation functions
 const $$createType0 = $models.HomeLayoutView.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = $Create.Array($Create.Any);

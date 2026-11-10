@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { actions, agentOf, cardStatus, clickDoes, copiedLine, heading, iconDate, iconKind, iconName, settingsLine, typeLabel, withheldLine } from "../src/deliverables.ts";
+import { actions, agentOf, cardStatus, clickDoes, copiedLine, heading, iconDate, iconKind, iconWhat, settingsLine, typeLabel, withheldLine } from "../src/deliverables.ts";
 
 const file = (over: Record<string, unknown> = {}) => ({ name: "report.pdf", title: "", type: "pdf", bytes: 10, canOpen: true, viewKind: "pdf", notOpened: "", copiedTo: "", ...over });
 
@@ -119,12 +119,7 @@ test("the date under an icon is the day the run ended", () => {
   assert.equal(iconDate(undefined, now, "en-GB", "UTC"), "");
 });
 
-test("an icon's name says the file, the agent and the date, and what a click does", () => {
-  const n = iconName({ name: "weekly.pdf", canOpen: true }, "pr-triage", "17 Oct");
-  assert.equal(n, "weekly.pdf, from pr-triage, 17 Oct. Opens in your system's app.");
-  const x = iconName({ name: "setup.exe", canOpen: false }, "pr-triage", "17 Oct");
-  assert.match(x, /^setup\.exe, from pr-triage, 17 Oct\. /);
-  assert.match(x, /shows it in its folder/i);
-  // No date: nothing stands in for it.
-  assert.equal(iconName({ name: "a.md", canOpen: true }, "x", ""), "a.md, from x. Opens in your system's app.");
+test("an icon's description says what a click does", () => {
+  assert.equal(iconWhat(true), "Opens in your system's app.");
+  assert.match(iconWhat(false), /shows it in its folder/i);
 });

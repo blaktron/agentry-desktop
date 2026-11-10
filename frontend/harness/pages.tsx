@@ -16,6 +16,10 @@ import renderHouseCustomPdf from "./fixtures/render-house-custom.pdf?url";
 import renderHouseCustomDrawnPdf from "./fixtures/render-house-custom-drawn.pdf?url";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
+// ?textsize=<percent> is the text size Settings → Home → Accessibility shows.
+// The sizes Go's settings.TextSizes offers.
+const HARNESS_TEXT_SIZES = [100, 110, 125, 150, 175, 200];
+let harnessTextSize = Number(new URLSearchParams(window.location.search).get("textsize")) || 100;
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
 const harnessTheme = new URLSearchParams(window.location.search).get("theme");
 // ?homeagent=assistant gives Home's agent card the Assistant; a pick is kept
@@ -1268,6 +1272,19 @@ g.go = { app: {
     Theme: async () => harnessTheme ?? "system",
     // Recorded on the body, so a shot can say what was kept.
     SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
+    // Settings → Home → Accessibility: ?textsize=<percent> starts at that
+    // size; a choice and a step are kept here and recorded on the body.
+    TextSizes: async () => HARNESS_TEXT_SIZES,
+    TextSize: async () => harnessTextSize,
+    SetTextSize: async (p: number) => { harnessTextSize = p; document.body.dataset.textSizeKept = String(p); return p; },
+    StepTextSize: async (step: number) => {
+      const i = HARNESS_TEXT_SIZES.indexOf(harnessTextSize);
+      harnessTextSize = step === 0 ? 100 : HARNESS_TEXT_SIZES[Math.max(0, Math.min(HARNESS_TEXT_SIZES.length - 1, i + step))];
+      document.body.dataset.textSizeKept = String(harnessTextSize);
+      return harnessTextSize;
+    },
+    Motion: async () => (document.documentElement.dataset.motion === "reduce" ? "reduce" : "system"),
+    SetMotion: async (choice: string) => { document.body.dataset.motionKept = choice; },
     UnpinScheduled: async () => harnessUnpinScheduled(),
     Agent: async () => harnessHomeAgent,
     SetAgent: async (name: string) => { harnessHomeAgent = name; document.body.dataset.homeAgent = name; return name; },
@@ -2047,7 +2064,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     {/* #browse-query: Browse as the Library's search opens it, searched for
         what was typed there. */}
-    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns={detail.agent.namespace} name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"}
       onFork={() => {}} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see
