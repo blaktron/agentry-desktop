@@ -8,6 +8,10 @@
 // the setup reopens the setup on that QuickAgent with the answers as they
 // were.
 //
+// A run Go starts on its own behalf (the Agentry Helper's, an agent's) is
+// listed the same way, and opens the same window, which has no setup to go
+// back to.
+//
 // The window follows one run at a time. Several runs can be under way at
 // once (Settings → Run defaults → Runs at once), and a run started while
 // every slot is taken waits its turn. With more than one run, or any
@@ -232,7 +236,7 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized, ca
         </RunResultView>
       ) : failed || undefined}
       logInOutcome={!!res}
-      actions={<Button onClick={back}>Back to the setup</Button>}
+      actions={s.setup ? <Button onClick={back}>Back to the setup</Button> : undefined}
     />
   );
 }

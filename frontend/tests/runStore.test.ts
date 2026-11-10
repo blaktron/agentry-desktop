@@ -380,3 +380,176 @@ test("the runs card's title, when it is drawn, and how many waiting runs it list
   assert.deepEqual(waitingShown(q(47), true), { shown: q(47), more: 0 });
   assert.deepEqual(waitingShown(q(3), false), { shown: q(3), more: 0 });
 });
+
+// A run Go starts on its own behalf (the Agentry Helper's, an agent's) is
+// followed once the store watches: it joins the runs card with no setup,
+// takes nothing over, and ends with Go's end report.
+const ended = (runId: string, over: { result?: app.RunResultView; error?: string } = {}) => ({ runId, ...over });
+
+test("a run Go starts joins the runs card with its progress and log, and takes no window", () => {
+  const h = harness();
+  h.store.watch();
+  h.report("h1", "acme/helper-job@1.0.0");
+  h.line("h1", "pulling images");
+  h.report("h1", "acme/helper-job@1.0.0", 2);
+  const s = h.store.state();
+  assert.equal(s.runs.length, 1);
+  assert.equal(s.runs[0].runId, "h1");
+  assert.equal(s.runs[0].over, false);
+  assert.equal(s.runs[0].progress?.turns, 2);
+  assert.deepEqual(s.runs[0].log, ["pulling images"]);
+  assert.equal(s.run, null, "the window took a run nobody opened");
+  assert.equal(s.shown, false);
+  assert.equal(runsCardShown(s.runs, s.queue, s.run?.runId ?? null), true, "a lone run the window does not follow is in the card");
+  assert.equal(runsCardTitle(s.runs, s.queue), "Running acme/helper-job@1.0.0");
+});
+
+test("a run Go starts ends with Go's report: its result, or why it had none", () => {
+  const h = harness();
+  h.store.watch();
+  h.report("h1", "acme/a@1.0.0");
+  h.report("h2", "acme/b@1.0.0");
+  h.fire("runner:run-ended", ended("h1", { result: result("h1") }));
+  h.fire("runner:run-ended", ended("h2", { error: "the engine would not start" }));
+  const [a, b] = h.store.state().runs;
+  assert.equal(a.over, true);
+  assert.equal(a.result?.runId, "h1");
+  assert.equal(b.over, true);
+  assert.equal(b.result, null);
+  assert.equal(b.error, "the engine would not start");
+  // Late reports of an ended run change nothing.
+  h.report("h1", "acme/a@1.0.0", 9);
+  h.line("h1", "after the end");
+  assert.equal(h.store.state().runs[0].progress?.turns, 0);
+  assert.deepEqual(h.store.state().runs[0].log, []);
+  assert.equal(runsCardTitle(h.store.state().runs, []), "2 over");
+});
+
+test("Stop on a run Go starts stops that run by its id, and its end says it was stopped", async () => {
+  const h = harness();
+  h.store.watch();
+  h.report("h1", "acme/a@1.0.0");
+  h.report("h2", "acme/b@1.0.0");
+  await h.store.stop("h2");
+  assert.deepEqual(h.stopped, ["h2"]);
+  let [a, b] = h.store.state().runs;
+  assert.equal(a.stopping, false, "Stop reached the other run");
+  assert.equal(b.stopping, true);
+  h.fire("runner:run-ended", ended("h2", { result: result("h2", "error", 130) }));
+  [a, b] = h.store.state().runs;
+  assert.equal(b.over, true);
+  assert.equal(b.stopped, true);
+  assert.equal(a.over, false);
+});
+
+test("Open on a run Go starts makes the window follow it, with no setup; Dismiss forgets it for good", () => {
+  const h = harness();
+  h.store.watch();
+  h.report("h1", "acme/a@1.0.0");
+  h.store.show("h1");
+  let s = h.store.state();
+  assert.equal(s.run?.runId, "h1");
+  assert.equal(s.setup, null);
+  assert.equal(s.shown, true);
+  h.fire("runner:run-ended", ended("h1", { result: result("h1") }));
+  h.store.dismiss("h1");
+  assert.deepEqual(h.forgotten, ["h1"]);
+  // A report that arrives after the card is dismissed is not a new run.
+  h.report("h1", "acme/a@1.0.0", 4);
+  s = h.store.state();
+  assert.equal(s.runs.length, 0);
+  assert.equal(s.run, null);
+});
+
+test("an end report of a run the store never saw begin changes nothing", () => {
+  const h = harness();
+  h.store.watch();
+  h.fire("runner:run-ended", ended("ghost", { result: result("ghost") }));
+  assert.equal(h.store.state().runs.length, 0);
+});
+
+test("the runs card keeps the ten newest runs Go started that are over", () => {
+  const h = harness();
+  h.store.watch();
+  for (let i = 1; i <= 14; i++) {
+    h.report(`h${i}`, "acme/a@1.0.0");
+    h.fire("runner:run-ended", ended(`h${i}`, { result: result(`h${i}`) }));
+  }
+  const ids = h.store.state().runs.map((r) => r.runId);
+  assert.deepEqual(ids, Array.from({ length: 10 }, (_, i) => `h${i + 5}`));
+  assert.deepEqual(h.forgotten, ["h1", "h2", "h3", "h4"]);
+});
+
+test("a run the page starts is one entry, whichever listener hears its reports first", async () => {
+  const h = harness();
+  h.store.watch();
+  const a = pending();
+  const begun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("r1", "acme/a@1.0.0");
+  await begun;
+  h.line("r1", "one");
+  h.report("r1", "acme/a@1.0.0", 3);
+  let s = h.store.state();
+  assert.equal(s.runs.length, 1, "the page's run was followed twice");
+  assert.equal(s.run?.runId, "r1");
+  assert.equal(s.run?.progress?.turns, 3);
+  assert.deepEqual(s.run?.log, ["one"], "a line was taken twice");
+  assert.equal(s.setup, "setup A");
+  // Go's end report does not stand in for the call's own result.
+  h.fire("runner:run-ended", ended("r1", { error: "stray" }));
+  assert.equal(h.store.state().run?.over, false);
+  a.resolve(result("r1"));
+  await tick();
+  s = h.store.state();
+  assert.equal(s.run?.over, true);
+  assert.equal(s.run?.result?.runId, "r1");
+  assert.equal(s.run?.error, null);
+});
+
+test("a run the page queues is its start's when it begins, not a run Go started", async () => {
+  const h = harness();
+  h.store.watch();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  const b = pending();
+  const bQueued = h.store.start("setup B", "acme/b@1.0.0", b.call);
+  h.fire("runner:run-queue", [{ runId: "r2", ref: "acme/b@1.0.0", position: 1, waitingFor: "A run of acme/a@1.0.0" }]);
+  await bQueued;
+  h.report("r2", "acme/b@1.0.0");
+  const s = h.store.state();
+  assert.deepEqual(s.runs.map((r) => r.runId), ["r1", "r2"]);
+  assert.equal(h.store.state().runs[1].progress?.prepared, true);
+  b.resolve(result("r2"));
+  await tick();
+  assert.equal(h.store.state().runs[1].result?.runId, "r2");
+});
+
+test("a run Go starts while the page's start waits is followed, when it is another release", async () => {
+  const h = harness();
+  h.store.watch();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("h1", "acme/helper-job@1.0.0");
+  assert.deepEqual(h.store.state().runs.map((r) => r.runId), ["h1"], "the Helper's run was lost while a start waited");
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  assert.deepEqual(h.store.state().runs.map((r) => r.runId), ["h1", "r1"]);
+  assert.equal(h.store.state().run?.runId, "r1");
+  assert.equal(h.store.state().runs.length, 2);
+});
+
+test("a run that was queued before a start, and begins while it waits, is Go's even of the same release", async () => {
+  const h = harness();
+  h.store.watch();
+  h.store.setQueue([{ runId: "h1", ref: "acme/a@1.0.0", position: 1, waitingFor: "x" }]);
+  const a = pending();
+  const begun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  h.report("h1", "acme/a@1.0.0");
+  assert.deepEqual(h.store.state().runs.map((r) => r.runId), ["h1"]);
+  h.report("r1", "acme/a@1.0.0");
+  await begun;
+  assert.deepEqual(h.store.state().runs.map((r) => r.runId), ["h1", "r1"]);
+  assert.equal(h.store.state().run?.runId, "r1");
+});

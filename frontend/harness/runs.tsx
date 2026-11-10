@@ -19,6 +19,10 @@
 //                     each with what it waits for and Cancel
 //   #runs-many        the runs card with three runs under way, one over and
 //                     47 waiting: the first five, then "and 42 more"
+//   #runs-helper      the runs card with runs Go started itself (the Agentry
+//                     Helper's, an agent's) and none the page started: two
+//                     under way, each with Stop and Open, one over with
+//                     Dismiss and Open, and one waiting
 //
 // A run In Agentry, followed the same way:
 //   #hosted-queued      the dialog while it waits: its place in the queue,
@@ -90,6 +94,9 @@ const RUN_ID = "7c1e4a90";
 const hostile = hash === "run-hostile" || hash === "hosted-hostile" || hash === "runpage-hostile";
 const runPage = hash.startsWith("runpage-");
 const hostedOnly = (hash.startsWith("hosted-") && hash !== "hosted-card-stacked") || hash.startsWith("chat-") || runPage;
+// The runs Go starts on its own behalf: the page follows them from their
+// reports alone, with no call of its own.
+const goStarted = hash === "runs-helper";
 const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
 const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
 const hostedBase = {
@@ -267,6 +274,8 @@ g.go = { app: {
     QueuedRuns: async () => (hash === "run-queue" ? [
       { runId: "q1000001", ref: "demo1/incident-summarizer@1.2.0", position: 1, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
       { runId: "q1000002", ref: "acme/meeting-actions@0.4.1", position: 2, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
+    ] : hash === "runs-helper" ? [
+      { runId: "q1000001", ref: "demo1/csv-quality-check@0.1.0", position: 1, waitingFor: "One of the 2 runs under way" },
     ] : hash === "runs-many" ? Array.from({ length: 47 }, (_, i) => ({
       runId: `q${String(1000001 + i)}`, ref: i % 3 === 0 ? "acme/meeting-actions@0.4.1" : i % 3 === 1 ? "demo1/csv-quality-check@0.1.0" : "demo1/incident-summarizer@1.2.0",
       position: i + 1, waitingFor: "One of the 3 runs under way",
@@ -490,7 +499,19 @@ else if (hash.startsWith("hosted-") && !hash.startsWith("chat-")) {
     if (hash === "hosted-cancel") void cancelHostedRun();
   });
 }
-if (!hostedOnly) void startLocalRun(
+if (goStarted) {
+  // Two runs Go started report progress and log lines; a third begins and
+  // ends, with its result.
+  for (const [id, ref, turns, ends] of [["c1d2e3f4", "acme/meeting-actions@0.4.1", 4, false], ["d2e3f4a5", "demo1/incident-summarizer@1.2.0", 0, false], ["e3f4a5b6", "demo1/csv-quality-check@0.1.0", 5, true]] as const) {
+    setTimeout(() => {
+      fire("runner:run-progress", { runId: id, ref, startedAt: Date.now() - 40_000, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 9_000, outputTokens: 700, prepared: turns > 0 });
+      fire("runner:run-line", { runId: id, line: `${ref}: the Helper started this run` });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (ends) setTimeout(() => fire("runner:run-ended", { runId: id, result: { ...result, runId: id, ref } as any }), 60);
+    }, 100);
+  }
+}
+if (!hostedOnly && !goStarted) void startLocalRun(
   { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form },
   REF,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
