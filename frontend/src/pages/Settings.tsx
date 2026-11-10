@@ -551,6 +551,26 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
               {idleSaved && <p className="small" role="status" style={{ marginBottom: 0 }}>{idleSaved}</p>}
             </Card>
           </PartSection>
+          <PartSection id="runs-at-once" title="Runs at once">
+            <Card>
+              <div className="row">
+                <label htmlFor="runs-at-once" className="grow">How many runs on this computer run at the same time</label>
+                <select id="runs-at-once" value={defaults.runsAtOnce} disabled={busy} data-runs-at-once
+                  onChange={(e) => void act(() => SettingsAPI.SetRunsAtOnce(parseInt(e.target.value, 10)))}>
+                  {Array.from({ length: defaults.runsAtOnceMax }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="small" data-runs-at-once-line>{defaults.runsAtOnceLine}</p>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                A run started while this many are under way waits its turn, and starts as one ends, in the order they were
+                started. Raising the number starts waiting runs at once; lowering it lets the runs under way finish. A chat,
+                a draft, a build and a review still run alone, when no run is under way. A run sent to one of your runhosts counts
+                too; a run In Agentry does not count.
+              </p>
+            </Card>
+          </PartSection>
           <PartSection id="where" title="Where to run">
             <Card>
               <ManagedNotes rows={managedRows} part="where" />

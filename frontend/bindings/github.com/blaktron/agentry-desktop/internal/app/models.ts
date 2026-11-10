@@ -10410,6 +10410,15 @@ export class RunDefaultsView {
     "chatIdleTimeoutSeconds": number;
 
     /**
+     * RunsAtOnce is how many runs on this computer run at the same time, 1
+     * to RunsAtOnceMax; RunsAtOnceMax is the ceiling this computer's memory
+     * sets, and RunsAtOnceLine the sentence that says why.
+     */
+    "runsAtOnce": number;
+    "runsAtOnceMax": number;
+    "runsAtOnceLine": string;
+
+    /**
      * UnsafeMode is the switch (desktop.yaml's unsafeMode), written only by
      * RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands are
      * installed on, the runner policy's images.unsafe or the pinned default.
@@ -10476,6 +10485,15 @@ export class RunDefaultsView {
         if (!("chatIdleTimeoutSeconds" in $$source)) {
             this["chatIdleTimeoutSeconds"] = 0;
         }
+        if (!("runsAtOnce" in $$source)) {
+            this["runsAtOnce"] = 0;
+        }
+        if (!("runsAtOnceMax" in $$source)) {
+            this["runsAtOnceMax"] = 0;
+        }
+        if (!("runsAtOnceLine" in $$source)) {
+            this["runsAtOnceLine"] = "";
+        }
         if (!("unsafeMode" in $$source)) {
             this["unsafeMode"] = false;
         }
@@ -10505,10 +10523,10 @@ export class RunDefaultsView {
      * Creates a new RunDefaultsView instance from a string or object.
      */
     static createFrom($$source: any = {}): RunDefaultsView {
-        const $$createField9_0 = $$createType227;
+        const $$createField12_0 = $$createType227;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("unsafeLock" in $$parsedSource) {
-            $$parsedSource["unsafeLock"] = $$createField9_0($$parsedSource["unsafeLock"]);
+            $$parsedSource["unsafeLock"] = $$createField12_0($$parsedSource["unsafeLock"]);
         }
         return new RunDefaultsView($$parsedSource as Partial<RunDefaultsView>);
     }

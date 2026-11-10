@@ -31,7 +31,7 @@ export type SettingsPart =
   | "profile" | "subscription" | "account-voice" | "registries" | "add-registry"
   | "library" | "design-editor" | "design-preview" | "design-images"
   | "models" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
-  | "budgets" | "chats" | "where" | "runhosts" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images"
+  | "budgets" | "chats" | "runs-at-once" | "where" | "runhosts" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images"
   | "connections" | "own-clients" | "destinations"
   | "desktop" | "quickagents" | "coding-tools"
   | "theme" | "accessibility" | "home-agent" | "home-cards" | "pins" | "reset-home";
@@ -69,9 +69,10 @@ export const SECTIONS: SectionMeta[] = [
   },
   {
     id: "run-defaults", title: "Runs",
-    sentence: "How long a run may take and when a chat ends, where runs go (your runhosts included), where their files land and are sent, which runs are remembered, Unsafe Mode, and the container engine runs on this computer use.",
+    sentence: "How long a run may take and when a chat ends, how many run at once, where runs go (your runhosts included), where their files land and are sent, which runs are remembered, Unsafe Mode, and the container engine runs on this computer use.",
     parts: [
-      { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
+      { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" },
+      { id: "runs-at-once", label: "Runs at once" }, { id: "where", label: "Where to run" },
       { id: "runhosts", label: "Runhosts" }, { id: "output", label: "Output folder" }, { id: "deliverables", label: "Deliverables" },
       { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" }, { id: "malware", label: "Malware check" },
       { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },

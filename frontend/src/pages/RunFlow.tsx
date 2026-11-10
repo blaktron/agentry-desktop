@@ -8,16 +8,22 @@
 // the setup reopens the setup on that QuickAgent with the answers as they
 // were.
 //
-// This card follows one run. A run started while every slot is taken
-// waits its turn in a card of its own, "Waiting to start", with
-// Cancel, and takes this card over when it begins; any other job started
-// meanwhile is refused with what is running. Every string the run wrote
-// (the log, the error, the result) is drawn as text.
+// The window follows one run at a time. Several runs can be under way at
+// once (Settings → Run defaults → Runs at once), and a run started while
+// every slot is taken waits its turn. With more than one run, or any
+// waiting, one card in the corner lists them all: each run under way with
+// its progress, Open and Stop; each run over with how it ended, Open and
+// Dismiss; and the first waiting runs with Cancel, then "and N more", which
+// lists the rest in a scrolling list. The followed run's own card gives way
+// to it; a run the window does not follow is always in it. Any other job
+// started meanwhile is refused with what is running.
+// Every string the run wrote (the log, the error, the result) is drawn as
+// text.
 import { useState } from "react";
 import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { failureOf, localFailureInput, reportText } from "../failedRun";
-import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, shownLog } from "../localRun";
-import { BytesBar, CornerCard, ProgressView, StepBar } from "../progress";
+import { type LocalRun, type QueuedRun, headlineOf, outcome, queuedLine, runsCardShown, runsCardTitle, shownLog, WAITING_SHOWN, waitingShown } from "../localRun";
+import { BytesBar, CornerCard, ProgressView, StepBar, StopButton } from "../progress";
 import { type RunSetup, backToSetup, cancelQueuedRun, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button } from "../ui";
 import { bytesProgress, stepProgress } from "../bytesProgress";
@@ -53,19 +59,24 @@ export default function RunFlow(props: RunFlowActions & {
   initialMinimized?: boolean;
 }) {
   const s = useLocalRun();
+  const many = runsCardShown(s.runs, s.queue, s.run?.runId ?? null);
   return (
     <>
-      <FollowedRun {...props} />
-      {s.queue.length > 0 && <QueueCard queue={s.queue} />}
+      <FollowedRun {...props} cardElsewhere={many} />
+      {many && <RunsCard runs={s.runs} queue={s.queue} />}
     </>
   );
 }
 
-// QueueCard lists the runs waiting to start, the next first, each with
-// what it waits for and Cancel, which takes it out of the queue unstarted.
-function QueueCard({ queue }: { queue: QueuedRun[] }) {
+// RunsCard lists every run followed and every run waiting to start: the runs
+// under way first, with their progress, Open and Stop; then the runs over,
+// with how each ended, Open and Dismiss; then the waiting runs, the next
+// first, each with what it waits for and Cancel, the first few of them
+// until "and N more" lists the rest.
+function RunsCard({ runs, queue }: { runs: LocalRun[]; queue: QueuedRun[] }) {
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const cancel = async (id: string) => {
     setCancelling(id);
     setError("");
@@ -77,39 +88,82 @@ function QueueCard({ queue }: { queue: QueuedRun[] }) {
       setCancelling(null);
     }
   };
+  const going = runs.filter((r) => !r.over);
+  const over = runs.filter((r) => r.over).reverse();
+  const waiting = waitingShown(queue, expanded);
   return (
     <CornerCard
-      label="Runs waiting to start"
-      running={false}
-      title={queue.length === 1 ? "1 run waiting to start" : `${queue.length} runs waiting to start`}
+      label="Runs on this computer"
+      running={going.length > 0}
+      title={runsCardTitle(runs, queue)}
       line={error}
       tone={error ? "bad" : undefined}
       actions={null}
     >
-      <ul className="run-queue" data-run-queue>
-        {queue.map((q) => (
-          <li key={q.runId} className="run-queue-item">
-            <div className="grow">
-              <strong>{q.ref}</strong>
-              <div className="small muted">{queuedLine(q)}</div>
-            </div>
-            <Button onClick={() => void cancel(q.runId)} disabled={cancelling === q.runId} busy={cancelling === q.runId} busyLabel="Cancelling…">
-              Cancel
-            </Button>
-          </li>
-        ))}
-      </ul>
+      {(going.length > 0 || over.length > 0) && (
+        <ul className="run-queue runs-list" data-runs-list aria-label="Runs">
+          {going.map((r) => (
+            <li key={r.runId ?? r.ref} className="run-queue-item">
+              <div className="grow">
+                <strong>{r.ref}</strong>
+                <RunProgressView r={r} compact />
+              </div>
+              <StopButton stopping={r.stopping} onStop={() => void stopLocalRun(r.runId ?? undefined)} />
+              <Button variant="primary" onClick={() => showLocalRun(r.runId ?? undefined)}>Open</Button>
+            </li>
+          ))}
+          {over.map((r) => {
+            const o = outcome(r);
+            return (
+              <li key={r.runId ?? r.ref} className="run-queue-item">
+                <div className="grow">
+                  <strong>{r.ref}</strong>
+                  <div className={`small run-outcome-${o.tone || "bad"}`}>{o.line}</div>
+                </div>
+                <Button onClick={() => dismissLocalRun(r.runId ?? undefined)}>Dismiss</Button>
+                <Button variant="primary" onClick={() => showLocalRun(r.runId ?? undefined)}>Open</Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {queue.length > 0 && (
+        <ul className={`run-queue${expanded ? " run-queue-all" : ""}`} data-run-queue aria-label="Waiting to start">
+          {waiting.shown.map((q) => (
+            <li key={q.runId} className="run-queue-item">
+              <div className="grow">
+                <strong>{q.ref}</strong>
+                <div className="small muted">{queuedLine(q)}</div>
+              </div>
+              <Button onClick={() => void cancel(q.runId)} disabled={cancelling === q.runId} busy={cancelling === q.runId} busyLabel="Cancelling…">
+                Cancel
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {waiting.more > 0 && (
+        <Button variant="link" onClick={() => setExpanded(true)} data-runs-more>
+          {`and ${waiting.more} more`}
+        </Button>
+      )}
+      {expanded && queue.length > WAITING_SHOWN && (
+        <Button variant="link" onClick={() => setExpanded(false)}>Show fewer</Button>
+      )}
     </CornerCard>
   );
 }
 
-function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: RunFlowActions & {
+function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized, cardElsewhere }: RunFlowActions & {
   initialMinimized?: boolean;
+  /** The runs card lists this run, so its own card is not drawn. */
+  cardElsewhere?: boolean;
 }) {
   const s = useLocalRun();
   const followed = useFollowed({ raised: s.raised, initialMinimized });
   const r = s.run;
   if (!s.shown || !r) return null;
+  if (cardElsewhere && followed.minimized) return null;
 
   const running = !r.over;
   const { line, tone } = outcome(r);
@@ -140,8 +194,8 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
   return (
     <RunWindow
       {...followed}
-      onOpen={showLocalRun}
-      onDismiss={dismissLocalRun}
+      onOpen={() => showLocalRun()}
+      onDismiss={() => dismissLocalRun()}
       label={`Run of ${r.ref}`}
       title={running ? `Running ${r.ref}` : `Run ${r.ref}`}
       cardTitle={running ? `Running ${r.ref}` : `${r.ref}: the run is over`}
@@ -157,7 +211,7 @@ function FollowedRun({ onBackToSetup, onRunAgain, onReport, initialMinimized }: 
         In the background, the run goes on in a card in the corner and the rest of the app stays usable. Stop ends it, and
         its receipts are written as far as it got.
       </>}
-      stop={{ label: "Stop the run", cardLabel: "Stop", stopping: r.stopping, onStop: () => void stopLocalRun() }}
+      stop={{ label: "Stop the run", cardLabel: "Stop", stopping: r.stopping, onStop: () => void stopLocalRun(r.runId ?? undefined) }}
       log={shownLog(r)}
       line={line}
       tone={tone}

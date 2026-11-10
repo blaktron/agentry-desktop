@@ -678,6 +678,10 @@ table.declared-servers td { overflow-wrap: anywhere; }
 .run-queue { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .run-queue-item { display: flex; align-items: center; gap: 8px; }
 .run-queue-item strong { overflow-wrap: anywhere; }
+/* Every waiting run, once "and N more" is pressed: a list of its own that
+   scrolls, so a long queue never grows the card past the window. */
+.run-queue-all, .runs-list { max-height: 40vh; overflow-y: auto; padding-right: 4px; }
+.run-queue + .run-queue { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .knowledge-log > summary { cursor: pointer; margin: 8px 0; }
 
 .run-log {

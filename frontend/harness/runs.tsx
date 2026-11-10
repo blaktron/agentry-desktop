@@ -15,8 +15,10 @@
 //                     all drawn as text
 //   #run-card-stacked the run's card and a draft In Agentry's card stacked
 //                     in App's corner, neither covering the other
-//   #run-queue        the run's card, and above it the card of two runs
-//                     waiting to start, each with what it waits for and Cancel
+//   #run-queue        the runs card: the run, and two runs waiting to start,
+//                     each with what it waits for and Cancel
+//   #runs-many        the runs card with three runs under way, one over and
+//                     47 waiting: the first five, then "and 42 more"
 //
 // A run In Agentry, followed the same way:
 //   #hosted-queued      the dialog while it waits: its place in the queue,
@@ -265,7 +267,10 @@ g.go = { app: {
     QueuedRuns: async () => (hash === "run-queue" ? [
       { runId: "q1000001", ref: "demo1/incident-summarizer@1.2.0", position: 1, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
       { runId: "q1000002", ref: "acme/meeting-actions@0.4.1", position: 2, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
-    ] : []),
+    ] : hash === "runs-many" ? Array.from({ length: 47 }, (_, i) => ({
+      runId: `q${String(1000001 + i)}`, ref: i % 3 === 0 ? "acme/meeting-actions@0.4.1" : i % 3 === 1 ? "demo1/csv-quality-check@0.1.0" : "demo1/incident-summarizer@1.2.0",
+      position: i + 1, waitingFor: "One of the 3 runs under way",
+    })) : []),
     CancelQueuedRun: async () => {},
     // The star ask after a run In Agentry that ended well, of someone
     // else's QuickAgent not yet starred.
@@ -451,7 +456,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Preview() {
   const [corner, setCorner] = useState<HTMLElement | null>(null);
-  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "run-queue" || hash === "hosted-card-stacked";
+  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "run-queue" || hash === "runs-many" || hash === "hosted-card-stacked";
   return (
     <CornerHost.Provider value={corner}>
       <div data-preview="runs">
@@ -490,8 +495,20 @@ if (!hostedOnly) void startLocalRun(
   REF,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   () => g.go.app.RunAPI.RunAgent() as Promise<any>,
-).then(() => {
+).then(async () => {
   if (hash === "run-stopped") setTimeout(() => void stopLocalRun(), 120);
+  if (hash === "runs-many") {
+    // Three more runs, one of them over, each a run of its own beside the first.
+    for (const [id, ref, turns, ends] of [["8d2f5b01", "acme/meeting-actions@0.4.1", 3, false], ["9e3a6c12", "demo1/csv-quality-check@0.1.0", 0, false], ["a04b7d23", "demo1/csv-quality-check@0.1.0", 5, true]] as const) {
+      const [ns, rest] = ref.split("/");
+      const [name, version] = rest.split("@");
+      await startLocalRun({ panel: { registry: REG, ns, name, version, attestation: null }, form }, ref, () => new Promise((resolve) => {
+        setTimeout(() => fire("runner:run-progress", { runId: id, ref, startedAt: Date.now() - 40_000, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 9_000, outputTokens: 700, prepared: turns > 0 }), 10);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (ends) setTimeout(() => resolve({ ...result, runId: id, ref } as any), 60);
+      }));
+    }
+  }
 });
 if (hash === "run-card-stacked") startDraft(REG, "agentry", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
 createRoot(document.getElementById("root")!).render(runPage ? <RunPagePreview /> : <Preview />);

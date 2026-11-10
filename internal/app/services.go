@@ -36,6 +36,8 @@ import (
 // SettingsAPI manages registries and credentials.
 type SettingsAPI struct {
 	app *App
+	// run takes Runs at once as it is saved; nil in a test that runs none.
+	run *RunAPI
 	// open replaces App.OpenExternal in tests; nil means the real browser.
 	open func(url string) error
 	// knowledgeEnv is the local knowledge store's wiring, for the rewrap a

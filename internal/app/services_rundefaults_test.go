@@ -377,3 +377,58 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndSavedInDesktopYAMLOnly(t *testing
 		t.Fatalf("turning it on again: %+v, %v", v, err)
 	}
 }
+
+// withMemory makes this computer's memory total bytes for the test.
+func withMemory(t *testing.T, total uint64) {
+	t.Helper()
+	old := memoryTotal
+	memoryTotal = func() (uint64, error) { return total, nil }
+	t.Cleanup(func() { memoryTotal = old })
+}
+
+// Runs at once is one until it is changed, offered up to the ceiling this
+// computer's memory sets, refused past it, and applied to the run slots as
+// it is saved; a number the file holds past the ceiling reads as the
+// ceiling, and the app starts with the number in effect.
+func TestRunsAtOnceFollowsTheMemory(t *testing.T) {
+	_, s := runDefaultsApp(t, "")
+	s.run = &RunAPI{app: s.app}
+	withMemory(t, 32<<30)
+	v, err := s.RunDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.RunsAtOnce != 1 || v.RunsAtOnceMax != 6 || v.RunsAtOnceLine != "This computer has 32 GB of memory, so up to 6 runs can run at once." {
+		t.Fatalf("with nothing saved: %d of %d, %q", v.RunsAtOnce, v.RunsAtOnceMax, v.RunsAtOnceLine)
+	}
+	for _, bad := range []int{0, -1, 7} {
+		if _, err := s.SetRunsAtOnce(bad); err == nil {
+			t.Errorf("SetRunsAtOnce(%d) was accepted", bad)
+		}
+	}
+	if v, err = s.SetRunsAtOnce(4); err != nil || v.RunsAtOnce != 4 {
+		t.Fatalf("SetRunsAtOnce(4) = %+v, %v", v, err)
+	}
+	if s.run.runsAtOnce != 4 {
+		t.Fatalf("the run slots hold %d", s.run.runsAtOnce)
+	}
+
+	// The same file on a smaller computer reads as its ceiling.
+	withMemory(t, 16<<30)
+	if v, err = s.RunDefaults(); err != nil || v.RunsAtOnce != 2 || v.RunsAtOnceMax != 2 {
+		t.Fatalf("on 16 GB: %+v, %v", v, err)
+	}
+	r := &RunAPI{app: s.app}
+	r.applyRunsAtOnce()
+	if r.runsAtOnce != 2 {
+		t.Fatalf("the app started with %d at once on 16 GB", r.runsAtOnce)
+	}
+	withMemory(t, 128<<30)
+	if v, _ = s.RunDefaults(); v.RunsAtOnceMax != 20 || v.RunsAtOnce != 4 {
+		t.Fatalf("on 128 GB: %d of %d", v.RunsAtOnce, v.RunsAtOnceMax)
+	}
+	withMemory(t, 0)
+	if v, _ = s.RunDefaults(); v.RunsAtOnceMax != 2 || !strings.Contains(v.RunsAtOnceLine, "could not be read") {
+		t.Fatalf("with the memory unread: %d, %q", v.RunsAtOnceMax, v.RunsAtOnceLine)
+	}
+}
