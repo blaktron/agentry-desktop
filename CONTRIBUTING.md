@@ -95,8 +95,10 @@ over the pages and dialogs. `make a11y` runs the browser checks in
 `frontend/e2e/`, which CI also runs: axe with colour contrast and target
 size in light, dark and every theme, the same under forced colours, and the
 main flows with the keyboard alone. A new page or dialog gets a state in the
-design harness and a line in `frontend/e2e/states.ts`. Fixtures never
-contain real endpoints or real secrets.
+design harness and a line in `frontend/e2e/states.ts`. Before a release,
+`scripts/acceptance/screen-reader-pass.md` is walked with NVDA, VoiceOver
+and Orca, since no automated check hears what a screen reader says.
+Fixtures never contain real endpoints or real secrets.
 
 ## Certificate of origin
 
