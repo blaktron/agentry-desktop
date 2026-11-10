@@ -9,7 +9,9 @@ package run
 import (
 	"errors"
 	"fmt"
+	"io"
 
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
@@ -252,4 +254,35 @@ func RenewedHere(vendor string) bool {
 	}
 	rec, err := modelsignin.Open(home, connectionKeys()).Get(vendor)
 	return err == nil && rec.SecretIn != ""
+}
+
+// heldManaged is the managed settings held on this computer; a test
+// replaces it.
+var heldManaged = managed.Current
+
+// presetModel is the saved model a run of the QuickAgent ref is on when an
+// organization assigned it with a preset model (localrun.PresetModel): with
+// none picked in the Model list, the saved model that is the preset's;
+// picked, the person's, unless a locked preset fixes another. A locked
+// preset model no saved model is refuses the run, a default one leaves it
+// on the pick with a warning on w, and the managed model rows still hold
+// whatever is chosen.
+func presetModel(pol *policy.Policy, ref, picked string, w io.Writer) (string, error) {
+	model, warning, err := localrun.PresetModel(pol, heldManaged(), ref, picked, "")
+	var conflict *localrun.PresetModelConflict
+	var missing *localrun.PresetModelMissing
+	switch {
+	case errors.As(err, &conflict):
+		return "", engine.Classify(engine.ExitPolicy, fmt.Errorf(
+			"the model picked for this run conflicts with %s's managed settings, which fix the model of %s at %s's %s (quickagents): pick that one in the Model list",
+			conflict.Organization, conflict.Ref, conflict.Want.Provider, conflict.Want.Model))
+	case errors.As(err, &missing):
+		return "", engine.Classify(engine.ExitPolicy, fmt.Errorf("%s: save it in Settings → Models and keys first", missing.Error()))
+	case err != nil:
+		return "", err
+	}
+	if warning != "" && w != nil {
+		_, _ = fmt.Fprintf(w, "warning: %s\n", warning)
+	}
+	return model, nil
 }

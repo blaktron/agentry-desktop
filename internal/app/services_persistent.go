@@ -1158,6 +1158,9 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 	return persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
 		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol), CreditsFor: run.CreditsClient,
+		// Where an organization's credits pay for AI Review or web search,
+		// each segment opens one operation on the registry and ends it.
+		Pay:    run.CreditsPay(logw),
 		Docker: p.dockerClient(), Stderr: logw, OnStage: p.stageHook(a.Name, logw), Packs: p.packs, AppLink: p.appLink(a),
 		Contents: persistent.Contents{Pack: p.packDigest},
 		Helper:   p.helper(), Subagents: p.subagents(),
