@@ -163,11 +163,13 @@ export function cardState(agent: Pick<app.PersistentAgentView, "state">, e: Pick
   }
 }
 
-/** Whether a click on the card switches it: never a fixed entry; one that
+/** Whether a click on the card switches it: never a fixed entry or one an
+ *  organization locks on; one that
  *  is on always, so it can be turned off whatever it waits for; one that is
  *  off unless it waits on an install, a sign-in or a set-up. */
-export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state" | "on">): boolean {
-  if (e.fixed) return false;
+export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state" | "on"> & { locked?: boolean }): boolean {
+  // An entry an organization's managed settings lock on has no switch.
+  if (e.fixed || e.locked) return false;
   return e.on || (e.state !== "installing" && e.state !== "needs-sign-in" && e.state !== "needs-set-up");
 }
 
@@ -305,10 +307,15 @@ export function providerWords(p: Pick<app.PersistentMailProviderView, "accounts"
 }
 
 /** Who granted an entry, in words: the person, the release's publisher
- *  (an installed agent's declared entries), or Agentry (a built-in's). */
-export function grantedWords(e: Pick<app.PersistentRosterEntry, "grantedBy">): string {
+ *  (an installed agent's declared entries), an organization's managed
+ *  settings, or Agentry (a built-in's). */
+export function grantedWords(e: Pick<app.PersistentRosterEntry, "grantedBy"> & { organization?: string; locked?: boolean }): string {
   if (e.grantedBy === "you") return "Added by you";
   if (e.grantedBy === "release") return "From the publisher";
+  if (e.grantedBy === "organization") {
+    const org = e.organization || "your organization";
+    return e.locked ? `Managed by ${org}` : `Set by ${org}`;
+  }
   return "Built in";
 }
 
