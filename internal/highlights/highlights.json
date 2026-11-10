@@ -5,7 +5,8 @@
       "highlights": [
         "Settings, Coding tools: see which coding tools are on this computer, their desktop apps included, without running them.",
         "Install the Agentry plugin into Claude Code, Codex, OpenCode, pi, Qwen Code, Gemini CLI and more, with one click each.",
-        "Each install shows you the tool's exact commands first, and runs them only after you say yes."
+        "Each install shows you the tool's exact commands first, and runs them only after you say yes.",
+        "A schedule on a runhost changes model from its card, and Recent runs names the runhost a run ran on."
       ]
     },
     {
