@@ -16,6 +16,10 @@ import renderHouseCustomPdf from "./fixtures/render-house-custom.pdf?url";
 import renderHouseCustomDrawnPdf from "./fixtures/render-house-custom-drawn.pdf?url";
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
+// ?textsize=<percent> is the text size Settings → Home → Accessibility shows.
+// The sizes Go's settings.TextSizes offers.
+const HARNESS_TEXT_SIZES = [100, 110, 125, 150, 175, 200];
+let harnessTextSize = Number(new URLSearchParams(window.location.search).get("textsize")) || 100;
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
 const harnessTheme = new URLSearchParams(window.location.search).get("theme");
 // ?homeagent=assistant gives Home's agent card the Assistant; a pick is kept
@@ -1215,6 +1219,22 @@ g.go = { app: {
     ChooseShare: async () => harnessAssistant,
     AddServer: async () => harnessAssistant,
     AddSuggested: async () => harnessAssistant,
+    // The registry's MCP server list, as its lookup answers a search for
+    // working servers.
+    SearchServers: async (q: string) => {
+      const all = [
+        { id: "npm:@modelcontextprotocol/server-everything", kind: "npm", name: "Everything", ref: "@modelcontextprotocol/server-everything@2026.1.26", description: "Exercises every feature of the protocol: tools, prompts and resources.", version: "2026.1.26", toolCount: 11, tested: "2026-10-26",
+          row: { source: "npm", package: "@modelcontextprotocol/server-everything", version: "2026.1.26", args: [], url: "", auth: "", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+        { id: "pypi:office-word-mcp-server", kind: "pypi", name: "Office Word", ref: "office-word-mcp-server@1.1.11", description: "Create, read and edit Word documents.", version: "1.1.11", toolCount: 54, tested: "2026-10-20",
+          row: { source: "pypi", package: "office-word-mcp-server", version: "1.1.11", args: [], url: "", auth: "", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+        { id: "remote:https://mcp.weather.example/mcp", kind: "remote", name: "Weather", ref: "https://mcp.weather.example/mcp", description: "Forecasts and alerts by place name.", toolCount: 4, secrets: ["WEATHER_API_KEY"], tested: "2026-10-22",
+          row: { source: "url", package: "", version: "", args: [], url: "https://mcp.weather.example/mcp", auth: "none", scopes: [], oauth: null, tools: [], secrets: [], egress: [], env: [] } },
+      ];
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      if (words.includes("selfhosted")) throw new Error("this registry has no MCP server list");
+      const items = all.filter((it) => words.some((w) => `${it.id} ${it.name} ${it.description}`.toLowerCase().includes(w)));
+      return { registry: "https://secureagentry.net", query: q, items, total: items.length, partial: false, page: "https://secureagentry.net/build/mcp-servers" };
+    },
     AddSkill: async () => harnessAssistant,
     RemoveSkill: async () => harnessAssistant,
     SetSecret: async () => harnessAssistant,
@@ -1252,6 +1272,19 @@ g.go = { app: {
     Theme: async () => harnessTheme ?? "system",
     // Recorded on the body, so a shot can say what was kept.
     SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
+    // Settings → Home → Accessibility: ?textsize=<percent> starts at that
+    // size; a choice and a step are kept here and recorded on the body.
+    TextSizes: async () => HARNESS_TEXT_SIZES,
+    TextSize: async () => harnessTextSize,
+    SetTextSize: async (p: number) => { harnessTextSize = p; document.body.dataset.textSizeKept = String(p); return p; },
+    StepTextSize: async (step: number) => {
+      const i = HARNESS_TEXT_SIZES.indexOf(harnessTextSize);
+      harnessTextSize = step === 0 ? 100 : HARNESS_TEXT_SIZES[Math.max(0, Math.min(HARNESS_TEXT_SIZES.length - 1, i + step))];
+      document.body.dataset.textSizeKept = String(harnessTextSize);
+      return harnessTextSize;
+    },
+    Motion: async () => (document.documentElement.dataset.motion === "reduce" ? "reduce" : "system"),
+    SetMotion: async (choice: string) => { document.body.dataset.motionKept = choice; },
     UnpinScheduled: async () => harnessUnpinScheduled(),
     Agent: async () => harnessHomeAgent,
     SetAgent: async (name: string) => { harnessHomeAgent = name; document.body.dataset.homeAgent = name; return name; },
@@ -2031,7 +2064,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     {/* #browse-query: Browse as the Library's search opens it, searched for
         what was typed there. */}
-    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns={detail.agent.namespace} name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"}
       onFork={() => {}} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see

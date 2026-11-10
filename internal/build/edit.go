@@ -20,6 +20,8 @@ import (
 //     (they are regenerated for a new version): homepage, authors, the
 //     idle timeout, runtime (back to the form's own), dependencies and
 //     publish.channel and include.
+//   - A release that ships skills (capabilities.skills) is refused, as an
+//     agent that stays running is: the form has no place for its skills/.
 //   - The packs the release shipped stay ticked by name. The form cannot
 //     lay them: the caller ties each name to the person's pack
 //     (Model.ReconcileShips), which reads it again, and names any it cannot. The instruction file is written as AGENT.md, whatever
@@ -48,6 +50,12 @@ func FromRelease(manifestJSON []byte, instructions, namespace, name, version str
 	}
 	if m.IsPersistent() {
 		return nil, errors.New("this is an agent that stays running, and the form does not hold its persona, its capabilities or its subagents: edit its folder with the agentry CLI")
+	}
+	// A release that ships skills carries a skills/ folder beside its
+	// instructions, which the form neither holds nor writes: a version made
+	// here would drop them.
+	if caps, _ := obj["capabilities"].(map[string]any); caps["skills"] == true {
+		return nil, errors.New("this QuickAgent ships skills, which the form does not hold: edit its folder with the agentry CLI")
 	}
 	fresh := Default(namespace)
 	m.Namespace, m.Name, m.Version = namespace, name, version

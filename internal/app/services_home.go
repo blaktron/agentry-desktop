@@ -87,11 +87,12 @@ func (h *HomeAPI) Theme() (string, error) { return settings.ThemeNow() }
 func (h *HomeAPI) SetTheme(name string) error { return settings.SetTheme(name) }
 
 // ThemeScript serves /theme.js, which index.html loads before the first
-// paint: one statement that puts the stored theme on the root element, or
-// nothing for System. The window's policy runs no inline script, so the
-// theme comes from the app's own origin like the bundle. Only a name in
-// settings.Themes is ever written into the script; anything else, and any
-// other path, is not served.
+// paint: a statement that puts the stored theme on the root element, none
+// for System, and one that marks the root for reduced motion when the
+// person chose it. The window's policy runs no inline script, so the theme
+// comes from the app's own origin like the bundle. Only a name in
+// settings.Themes and the one motion value are ever written into the
+// script; any other path is not served.
 func ThemeScript() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/theme.js" || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
@@ -100,11 +101,12 @@ func ThemeScript() http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		theme, err := settings.ThemeNow()
-		if err != nil || theme == settings.ThemeSystem || !slices.Contains(settings.Themes, theme) {
-			return
+		if theme, err := settings.ThemeNow(); err == nil && theme != settings.ThemeSystem && slices.Contains(settings.Themes, theme) {
+			_, _ = fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
 		}
-		_, _ = fmt.Fprintf(w, "document.documentElement.dataset.theme = %q;\n", theme)
+		if motion, err := settings.MotionNow(); err == nil && motion == settings.MotionReduce {
+			_, _ = fmt.Fprintf(w, "document.documentElement.dataset.motion = %q;\n", settings.MotionReduce)
+		}
 	})
 }
 

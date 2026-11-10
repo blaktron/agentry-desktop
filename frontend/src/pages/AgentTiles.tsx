@@ -69,8 +69,8 @@ export function AgentTiles(props: {
               {...(props.mode === "pick"
                 ? { role: "radio", "aria-checked": on, tabIndex: on || (!ids.includes(props.value) && t.name === ids[0]) ? 0 : -1 }
                 : { "aria-pressed": on })}
-              aria-label={t.title}
-              aria-describedby={`agent-tile-line-${props.mode}-${t.name}`}
+              // Named by what it shows (the title, Recommended and its line), so
+              // the name a screen reader says holds the words on the tile.
               className={`provider-tile agent-tile${on ? " on" : ""}`}
               data-agent-tile={t.name}
               disabled={busy || held}

@@ -887,6 +887,7 @@ if (view.startsWith("card-")) {
   w.go.app = w.go.app ?? {};
   w.go.app.CardWindowAPI = {
     Card: () => card,
+    FitCard: () => {},
     AnswerCard: (id: string, i: number) => {
       const line = document.createElement("p");
       line.dataset.cardAnswered = "";

@@ -370,7 +370,7 @@ function Library({ lib, opts, busy, err, said, defaultName, full, kitName, kitOf
                       {c.hasCustomCover && <span className="badge">Custom cover</span>}
                     </span>
                     <span className="row report-design-card-actions">
-                      <Button variant="link" disabled={!!busy || c.default} onClick={() => onUse(c.id)} aria-label={`Use ${c.name} as the default`}>
+                      <Button variant="link" disabled={!!busy || c.default} onClick={() => onUse(c.id)} aria-label={c.default ? `${c.name} is in use as the default` : `Use ${c.name} as the default`}>
                         {c.default ? "In use" : "Use"}
                       </Button>
                       <Button variant="link" disabled={!!busy} onClick={() => onOpen(c.id)} aria-label={`Edit ${c.name}`}>Edit</Button>

@@ -6,12 +6,13 @@
 // first in Go's native dialog, never in the page. Its menu holds Set up,
 // Details and Remove; an install, a sign-in, a set-up and a failure (with
 // Retry) are drawn on it. Each grid ends in its Add card: a server (the
-// agent's suggestions first, one click each), a skill from a folder or a
-// .zip, a secret whose value goes to Go and is never read back, a mail
+// agent's suggestions first, one click each, then a search of the servers
+// the registry's list saw working, and a direct add in a card), a skill
+// from a folder or a .zip, a secret whose value goes to Go and is never read back, a mail
 // provider to enable, a calendar feed whose address goes to Go the same
 // way. A mail provider's server card can disable its provider, which keeps
 // the sign-in; a calendar feed's card renames it.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as YourComputerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/yourcomputerapi";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import { EventsOn } from "../host";
@@ -20,8 +21,8 @@ import type * as build from "../../bindings/github.com/blaktron/agentry-desktop/
 import { addFormOf, calendarFeedLine, desktopAppID, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
-import { SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverRowOf, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
-import { Button, Field, Input, Notice, OptionsMenu, Select } from "../ui";
+import { SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverListLine, serverRowOf, serverSearchNote, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
+import { Button, Field, Input, Modal, Notice, OptionsMenu, Select, Spinner } from "../ui";
 
 export type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
 
@@ -118,7 +119,7 @@ const ADD_LINES: Record<AddKind, string> = {
   provider: "A service whose mail and calendar it reaches",
   calendar: "A calendar to read by its iCal address, from Google, Outlook, iCloud or another",
   account: "An account on GitHub, GitLab or another git host, its own or yours",
-  server: "A suggested one, or an npm or PyPI package, or a remote address",
+  server: "A suggested one, one found among servers that work, or a package or address of your own",
   skill: "From a folder or a .zip holding a SKILL.md",
   secret: "A key or token it may give a server or a command",
 };
@@ -283,10 +284,12 @@ function RemoveConfirm({ agent, action, busy, act, onCancel }: { agent: app.Pers
 }
 
 /** The server Add card's panel: the agent's suggestions, one click each,
- *  then a package or a remote address of the person's own. */
+ *  then a search of the registry's MCP server list for servers it saw
+ *  working, each added at the version it tested in one click. A package or
+ *  address of the person's own, another version, arguments or a tool filter
+ *  go through Add directly, whose form opens in a card. */
 function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
-  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", args: [], url: "", tools: "" });
-  const setArgs = (args: string[]) => setServer({ ...server, args });
+  const [direct, setDirect] = useState(false);
   return (
     <>
       {(agent.suggested ?? []).length > 0 && (
@@ -304,42 +307,118 @@ function AddServer({ agent, busy, act, onDone }: { agent: app.PersistentAgentVie
           ))}
         </div>
       )}
-      <div className="persistent-server-form">
-        <Field label="Source">
-          <Select value={server.source} onChange={(e) => setServer({ ...server, source: e.target.value })}>
-            <option value="npm">npm package</option>
-            <option value="pypi">PyPI package</option>
-            <option value="url">Remote server (https)</option>
-          </Select>
-        </Field>
-        {server.source === "url" ? (
-          <Field label="Address"><Input value={server.url} placeholder="https://…" onChange={(e) => setServer({ ...server, url: e.target.value })} /></Field>
-        ) : (
-          <>
-            <Field label="Package"><Input value={server.package} onChange={(e) => setServer({ ...server, package: e.target.value })} /></Field>
-            <Field label="Version" hint="An exact version, as a QuickAgent pins it."><Input value={server.version} onChange={(e) => setServer({ ...server, version: e.target.value })} /></Field>
-            <Field label="Arguments" hint="The words its command starts with, one per field, in order, for a server that is a subcommand of a larger program (such as mcp).">
-              <div className="row" style={{ flexWrap: "wrap" }}>
-                {server.args.map((a, k) => (
-                  <span className="row" key={k} style={{ gap: 2 }}>
-                    <Input className="mono" aria-label={`argument ${k + 1}`} placeholder="word" style={{ width: 140 }} value={a} spellCheck={false}
-                      onChange={(e) => setArgs(server.args.map((x, j) => (j === k ? e.target.value : x)))} />
-                    <Button type="button" variant="ghost" className="small" aria-label={`remove argument ${k + 1}`} onClick={() => setArgs(server.args.filter((_, j) => j !== k))}>Remove</Button>
-                  </span>
-                ))}
-                <Button type="button" className="small" onClick={() => setArgs([...server.args, ""])}>Add an argument</Button>
-              </div>
-            </Field>
-          </>
-        )}
-        <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>
-        <Button disabled={busy || !canAddServer(server)}
+      <ServerSearch agent={agent} busy={busy} act={act} onDone={onDone} />
+      <div className="config-direct-add">
+        <span className="small muted">Not in the list, or want another version, arguments or only some of its tools?</span>
+        <Button className="small" disabled={busy} onClick={() => setDirect(true)}>Add directly…</Button>
+      </div>
+      {direct && (
+        <Modal title="Add a server directly" onClose={() => setDirect(false)}>
+          <p className="small muted">An npm or PyPI package at an exact version, or a remote server's https address.</p>
+          <DirectServerForm agent={agent} busy={busy} act={act} onDone={() => { setDirect(false); onDone(); }} onCancel={() => setDirect(false)} />
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/** The search of the registry's MCP server list: what it saw working that
+ *  matches the words typed, newest answer only. */
+function ServerSearch({ agent, busy, act, onDone }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void }) {
+  const [query, setQuery] = useState("");
+  const [result, setResult] = useState<app.ServerListView | null>(null);
+  const [error, setError] = useState("");
+  const [searching, setSearching] = useState(false);
+  const seq = useRef(0);
+  useEffect(() => {
+    const n = ++seq.current;
+    if (query.trim() === "") {
+      setResult(null);
+      setError("");
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = window.setTimeout(() => {
+      PersistentAPI.SearchServers(query)
+        .then((v) => { if (n === seq.current) { setResult(v); setError(""); } })
+        .catch((e) => { if (n === seq.current) { setResult(null); setError(String(e)); } })
+        .finally(() => { if (n === seq.current) setSearching(false); });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [query]);
+  const items = result?.items ?? [];
+  const note = serverSearchNote({ query, total: result?.total ?? 0, shown: items.length, partial: result?.partial ?? false, error });
+  return (
+    <div className="config-suggestions config-server-search">
+      <h4>Search servers that work</h4>
+      <Input type="search" value={query} placeholder="A name, a package or what it does: weather, github, pdf…" aria-label="Search servers that work"
+        autoComplete="off" spellCheck={false} onChange={(e) => setQuery(e.target.value)} />
+      <p className="small muted config-add-note">
+        From the MCP server list, which records each server that installed, started and listed its tools when it was tested. It is added at the version that worked.
+      </p>
+      {searching && items.length === 0 && <Spinner label="Searching…" />}
+      {items.map((it) => (
+        <div key={it.id} className="config-suggestion">
+          <ConfigIcon icon={{ kind: "monogram", text: (it.name.replace(/^@/, "").slice(0, 1) || "?").toUpperCase() }} />
+          <span className="config-card-text">
+            <span className="config-card-name">{it.name}</span>
+            {it.description && <span className="config-card-line">{it.description}</span>}
+            <span className="config-card-line small muted">{serverListLine(it)}</span>
+          </span>
+          <Button disabled={busy} aria-label={`Add ${it.name}`}
+            onClick={() => void act(() => PersistentAPI.AddServer(agent.name, it.row), `The server ${it.name}`).then((ok) => ok && onDone())}>Add</Button>
+        </div>
+      ))}
+      {note && !searching && <p className="small muted" role="status">{note}</p>}
+    </div>
+  );
+}
+
+/** The direct add's form: a package of npm or PyPI at an exact version with
+ *  its arguments, or a remote address, and an optional tool filter. */
+function DirectServerForm({ agent, busy, act, onDone, onCancel }: { agent: app.PersistentAgentView; busy: boolean; act: Act; onDone: () => void; onCancel: () => void }) {
+  const [server, setServer] = useState<ServerForm>({ source: "npm", package: "", version: "", args: [], url: "", tools: "" });
+  const setArgs = (args: string[]) => setServer({ ...server, args });
+  return (
+    <div className="persistent-server-form">
+      <Field label="Source">
+        <Select value={server.source} onChange={(e) => setServer({ ...server, source: e.target.value })}>
+          <option value="npm">npm package</option>
+          <option value="pypi">PyPI package</option>
+          <option value="url">Remote server (https)</option>
+        </Select>
+      </Field>
+      {server.source === "url" ? (
+        <Field label="Address"><Input value={server.url} placeholder="https://…" onChange={(e) => setServer({ ...server, url: e.target.value })} /></Field>
+      ) : (
+        <>
+          <Field label="Package"><Input value={server.package} onChange={(e) => setServer({ ...server, package: e.target.value })} /></Field>
+          <Field label="Version" hint="An exact version, as a QuickAgent pins it."><Input value={server.version} onChange={(e) => setServer({ ...server, version: e.target.value })} /></Field>
+          <Field label="Arguments" hint="The words its command starts with, one per field, in order, for a server that is a subcommand of a larger program (such as mcp).">
+            <div className="row" style={{ flexWrap: "wrap" }}>
+              {server.args.map((a, k) => (
+                <span className="row" key={k} style={{ gap: 2 }}>
+                  <Input className="mono" aria-label={`argument ${k + 1}`} placeholder="word" style={{ width: 140 }} value={a} spellCheck={false}
+                    onChange={(e) => setArgs(server.args.map((x, j) => (j === k ? e.target.value : x)))} />
+                  <Button type="button" variant="ghost" className="small" aria-label={`remove argument ${k + 1}`} onClick={() => setArgs(server.args.filter((_, j) => j !== k))}>Remove</Button>
+                </span>
+              ))}
+              <Button type="button" className="small" onClick={() => setArgs([...server.args, ""])}>Add an argument</Button>
+            </div>
+          </Field>
+        </>
+      )}
+      <Field label="Tools" hint="Only these tools, comma-separated; empty is all of them."><Input value={server.tools} onChange={(e) => setServer({ ...server, tools: e.target.value })} /></Field>
+      <div className="row gap">
+        <Button variant="primary" disabled={busy || !canAddServer(server)}
           onClick={() => void act(() => PersistentAPI.AddServer(agent.name, serverRowOf(server) as build.MCPServerRow), "The server").then((ok) => ok && onDone())}>
           Add server
         </Button>
-        <p className="small muted config-add-note">Its card's icon is looked up once in the MCP Registry, by the package's name or a public address's host, when you add it.</p>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
-    </>
+      <p className="small muted config-add-note">Its card's icon is looked up once in the MCP Registry, by the package's name or a public address's host, when you add it.</p>
+    </div>
   );
 }
 

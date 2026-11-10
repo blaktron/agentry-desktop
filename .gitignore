@@ -7,6 +7,8 @@ build/.icons/
 dist
 node_modules
 frontend/dist
+# Playwright's output from the browser checks (scripts/acceptance/browser-a11y.sh)
+frontend/test-results/
 vendor/
 # A plain go build in the root writes the app binary here; nothing reads it
 # and releases build their own.

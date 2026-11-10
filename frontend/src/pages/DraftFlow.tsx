@@ -106,7 +106,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
     outcome = (
       <>
         <h3 className={`run-outcome run-outcome-${d.stopped ? "warn" : "bad"}`}>No draft was made</h3>
-        {d.error && <div className="error-box selectable"><span className="error-box-cause"><RevealText text={d.error} /></span></div>}
+        {d.error && <div className="error-box selectable" role="alert"><span className="error-box-cause"><RevealText text={d.error} /></span></div>}
         {hosted?.final && <p className="small">{hosted.creditsLine}</p>}
       </>
     );

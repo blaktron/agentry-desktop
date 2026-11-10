@@ -44,3 +44,4 @@ export function emit(name: string, data: unknown): void {
 
 export const Clipboard = { async SetText(_text: string): Promise<void> {} };
 export const Browser = { async OpenURL(_url: string): Promise<void> {} };
+

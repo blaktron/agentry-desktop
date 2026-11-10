@@ -196,7 +196,7 @@ export function DesignWithAI({ registry, lib, initialJob, initialFrom, hosted, o
             One https address a line, up to {limits?.maxUrls ?? 2}: your own site or a page about your brand. Each page is fetched first and read by
             AI Review before the Report Designer sees it{w === "here" ? ", with your own TypeSafe key" : ", through the registry, inside the price"}.
           </span>
-          {addrCheck?.check?.lines?.filter((l) => l.problem).map((l) => <span key={l.address} className="small step-problem">{l.address}: {l.problem}</span>)}
+          {addrCheck?.check?.lines?.filter((l) => l.problem).map((l) => <span key={l.address} className="small step-problem" role="alert">{l.address}: {l.problem}</span>)}
         </div>
       )}
 
@@ -212,7 +212,7 @@ export function DesignWithAI({ registry, lib, initialJob, initialFrom, hosted, o
             {document && <span className="small mono selectable">{document} <Button variant="link" onClick={() => setDocument("")}>Remove</Button></span>}
           </div>
           {!takesDocument(job, w, limitsOf(limits)) && (
-            <span className="small step-problem">The Report Designer In Agentry is not given a document from this app: run it on this computer, or remove the document.</span>
+            <span className="small step-problem" role="alert">The Report Designer In Agentry is not given a document from this app: run it on this computer, or remove the document.</span>
           )}
           <span className="muted small">
             One PDF or Word document, up to {Math.round((limits?.maxDocumentBytes ?? 0) / (1024 * 1024))} MB, that already looks the way you want. The

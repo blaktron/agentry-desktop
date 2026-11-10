@@ -128,7 +128,7 @@ function ResultView({ r }: { r: validate.Result }) {
           {r.warnCount > 0 && <> · {r.warnCount} manifest warning{r.warnCount === 1 ? "" : "s"}</>}
         </p>
         {r.manifestError && <Notice tone="warn">{r.manifestError}</Notice>}
-        {readErrors.map((e, i) => <div key={i} className="error-box">{e}</div>)}
+        {readErrors.map((e, i) => <div key={i} className="error-box" role="alert">{e}</div>)}
       </Card>
 
       {issues.length > 0 && (

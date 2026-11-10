@@ -221,7 +221,7 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
             {schedulePlaceLine(onRunhost, form.signedOut)}
           </p>
           {check.state === "checking" && <p className="muted small" data-when-check="checking">Checking what a scheduled run needs…</p>}
-          {check.state === "error" && <p className="small run-step-problem" data-when-check="error">The check could not be made: {check.error}</p>}
+          {check.state === "error" && <p className="small run-step-problem" role="alert" data-when-check="error">The check could not be made: {check.error}</p>}
           {check.state === "done" && check.ready && (
             <p className="small" data-when-check="ready">
               Ready: {check.describe}

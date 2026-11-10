@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChatAnnouncer, sayTermBlock } from "../../chatAnnounce";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import { agentNamed, pickHomeAgent, sendToAgent, startAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
@@ -120,7 +121,7 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
     <CardFrame title={called} onOpen={name === MAIN_AGENT ? onOpenSettings : () => onOpenAgent(name)} aside={switcher}
       className="home-card main-card" status={agent ? mainStatusLine(agent) : "Reading the agent…"}>
       <div className="build-way-part main-card-chat" data-home-agent={name}>
-        <div className="main-card-scroll" ref={scroller} role="log" aria-live="polite" aria-label={`Chat with ${called}`}>
+        <div className="main-card-scroll" ref={scroller} role="log" aria-live="off" aria-busy={!!rec.chat.streaming} aria-label={`Chat with ${called}`}>
           {blocks.length === 0 && !starting && !rec.chat.streaming && (
             <p className="agent-term-note">{noModel || !agent ? "" : agentCardHint(agent)}</p>
           )}
@@ -129,6 +130,7 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
           {rec.chat.streaming && !inBackground && <div className="agent-term-agent streaming">{rec.chat.streaming}</div>}
           {!starting && answering && !rec.chat.streaming && !inBackground && <div className="agent-term-note">thinking…</div>}
         </div>
+        <ChatAnnouncer items={blocks} say={sayTermBlock(called)} />
         {noModel && (
           <p className="small" data-main-no-model>
             Set up a model to talk to {called}. <Button variant="link" onClick={onSetUpModel}>Settings → Provider</Button>
