@@ -7,14 +7,10 @@
 // the card has been up for ARM_MS, so a card that opens under the pointer
 // is not answered by a click meant for the window beneath it.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Window } from "@wailsio/runtime";
 import * as CardWindowAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/cardwindowapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Mark } from "../ui";
 
-/** The window's width, and the height it may grow to before the message scrolls. */
-const WIDTH = 520;
-const MAX_HEIGHT = 640;
 const ARM_MS = 600;
 
 export function CardWindow() {
@@ -38,14 +34,13 @@ export function CardWindow() {
   }, [card]);
 
   // The window fits the card: as tall as its parts need, the message at its
-  // full length, up to MAX_HEIGHT, beyond which the message scrolls.
+  // full length. Go caps the height (the message scrolls beyond it) and
+  // keeps the window centred over the app's own window.
   useLayoutEffect(() => {
     const el = box.current;
     const msg = message.current;
     if (!el || !card) return;
-    Window.SetSize(WIDTH, Math.min(Math.ceil(naturalHeight(el, msg)), MAX_HEIGHT))
-      .then(() => Window.Center())
-      .catch(() => {});
+    CardWindowAPI.FitCard(Math.ceil(naturalHeight(el, msg))).catch(() => {});
   }, [card, error]);
 
   function answer(i: number) {

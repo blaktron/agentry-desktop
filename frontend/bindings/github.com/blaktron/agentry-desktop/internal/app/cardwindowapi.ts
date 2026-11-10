@@ -33,6 +33,16 @@ export function Card(): $CancellablePromise<$models.CardView> {
     });
 }
 
+/**
+ * FitCard makes the calling card's window height tall, as its card needs,
+ * up to the most a card grows to and the height of its screen, and keeps it
+ * centred over the app's window. Only the card's own window may size
+ * itself.
+ */
+export function FitCard(height: number): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.CardWindowAPI.FitCard", height);
+}
+
 // Private type creation functions
 const $$createType0 = $models.CardView.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
