@@ -117,3 +117,16 @@ func TestNextMinorIsAboveEveryVersionInAnyState(t *testing.T) {
 		}
 	}
 }
+
+// A release that ships skills is not opened in the form, which would make a
+// version without its skills/ folder; one that says it ships none opens.
+func TestFromReleaseRefusesAReleaseThatShipsSkills(t *testing.T) {
+	const ships = `{"schemaVersion":"2","name":"a","namespace":"b","version":"0.1.0","summary":"s","modes":["autonomous"],"capabilities":{"skills":true}}`
+	if _, err := FromRelease([]byte(ships), "x", "chris", "a", "0.2.0"); err == nil || !strings.Contains(err.Error(), "ships skills") {
+		t.Fatalf("a release that ships skills: %v", err)
+	}
+	const none = `{"schemaVersion":"2","name":"a","namespace":"b","version":"0.1.0","summary":"s","modes":["autonomous"],"capabilities":{"skills":false}}`
+	if _, err := FromRelease([]byte(none), "x", "chris", "a", "0.2.0"); err != nil {
+		t.Fatalf("a release that ships no skills: %v", err)
+	}
+}

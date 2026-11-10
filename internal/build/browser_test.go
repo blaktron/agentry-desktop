@@ -163,6 +163,9 @@ var leftOut = map[string]bool{
 	"persona":                 true,
 	"capabilities.persistent": true,
 	"dependencies.agents.why": true,
+	// Whether the release ships skills: the form has no place for a skills/
+	// folder, so Edit refuses a release that ships them (FromRelease).
+	"capabilities.skills": true,
 }
 
 // TestDraftFieldsCoverTheCoresSchema walks the core's manifest types and
