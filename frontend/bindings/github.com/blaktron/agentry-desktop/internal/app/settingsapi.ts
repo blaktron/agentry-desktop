@@ -12,9 +12,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as codingtools$0 from "../codingtools/models.js";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as reportdesign$0 from "../../../agentry/pkg/reportdesign/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -147,17 +144,6 @@ export function CodingAgents(): $CancellablePromise<$models.CodingAgentsView> {
 }
 
 /**
- * CodingTools is Settings → Updates and installs → Coding tools' list of
- * the coding tools on this computer and the Agentry plugin in each, read
- * from the file system: nothing is executed to draw it.
- */
-export function CodingTools(): $CancellablePromise<codingtools$0.View[]> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.CodingTools").then(($result: any) => {
-        return $$createType10($result);
-    });
-}
-
-/**
  * CreateReportDesign holds a design to the core's rules and adds it to the
  * library, as the default when asked.
  */
@@ -173,7 +159,7 @@ export function CreateReportDesign(url: string, d: reportdesign$0.Design, makeDe
  */
 export function DeleteReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignLibrary> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.DeleteReportDesign", url, id).then(($result: any) => {
-        return $$createType12($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -197,26 +183,12 @@ export function Get(): $CancellablePromise<$models.SettingsView> {
 }
 
 /**
- * InstallCodingToolPlugin installs the Agentry plugin into the tool id
- * with that tool's own commands. The page names the tool and nothing else:
- * the commands, the executable and the package come from the catalog and
- * the file system, and a native dialog that lists every command is the
- * consent. A No is "not confirmed"; a command that fails is reported in
- * the answer with its output, not as an error.
- */
-export function InstallCodingToolPlugin(id: string): $CancellablePromise<$models.CodingToolInstall> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.InstallCodingToolPlugin", id).then(($result: any) => {
-        return $$createType14($result)!;
-    });
-}
-
-/**
  * ManagedRows are the managed rows held on this computer, for the Settings
  * parts they govern. The page reads them again on managed:changed.
  */
 export function ManagedRows(): $CancellablePromise<$models.ManagedRowView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ManagedRows").then(($result: any) => {
-        return $$createType16($result);
+        return $$createType12($result);
     });
 }
 
@@ -229,16 +201,6 @@ export function MarkOnboarded(): $CancellablePromise<$models.SettingsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.MarkOnboarded").then(($result: any) => {
         return $$createType1($result)!;
     });
-}
-
-/**
- * OpenCodingToolLink opens the page or deep link that adds the plugin in a
- * tool whose plugins are added in its own window. The page names the tool;
- * the link is the catalog's, so a tool's own scheme (cursor:, kiro:) can be
- * opened without the page being able to open any other.
- */
-export function OpenCodingToolLink(id: string): $CancellablePromise<void> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.OpenCodingToolLink", id);
 }
 
 /**
@@ -284,7 +246,7 @@ export function OpenUpgrade(url: string): $CancellablePromise<void> {
  */
 export function Profile(url: string): $CancellablePromise<$models.ProfileView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.Profile", url).then(($result: any) => {
-        return $$createType18($result)!;
+        return $$createType14($result)!;
     });
 }
 
@@ -293,7 +255,7 @@ export function Profile(url: string): $CancellablePromise<$models.ProfileView> {
  */
 export function RegistryMeta(url: string): $CancellablePromise<$models.MetaView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RegistryMeta", url).then(($result: any) => {
-        return $$createType20($result)!;
+        return $$createType16($result)!;
     });
 }
 
@@ -341,7 +303,7 @@ export function RemoveReportLogo(url: string, id: string): $CancellablePromise<$
  */
 export function RenderReportDesign(url: string, id: string, d: reportdesign$0.Design): $CancellablePromise<$models.ReportRenderView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.RenderReportDesign", url, id, d).then(($result: any) => {
-        return $$createType22($result)!;
+        return $$createType18($result)!;
     });
 }
 
@@ -355,7 +317,7 @@ export function RenderReportDesign(url: string, id: string, d: reportdesign$0.De
  */
 export function ReportBug(url: string, text: string): $CancellablePromise<$models.BugReportResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportBug", url, text).then(($result: any) => {
-        return $$createType24($result)!;
+        return $$createType20($result)!;
     });
 }
 
@@ -364,7 +326,7 @@ export function ReportBug(url: string, text: string): $CancellablePromise<$model
  */
 export function ReportDesignLibrary(url: string): $CancellablePromise<$models.ReportDesignLibrary> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesignLibrary", url).then(($result: any) => {
-        return $$createType12($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -374,7 +336,7 @@ export function ReportDesignLibrary(url: string): $CancellablePromise<$models.Re
  */
 export function ReportDesignOptions(): $CancellablePromise<$models.ReportDesignOptions> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.ReportDesignOptions").then(($result: any) => {
-        return $$createType25($result);
+        return $$createType21($result);
     });
 }
 
@@ -448,7 +410,7 @@ export function SetDefault(url: string): $CancellablePromise<$models.SettingsVie
  */
 export function SetDefaultReportDesign(url: string, id: string): $CancellablePromise<$models.ReportDesignLibrary> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetDefaultReportDesign", url, id).then(($result: any) => {
-        return $$createType12($result)!;
+        return $$createType10($result)!;
     });
 }
 
@@ -469,7 +431,7 @@ export function SetDeliverables(on: boolean): $CancellablePromise<$models.RunDef
  */
 export function SetDisplayName(url: string, name: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SetDisplayName", url, name).then(($result: any) => {
-        return $$createType27($result)!;
+        return $$createType23($result)!;
     });
 }
 
@@ -532,7 +494,7 @@ export function SetRunWhere(where: string): $CancellablePromise<$models.RunDefau
  */
 export function SignIn(url: string, token: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignIn", url, token).then(($result: any) => {
-        return $$createType29($result)!;
+        return $$createType25($result)!;
     });
 }
 
@@ -542,7 +504,7 @@ export function SignIn(url: string, token: string): $CancellablePromise<$models.
  */
 export function SignInViaBrowser(url: string): $CancellablePromise<$models.SignInResult> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SignInViaBrowser", url).then(($result: any) => {
-        return $$createType29($result)!;
+        return $$createType25($result)!;
     });
 }
 
@@ -562,7 +524,7 @@ export function SignOut(url: string): $CancellablePromise<$models.SettingsView> 
  */
 export function SuggestReportColours(url: string, id: string): $CancellablePromise<$models.ReportColourSuggestion> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.SuggestReportColours", url, id).then(($result: any) => {
-        return $$createType31($result)!;
+        return $$createType27($result)!;
     });
 }
 
@@ -591,7 +553,7 @@ export function UseManagedMalwareCheck(): $CancellablePromise<$models.RunDefault
  */
 export function Whoami(url: string): $CancellablePromise<$models.UserView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.SettingsAPI.Whoami", url).then(($result: any) => {
-        return $$createType27($result)!;
+        return $$createType23($result)!;
     });
 }
 
@@ -605,26 +567,22 @@ const $$createType5 = $models.RunDefaultsView.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
 const $$createType7 = $models.ReportDesignView.createFrom;
 const $$createType8 = $Create.Nullable($$createType7);
-const $$createType9 = codingtools$0.View.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $models.ReportDesignLibrary.createFrom;
-const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = $models.CodingToolInstall.createFrom;
+const $$createType9 = $models.ReportDesignLibrary.createFrom;
+const $$createType10 = $Create.Nullable($$createType9);
+const $$createType11 = $models.ManagedRowView.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $models.ProfileView.createFrom;
 const $$createType14 = $Create.Nullable($$createType13);
-const $$createType15 = $models.ManagedRowView.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = $models.ProfileView.createFrom;
+const $$createType15 = $models.MetaView.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
+const $$createType17 = $models.ReportRenderView.createFrom;
 const $$createType18 = $Create.Nullable($$createType17);
-const $$createType19 = $models.MetaView.createFrom;
+const $$createType19 = $models.BugReportResult.createFrom;
 const $$createType20 = $Create.Nullable($$createType19);
-const $$createType21 = $models.ReportRenderView.createFrom;
-const $$createType22 = $Create.Nullable($$createType21);
-const $$createType23 = $models.BugReportResult.createFrom;
-const $$createType24 = $Create.Nullable($$createType23);
-const $$createType25 = $models.ReportDesignOptions.createFrom;
-const $$createType26 = $models.UserView.createFrom;
+const $$createType21 = $models.ReportDesignOptions.createFrom;
+const $$createType22 = $models.UserView.createFrom;
+const $$createType23 = $Create.Nullable($$createType22);
+const $$createType24 = $models.SignInResult.createFrom;
+const $$createType25 = $Create.Nullable($$createType24);
+const $$createType26 = $models.ReportColourSuggestion.createFrom;
 const $$createType27 = $Create.Nullable($$createType26);
-const $$createType28 = $models.SignInResult.createFrom;
-const $$createType29 = $Create.Nullable($$createType28);
-const $$createType30 = $models.ReportColourSuggestion.createFrom;
-const $$createType31 = $Create.Nullable($$createType30);
