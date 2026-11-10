@@ -43,7 +43,7 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
-import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, lockedMembers, rowOf } from "../managed";
+import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, rowOf, whereLeaves } from "../managed";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { LockGlyph } from "../unsafe";
 import { PLACES } from "../firstRun";
@@ -733,8 +733,7 @@ function RunDefaultsSettings({ onChanged, runhosts }: { onChanged: () => Promise
 // whereAllowed: whether a lock on where runs may go leaves the place. "here"
 // is this computer and "agentry" is In Agentry; with no lock, both are.
 function whereAllowed(rows: ReturnType<typeof useManagedRows>, w: RunWhere): boolean {
-  const members = lockedMembers(rowOf(rows, "run.where"));
-  return !members || members.includes(w === "here" ? "local" : "hosted");
+  return whereLeaves(rows, w === "here" ? "local" : "hosted");
 }
 
 // EngineCard is the container engine found, with Re-detect: the detection
