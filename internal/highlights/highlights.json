@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.36",
+      "highlights": [
+        "Settings shows the models, keys and coding tools your organization manages.",
+        "A model, provider or key your organization's settings don't allow is refused before anything is saved."
+      ]
+    },
+    {
       "version": "0.7.35",
       "highlights": [
         "Questions and approvals now open in an Agentry card window instead of your system's message box.",
