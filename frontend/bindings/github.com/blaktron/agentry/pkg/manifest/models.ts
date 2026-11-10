@@ -481,9 +481,23 @@ export class Persistent {
     "coder"?: boolean;
 
     /**
-     * Web gives the agent the web tools, web_search and web_fetch.
+     * Web gives the agent the web tools, web_search and web_read.
      */
     "web"?: boolean;
+
+    /**
+     * Browser gives the agent a headless browser to public websites.
+     * Which sites, and whether its pages are reviewed first, are the
+     * person's settings, so the release names no host.
+     */
+    "browser"?: boolean;
+
+    /**
+     * Fetch gives the agent the fetch tool for public addresses. Which
+     * hosts, and whether its responses are reviewed first, are the
+     * person's settings, so the release names no host.
+     */
+    "fetch"?: boolean;
 
     /**
      * Helper gives the agent Agentry's helper tools: search the registry,
