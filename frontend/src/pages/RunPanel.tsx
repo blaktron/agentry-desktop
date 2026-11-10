@@ -1973,7 +1973,7 @@ export default function RunPanel({
                   </label>
                 </div>
               )}
-              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running}
+              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running} onRunhost={onRunhost || null}
                 inAgentry={inAgentry && hosted ? { holdCredits: hosted.holdCredits, balance: hosted.balance, balanceKnown: hosted.balanceKnown } : null}
                 onUpgrade={inAgentry && !sessionInAgentry && hosted?.schedule?.upgrade ? () => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e))) : undefined} />
               {schedulingThere && scheduleGap?.refusal && (
