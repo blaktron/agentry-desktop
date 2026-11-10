@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.40",
+      "highlights": [
+        "A QuickAgent your organization assigns with a model runs on your saved model of it, unless you pick another.",
+        "Persistent agents' web tools and AI Review work when your organization pays for them with its credits."
+      ]
+    },
+    {
       "version": "0.7.39",
       "highlights": [
         "Several runs can go at once: Settings, Runs at once, up to 2, 6 or 20 by this computer's memory.",
