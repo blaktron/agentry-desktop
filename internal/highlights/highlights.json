@@ -1,12 +1,18 @@
 {
   "versions": [
     {
+      "version": "0.7.39",
+      "highlights": [
+        "Several runs can go at once: Settings, Runs at once, up to 2, 6 or 20 by this computer's memory.",
+        "With many runs, one card lists those under way, those waiting and those over, each with Stop, Open or Cancel."
+      ]
+    },
+    {
       "version": "0.7.38",
       "highlights": [
         "QuickAgents your organization requires are installed for you, and their first run still asks you.",
         "The Library lists the QuickAgents your organization offers, under its name.",
-        "A preset your organization sets fills a QuickAgent's run settings, or fixes them when locked.",
-        "Several runs can go at once: Settings, Runs at once, up to 2, 6 or 20 by this computer's memory."
+        "A preset your organization sets fills a QuickAgent's run settings, or fixes them when locked."
       ]
     },
     {
