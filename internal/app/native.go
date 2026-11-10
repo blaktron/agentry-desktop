@@ -1,8 +1,8 @@
 package app
 
-// The app's side of the window toolkit: the native dialogs, the system
-// browser, the window and the page's events. Every function here reaches the
-// running application (application.Get) and its main window; before the
+// The app's side of the window toolkit: the card windows and the system's
+// dialogs behind them, the system browser, the window and the page's
+// events. Every function here reaches the running application (application.Get) and its main window; before the
 // application exists, or in a test, the callers' seams stand in. Nothing
 // else in the package imports the toolkit's application package.
 
@@ -14,6 +14,7 @@ import (
 	"net/http"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	wailsevents "github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/blaktron/agentry-desktop/internal/linkservice"
 )
@@ -115,8 +116,18 @@ func nativePickDirectory(_ context.Context, title string) (string, error) {
 	return d.PromptForSingleSelection()
 }
 
-// nativeConfirm is the OS question dialog, No by default and on cancel.
+// nativeConfirm asks a Yes/No question in a card window, No by default and
+// on cancel, or in the system's message box when no card window opens.
 func nativeConfirm(ctx context.Context, title, message string) (bool, error) {
+	button, err := cards.ask(ctx, confirmCard(title, message))
+	if !errors.Is(err, errNoCardWindow) {
+		return err == nil && button == 0, err
+	}
+	return systemConfirm(ctx, title, message)
+}
+
+// systemConfirm is the system's question box, No by default and on cancel.
+func systemConfirm(ctx context.Context, title, message string) (bool, error) {
 	wails := application.Get()
 	if wails == nil {
 		return false, errNoApplication
@@ -141,9 +152,33 @@ func nativeConfirm(ctx context.Context, title, message string) (bool, error) {
 	}
 }
 
-// nativeAskExec is an exec call's dialog: what would run, quoted, and its
-// three answers, of which declining is the default and the cancel.
+// execAnswers are an exec call's answers, in the order they are offered;
+// declining, the last, is the default and the cancel.
+var execAnswers = []linkservice.ExecAnswer{linkservice.ExecAllowOnce, linkservice.ExecAllowRun, linkservice.ExecDecline}
+
+// execCard is an exec call's card: what would run, quoted, and its three
+// answers.
+func execCard(q linkservice.ExecQuestion) CardView {
+	title, message := execDialogText(q)
+	return CardView{Kind: cardQuestion, Title: title, Message: message, Cancel: 2,
+		Buttons: []CardButton{{Label: execRunIt, Tone: tonePrimary}, {Label: execAllowRun}, {Label: execDecline}}}
+}
+
+// nativeAskExec is an exec call's question, in a card window or, when none
+// opens, in the system's message box.
 func nativeAskExec(ctx context.Context, q linkservice.ExecQuestion) (linkservice.ExecAnswer, error) {
+	button, err := cards.ask(ctx, execCard(q))
+	if !errors.Is(err, errNoCardWindow) {
+		if err != nil || button < 0 || button >= len(execAnswers) {
+			return linkservice.ExecDecline, err
+		}
+		return execAnswers[button], nil
+	}
+	return systemAskExec(ctx, q)
+}
+
+// systemAskExec is an exec call's system message box.
+func systemAskExec(ctx context.Context, q linkservice.ExecQuestion) (linkservice.ExecAnswer, error) {
 	wails := application.Get()
 	if wails == nil {
 		return linkservice.ExecDecline, errNoApplication
@@ -170,8 +205,17 @@ func nativeAskExec(ctx context.Context, q linkservice.ExecQuestion) (linkservice
 	}
 }
 
-// nativeInfo is the OS information dialog, which returns once it is closed.
+// nativeInfo shows a notice in a card window, or in the system's
+// information box when none opens, and returns once it is closed.
 func nativeInfo(ctx context.Context, title, message string) {
+	if _, err := cards.ask(ctx, noticeCard(title, message)); !errors.Is(err, errNoCardWindow) {
+		return
+	}
+	systemInfo(ctx, title, message)
+}
+
+// systemInfo is the system's information box.
+func systemInfo(ctx context.Context, title, message string) {
 	wails := application.Get()
 	if wails == nil {
 		return
@@ -191,6 +235,47 @@ func nativeInfo(ctx context.Context, title, message string) {
 	case <-closed:
 	case <-ctx.Done():
 	}
+}
+
+// nativeOpenCard opens the window a card is shown in: small, above the
+// other windows, with no frame of its own (the card draws its own head, by
+// which it is moved), centred on the screen.
+func nativeOpenCard(title string, closed func()) (cardWindow, error) {
+	wails := application.Get()
+	if wails == nil {
+		return nil, errNoApplication
+	}
+	w := wails.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:                       cardWindowName,
+		Title:                      title,
+		Width:                      cardWidth,
+		Height:                     cardHeight,
+		AlwaysOnTop:                true,
+		Frameless:                  true,
+		URL:                        "/#card",
+		DefaultContextMenuDisabled: true,
+		InitialPosition:            application.WindowCentered,
+	})
+	w.RegisterHook(wailsevents.Common.WindowClosing, func(*application.WindowEvent) { closed() })
+	w.Show()
+	w.Focus()
+	return w, nil
+}
+
+// The card window's size when it opens; the card then fits it to itself.
+const (
+	cardWidth  = 520
+	cardHeight = 260
+)
+
+// nativeCaller is the window a bound call came from, which the webview
+// layer attaches to the call.
+func nativeCaller(ctx context.Context) (uint, bool) {
+	w, ok := ctx.Value(application.WindowKey).(application.Window)
+	if !ok || w == nil {
+		return 0, false
+	}
+	return w.ID(), true
 }
 
 // nativeOpenURL opens an address in the system browser.
@@ -250,18 +335,47 @@ func Assets(bundle fs.FS) http.Handler {
 	})
 }
 
+// chooseCard asks which of the candidates a release's entry is, with
+// None of these last, the default and the cancel.
+func chooseCard(q linkservice.ChooseQuestion) CardView {
+	title, message := chooseDialogText(q)
+	v := CardView{Kind: cardQuestion, Title: title, Message: message}
+	for _, c := range q.Candidates {
+		v.Buttons = append(v.Buttons, CardButton{Label: c.Name})
+	}
+	v.Buttons = append(v.Buttons, CardButton{Label: chooseNone})
+	v.Cancel = len(v.Buttons) - 1
+	return v
+}
+
 // nativeChoose asks which of the person's applications a release's entry
 // is, one button for each of up to four candidates; more than four are
-// chosen in the run setup.
+// chosen in the run setup. It asks in a card window or, when none opens, in
+// the system's message box.
 func nativeChoose(ctx context.Context, q linkservice.ChooseQuestion) (string, error) {
+	if len(q.Candidates) > maxChoiceButtons {
+		return "", fmt.Errorf("more than %d of your applications could be it: choose it in the run setup", maxChoiceButtons)
+	}
+	button, err := cards.ask(ctx, chooseCard(q))
+	if !errors.Is(err, errNoCardWindow) {
+		if err != nil {
+			return "", err
+		}
+		if button < 0 || button >= len(q.Candidates) {
+			return "", errNotConfirmed
+		}
+		return q.Candidates[button].ID, nil
+	}
+	return systemChoose(ctx, q)
+}
+
+// systemChoose is nativeChoose's system message box.
+func systemChoose(ctx context.Context, q linkservice.ChooseQuestion) (string, error) {
 	wails := application.Get()
 	if wails == nil {
 		return "", errNoApplication
 	}
 	title, message := chooseDialogText(q)
-	if len(q.Candidates) > maxChoiceButtons {
-		return "", fmt.Errorf("more than %d of your applications could be it: choose it in the run setup", maxChoiceButtons)
-	}
 	answer := make(chan string, 1)
 	d := wails.Dialog.Question().SetTitle(title).SetMessage(message)
 	for _, c := range q.Candidates {

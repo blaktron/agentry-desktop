@@ -49,3 +49,9 @@ export const Browser = {
     await w.runtime?.BrowserOpenURL?.(url);
   },
 };
+
+// The window the page is in: a card window sizes and centres itself.
+export const Window = {
+  async SetSize(_width: number, _height: number): Promise<void> {},
+  async Center(): Promise<void> {},
+};
