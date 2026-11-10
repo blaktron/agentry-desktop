@@ -29,6 +29,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+
+	"github.com/blaktron/agentry-cli/pkg/runhost"
 )
 
 // Max is how many entries the history keeps; the oldest goes first.
@@ -103,6 +105,11 @@ type Entry struct {
 	// named it; "" for a run on a policy with no saved model, or one that
 	// stopped before it was compiled.
 	Model string `yaml:"model,omitempty"`
+	// Runhost is the name of the remote runhost a run here sent itself to,
+	// and its output came back from: a one-off run on it, or a run of one of
+	// its schedules this app collected. "" for a run on this computer, which
+	// an entry written before runs named their runhost reads as.
+	Runhost string `yaml:"runhost,omitempty"`
 }
 
 // file is runs.yaml.
@@ -130,6 +137,9 @@ var kinds = map[string]bool{KindRun: true, KindChat: true, KindDraft: true, Kind
 // entry that is not (a hand-edited file) is dropped, never shown.
 func (e Entry) valid() bool {
 	if !ValidID(e.ID) || !kinds[e.Kind] || (e.Where != WhereHere && e.Where != WhereAgentry) {
+		return false
+	}
+	if e.Runhost != "" && (e.Where != WhereHere || runhost.ValidName(e.Runhost) != nil) {
 		return false
 	}
 	return e.Folder == "" || (filepath.IsAbs(e.Folder) && filepath.Clean(e.Folder) == e.Folder)

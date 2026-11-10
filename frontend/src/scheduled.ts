@@ -1,7 +1,9 @@
 // What the Scheduled page and the run setup's When step say and decide. Pure
-// and self-contained, so the node tests can import it: Go reads the CLI's store
-// and runs the agentry command (ScheduleAPI), this says what it read and builds
-// what the page sends.
+// (it imports only other pure modules), so the node tests can import it: Go
+// reads the CLI's store and runs the agentry command (ScheduleAPI), this says
+// what it read and builds what the page sends.
+
+import { MANAGED_REFUSAL, managedRefusalHeading } from "./managed.ts";
 
 /** The When step's choice. */
 export type WhenChoice = "now" | "later" | "repeat";
@@ -353,6 +355,7 @@ export function hostedGapHeading(refusal: string): string {
     case "connection-missing": return "Agentry keeps no connection to a server this release signs in to.";
     case "secret-missing":
     case "secret-not-kept": return "A schedule's runs use secrets your account keeps.";
+    case MANAGED_REFUSAL: return managedRefusalHeading("schedule");
   }
   return "Agentry did not make the schedule.";
 }

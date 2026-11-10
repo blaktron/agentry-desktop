@@ -106,7 +106,7 @@ func recordLocal(ctx context.Context, app *App, kind string, l *liveRun, ref str
 	outcome, code := localOutcome(ctx, res)
 	e := runhistory.Entry{
 		ID: l.id, Kind: kind, Where: runhistory.WhereHere, Registry: settings.Normalize(l.registry), Ref: refOrEmpty(ref),
-		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, ExitCode: code,
+		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, ExitCode: code, Runhost: l.runhost,
 	}
 	if res != nil {
 		if r := refOrEmpty(res.Ref); r != "" {
@@ -451,6 +451,10 @@ type RecentRunView struct {
 	// Model is the name of the saved model a run here was on, as its
 	// receipt named it; omitted when it named none.
 	Model string `json:"model,omitempty"`
+	// Runhost is the remote runhost a run here ran on, by its name: a
+	// one-off run sent there, or a run of its schedule collected here;
+	// omitted for a run on this computer.
+	Runhost string `json:"runhost,omitempty"`
 }
 
 // RecentRunsView is Home's Recent runs.
@@ -483,7 +487,7 @@ func entryView(e runhistory.Entry) RecentRunView {
 		ID: e.ID, Kind: e.Kind, Where: e.Where, Registry: e.Registry, Ref: e.Ref,
 		StartedAt: rfc3339(e.StartedAt), EndedAt: rfc3339(e.EndedAt),
 		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Cause: e.Cause, LogKept: e.Log != "",
-		Kept: e.Folder != "", Source: sourceLocal, Model: e.Model,
+		Kept: e.Folder != "", Source: sourceLocal, Model: e.Model, Runhost: e.Runhost,
 	}
 	if e.Where == runhistory.WhereAgentry {
 		h := &hostedrun.Run{Status: hostedrun.StatusFinished, Outcome: e.Outcome}

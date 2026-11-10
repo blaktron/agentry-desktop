@@ -118,17 +118,21 @@ export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boo
 // (settings.RunWhereHere, settings.RunWhereAgentry).
 export type RunWhere = "here" | "agentry";
 
-export function inAgentryByDefault(where: string | undefined, hosted: HostedOffer, unscanned: boolean): boolean {
-  return where === "agentry" && !!hosted?.offered && hosted.available && !unscanned;
+// lockedOut is true when the organization's managed settings leave In Agentry
+// out of where runs may go.
+export function inAgentryByDefault(where: string | undefined, hosted: HostedOffer, unscanned: boolean, lockedOut = false): boolean {
+  return where === "agentry" && !lockedOut && !!hosted?.offered && hosted.available && !unscanned;
 }
 
 // whereFallback is the sentence the Where step shows when the default says
 // In Agentry and this run starts on this computer instead; null otherwise.
 // hosted is null when the offer could not be read. A mode that is offered but
 // unavailable has its own notice with the reason.
-export function whereFallback(where: string | undefined, hosted: HostedOffer, unscanned: boolean): string | null {
-  if (where !== "agentry" || inAgentryByDefault(where, hosted, unscanned)) return null;
-  const why = unscanned
+export function whereFallback(where: string | undefined, hosted: HostedOffer, unscanned: boolean, lockedOut = false): string | null {
+  if (where !== "agentry" || inAgentryByDefault(where, hosted, unscanned, lockedOut)) return null;
+  const why = lockedOut
+    ? "your organization's managed settings do not allow runs In Agentry"
+    : unscanned
     ? "a release admitted without a scan is not run In Agentry from this app"
     : hosted === null
       ? "the app could not tell whether this registry offers a run In Agentry for it"

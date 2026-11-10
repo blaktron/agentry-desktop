@@ -81,8 +81,8 @@ github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiE
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/blaktron/agentry v0.7.10 h1:5pP7f2S4pU6KDGym/V3w2funXcgxGiWB38KvSb7b7O4=
 github.com/blaktron/agentry v0.7.10/go.mod h1:g/1kLNASp2PgtWo+qp1wypM/ROb3HuLnQWWqfhdQBRM=
-github.com/blaktron/agentry-cli v0.7.43 h1:oa/IWHQ1WcBJVwHenia25gjNqxz0Uu5NFBXxQbJ8fC0=
-github.com/blaktron/agentry-cli v0.7.43/go.mod h1:Flqko3ah0/3WMIsuYO8GwLHT7//RSMs4wXS8fuFURac=
+github.com/blaktron/agentry-cli v0.7.44 h1:De4sR52daDSEx1K0dhEgrJGu8xQ265v+fgYMSU/yXXA=
+github.com/blaktron/agentry-cli v0.7.44/go.mod h1:Flqko3ah0/3WMIsuYO8GwLHT7//RSMs4wXS8fuFURac=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=

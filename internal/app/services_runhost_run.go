@@ -32,7 +32,7 @@ func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, 
 		return nil, err
 	}
 	defer r.endRun(live)
-	live.registry = reg
+	live.registry, live.runhost = reg, name
 	r.runMeter(live.id, ref).Emit()
 	logw := r.runLineWriter(live.id)
 	logw.also = live.keep

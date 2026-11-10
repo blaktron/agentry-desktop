@@ -175,3 +175,38 @@ func TestRunhostScheduleRunsAreCollectedOnce(t *testing.T) {
 		t.Fatal("nothing collected, but the record was written")
 	}
 }
+
+// A runhost schedule moves to the saved model the card names, by its id,
+// or to the runhost's default for none; a name that is not a saved model's
+// id never reaches the runhost, and the card gets the schedule as the
+// runhost now keeps it.
+func TestARunhostScheduleMovesToTheModelTheCardNames(t *testing.T) {
+	r, _ := newRunhostsAPI(t)
+	var asked []string
+	old := runhostMoveSchedule
+	t.Cleanup(func() { runhostMoveSchedule = old })
+	runhostMoveSchedule = func(_ context.Context, _ *RunhostsAPI, name, id, ref string) (runhost.ScheduleInfo, error) {
+		asked = append(asked, name+" "+id+" "+ref)
+		if ref == "0badc0de" {
+			return runhost.ScheduleInfo{}, errors.New(`this runhost holds no saved model "0badc0de"`)
+		}
+		return runhost.ScheduleInfo{ID: id, Name: "digest", Ref: "acme/digest@1.0.0", Model: ref, Fires: []runhost.ScheduleFire{{Job: "j1"}}}, nil
+	}
+	v, err := r.MoveSchedule("lab", "40t6idgwjk", "a7002bb0")
+	if err != nil || v.Model != "a7002bb0" || v.Runs != 1 || v.Keeps != "nothing but its release" {
+		t.Fatalf("a move to a saved model: %+v %v", v, err)
+	}
+	if v, err = r.MoveSchedule("lab", "40t6idgwjk", ""); err != nil || v.Model != "default" {
+		t.Fatalf("a move to the default: %+v %v", v, err)
+	}
+	if _, err = r.MoveSchedule("lab", "40t6idgwjk", "0badc0de"); err == nil || !strings.Contains(err.Error(), "holds no saved model") {
+		t.Fatalf("a refused move: %v", err)
+	}
+	if _, err = r.MoveSchedule("lab", "40t6idgwjk", "Llama"); err == nil {
+		t.Fatal("a name that is no saved model's id was sent")
+	}
+	want := []string{"lab 40t6idgwjk a7002bb0", "lab 40t6idgwjk default", "lab 40t6idgwjk 0badc0de"}
+	if strings.Join(asked, "|") != strings.Join(want, "|") {
+		t.Fatalf("asked %q, want %q", asked, want)
+	}
+}
