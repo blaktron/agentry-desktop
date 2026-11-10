@@ -54,6 +54,8 @@ import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostF
 import { HostQuestion } from "./HostQuestion";
 import { SendTo } from "./SendTo";
 import { ChangedInstallNotice } from "./ChangedInstall";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { MANAGED_REFUSAL, managedRefusalHeading, whereLeaves } from "../managed";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
 import { ModelPicker, useModelChoices } from "./ModelPicker";
@@ -277,6 +279,12 @@ export default function RunPanel({
   // In Agentry: whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
   const [hosted, setHosted] = useState<app.HostedAvailabilityView | null>(null);
+  // Where the organization's managed settings let runs go: a place a lock
+  // leaves out is shown disabled with the lock's note, as Settings shows it,
+  // rather than offered and then refused.
+  const managedRows = useManagedRows();
+  const hostedLockedOut = !whereLeaves(managedRows, "hosted");
+  const runhostLockedOut = !whereLeaves(managedRows, "runhost");
   // Whether the offer has been read (or failed to be): until then Run
   // defaults' fallback sentence has nothing to say.
   const [hostedKnown, setHostedKnown] = useState(false);
@@ -533,11 +541,11 @@ export default function RunPanel({
     if (modeChosen.current || initialMode || !profile) return;
     // A runhost made the default (Settings → Runs → Runhosts) is where an
     // autonomous run starts, when it is still paired.
-    if (defaults?.runhost && runhosts.some((r) => r.name === defaults.runhost) && (profile.modes ?? []).includes("autonomous")) {
+    if (defaults?.runhost && !runhostLockedOut && runhosts.some((r) => r.name === defaults.runhost) && (profile.modes ?? []).includes("autonomous")) {
       if (mode !== "runhost:" + defaults.runhost) setMode("runhost:" + defaults.runhost);
       return;
     }
-    const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
+    const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned, hostedLockedOut);
     if (allowed && !inAgentry) {
       byDefault.current = true;
       setMode("hosted");
@@ -545,8 +553,8 @@ export default function RunPanel({
       byDefault.current = false;
       setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
     }
-  }, [defaults, hosted, unscanned, profile, initialMode, mode, runhosts]);
-  const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
+  }, [defaults, hosted, unscanned, profile, initialMode, mode, runhosts, hostedLockedOut, runhostLockedOut]);
+  const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned, hostedLockedOut);
   // The run and the chat the app follows above the pages: the registry runs
   // one per account and this app follows one at a time, so while one In
   // Agentry moves, or a start waits for the registry's answer, no setup
@@ -1278,7 +1286,7 @@ export default function RunPanel({
                     ))}
                     {(profile.modes ?? []).includes("autonomous") && runhosts.map((rh) => (
                       <label key={rh.name} className="check-row" style={{ margin: 0 }} data-run-on={rh.name}>
-                        <input type="radio" name="run-mode" checked={onRunhost === rh.name} onChange={() => chooseMode("runhost:" + rh.name)} disabled={running} />
+                        <input type="radio" name="run-mode" checked={onRunhost === rh.name} onChange={() => chooseMode("runhost:" + rh.name)} disabled={running || runhostLockedOut} />
                         <span>
                           <strong>{rh.name}</strong>{" "}
                           <span className="muted">— on your server {rh.host}, autonomously, under gVisor; its output comes back here</span>
@@ -1289,7 +1297,7 @@ export default function RunPanel({
                       <label className="check-row" style={{ margin: 0 }}>
                         <input
                           type="radio" name="run-mode" checked={mode === "hosted"} onChange={() => chooseMode("hosted")}
-                          disabled={running || !hosted.available || unscanned}
+                          disabled={running || !hosted.available || unscanned || hostedLockedOut}
                         />
                         <span>
                           <strong>In Agentry</strong>{" "}
@@ -1304,7 +1312,7 @@ export default function RunPanel({
                       <label className="check-row" style={{ margin: 0 }}>
                         <input
                           type="radio" name="run-mode" checked={sessionInAgentry} onChange={() => chooseMode("hosted-session")}
-                          disabled={running || !hosted.session.available || unscanned}
+                          disabled={running || !hosted.session.available || unscanned || hostedLockedOut}
                         />
                         <span>
                           <strong>Talk to it In Agentry</strong>{" "}
@@ -1313,6 +1321,9 @@ export default function RunPanel({
                       </label>
                     )}
                   </div>
+                  {((hostedLockedOut && (hosted?.offered || hosted?.session?.offered)) || (runhostLockedOut && runhosts.length > 0)) && (
+                    <ManagedNotes rows={managedRows} part="where" />
+                  )}
                   {(mode === "interactive" || sessionInAgentry) && (
                     <p className="muted small">
                       Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
@@ -1962,7 +1973,7 @@ export default function RunPanel({
                   </label>
                 </div>
               )}
-              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running}
+              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running} onRunhost={onRunhost || null}
                 inAgentry={inAgentry && hosted ? { holdCredits: hosted.holdCredits, balance: hosted.balance, balanceKnown: hosted.balanceKnown } : null}
                 onUpgrade={inAgentry && !sessionInAgentry && hosted?.schedule?.upgrade ? () => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e))) : undefined} />
               {schedulingThere && scheduleGap?.refusal && (
@@ -2195,6 +2206,8 @@ export default function RunPanel({
                           ? "Talking to an agent In Agentry is not part of this subscription."
                           : hostedRefusal.refusal === "sessions-unavailable"
                             ? "A session In Agentry cannot start right now."
+                          : hostedRefusal.refusal === MANAGED_REFUSAL
+                            ? managedRefusalHeading(sessionInAgentry ? "session" : "run")
                           : `The registry refused this ${sessionInAgentry ? "session" : "run"}.`}
                   </strong>{" "}
                   <span className="selectable">{hostedRefusal.detail}</span>

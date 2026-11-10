@@ -101,3 +101,11 @@ test("a run an organization's managed settings refused shows the engine's senten
   assert.equal(f.cause, sentence);
   assert.match(reportText(f, "ab12cd34"), /Cause: Scheduled runs are forbidden by acme's managed settings \(schedules\)/);
 });
+
+test("a failed run on a runhost says the runhost it ran on, from its result and from its row", () => {
+  const f = failureOf(localFailureInput({ ...harness, ranOn: { name: "lab", host: "10.0.0.5" } } as unknown as app.RunResultView));
+  assert.ok(f);
+  assert.equal(f.where, "On lab");
+  const row = { id: "ab12cd34", kind: "run", where: "here", runhost: "lab", outcome: "error", exitCode: 14, exitClass: "harness", tone: "bad", kept: false, source: "local" } as unknown as app.RecentRunView;
+  assert.equal(failureOf(rowFailureInput(row))?.where, "On lab");
+});

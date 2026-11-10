@@ -33,6 +33,8 @@ export type FailureInput = {
   ref?: string;
   kind?: string;
   where: "here" | "agentry";
+  /** The remote runhost a run here was sent to, by its name. */
+  runhost?: string;
   outcome?: string;
   status?: string;
   exitCode?: number;
@@ -90,10 +92,16 @@ export function failureOf(r: FailureInput): Failure | null {
   }
   if (r.logKept) evidence.push("The run's log is kept with it below.");
   return {
-    what, version, where: r.where === "agentry" ? "In Agentry" : "On this computer",
+    what, version, where: placeOf(r),
     className, meaning: r.exitClassMeaning ?? "", retryLikelyHelps: !!r.retryLikelyHelps,
     cause: (r.cause ?? "").trim(), evidence,
   };
+}
+
+/** Where the run ran, in the glossary's words. */
+function placeOf(r: Pick<FailureInput, "where" | "runhost">): string {
+  if (r.where === "agentry") return "In Agentry";
+  return r.runhost ? `On ${r.runhost}` : "On this computer";
 }
 
 /** The headline of a run that failed: the class by name, and what it
@@ -144,7 +152,7 @@ export function nameOf(ref?: string): string {
 /** What a result view says of a run on this computer, for the failure view. */
 export function localFailureInput(res: app.RunResultView, stopped = false): FailureInput {
   return {
-    ref: res.ref, kind: "run", where: "here", status: res.status, exitCode: res.exitCode, exitClass: res.exitClass,
+    ref: res.ref, kind: "run", where: "here", runhost: res.ranOn?.name || undefined, status: res.status, exitCode: res.exitCode, exitClass: res.exitClass,
     exitClassMeaning: res.exitClassMeaning, retryLikelyHelps: res.retryLikelyHelps, cause: res.error,
     receiptsDir: res.receiptsDir, outDir: res.outDir, stopped,
   };
@@ -153,7 +161,7 @@ export function localFailureInput(res: app.RunResultView, stopped = false): Fail
 /** What a Recent runs row says, for the run page's failure view. */
 export function rowFailureInput(row: app.RecentRunView, folder?: string): FailureInput {
   return {
-    ref: row.ref, kind: row.kind, where: row.where === "agentry" ? "agentry" : "here", outcome: row.outcome,
+    ref: row.ref, kind: row.kind, where: row.where === "agentry" ? "agentry" : "here", runhost: row.runhost || undefined, outcome: row.outcome,
     exitCode: row.exitCode, exitClass: row.exitClass, exitClassMeaning: row.exitClassMeaning,
     retryLikelyHelps: row.retryLikelyHelps, cause: row.cause, outDir: folder, logKept: row.logKept,
     stopped: row.outcome === "stopped",

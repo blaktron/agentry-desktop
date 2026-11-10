@@ -25,6 +25,8 @@ export type RunRow = {
   schedule?: string;
   /** The name of the saved model a run here was on. */
   model?: string;
+  /** The remote runhost a run here ran on, by its name. */
+  runhost?: string;
 };
 
 const BUILTIN: Record<string, string> = {
@@ -57,10 +59,13 @@ export function whatRan(row: Pick<RunRow, "kind" | "ref">): string {
 
 export const isBuiltin = (kind: string): boolean => kind in BUILTIN;
 
-/** Where it ran, in the glossary's words; a run a schedule fired is
- *  marked Scheduled. */
-export const whereRan = (row: Pick<RunRow, "where" | "scheduled">): string =>
-  row.where === "agentry" ? "In Agentry" : row.scheduled ? "Scheduled, on this computer" : "On this computer";
+/** Where it ran, in the glossary's words: In Agentry, on the runhost it
+ *  was sent to by name, or on this computer; a run a schedule here fired
+ *  is marked Scheduled. */
+export const whereRan = (row: Pick<RunRow, "where" | "scheduled" | "runhost">): string =>
+  row.where === "agentry" ? "In Agentry"
+    : row.runhost ? `On ${row.runhost}`
+      : row.scheduled ? "Scheduled, on this computer" : "On this computer";
 
 /** The saved model a run here was on, as its receipt named it: "on Qwen";
  *  "" when it named none. */

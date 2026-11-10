@@ -59,7 +59,11 @@ const states = [
   { name: "runpanel-model-recap", url: "/modals.html#runpanel-model-recap", note: "Review and start names the saved model the run is on", locator: ".modal",
     wait: 300, expectSelector: "[data-recap-model]", expectText: ["the default (Sonnet)"] },
   { name: "runpanel-model-schedule-runhost", url: "/modals.html#runpanel-model-schedule", note: "a schedule on the runhost lab offers only the saved models lab holds: Default (Qwen)", locator: ".modal",
-    click: '[data-run-on="lab"] input', wait: 300, expectText: ["Default (Qwen)", "Every run of the schedule on lab is on it"], expectNone: '[data-run-model] option[value="a1"]' },
+    click: '[data-run-on="lab"] input', wait: 300, expectText: ["Default (Qwen)", "Every run of the schedule on lab is on it"], expectNone: '[data-run-model] option[value="a1"], [data-signed-out]' },
+  { name: "runpanel-schedule-runhost", url: "/modals.html#runpanel-model-schedule", note: "a schedule on the runhost lab, on Review and start: no signed-out box, and the line says it runs on that server with nobody present", locator: ".modal",
+    click: ['[data-run-on="lab"] input', '.run-step-foot button.primary', '.run-step-foot button.primary', '.run-step-foot button.primary'],
+    type: [['.modal input:not([type=checkbox]):not([type=radio])', "yesterday"]], finallyClick: 'button:has-text("Next: Review and start")', wait: 300,
+    expectText: ["A schedule on lab runs this exact version, autonomous, on that server with nobody present"], expectNone: "[data-signed-out]" },
   { name: "runpanel-model-in-agentry", url: "/modals.html#runpanel-model", note: "In Agentry offers no Model list: a run there uses Agentry's own model access", locator: ".modal",
     click: 'input[name="run-mode"] >> nth=-1', wait: 300, expectNone: "[data-run-model]" },
   { name: "runpanel-in-agentry", url: "/modals.html#runpanel-hosted", note: "In Agentry chosen: the hold, the balance, the caps", expectNoText: "Its publisher earns" },
@@ -503,6 +507,8 @@ const states = [
   { name: "settings-coding-agents-codex", url: "/pages.html?settings=updates#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-none", url: "/pages.html?settings=updates#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
   { name: "settings-coding-agents-both", url: "/pages.html?settings=updates#coding-both", note: "both chosen: the Claude skill is what is written, so the switch names Claude Code alone", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectSwitchLabel: "Also install into Claude Code" },
+  { name: "settings-coding-tool-plugins", url: "/pages.html?settings=updates", note: "Coding tools' plugin list: the tools found by a file check, the plugin in Claude Code and the Claude app, Install on the rest, T3 Code using Claude Code's and Codex's, Cursor's own window", locator: '[data-preview="settings"] .card:has-text("The Agentry plugin in your coding tools")', expectText: ["Agentry plugin installed", "uses the plugins of Claude Code and Codex", "Show the 3 not on this computer"] },
+  { name: "settings-coding-tool-plugin-installed", url: "/pages.html?settings=updates", note: "Install the plugin into Codex: the commands ran, Done, and the row reads installed", locator: '[data-preview="settings"] .card:has-text("The Agentry plugin in your coding tools")', click: '[data-tool="codex"] button:has-text("Install the plugin")', expectText: ["Done. Restart Codex"] },
   { name: "agent-install-coding-agent", url: "/pages.html", note: "the agent page's one-off link opens the wizard preset to the Claude skill", locator: ".modal", click: '[data-preview="agent"] button:has-text("Install into Claude Code")' },
   // The Welcome's Coding agent step, on the same list Settings uses
   // unchanged for the person.

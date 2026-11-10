@@ -179,7 +179,7 @@ test("Edit sends When only when it changed, since a changed repeat starts afresh
 });
 
 // Home's Scheduled card.
-import { asSentence, scheduledCardStatus } from "../src/scheduled.ts";
+import { asSentence, offersSignedOut, schedulePlaceLine, scheduledCardStatus } from "../src/scheduled.ts";
 
 test("the Scheduled card's line counts the schedules, or says why there is none to count", () => {
   assert.equal(scheduledCardStatus(null, null), "Reading the schedules…");
@@ -197,4 +197,15 @@ test("Go's reason reads as a sentence on the card", () => {
     "Scheduling a run on this computer needs the agentry command, which was not found.");
   assert.equal(asSentence("Already a sentence."), "Already a sentence.");
   assert.equal(asSentence(" "), "");
+});
+
+test("the signed-out choice is offered for a schedule on this computer and never for one on a runhost", () => {
+  assert.equal(offersSignedOut(null), true);
+  assert.equal(offersSignedOut(""), true);
+  assert.equal(offersSignedOut("lab"), false);
+  const there = schedulePlaceLine("lab", true);
+  assert.match(there, /^A schedule on lab runs this exact version, autonomous, on that server with nobody present/);
+  assert.doesNotMatch(there, /signed in,|while you are signed in|output folder below/);
+  assert.match(schedulePlaceLine(null, false), /on this computer, while you are signed in; it never wakes the computer/);
+  assert.match(schedulePlaceLine(null, true), /on this computer, whether or not you are signed in;/);
 });
