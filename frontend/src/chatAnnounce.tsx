@@ -6,6 +6,7 @@
 // live announcing off.
 import { useEffect, useRef, useState } from "react";
 import type { TermBlock } from "./persistentAgents";
+import { plainName } from "./reveal";
 
 /** The texts to say for the items appended since `seen` items were said. */
 export function newAnnouncement<T>(seen: number, items: T[], say: (item: T) => string | null): string {
@@ -30,6 +31,7 @@ export function ChatAnnouncer<T>({ items, say }: { items: T[]; say: (item: T) =>
 }
 
 /** What a screen reader hears of a persistent agent's new block: its
- *  answers, by its name, and the warnings. */
+ *  answers, by its name, and the warnings, with any invisible character
+ *  said as a mark (plainName) rather than left to steer the speech. */
 export const sayTermBlock = (agent: string) => (b: TermBlock): string | null =>
-  b.kind === "agent" ? `${agent}: ${b.text}` : b.kind === "warn" ? b.text : null;
+  b.kind === "agent" ? plainName(`${agent}: ${b.text}`) : b.kind === "warn" ? plainName(b.text) : null;

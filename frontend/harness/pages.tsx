@@ -17,6 +17,8 @@ import renderHouseCustomDrawnPdf from "./fixtures/render-house-custom-drawn.pdf?
 import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
 // ?textsize=<percent> is the text size Settings → Home → Accessibility shows.
+// The sizes Go's settings.TextSizes offers.
+const HARNESS_TEXT_SIZES = [100, 110, 125, 150, 175, 200];
 let harnessTextSize = Number(new URLSearchParams(window.location.search).get("textsize")) || 100;
 // ?theme=<id> draws the page in that theme, as Settings → Home sets it.
 const harnessTheme = new URLSearchParams(window.location.search).get("theme");
@@ -1256,13 +1258,12 @@ g.go = { app: {
     SetTheme: async (name: string) => { document.body.dataset.themeKept = name; },
     // Settings → Home → Accessibility: ?textsize=<percent> starts at that
     // size; a choice and a step are kept here and recorded on the body.
-    TextSizes: async () => [100, 110, 125, 150, 175, 200],
+    TextSizes: async () => HARNESS_TEXT_SIZES,
     TextSize: async () => harnessTextSize,
     SetTextSize: async (p: number) => { harnessTextSize = p; document.body.dataset.textSizeKept = String(p); return p; },
     StepTextSize: async (step: number) => {
-      const sizes = [100, 110, 125, 150, 175, 200];
-      const i = sizes.indexOf(harnessTextSize);
-      harnessTextSize = step === 0 ? 100 : sizes[Math.max(0, Math.min(sizes.length - 1, i + step))];
+      const i = HARNESS_TEXT_SIZES.indexOf(harnessTextSize);
+      harnessTextSize = step === 0 ? 100 : HARNESS_TEXT_SIZES[Math.max(0, Math.min(HARNESS_TEXT_SIZES.length - 1, i + step))];
       document.body.dataset.textSizeKept = String(harnessTextSize);
       return harnessTextSize;
     },

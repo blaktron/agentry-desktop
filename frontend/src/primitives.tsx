@@ -349,8 +349,6 @@ export function OptionsMenu({ label = "Options", ariaLabel, items }: {
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
   return (
-    // Escape closes the open list and goes no further, so a dialog around
-    // the menu stays open.
     // Escape closes the open list, puts the focus back on its button and goes
     // no further, so a dialog around the menu stays open; Tab closes it and
     // moves on.

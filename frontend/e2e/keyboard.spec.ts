@@ -45,7 +45,7 @@ test("the run setup: the dialog takes the focus, Next moves on with Enter, and T
   await page.goto("/modals.html#runpanel");
   await page.waitForSelector('[role="dialog"]');
   expect((await focused(page)).inDialog).toBe(true);
-  const heading = page.locator(".run-step-heading, .step-heading").first();
+  const heading = page.locator(".run-step-heading");
   const before = await heading.textContent();
   await tabTo(page, (f) => f.tag === "button" && f.text.startsWith("Next"));
   await page.keyboard.press("Enter");
@@ -89,4 +89,52 @@ test("the first-run wizard: Set up moves to the next step with the keyboard, and
   await tabTo(page, (f) => f.tag === "button" && /^Set up/.test(f.text));
   await page.keyboard.press("Enter");
   await expect(page.locator('ol[aria-label="Setup steps"] [aria-current="step"]')).toHaveText(/^Step 2 of \d+: /);
+});
+
+test("the deliverables menu: Shift+F10 opens it, the arrows and End stay on its items, Escape gives the focus back, Tab closes it", async ({ page }) => {
+  await page.goto("/pages.html");
+  const icon = page.locator('[data-preview="home"] [data-deliverable]').first();
+  await icon.focus();
+  await page.keyboard.press("Shift+F10");
+  const menu = page.locator('[data-preview="home"] .deliverable-menu[role="menu"]');
+  await expect(menu).toBeVisible();
+  const onItem = () => page.evaluate(() => document.activeElement?.getAttribute("role"));
+  expect(await onItem()).toBe("menuitem");
+  for (const k of ["ArrowDown", "ArrowUp", "End", "Home"]) {
+    await page.keyboard.press(k);
+    expect(await onItem(), `${k} left the menu`).toBe("menuitem");
+  }
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(icon).toBeFocused();
+  await page.keyboard.press("Shift+F10");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+});
+
+test("an agent's conversation is a log that does not announce itself, beside the status line that says each reply", async ({ page }) => {
+  await page.goto("/pages.html");
+  for (const sel of ['[data-preview="persistent"] .agent-term-scroll', '[data-preview="home"] .main-card-scroll']) {
+    const log = page.locator(sel).first();
+    await expect(log).toHaveAttribute("role", "log");
+    await expect(log).toHaveAttribute("aria-live", "off");
+    await expect(log.locator("xpath=following-sibling::*[@data-chat-said][1]")).toHaveAttribute("role", "status");
+  }
+});
+
+// 200% of the smallest window the app opens (900 by 600) is 450 by 300 CSS
+// pixels: a dialog fits it without a sideways scroll.
+test.describe("dialogs at 200%", () => {
+  test.use({ viewport: { width: 450, height: 300 } });
+  for (const url of ["/modals.html#runpanel", "/modals.html#install-unscanned", "/modals.html#bugreport", "/wizard.html#1"]) {
+    test(`${url} reflows without a sideways scroll`, async ({ page }) => {
+      await page.goto(url);
+      await page.waitForSelector('[role="dialog"]');
+      const wide = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"], [role="dialog"] *')]
+        .filter((e) => e.scrollWidth > e.clientWidth + 2 && ["auto", "scroll"].includes(getComputedStyle(e).overflowX)).length);
+      expect(wide).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    });
+  }
 });

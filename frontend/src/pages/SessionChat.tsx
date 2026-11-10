@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { ChatAnnouncer } from "../chatAnnounce";
+import { plainName } from "../reveal";
 import { addChatFiles, endChat, sendChat } from "../runs";
 import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
 
@@ -56,11 +57,13 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const outOfCredits = !!state?.session?.outOfCredits;
   // What a screen reader hears of each new line: the agent's replies, the
   // warnings and the end.
-  const sayChatLine = useCallback((l: Line) =>
-    l.kind === "assistant" || l.kind === "told" ? `Agent: ${l.text}`
+  const sayChatLine = useCallback((l: Line) => {
+    const said = l.kind === "assistant" || l.kind === "told" ? `Agent: ${l.text}`
       : l.kind === "warn" ? l.text
       : l.kind === "end" ? endText(l.reason, outOfCredits)
-      : null, [outOfCredits]);
+      : null;
+    return said === null ? null : plainName(said);
+  }, [outOfCredits]);
 
   function send() {
     const text = input.trim();

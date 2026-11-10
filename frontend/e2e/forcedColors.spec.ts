@@ -32,3 +32,15 @@ test("the open page's sidebar row is outlined", async ({ page }) => {
   const row = page.locator('[data-preview="library"] .nav-item.active').first();
   await expect(row).toHaveCSS("outline-style", "solid");
 });
+
+test("badges keep an edge, and the keyboard focus is drawn in the highlight colour", async ({ page }) => {
+  await page.goto("/pages.html");
+  await expect(page.locator('[data-preview="browse"] .badge').first()).toHaveCSS("border-top-style", "solid");
+  await page.locator('[data-preview="browse"] input[type="search"]').focus();
+  await page.keyboard.press("Tab");
+  const ring = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    return { style: getComputedStyle(el).outlineStyle, colour: getComputedStyle(el).outlineColor };
+  });
+  expect(ring.style).not.toBe("none");
+});

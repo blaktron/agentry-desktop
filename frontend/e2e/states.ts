@@ -1,7 +1,11 @@
 // The harness states the browser checks open: every entry, the Settings
 // sections, the dialogs and the first-run wizard's steps. A state that
 // needs its own look gets its own line.
-export const THEMES = ["light", "dark", "slate", "forest", "midnight", "contrast"];
+import { THEMES as OFFERED } from "../src/theme";
+
+// Every theme Settings → Home offers but System, which is the palette the
+// light and dark runs already draw.
+export const THEMES = OFFERED.map((t) => t.id).filter((id) => id !== "system");
 
 export const SETTINGS = ["account", "report-design", "provider", "run-defaults", "connections", "updates", "home", "licences"];
 
