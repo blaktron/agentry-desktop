@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
 import * as app from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { CardFrame, CouldNotRead } from "../../cards";
-import { agentOf, cardStatus, clickDoes, iconDate, iconKind, iconName } from "../../deliverables";
+import { agentOf, cardStatus, clickDoes, iconDate, iconKind, iconWhat } from "../../deliverables";
 import { FileIcon } from "../../fileIcons";
 import { RevealText, plainName } from "../../reveal";
 import { ErrorBox, menuKeyDown } from "../../ui";
@@ -72,7 +72,7 @@ function IconCell({ file, now, run }: {
   const agent = agentOf(file.ref);
   // What a label says when it cannot hold a chip: invisible characters of the
   // agent's name become "_", as a file's name does.
-  const agentLabel = plainName(agent);
+  const whatId = useId();
   const date = iconDate(file.endedAt, now);
   const opens = clickDoes(file) === "open";
   useEffect(() => {
@@ -92,14 +92,21 @@ function IconCell({ file, now, run }: {
         menuKeyDown(e, cell.current?.querySelector<HTMLElement>('[role="menu"]') ?? null);
       }}
       onBlur={(e) => { if (menu && !e.currentTarget.contains(e.relatedTarget as Node | null)) setMenu(false); }}>
-      <button type="button" ref={icon} className="deliverable-icon" title={name} aria-label={iconName({ name, canOpen: opens }, agentLabel, date)}
+      <button type="button" ref={icon} className="deliverable-icon" title={name} aria-describedby={whatId}
         data-deliverable={file.path} data-deliverable-open={opens ? "" : undefined} data-deliverable-kind={iconKind(file)}
         onClick={() => run(() => (opens ? RunAPI.OpenRunDeliverable(file.runId, file.path) : RunAPI.ShowRunDeliverable(file.runId, file.path)))}
         onKeyDown={(e) => { if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); setMenu(true); } }}>
+        {/* Named by what it shows, with the file's name and "from" said
+            first: "summary.pdf, PDF from incident-summarizer Nov 9". */}
+        <span className="sr-only">{name}, </span>
         <FileIcon kind={iconKind(file)} revealOnly={!opens} />
+        <span className="sr-only"> from </span>
         <span className="deliverable-agent"><RevealText text={agent} /></span>
-        {date && <span className="deliverable-date">{date}</span>}
+        {/* A space between the agent and the date, as the button's name has
+            them, though the two are drawn on lines of their own. */}
+        {date && <>{" "}<span className="deliverable-date">{date}</span></>}
       </button>
+      <span id={whatId} className="sr-only">{iconWhat(opens)}</span>
       {menu && (
         <div className="deliverable-menu" role="menu" aria-label={`Actions for ${name}`}>
           <button type="button" role="menuitem" data-deliverable-show={file.path} aria-label={`Show ${name} in its folder`} onClick={show}>

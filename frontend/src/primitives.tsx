@@ -41,14 +41,23 @@ export function PageHeader({ title, sub, actions }: { title: React.ReactNode; su
   );
 }
 
-/** A labelled form control. `hint` is muted help under the control. */
+/** A labelled form control. `hint` is muted help under the control. The
+ *  label names the control: `htmlFor` when given, else the one element
+ *  among the children, which is given an id for it when it has none. */
 export function Field({ label, hint, htmlFor, children, className = "" }: {
   label: React.ReactNode; hint?: React.ReactNode; htmlFor?: string; children: React.ReactNode; className?: string;
 }) {
+  const ownId = React.useId();
+  let target = htmlFor;
+  let body = children;
+  if (!target && React.Children.count(children) === 1 && React.isValidElement<{ id?: string }>(children)) {
+    target = children.props.id ?? ownId;
+    if (!children.props.id) body = React.cloneElement(children, { id: ownId });
+  }
   return (
     <div className={`field ${className}`.trim()}>
-      <label className="field-label" htmlFor={htmlFor}>{label}</label>
-      {children}
+      <label className="field-label" htmlFor={target}>{label}</label>
+      {body}
       {hint && <div className="field-hint muted small">{hint}</div>}
     </div>
   );

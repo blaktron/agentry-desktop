@@ -234,7 +234,7 @@ code, pre, .mono {
   padding: 4px 6px; border-radius: var(--radius-md); font: inherit; font-weight: 600; font-size: 11px;
 }
 .bell:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); color: var(--color-fg); }
-.bell.active { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.bell.active { color: var(--color-accent-hover); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
 .bell svg { width: 16px; height: 16px; }
 .bell .bell-count {
   min-width: 16px; padding: 0 4px; line-height: 16px; border-radius: 8px; text-align: center;
@@ -258,7 +258,8 @@ code, pre, .mono {
 .nav-item .nav-count { float: right; font-size: 11px; padding: 0 6px; line-height: 18px; }
 .nav-item.active {
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-  color: var(--color-accent);
+  /* The accent's text colour on a tinted fill (4.5:1 there). */
+  color: var(--color-accent-hover);
   font-weight: 600;
 }
 
@@ -1025,7 +1026,10 @@ button.ghost:hover, .btn.ghost:hover {
 .wizard-choice .build-way-title { margin: 0; font-size: 18px; }
 .wizard-choice .build-way-blurb { font-size: 13.5px; }
 .wizard-choice.is-locked:hover { border-color: var(--color-border); }
-.wizard-choice.is-locked > :not(.wizard-choice-lock) { filter: grayscale(1); opacity: 0.4; }
+/* A locked choice's figure is greyed; its words stay readable, in the
+   muted ink, beside the line that says why it is locked. */
+.wizard-choice.is-locked > .build-way-figure { filter: grayscale(1); opacity: 0.4; }
+.wizard-choice.is-locked .build-way-main, .wizard-choice.is-locked .build-way-blurb { color: var(--color-muted); }
 .wizard-choice.is-locked .build-way-main { cursor: not-allowed; }
 /* Across the figure: the card's padding in, the figure's own proportions. */
 .wizard-choice-lock {
@@ -1793,13 +1797,16 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .config-card-line { font-size: 12px; color: var(--color-lead); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .config-card-state { font-size: 11px; color: var(--color-muted); }
 .config-card-menu { position: absolute; top: 6px; right: 6px; }
-.config-card-menu .options-menu > button { padding: 0 6px; min-height: 0; line-height: 20px; }
+/* At least 24 by 24 pixels, the smallest target WCAG 2.2 allows. */
+.config-card-menu .options-menu > button { padding: 0 6px; min-height: 24px; min-width: 24px; line-height: 22px; }
 .config-card-menu .options-menu-list { right: 0; left: auto; }
 .config-icon { flex: none; width: 32px; height: 32px; border-radius: 8px; }
 .config-glyph { fill: none; stroke: var(--color-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; padding: 4px; background: var(--color-accent-soft); box-sizing: border-box; }
 .config-icon-image { object-fit: contain; background: var(--color-surface); }
 .config-icon-monogram { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: var(--color-accent-fg); background: var(--color-accent); }
-.config-card.off .config-icon, .config-card.off .config-card-name, .config-card.off .config-card-line { filter: grayscale(1); opacity: 0.55; }
+/* An off card's icon is greyed; its words stay readable, in the muted ink. */
+.config-card.off .config-icon { filter: grayscale(1); opacity: 0.55; }
+.config-card.off .config-card-name, .config-card.off .config-card-line { color: var(--color-muted); }
 .config-card.off { background: var(--color-surface); }
 .config-card.tone-on { border-color: var(--color-accent); }
 .config-card.tone-busy .config-card-state { color: var(--color-warm); }
@@ -2123,3 +2130,19 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .content h1[tabindex="-1"]:focus { outline: none; }
 .content h1[tabindex="-1"]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: var(--radius-xs); }
 .content:focus { outline: none; }
+
+/* Windows High Contrast (forced colours): the system's colours replace the
+   page's, which would erase every state drawn by a fill alone. The step dots
+   and the running dot keep a system-coloured fill and an edge, the current
+   step is also larger, badges keep their edge, and the open page, a chosen
+   option and the focus are outlined in the highlight colour. */
+@media (forced-colors: active) {
+  .wizard-dot, .agent-dot { border: 1px solid CanvasText; forced-color-adjust: none; background: Canvas; }
+  .wizard-dot.done, .wizard-dot.active, .agent-dot.on { background: Highlight; }
+  .wizard-dot.active { width: 12px; height: 12px; }
+  .badge { border: 1px solid CanvasText; }
+  .nav-item.active, .bell.active { outline: 2px solid Highlight; outline-offset: -2px; }
+  .is-chosen { outline: 2px solid Highlight; }
+  .agent-row-open:focus-visible::after, .build-way-main:focus-visible::after, .settings-card-link:focus-visible::after { outline-color: Highlight; }
+  :focus-visible { outline-color: Highlight; }
+}

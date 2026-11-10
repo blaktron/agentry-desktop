@@ -44,6 +44,7 @@ they build with the `server` tag.
 | `make copy` | the copy check over the text the app ships |
 | `make bindings` | regenerate the TypeScript bindings after changing a bound Go method or type |
 | `make notices` | regenerate `THIRD_PARTY_NOTICES` after a dependency, font or logo changes; `make check` fails while the committed file is stale |
+| `make a11y` | the accessibility checks in a real browser over the design harness: axe with colour contrast in every theme, forced colours and the keyboard-only flows (needs Docker; runs Playwright in its own image) |
 | `make workflows-check` | no workflow job that a fork's pull request can start runs on a self-hosted runner without the fork guard (needs python3 with PyYAML) |
 
 `frontend/bindings/` is generated: never edit it by hand, run `make
@@ -89,7 +90,13 @@ notes are generated from the merged pull requests.
 Go tests sit beside the code they cover. The live end-to-end tests
 (`internal/app/live*_test.go`) run only when `AGENTRY_LIVE_REGISTRY` is set.
 The frontend's tests run with node's own test runner (`npm test` in
-`frontend/`). Fixtures never contain real endpoints or real secrets.
+`frontend/`), and an accessibility check (axe-core under jsdom) runs there
+over the pages and dialogs. `make a11y` runs the browser checks in
+`frontend/e2e/`, which CI also runs: axe with colour contrast and target
+size in light, dark and every theme, the same under forced colours, and the
+main flows with the keyboard alone. A new page or dialog gets a state in the
+design harness and a line in `frontend/e2e/states.ts`. Fixtures never
+contain real endpoints or real secrets.
 
 ## Certificate of origin
 

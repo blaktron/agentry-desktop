@@ -6,7 +6,8 @@
 # build a platform package: `windows` cross-builds the Windows target and
 # its per-user installer on the Linux runner (a broken Windows build fails
 # the gate), and `macos` builds the universal bundle on the
-# Mac. `gitleaks` scans the commits every event brings for secrets. Every
+# Mac. `browser` runs the accessibility checks in a real browser over the
+# design harness. `gitleaks` scans the commits every event brings for secrets. Every
 # job carries the fork guard (below), and every action is pinned to a commit
 # SHA.
 name: ci
@@ -210,6 +211,39 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
         run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-windows-amd64-setup.exe build/bin/agentry-desktop-*-windows-amd64.zip
+
+  # The browser checks over the design harness (frontend/e2e): axe with
+  # colour contrast and target size in the light and dark palettes and in
+  # every theme, the same under Windows High Contrast (forced colours), and
+  # the main flows with the keyboard alone. Playwright runs in its own image
+  # at the version the lockfile pins (scripts/acceptance/browser-a11y.sh), so
+  # the runner installs no browser.
+  browser:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0
+          package-manager-cache: false
+      - run: cd frontend && npm ci --no-audit --no-fund
+      - name: accessibility in a browser (axe, forced colours, keyboard)
+        env:
+          CI: "1"
+        run: scripts/acceptance/browser-a11y.sh
+      # A failed check's traces, kept a week. The harness answers with
+      # fixtures; nothing in them is a person's.
+      - name: Keep a failed check's Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces-${{ github.run_id }}-${{ github.run_attempt }}
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   govulncheck:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

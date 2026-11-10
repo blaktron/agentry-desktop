@@ -48,6 +48,15 @@ Each state is a hash on its entry, for example `modals.html#runpanel-hosted`
 or `wizard.html#3-refused`. The mocks answer as Go does for that state, so a
 state that needs a refusal, a slow save or a hostile payload has its own hash.
 
+## The browser accessibility checks
+
+`frontend/e2e/` opens the harness's states (`e2e/states.ts`) in Chromium and
+checks them with axe-core, colour contrast and target size included, in the
+light and dark palettes and in every theme, then under forced colours, and
+drives the main flows with the keyboard alone. `make a11y` at the
+repository's root runs them in Playwright's own image; CI runs them too. A
+new state that a person can reach gets a line in `e2e/states.ts`.
+
 ## `shots.mjs`
 
 `shots.mjs` starts the harness itself, opens each state in light and dark,

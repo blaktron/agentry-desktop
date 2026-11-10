@@ -2047,7 +2047,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     {/* #browse-query: Browse as the Library's search opens it, searched for
         what was typed there. */}
-    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns={detail.agent.namespace} name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"}
       onFork={() => {}} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see

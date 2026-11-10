@@ -1829,6 +1829,7 @@ export default function RunPanel({
                             type={q.type === "secret" ? "password" : "text"}
                             className="grow"
                             autoComplete="off"
+                            aria-label={q.prompt}
                             value={intakeValues[q.id] ?? ""}
                             onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
                             disabled={running}

@@ -38,7 +38,7 @@ DARWIN_MIN := 12.0
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build dist check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows installer-tools package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check
+.PHONY: dev build dist check lint test copy script-tests frontend notices notices-check fonts-check package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows installer-tools package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings workflows-check a11y
 
 # Live-reload development shell (wails3 dev, which runs the Taskfile's build,
 # frontend and run tasks). The checked-in bindings are the ones
@@ -95,6 +95,13 @@ copy:
 # call, so it runs on any host.
 script-tests:
 	./scripts/acceptance/darwin-dmg-busy.sh
+
+# The accessibility checks in a real browser over the design harness
+# (frontend/e2e), in Playwright's own image: not part of `check`, since it
+# needs Docker; CI runs it as its own job.
+a11y:
+	cd frontend && npm ci --no-audit --no-fund
+	./scripts/acceptance/browser-a11y.sh
 
 # Frontend type-check plus the dist bundle main.go embeds. `go build ./...`,
 # `go vet ./...` and `go test ./...` all fail on a fresh tree without

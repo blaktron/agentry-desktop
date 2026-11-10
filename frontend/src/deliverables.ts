@@ -104,10 +104,10 @@ export function iconDate(iso: string | undefined, now: Date, locale?: string, ti
   }).format(t);
 }
 
-/** An icon's accessible name: the file, the agent, the date, and what a click does. */
-export function iconName(f: Pick<DeliverableFacts, "name" | "canOpen">, agent: string, date: string): string {
-  const what = f.canOpen ? "Opens in your system's app." : "A click shows it in its folder; it is not opened from here.";
-  return `${f.name}, from ${agent}${date ? `, ${date}` : ""}. ${what}`;
+/** What a click on an icon does, its description to a screen reader. The
+ *  icon is named by what it shows, with the file's name first. */
+export function iconWhat(canOpen: boolean): string {
+  return canOpen ? "Opens in your system's app." : "A click shows it in its folder; it is not opened from here.";
 }
 
 export type CardFacts = { on: boolean; remember: boolean; count: number; error?: string | null; reading: boolean };
