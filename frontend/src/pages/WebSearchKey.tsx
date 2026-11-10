@@ -10,6 +10,8 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import { Button, Card, ErrorBox, Input, Notice, Select } from "../ui";
 import { initialProvider, replaceNote, searchKeySentence } from "../searchKey";
+import { noteOf, ownKeysUsed, rowOf } from "../managed";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 
 export function WebSearchKeyCard() {
   const [status, setStatus] = useState<app.SearchKeyView | null>(null);
@@ -18,6 +20,10 @@ export function WebSearchKeyCard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tested, setTested] = useState<app.SearchKeyTestView | null>(null);
+  // A lock on what pays for web search that is not the member's own key
+  // leaves no key of theirs to save.
+  const managedRows = useManagedRows();
+  const held = !!noteOf(managedRows, "webSearch.source")?.disabled;
 
   function show(s: app.SearchKeyView) {
     setStatus(s);
@@ -75,11 +81,12 @@ export function WebSearchKeyCard() {
         own terms. The key is kept in this computer&apos;s keychain next to your model key: not in a file, and never shown
         here.
       </p>
+      <ManagedNotes rows={managedRows} part="search-key" use={status?.stored && !ownKeysUsed(rowOf(managedRows, "webSearch.source")) ? forget : undefined} busy={!!busy} />
       {status && <p className="small" role="status">{searchKeySentence(status)}</p>}
       {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}
       <label className="field">
         <span className="field-label">Search provider</span>
-        <Select value={provider} disabled={!!busy || !status} aria-label="Search provider"
+        <Select value={provider} disabled={!!busy || !status || held} aria-label="Search provider"
           onChange={(e) => { setProvider(e.target.value); setTested(null); }}>
           {status?.providers.map((p) => <option key={p.name} value={p.name}>{p.label}</option>)}
         </Select>
@@ -90,9 +97,9 @@ export function WebSearchKeyCard() {
           <Input
             type="password" className="grow mono" autoComplete="off" aria-label="Search key"
             placeholder={current && status?.stored ? "saved on this computer — paste a new one to replace it" : `Paste your ${chosen?.label ?? "search"} key`}
-            value={key} onChange={(e) => setKey(e.target.value)} disabled={!!busy}
+            value={key} onChange={(e) => setKey(e.target.value)} disabled={!!busy || held}
           />
-          <Button variant="primary" disabled={!!busy || !key.trim() || !provider} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
+          <Button variant="primary" disabled={!!busy || held || !key.trim() || !provider} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
         </div>
         {envName && <span className="muted small">A draft reads {"$" + envName} first, when it is set where this app was started.</span>}
       </label>

@@ -486,3 +486,45 @@ func TestSchedulingWhileManagedNeedsAnAgentryThatAppliesThem(t *testing.T) {
 		t.Fatalf("a current agentry was refused: %s", why)
 	}
 }
+
+// A key setter is refused while a lock decides that no key of the member's
+// own pays for the service, in the runner's words; a lock to the member's
+// own key, a default, or no row leaves it to them.
+func TestAKeySetterIsRefusedWhileALockPaysAnotherWay(t *testing.T) {
+	doc := func(id, value string, locked bool) managed.Effective {
+		return managed.Effective{Documents: []managed.State{{Registry: "https://r.example", Document: managedsettings.Document{
+			Registry: "https://r.example", Org: "acme", Version: 4,
+			Settings: map[string]managedsettings.Setting{id: {Value: json.RawMessage(value), Locked: locked}},
+		}}}}
+	}
+	for _, c := range []struct {
+		id, value string
+		locked    bool
+		want      string
+	}{
+		{managedsettings.ReviewSource, `{"source":"agentry-credits"}`, true, "acme's managed settings pay for AI Review with its credits (review.source)"},
+		{managedsettings.ReviewSource, `{"source":"organization-key","key":{"id":"k","rev":1}}`, true, "use a key acme provides for AI Review (review.source)"},
+		{managedsettings.WebSearchSource, `{"source":"off"}`, true, "Web search is off by acme's managed settings (webSearch.source)"},
+		{managedsettings.ReviewSource, `{"source":"member"}`, true, ""},
+		{managedsettings.ReviewSource, `{"source":"agentry-credits"}`, false, ""},
+	} {
+		holdManaged(t, doc(c.id, c.value, c.locked))
+		what := map[string]string{managedsettings.ReviewSource: "AI Review", managedsettings.WebSearchSource: "web search"}[c.id]
+		err := refuseManagedKeySource(c.id, what)
+		switch {
+		case c.want == "" && err != nil:
+			t.Errorf("%s %s locked %v: refused: %v", c.id, c.value, c.locked, err)
+		case c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)):
+			t.Errorf("%s %s: %v, want %q", c.id, c.value, err, c.want)
+		}
+	}
+	holdManaged(t, managed.Effective{})
+	if err := refuseManagedKeySource(managedsettings.ReviewSource, "AI Review"); err != nil {
+		t.Errorf("no document: %v", err)
+	}
+	r := &RunAPI{}
+	holdManaged(t, doc(managedsettings.ReviewSource, `{"source":"agentry-credits"}`, true))
+	if _, err := r.StoreJevKey("ts-should-not-be-kept"); err == nil || !strings.Contains(err.Error(), "review.source") {
+		t.Fatalf("StoreJevKey under a credits lock: %v", err)
+	}
+}

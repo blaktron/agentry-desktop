@@ -25,6 +25,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
+	"github.com/blaktron/agentry/pkg/managedsettings"
 
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -712,6 +713,9 @@ func jevKeyView(st *run.JevKeyStatus) *JevKeyView {
 // A keychain that cannot be reached is a named refusal, and the policy is
 // left as it was.
 func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
+	if err := refuseManagedKeySource(managedsettings.ReviewSource, "AI Review"); err != nil {
+		return nil, err
+	}
 	if err := r.acquire(jobSetup, "a change to the AI Review key"); err != nil {
 		return nil, err
 	}
@@ -887,6 +891,9 @@ func (r *RunAPI) SearchKeyStatus() (*SearchKeyView, error) {
 // nowhere else. A keychain that cannot be reached is a named refusal, and
 // the policy is left as it was.
 func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
+	if err := refuseManagedKeySource(managedsettings.WebSearchSource, "web search"); err != nil {
+		return nil, err
+	}
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}

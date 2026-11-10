@@ -311,6 +311,11 @@ func check(ctx context.Context, home string, pol *policy.Policy, path string, sm
 	if err != nil {
 		return nil, err
 	}
+	// Refused before the provider is asked anything, so a model the
+	// organization does not allow spends nothing.
+	if reason := managedModelRefusal(currentManaged(), view); reason != "" {
+		return &SaveResult{Refusal: &Refusal{Kind: RefusalManaged, Reason: reason, Offered: []string{}}}, nil
+	}
 	if view.APIKeyKind == policy.KeyKindClaudeSignIn && !d.AgreedToMessage {
 		return &SaveResult{NeedsAgreement: modelcheck.ClaudeNotice}, nil
 	}
@@ -474,6 +479,15 @@ func SetDefaultModel(id string) error {
 	}
 	if !chosen {
 		return fmt.Errorf("no saved model %q on this computer", id)
+	}
+	if sm, ok := pol.FindModel(id); ok {
+		view, err := pol.ModelView(sm)
+		if err != nil {
+			return err
+		}
+		if reason := managedModelRefusal(currentManaged(), view); reason != "" {
+			return errors.New(reason)
+		}
 	}
 	if _, err := pol.SetDefault(id); err != nil {
 		return err

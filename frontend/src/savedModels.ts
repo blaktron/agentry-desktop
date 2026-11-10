@@ -181,6 +181,7 @@ export function refusalLine(r: { kind: string; reason: string }): string {
     case "not-offered": return `${reason}. Pick one it offers.`;
     case "needs-sign-in": return `${reason}. Sign in again first.`;
     case "key-missing": return `${reason}. Add the key first.`;
+    case "managed": return `${reason}. Nothing was saved.`;
   }
   return `${reason}.`;
 }
