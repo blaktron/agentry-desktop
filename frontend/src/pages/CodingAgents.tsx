@@ -14,6 +14,7 @@ import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import * as codingtools from "../../bindings/github.com/blaktron/agentry-desktop/internal/codingtools/models";
 import { Button, Card, ErrorBox, Notice, Spinner } from "../ui";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 
 // harnessLabel is the product's name the adapter carries ("Claude Code"),
 // with the adapter's own name as the fallback.
@@ -229,9 +230,11 @@ export function CodingAgentsCard() {
 
   const x = view?.export;
   const agent = codingAgentName(view);
+  const managedRows = useManagedRows();
 
   return (
     <Card>
+      <ManagedNotes rows={managedRows} part="coding-tools" />
       <HarnessChooser allowForget onChanged={onPolicyWrite} />
       <p className="muted small" style={{ marginTop: 12 }}>
         Claude Code reads a Claude skill; Codex reads AGENTS.md. With neither chosen the model provider

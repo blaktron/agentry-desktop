@@ -17,6 +17,8 @@ import {
 import { ProviderLogo } from "../providerLogos";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
 import { ProviderTiles } from "./ProviderTiles";
+import { ManagedNotes, useManagedRows } from "./ManagedNotes";
+import { providerLocks } from "../managed";
 
 /** Settings → Models: the saved models runs on this computer use, the
  *  default starred, and the providers that pay for them. A saved model is a
@@ -30,6 +32,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const managedRows = useManagedRows();
   const [adding, setAdding] = useState(false);
   const [addOn, setAddOn] = useState<ProviderRow | null>(null);
   const [editing, setEditing] = useState<SavedModelRow | null>(null);
@@ -164,6 +167,7 @@ export function ModelsSettings({ onOpenAccount }: { onOpenAccount?: () => void }
         Runs, schedules and agents on this computer use your default model unless you pick another for them. A model
         is a provider and one of its models, under a name you choose. You can keep up to {list.max}.
       </p>
+      <ManagedNotes rows={managedRows} part="provider" />
       <ErrorBox error={error} />
       {notice && <Notice tone="ok">{notice}</Notice>}
       {list.usersErr && <Notice tone="warn">What uses each model could not be read: {list.usersErr}</Notice>}
@@ -478,6 +482,7 @@ function AddProviderDialog({ taken, names, first, kept, onKept, onClose, onSaved
   taken: string[]; names: string[]; first: boolean; kept: KeptSignIn[];
   onKept: () => void; onClose: () => void; onSaved: (res: run.SaveResult) => void;
 }) {
+  const managedLocks = providerLocks(useManagedRows());
   const startOn = PROVIDERS.find((p) => !taken.includes(p.id) && p.id !== "agentry")?.id ?? "custom";
   const [vendor, setVendor] = useState(startOn);
   const [way, setWay] = useState<WayId>(waysFor(startOn)[0].id);
@@ -598,6 +603,7 @@ function AddProviderDialog({ taken, names, first, kept, onKept, onClose, onSaved
         : catalog ? catalog.models.map((m) => ({ id: m.id, label: modelOptionLabel(m) })) : [];
   const locked: Record<string, string> = {};
   for (const v of taken) locked[v] = "Added";
+  for (const [id, why] of Object.entries(managedLocks)) if (!locked[id]) locked[id] = why;
   if (!credits?.signedIn && !locked.agentry) locked.agentry = CREDITS_LOCK;
 
   return (
