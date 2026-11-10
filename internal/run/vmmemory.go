@@ -8,7 +8,9 @@ package run
 // sized in its own settings.
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +33,7 @@ const (
 	VMRancher       = "rancher-desktop" // Rancher Desktop
 	VMPodmanMachine = "podman-machine"  // a podman machine
 	VMDockerDesktop = "docker-desktop"  // Docker Desktop
+	VMWSL           = "wsl"             // Windows\' WSL 2 virtual machine
 	VMOther         = "other"           // OrbStack, Colima or Lima of the person's own, Windows
 )
 
@@ -46,6 +49,11 @@ type VM struct {
 	MemoryBytes uint64
 	// Resizable says the app can raise its memory itself.
 	Resizable bool
+	// Restart says, for the question, what a resize stops and starts.
+	Restart string
+	// app is, for VMWSL and VMDockerDesktop, the application that serves
+	// the engine: "docker-desktop" or "rancher-desktop".
+	app string
 }
 
 // InVM says the engine runs in a virtual machine.
@@ -58,9 +66,86 @@ func EngineVM(ctx context.Context) VM {
 	if !e.Found {
 		return VM{}
 	}
-	v := vmOf(runtime.GOOS, e)
+	var v VM
+	if runtime.GOOS == "windows" {
+		v = windowsVM(ctx)
+	} else {
+		v = vmOf(runtime.GOOS, e)
+	}
+	if v.Kind == VMDockerDesktop {
+		v.Resizable = dockerDesktopSizable()
+	}
+	v.Restart = restartNote(v)
 	v.MemoryBytes = engineMemory(ctx, e)
 	return v
+}
+
+// restartNote says what a resize of v stops and starts, for the question.
+func restartNote(v VM) string {
+	switch v.Kind {
+	case VMWSL:
+		return "Windows' WSL is shut down to apply it, which stops every WSL distribution on this computer, yours included, and " + v.Name + " is started again."
+	case VMDockerDesktop:
+		return "Docker Desktop is quit and started again."
+	}
+	return v.Name + " is restarted."
+}
+
+// windowsVM names the engine's machine on Windows: Rancher Desktop, which
+// always runs in WSL 2, when it answers rdctl; else Docker Desktop, in WSL 2
+// or in its own Hyper-V machine as its settings say.
+func windowsVM(ctx context.Context) VM {
+	if i := windowsInstaller(); i != nil && i.Running(ctx) {
+		return VM{Kind: VMWSL, Name: "Rancher Desktop", Resizable: true, app: "rancher-desktop"}
+	}
+	if b, err := os.ReadFile(dockerDesktopSettingsPath()); err == nil { //nolint:gosec // Docker Desktop's own settings, read only
+		var s struct {
+			WSL *bool `json:"wslEngineEnabled"`
+		}
+		if json.Unmarshal(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")), &s) == nil && s.WSL != nil && !*s.WSL {
+			return VM{Kind: VMDockerDesktop, Name: "Docker Desktop", app: "docker-desktop"}
+		}
+		return VM{Kind: VMWSL, Name: "Docker Desktop", Resizable: true, app: "docker-desktop"}
+	}
+	return VM{Kind: VMOther, Name: "the container engine's virtual machine"}
+}
+
+// dockerDesktopSettingsPath is Docker Desktop's settings file on this
+// computer: settings-store.json, or the older settings.json beside it.
+func dockerDesktopSettingsPath() string {
+	home, _ := os.UserHomeDir()
+	var dir string
+	switch runtime.GOOS {
+	case "darwin":
+		dir = filepath.Join(home, "Library", "Group Containers", "group.com.docker")
+	case "windows":
+		dir = filepath.Join(os.Getenv("APPDATA"), "Docker")
+	default:
+		dir = filepath.Join(home, ".docker", "desktop")
+	}
+	p := filepath.Join(dir, "settings-store.json")
+	if _, err := os.Stat(p); err != nil {
+		if old := filepath.Join(dir, "settings.json"); fileExists(old) {
+			return old
+		}
+	}
+	return p
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// dockerDesktopSizable says Docker Desktop's settings file names its
+// memory, which the app then raises.
+func dockerDesktopSizable() bool {
+	b, err := os.ReadFile(dockerDesktopSettingsPath()) //nolint:gosec // Docker Desktop's own settings, read only
+	if err != nil {
+		return false
+	}
+	_, _, err = raiseDockerDesktopMemory(b, 0)
+	return err == nil
 }
 
 // vmOf names an engine's virtual machine from how detection found it and
@@ -75,7 +160,7 @@ func vmOf(goos string, e Engine) VM {
 	case strings.Contains(e.How, "podman machine") || (e.Kind == dockerx.KindPodman && goos == "darwin"):
 		return VM{Kind: VMPodmanMachine, Name: "the podman machine", Resizable: true}
 	case strings.Contains(ep, "/.docker/run/docker.sock") || strings.Contains(ep, "/.docker/desktop/docker.sock") || strings.Contains(e.How, "Docker Desktop"):
-		return VM{Kind: VMDockerDesktop, Name: "Docker Desktop"}
+		return VM{Kind: VMDockerDesktop, Name: "Docker Desktop", app: "docker-desktop"}
 	case goos == "windows":
 		return VM{Kind: VMOther, Name: "the container engine's virtual machine"}
 	case goos == "darwin":
@@ -128,6 +213,10 @@ func ResizeVM(ctx context.Context, v VM, memGiB, cpus int, logw io.Writer) error
 		return resizeRancher(ctx, memGiB, logw)
 	case VMPodmanMachine:
 		return resizePodmanMachine(ctx, memGiB, logw)
+	case VMDockerDesktop:
+		return resizeDockerDesktop(ctx, memGiB, logw)
+	case VMWSL:
+		return resizeWSL(ctx, v, memGiB, logw)
 	}
 	return fmt.Errorf("%s cannot be resized by Agentry Desktop", v.Name)
 }
@@ -201,6 +290,124 @@ func resizePodmanMachine(ctx context.Context, memGiB int, logw io.Writer) error 
 		return err
 	}
 	return waitForEngine(ctx, logw)
+}
+
+// dockerDesktop runs `docker desktop <args>`, Docker Desktop's own
+// command (Docker Desktop 4.39 and later).
+func dockerDesktop(ctx context.Context, logw io.Writer, args ...string) error {
+	cmd := exec.CommandContext(ctx, engineBin(dockerx.KindDocker), append([]string{"desktop"}, args...)...) //nolint:gosec // the docker CLI, fixed args
+	procx.NoWindow(cmd)
+	cmd.Stdout, cmd.Stderr = logw, logw
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker desktop %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
+}
+
+// writeAtomic replaces path with b, through a file beside it.
+func writeAtomic(path string, b []byte) error {
+	tmp := path + ".agentry-tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// resizeDockerDesktop quits Docker Desktop, raises the memoryMiB of its
+// settings, and starts it again.
+func resizeDockerDesktop(ctx context.Context, memGiB int, logw io.Writer) error {
+	path := dockerDesktopSettingsPath()
+	b, err := os.ReadFile(path) //nolint:gosec // Docker Desktop's own settings
+	if err != nil {
+		return fmt.Errorf("the settings of Docker Desktop: %w", err)
+	}
+	out, changed, err := raiseDockerDesktopMemory(b, memGiB*1024)
+	if err != nil || !changed {
+		return err
+	}
+	_, _ = fmt.Fprintf(logw, "Giving Docker Desktop %d GB of memory; it is quit and started again…\n", memGiB)
+	if err := dockerDesktop(ctx, logw, "stop"); err != nil {
+		return err
+	}
+	if err := writeAtomic(path, out); err != nil {
+		_ = dockerDesktop(ctx, logw, "start")
+		return fmt.Errorf("the settings of Docker Desktop: %w", err)
+	}
+	if err := dockerDesktop(ctx, logw, "start"); err != nil {
+		return err
+	}
+	return waitForEngine(ctx, logw)
+}
+
+// resizeWSL raises [wsl2] memory= in %UserProfile%\.wslconfig, quits the
+// application that serves the engine, shuts WSL down so the new size
+// applies, and starts the application again.
+func resizeWSL(ctx context.Context, v VM, memGiB int, logw io.Writer) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(home, ".wslconfig")
+	old, err := os.ReadFile(path) //nolint:gosec // the person's own WSL settings
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	content, changed := raiseWSLMemory(string(old), memGiB)
+	_, _ = fmt.Fprintf(logw, "Giving WSL %d GB of memory in %s; WSL is shut down and %s started again…\n", memGiB, path, v.Name)
+	stop, start := wslApp(v)
+	if err := stop(ctx, logw); err != nil {
+		return err
+	}
+	if changed {
+		if err := writeAtomic(path, []byte(content)); err != nil {
+			_ = start(ctx, logw)
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	cmd := exec.CommandContext(ctx, "wsl.exe", "--shutdown") //nolint:gosec // Windows' own command, fixed args
+	procx.NoWindow(cmd)
+	cmd.Stdout, cmd.Stderr = logw, logw
+	if err := cmd.Run(); err != nil {
+		_ = start(ctx, logw)
+		return fmt.Errorf("wsl --shutdown: %w", err)
+	}
+	// WSL takes a few seconds to let its virtual machine go.
+	select {
+	case <-time.After(wslSettle):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if err := start(ctx, logw); err != nil {
+		return err
+	}
+	return waitForEngine(ctx, logw)
+}
+
+// wslSettle is how long WSL is given to let its machine go after a
+// shutdown.
+var wslSettle = 8 * time.Second
+
+// wslApp is how the application serving a WSL engine is quit and started.
+func wslApp(v VM) (stop, start func(context.Context, io.Writer) error) {
+	if v.app == "rancher-desktop" {
+		return func(ctx context.Context, logw io.Writer) error {
+				i := windowsInstaller()
+				if i == nil {
+					return errors.New("no Rancher Desktop was found")
+				}
+				i.Log = logw
+				return i.Shutdown(ctx)
+			}, func(ctx context.Context, logw io.Writer) error {
+				i := windowsInstaller()
+				if i == nil {
+					return errors.New("no Rancher Desktop was found")
+				}
+				i.Log = logw
+				return i.Start(ctx, false)
+			}
+	}
+	return func(ctx context.Context, logw io.Writer) error { return dockerDesktop(ctx, logw, "stop") },
+		func(ctx context.Context, logw io.Writer) error { return dockerDesktop(ctx, logw, "start") }
 }
 
 // rancherGoWait bounds the wait for Rancher Desktop's engine to go once its

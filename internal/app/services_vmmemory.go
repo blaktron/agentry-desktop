@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -47,10 +48,14 @@ func (s *SettingsAPI) fitVM(n, current int) (int, error) {
 	}
 	fits := min(n, sysmem.RunsFit(vm.MemoryBytes))
 	title := fmt.Sprintf("Give %s %d GB of memory?", vm.Name, need)
+	restart := vm.Restart
+	if restart == "" {
+		restart = vm.Name + " is restarted."
+	}
 	msg := fmt.Sprintf("%d runs at once need about %d GB of memory in %s's virtual machine, which has %d GB now. "+
-		"Agentry Desktop restarts %s to give it %d GB. That takes a minute or two, and nothing can run on it meanwhile.\n\n"+
+		"To give it %d GB, %s That takes a minute or two, and nothing can run on it meanwhile.\n\n"+
 		"With No, Runs at once is set to %d, which its memory fits now.",
-		n, need, vm.Name, have, vm.Name, need, fits)
+		n, need, vm.Name, have, need, lowerFirst(restart), fits)
 	if s.app.confirm == nil {
 		return fits, nil
 	}
@@ -123,4 +128,19 @@ func engineMemoryView(vm run.VM, n int) *EngineMemoryView {
 		line += fmt.Sprintf(" %s need about %d GB: raise its memory in %s's own settings.", capitalize(runs(n)), need, vm.Name)
 	}
 	return &EngineMemoryView{Line: line, Short: true}
+}
+
+// lowerFirst is s with its first letter lower-cased, for a sentence's
+// middle; a name that starts it ("Windows' WSL", "Docker Desktop") keeps
+// its capital.
+func lowerFirst(s string) string {
+	for _, keep := range []string{"Windows", "Docker", "Rancher", "Agentry"} {
+		if strings.HasPrefix(s, keep) {
+			return s
+		}
+	}
+	if s == "" {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
 }
