@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.37",
+      "highlights": [
+        "Settings, Home, Accessibility: text and layout up to twice the size, also with the zoom keys, and less motion.",
+        "Screen readers hear each page, chat reply and error once, and rows, menus and dialogs work from the keyboard.",
+        "A question or notice from Agentry now opens over the Agentry window, on the screen it is on.",
+        "Adding a server to a persistent agent starts with a search of servers known to work, each added in one click."
+      ]
+    },
+    {
       "version": "0.7.36",
       "highlights": [
         "Settings shows the models, keys and coding tools your organization manages.",
