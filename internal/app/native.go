@@ -239,8 +239,9 @@ func systemInfo(ctx context.Context, title, message string) {
 
 // nativeOpenCard opens the window a card is shown in: small, above the
 // other windows, with no frame of its own (the card draws its own head, by
-// which it is moved), centred on the screen.
-func nativeOpenCard(title string, closed func()) (cardWindow, error) {
+// which it is moved), at at. It opens hidden and is shown once placed, so
+// it never shows first on the screen a new window starts on.
+func nativeOpenCard(title string, at cardRect, closed func()) (cardWindow, error) {
 	wails := application.Get()
 	if wails == nil {
 		return nil, errNoApplication
@@ -252,21 +253,51 @@ func nativeOpenCard(title string, closed func()) (cardWindow, error) {
 		Height:                     cardHeight,
 		AlwaysOnTop:                true,
 		Frameless:                  true,
+		Hidden:                     true,
 		URL:                        "/#card",
 		DefaultContextMenuDisabled: true,
 		InitialPosition:            application.WindowCentered,
 	})
 	w.RegisterHook(wailsevents.Common.WindowClosing, func(*application.WindowEvent) { closed() })
+	card := nativeCard{w}
+	if !at.empty() {
+		card.place(at)
+	}
 	w.Show()
 	w.Focus()
-	return w, nil
+	return card, nil
 }
 
-// The card window's size when it opens; the card then fits it to itself.
-const (
-	cardWidth  = 520
-	cardHeight = 260
-)
+// nativeCard is a card's window.
+type nativeCard struct{ *application.WebviewWindow }
+
+func (w nativeCard) place(r cardRect) {
+	w.SetBounds(application.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+}
+
+// nativeCardAnchor is the main window, whether it is shown, and the
+// system's screens, as the windowing layer reports them.
+func nativeCardAnchor() cardAnchor {
+	var a cardAnchor
+	wails := application.Get()
+	if wails == nil {
+		return a
+	}
+	if w := mainWindow(); w != nil {
+		a.Main = rectOf(w.Bounds())
+		a.Shown = w.IsVisible() && !w.IsMinimised()
+	}
+	for _, s := range wails.Screen.GetAll() {
+		if s != nil {
+			a.Screens = append(a.Screens, cardScreen{Bounds: rectOf(s.Bounds), Work: rectOf(s.WorkArea), Primary: s.IsPrimary})
+		}
+	}
+	return a
+}
+
+func rectOf(r application.Rect) cardRect {
+	return cardRect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}
+}
 
 // nativeCaller is the window a bound call came from, which the webview
 // layer attaches to the call.

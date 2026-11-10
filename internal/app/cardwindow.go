@@ -61,6 +61,90 @@ type CardView struct {
 type cardWindow interface {
 	ID() uint
 	Close()
+	// place moves and sizes the window to r.
+	place(r cardRect)
+}
+
+// The card window's width, the height it opens at, and the most it grows
+// to fit its card before the message scrolls.
+const (
+	cardWidth     = 520
+	cardHeight    = 260
+	cardMaxHeight = 640
+)
+
+// cardRect is a window's or a screen's place and size on the desktop, in
+// the system's device-independent units: x grows rightwards and y
+// downwards from the primary screen's top-left corner, as the windowing
+// layer reports both windows and screens.
+type cardRect struct{ X, Y, Width, Height int }
+
+func (r cardRect) empty() bool { return r.Width <= 0 || r.Height <= 0 }
+
+func (r cardRect) contains(x, y int) bool {
+	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
+}
+
+// cardScreen is one of the system's screens: all of it, and its work area,
+// the part not taken by a menu bar, dock or task bar.
+type cardScreen struct {
+	Bounds, Work cardRect
+	Primary      bool
+}
+
+// cardAnchor is what a card is placed by: the app's main window, whether it
+// is shown (not hidden or minimised), and the system's screens.
+type cardAnchor struct {
+	Main    cardRect
+	Shown   bool
+	Screens []cardScreen
+}
+
+// screen is the work area of the screen the main window is on: the one
+// holding its centre, else the primary screen, else the first. A new
+// window starts on the primary screen whatever screen the app is on, so a
+// card is placed here rather than left to the system.
+func (a cardAnchor) screen() cardRect {
+	if !a.Main.empty() {
+		cx, cy := a.Main.X+a.Main.Width/2, a.Main.Y+a.Main.Height/2
+		for _, s := range a.Screens {
+			if s.Bounds.contains(cx, cy) && !s.Work.empty() {
+				return s.Work
+			}
+		}
+	}
+	for _, s := range a.Screens {
+		if s.Primary && !s.Work.empty() {
+			return s.Work
+		}
+	}
+	for _, s := range a.Screens {
+		if !s.Work.empty() {
+			return s.Work
+		}
+	}
+	return cardRect{}
+}
+
+// bounds is where a card window width by height goes: centred over the
+// main window when it is shown, else centred on its screen, and in either
+// case kept inside that screen's work area, no larger than it. Empty means
+// there is no screen to place it on, and the system places it.
+func (a cardAnchor) bounds(width, height int) cardRect {
+	work := a.screen()
+	if work.empty() {
+		return cardRect{}
+	}
+	width, height = min(width, work.Width), min(height, work.Height)
+	over := work
+	if a.Shown && !a.Main.empty() {
+		over = a.Main
+	}
+	x := over.X + (over.Width-width)/2
+	y := over.Y + (over.Height-height)/2
+	x = max(work.X, min(x, work.X+work.Width-width))
+	y = max(work.Y, min(y, work.Y+work.Height-height))
+	return cardRect{X: x, Y: y, Width: width, Height: height}
 }
 
 // errNoCardWindow is ask's answer when no card window can be opened; the
@@ -78,9 +162,13 @@ type CardWindowAPI struct {
 	cur *pendingCard
 	win cardWindow
 
-	// open creates and shows the window for a card titled title; closed
-	// runs when the person closes it. Nil is no card window.
-	open func(title string, closed func()) (cardWindow, error)
+	// open creates and shows the window for a card titled title at at
+	// (the system's place when at is empty); closed runs when the person
+	// closes it. Nil is no card window.
+	open func(title string, at cardRect, closed func()) (cardWindow, error)
+	// anchor is the main window and the screens, which a card is placed
+	// by. Nil leaves the card where the system puts it.
+	anchor func() cardAnchor
 	// caller is the window a bound call came from, as the webview layer
 	// said; false when it named none.
 	caller func(ctx context.Context) (uint, bool)
@@ -93,6 +181,7 @@ func newCardWindowAPI() *CardWindowAPI {
 	return &CardWindowAPI{
 		turn:        make(chan struct{}, 1),
 		open:        nativeOpenCard,
+		anchor:      nativeCardAnchor,
 		caller:      nativeCaller,
 		loadTimeout: cardLoadTimeout,
 	}
@@ -152,7 +241,7 @@ func (c *CardWindowAPI) ask(ctx context.Context, view CardView) (int, error) {
 	c.mu.Lock()
 	c.cur = p
 	c.mu.Unlock()
-	w, err := c.open(view.Title, func() {
+	w, err := c.open(view.Title, c.bounds(cardHeight), func() {
 		p.closed.Store(true)
 		p.reply(view.Cancel)
 	})
@@ -194,6 +283,14 @@ func (c *CardWindowAPI) ask(ctx context.Context, view CardView) (int, error) {
 	}
 }
 
+// bounds is where a card window height tall goes now.
+func (c *CardWindowAPI) bounds(height int) cardRect {
+	if c.anchor == nil {
+		return cardRect{}
+	}
+	return c.anchor().bounds(cardWidth, height)
+}
+
 func (c *CardWindowAPI) clear() {
 	c.mu.Lock()
 	c.cur, c.win = nil, nil
@@ -230,6 +327,27 @@ func (c *CardWindowAPI) Card(ctx context.Context) (*CardView, error) {
 	v := p.view
 	v.Buttons = append([]CardButton(nil), p.view.Buttons...)
 	return &v, nil
+}
+
+// FitCard makes the calling card's window height tall, as its card needs,
+// up to the most a card grows to and the height of its screen, and keeps it
+// centred over the app's window. Only the card's own window may size
+// itself.
+func (c *CardWindowAPI) FitCard(ctx context.Context, height int) error {
+	if _, err := c.fromCardWindow(ctx); err != nil {
+		return err
+	}
+	at := c.bounds(min(max(height, 1), cardMaxHeight))
+	if at.empty() {
+		return nil
+	}
+	c.mu.Lock()
+	w := c.win
+	c.mu.Unlock()
+	if w != nil {
+		w.place(at)
+	}
+	return nil
 }
 
 // AnswerCard answers the card id with the button at index button. Only the
