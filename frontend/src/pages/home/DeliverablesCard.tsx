@@ -5,7 +5,7 @@ import { CardFrame, CouldNotRead } from "../../cards";
 import { agentOf, cardStatus, clickDoes, iconDate, iconKind, iconName } from "../../deliverables";
 import { FileIcon } from "../../fileIcons";
 import { RevealText, plainName } from "../../reveal";
-import { ErrorBox } from "../../ui";
+import { ErrorBox, menuKeyDown } from "../../ui";
 
 // Home's Deliverables card: the most recent files runs were for, across the
 // runs this computer remembers (the history Go keeps, each run's envelope),
@@ -86,7 +86,11 @@ function IconCell({ file, now, run }: {
   return (
     <div className={`deliverable-cell build-way-part${menu ? " is-menu-open" : ""}`} ref={cell}
       onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}
-      onKeyDown={(e) => { if (e.key === "Escape" && menu) { e.stopPropagation(); setMenu(false); icon.current?.focus(); } }}
+      onKeyDown={(e) => {
+        if (!menu) return;
+        if (e.key === "Escape") { e.stopPropagation(); setMenu(false); icon.current?.focus(); return; }
+        menuKeyDown(e, cell.current?.querySelector<HTMLElement>('[role="menu"]') ?? null);
+      }}
       onBlur={(e) => { if (menu && !e.currentTarget.contains(e.relatedTarget as Node | null)) setMenu(false); }}>
       <button type="button" ref={icon} className="deliverable-icon" title={name} aria-label={iconName({ name, canOpen: opens }, agentLabel, date)}
         data-deliverable={file.path} data-deliverable-open={opens ? "" : undefined} data-deliverable-kind={iconKind(file)}

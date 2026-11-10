@@ -296,10 +296,30 @@ export function Recap({ rows }: { rows: { label: string; value: React.ReactNode;
   );
 }
 
+/** The keys of an open menu (role="menu"): Up and Down move between its
+ *  enabled items and wrap, Home and End go to the first and the last.
+ *  Answers whether it handled the key. Escape and Tab are the menu's own:
+ *  each closes it. */
+export function menuKeyDown(e: React.KeyboardEvent<HTMLElement>, menu: HTMLElement | null): boolean {
+  if (!menu) return false;
+  const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled):not([aria-disabled="true"])'));
+  if (items.length === 0) return false;
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  const go = (i: number) => { e.preventDefault(); items[(i + items.length) % items.length].focus(); return true; };
+  switch (e.key) {
+    case "ArrowDown": return go(at < 0 ? 0 : at + 1);
+    case "ArrowUp": return go(at < 0 ? items.length - 1 : at - 1);
+    case "Home": return go(0);
+    case "End": return go(items.length - 1);
+    default: return false;
+  }
+}
+
 /** A page's options menu (the Scheduled page's): one
  *  button that opens a short list of actions under it. It closes on a
  *  choice, on Escape and on a press outside it, and the first item takes
- *  the focus when it opens. */
+ *  the focus when it opens; the arrow keys, Home and End move between its
+ *  items (menuKeyDown). */
 export function OptionsMenu({ label = "Options", ariaLabel, items }: {
   label?: string;
   // The button's name for a screen reader, where its label is a symbol.
@@ -308,6 +328,8 @@ export function OptionsMenu({ label = "Options", ariaLabel, items }: {
 }) {
   const [open, setOpen] = React.useState(false);
   const box = React.useRef<HTMLDivElement>(null);
+  const button = React.useRef<HTMLButtonElement>(null);
+  const list = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
@@ -320,12 +342,20 @@ export function OptionsMenu({ label = "Options", ariaLabel, items }: {
   return (
     // Escape closes the open list and goes no further, so a dialog around
     // the menu stays open.
-    <div className="options-menu" ref={box} onKeyDown={(e) => { if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
-      <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ariaLabel} data-options-menu onClick={() => setOpen((o) => !o)}>
+    // Escape closes the open list, puts the focus back on its button and goes
+    // no further, so a dialog around the menu stays open; Tab closes it and
+    // moves on.
+    <div className="options-menu" ref={box} onKeyDown={(e) => {
+      if (!open) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); button.current?.focus(); return; }
+      if (e.key === "Tab") { setOpen(false); return; }
+      menuKeyDown(e, list.current);
+    }}>
+      <button ref={button} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={ariaLabel} data-options-menu onClick={() => setOpen((o) => !o)}>
         {label} <span aria-hidden>▾</span>
       </button>
       {open && (
-        <div className="options-menu-list" role="menu">
+        <div className="options-menu-list" role="menu" ref={list}>
           {items.map((it) => (
             <button key={it.key ?? it.label} type="button" role="menuitem" className="ghost" disabled={it.disabled} data-menu-item={it.key}
               onClick={() => { setOpen(false); it.onSelect(); }}>
