@@ -1,5 +1,6 @@
-// The coding agents a person may run QuickAgents through, and the export
-// a one-click Install writes for them. HarnessChooser is the list the
+// The coding agents a person may run QuickAgents through, the export
+// a one-click Install writes for them, and the Agentry plugin in every
+// coding tool on this computer (CodingToolPlugins). HarnessChooser is the list the
 // Welcome's Coding agent step shows: what the runner policy records, a
 // Look that probes each harness once, Use this one. The
 // Settings section adds Forget, and beneath the list what the choice
@@ -11,6 +12,7 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import * as SettingsAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/settingsapi";
 import { OpenExternal } from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/app";
 import * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import * as codingtools from "../../bindings/github.com/blaktron/agentry-desktop/internal/codingtools/models";
 import { Button, Card, ErrorBox, Notice, Spinner } from "../ui";
 
 // harnessLabel is the product's name the adapter carries ("Claude Code"),
@@ -32,6 +34,17 @@ export function codingAgentName(view: app.CodingAgentsView | null): string {
   if (view.export.target === "claude-skill") return "Claude Code";
   const codex = view.chosen.find((h) => h.name === "codex");
   return codex ? harnessLabel(codex) : "a coding agent";
+}
+
+// appBuild names the desktop app a coding agent's executable came with,
+// for a path the probe found inside one: the Claude app keeps the Claude
+// Code its Code tab runs under ccd-cli, and the Codex app carries codex in
+// its bundle.
+export function appBuild(path: string): string | null {
+  const p = path.replace(/\\/g, "/");
+  if (p.includes("/.claude/remote/ccd-cli/")) return "the Claude app's own Claude Code";
+  if (/\/Codex\.app\//.test(p)) return "the Codex app's own codex";
+  return null;
 }
 
 export type HarnessState = {
@@ -172,7 +185,7 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
             <p className="muted">
               Found at <span className="mono">{h.path}</span>
               {h.version ? <> — {h.version}</> : null}
-              {h.pathFromPolicy ? <> (from the policy)</> : h.source === "known location" ? <> (a usual install location, not on this app&apos;s PATH)</> : null}
+              {h.pathFromPolicy ? <> (from the policy)</> : h.source === "known location" ? <> ({appBuild(h.path ?? "") ?? "a usual install location"}, not on this app&apos;s PATH)</> : null}
             </p>
           ) : (
             <p className="muted">Not on this machine. {h.reason}</p>
@@ -264,5 +277,154 @@ export function CodingAgentsCard() {
       )}
       <ErrorBox error={error} />
     </Card>
+  );
+}
+
+// pluginLine is a found tool's plugin state as one phrase.
+export function pluginLine(t: codingtools.View): string {
+  if (t.plugin === "installed") return "Agentry plugin installed";
+  if (t.uses?.length) return `uses the plugins of ${t.uses.join(" and ")}`;
+  if (t.plugin === "not installed") return "no Agentry plugin yet";
+  return "";
+}
+
+// CodingToolPlugins is the second half of Coding tools: every coding tool
+// the app knows, found or not, and the Agentry plugin in each. Go reads it
+// from the file system alone, so it is read on opening; Install is Go's
+// to run, after a native dialog that lists each command, and the page
+// passes only the tool's id.
+export function CodingToolPlugins() {
+  const [tools, setTools] = useState<codingtools.View[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, app.CodingToolInstall>>({});
+  const [showMissing, setShowMissing] = useState(false);
+
+  const read = useCallback(() => {
+    SettingsAPI.CodingTools().then((ts) => setTools(ts ?? [])).catch((e) => setError(String(e)));
+  }, []);
+  useEffect(read, [read]);
+
+  async function install(t: codingtools.View) {
+    setBusy(t.id); setError(null);
+    try {
+      const r = await SettingsAPI.InstallCodingToolPlugin(t.id);
+      if (r) {
+        setResults((rs) => ({ ...rs, [t.id]: r }));
+        setTools((ts) => ts && ts.map((x) => (x.id === r.tool.id ? r.tool : x)));
+      }
+    } catch (e) {
+      if (!/not confirmed/i.test(String(e))) setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const found = tools?.filter((t) => t.found) ?? [];
+  const missing = tools?.filter((t) => !t.found) ?? [];
+
+  return (
+    <Card>
+      <div className="row">
+        <strong>The Agentry plugin in your coding tools</strong>
+        <div className="grow" />
+        <Button variant="link" disabled={busy !== null} onClick={read}>Look again</Button>
+      </div>
+      <p className="muted small">
+        The coding tools on this computer, command-line tools, desktop apps and editors, found in their usual
+        places without running any of them. The plugin lets a tool find, check, install and run QuickAgents through
+        the agentry command here, which keeps your sign-in and enforces each QuickAgent&apos;s contract. Install runs
+        the tool&apos;s own plugin command once you confirm it.
+      </p>
+      <ErrorBox error={error} />
+      {tools === null && !error && <Spinner />}
+      {tools !== null && found.length === 0 && (
+        <p className="muted">None of the coding tools below is on this computer.</p>
+      )}
+      {found.map((t) => (
+        <ToolRow key={t.id} t={t} busy={busy} result={results[t.id]} onInstall={() => void install(t)} />
+      ))}
+      {missing.length > 0 && (
+        <>
+          <Button variant="link" onClick={() => setShowMissing((v) => !v)}>
+            {showMissing ? "Hide" : "Show"} the {missing.length} not on this computer
+          </Button>
+          {showMissing && missing.map((t) => (
+            <div key={t.id} className="card wizard-harness" data-tool={t.id}>
+              <div className="row">
+                <strong>{t.name}</strong>
+                <span className="badge kind">{t.kind}</span>
+                <div className="grow" />
+                {t.site && <Button variant="link" onClick={() => void OpenExternal(t.site)}>Get {t.name}</Button>}
+              </div>
+              {t.note && <p className="muted small">{t.note}</p>}
+            </div>
+          ))}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function ToolRow({ t, busy, result, onInstall }: {
+  t: codingtools.View;
+  busy: string | null;
+  result?: app.CodingToolInstall;
+  onInstall: () => void;
+}) {
+  const installed = t.plugin === "installed";
+  const line = pluginLine(t);
+  return (
+    <div className={`card wizard-harness${installed ? " chosen" : ""}`} data-tool={t.id}>
+      <div className="row">
+        <strong>{t.name}</strong>
+        <span className="badge kind">{t.kind}</span>
+        {line && <span className="muted small">{line}</span>}
+        <div className="grow" />
+        {t.commands?.length ? (
+          <Button variant={installed ? "ghost" : "primary"} disabled={busy !== null} onClick={onInstall}>
+            {busy === t.id ? "Installing…" : installed ? "Install again" : "Install the plugin"}
+          </Button>
+        ) : t.manualUrl ? (
+          <Button variant="link" onClick={() => void SettingsAPI.OpenCodingToolLink(t.id)}>How to add it</Button>
+        ) : null}
+      </div>
+      <p className="muted small">
+        Found at <span className="mono selectable">{t.path}</span>
+        {t.source === "usual location" ? <> (a usual install location, not on this app&apos;s PATH)</> : null}
+      </p>
+      {t.commands?.length ? (
+        <div className="muted small">
+          {t.via ? <>Installed with {t.via}&apos;s command:</> : <>Install runs:</>}
+          {t.commands.map((c, i) => <div key={i} className="mono selectable">{c}</div>)}
+        </div>
+      ) : null}
+      {t.blocked && <p className="muted small">{t.blocked}</p>}
+      {t.manual && <p className="muted small">{t.manual}</p>}
+      {t.plugin === "unknown" && !!t.commands?.length && (
+        <p className="muted small">This tool keeps its plugins where the app cannot read whether Agentry is among them.</p>
+      )}
+      {t.note && <p className="muted small">{t.note}</p>}
+      {result && <InstallResult r={result} />}
+    </div>
+  );
+}
+
+function InstallResult({ r }: { r: app.CodingToolInstall }) {
+  return (
+    <>
+      {r.error
+        ? <Notice tone="warn">{r.error}</Notice>
+        : <Notice tone="ok">Done. Restart {r.tool.name}, or start a new session in it, for the plugin to load.</Notice>}
+      <details>
+        <summary className="muted small">What ran</summary>
+        {r.steps?.map((s, i) => (
+          <div key={i}>
+            <div className="mono small">{s.command}{s.exitCode ? ` (exit ${s.exitCode})` : ""}</div>
+            {s.output && <pre className="mono small selectable">{s.output}</pre>}
+          </div>
+        ))}
+      </details>
+    </>
   );
 }
