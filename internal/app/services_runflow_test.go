@@ -142,7 +142,7 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 		// The engine writes the envelope as far as the run got.
 		return &run.Result{Status: "error", ExitCode: 130, Error: "run interrupted", RunID: req.RunID}, nil
 	})
-	if err := r.StopRun(); !errors.Is(err, errNoRun) {
+	if err := r.StopRun("ab12cd34"); !errors.Is(err, errNoRun) {
 		t.Fatalf("StopRun with nothing running: %v", err)
 	}
 	for _, j := range []struct {
@@ -154,7 +154,7 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := r.StopRun(); err == nil || cancelled {
+		if err := r.StopRun("ab12cd34"); err == nil || cancelled {
 			t.Fatalf("StopRun while a %s runs: %v, cancelled %v", j.kind, err, cancelled)
 		}
 		r.endRun(l)
@@ -177,7 +177,7 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 	if err := k.StopBuild(); err == nil {
 		t.Fatal("StopBuild stopped a run")
 	}
-	if err := r.StopRun(); err != nil {
+	if err := r.StopRun("ab12cd34"); err != nil {
 		t.Fatal(err)
 	}
 	select {

@@ -60,8 +60,8 @@ func TestMain(m *testing.M) {
 	}
 	// No test asks a registry for its managed settings unless it says so:
 	// a test's fake registry answers the sign-in's own requests only.
-	managedCalls.sync = func(context.Context, *http.Client, string, string, time.Duration) (*managed.State, error) {
-		return nil, nil
+	managedCalls.sync = func(context.Context, *http.Client, string, string, time.Duration) (*managed.State, bool, error) {
+		return nil, false, nil
 	}
 	managedCalls.refresh = func(context.Context, *http.Client, string, string) (*managed.State, error) {
 		return nil, nil

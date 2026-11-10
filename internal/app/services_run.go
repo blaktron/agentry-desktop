@@ -67,11 +67,24 @@ var errBusy = errors.New("another job is under way on this computer, and one job
 // RunAPI drives QuickAgent runs from the app.
 type RunAPI struct {
 	app *App
-	// mu serializes the docker-touching operations: one run (or image setup)
-	// at a time keeps the log streams and the engine's teardown sweeps
-	// unambiguous. An interactive session holds it from StartSession to
-	// EndSession (one session per app).
-	mu sync.Mutex
+	// The lock and the slots (services_runqueue.go), under queueMu: the
+	// docker-touching operations other than runs hold the lock alone
+	// (exclusive), so the engine's setup steps never act beneath a run;
+	// runs hold up to runsAtOnce slots (running, in the order they
+	// started). An interactive session holds the lock from StartSession to
+	// EndSession (one session per app). queue is the runs waiting for a
+	// slot, in the order they were started: a free slot goes to the first
+	// of them. queueClosed is set as the app quits, when nothing more
+	// waits.
+	queueMu     sync.Mutex
+	exclusive   *jobHolder
+	running     []runSlot
+	runsAtOnce  int
+	queue       []*queuedRun
+	queueClosed bool
+	// queueEmitMu orders the queue's reports, so the page never hears an
+	// older one after a newer.
+	queueEmitMu sync.Mutex
 	// images lists and removes Docker images (Run defaults' Docker images);
 	// nil is the docker CLI. A test passes its own.
 	images dockerimages.Docker
@@ -103,29 +116,17 @@ type RunAPI struct {
 	awaitMu  sync.Mutex
 	awaiting *awaitingStart
 
-	// holder is what holds mu, for the busy refusal and InFlight
-	// (services_runflow.go), under its own lock.
-	holderMu sync.Mutex
-	holder   *jobHolder
-	// queue is the runs waiting for mu, in the order they were started
-	// (services_runqueue.go): release hands mu to the first of them.
-	// Taken before holderMu. queueClosed is set as the app quits, when
-	// nothing more waits.
-	queueMu     sync.Mutex
-	queue       []*queuedRun
-	queueClosed bool
-	// queueEmitMu orders the queue's reports, so the page never hears an
-	// older one after a newer.
-	queueEmitMu sync.Mutex
-
-	// live is the run or session in flight, so quitting can end it and sweep
-	// what it built (services_quit.go).
+	// lives are the runs and the one other job in flight, by run id, so
+	// Stop can end the run it names and quitting can end them all and sweep
+	// what they built (services_quit.go).
 	liveMu sync.Mutex
-	live   *liveRun
+	lives  map[string]*liveRun
 	// unsafeMu serializes a live run's Unsafe Mode flag with the event that
 	// tells the shell, so the shell never hears them out of order
-	// (setUnsafeLive, endRun). Taken before liveMu.
-	unsafeMu sync.Mutex
+	// (setUnsafeLive, endRun); unsafeLive counts the live runs in Unsafe
+	// Mode. Taken before liveMu.
+	unsafeMu   sync.Mutex
+	unsafeLive int
 	// Engine seams for tests; nil means internal/run.
 	newRunID  func() (string, error)
 	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
@@ -236,6 +237,9 @@ func eventView(ev session.Event) SessionEventView {
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
+		return nil, err
+	}
+	if _, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereLocal, 0, maxTurns, intakeAnswers); err != nil {
 		return nil, err
 	}
 	// The switch is read once: the dialog that carries its line and the
@@ -365,7 +369,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	}
 	res, err := s.End(r.app.ctx, finish)
 	r.session = nil
-	if l := r.current(); l != nil {
+	if l := r.liveJob(); l != nil {
 		// A chat's end is how the person ends it, not a stop: its outcome
 		// is the engine's.
 		recordLocal(context.Background(), r.app, runhistory.KindChat, l, s.Ref(), res, err)
@@ -894,10 +898,10 @@ func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
 	if err := refuseManagedKeySource(managedsettings.WebSearchSource, "web search"); err != nil {
 		return nil, err
 	}
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "a change to the web search key"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.StoreSearchKey(provider, key, logw); err != nil {
@@ -910,10 +914,10 @@ func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
 // ForgetSearchKey removes the web search key from the keychain and the
 // provider from the policy.
 func (r *RunAPI) ForgetSearchKey() (*SearchKeyView, error) {
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "a change to the web search key"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.ForgetSearchKey(logw); err != nil {
@@ -954,6 +958,13 @@ type ProfileStatusView struct {
 	Keep              bool     `json:"keep"`
 	StoredSecretNames []string `json:"storedSecretNames"`
 	CapabilityLines   []string `json:"capabilityLines"`
+	// RequiredBy is the organization that installed the release and whose
+	// contract the person has yet to accept: the run setup shows the
+	// contract under "Required by <organization>" and asks every time.
+	RequiredBy string `json:"requiredBy,omitempty"`
+	// Preset is what the organization gave the run setup for this release,
+	// nil when none.
+	Preset *PresetView `json:"preset,omitempty"`
 	// Intake are the release's up-front questions (manifest v2), answered
 	// in the run panel before either mode starts.
 	Intake []IntakeQuestionView `json:"intake"`
@@ -1022,6 +1033,8 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Keep:              p.Keep,
 		StoredSecretNames: emptyNotNil(p.StoredSecretNames),
 		CapabilityLines:   emptyNotNil(p.CapabilityLines),
+		RequiredBy:        p.RequiredBy,
+		Preset:            presetOf(p.Ref),
 		Intake:            []IntakeQuestionView{},
 		Modes:             emptyNotNil(p.Modes),
 		Opening:           p.Opening,
@@ -1166,6 +1179,10 @@ type runHooks struct {
 
 // runAgent is RunAgent with its hooks.
 func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
+	var err error
+	if timeoutSec, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereLocal, timeoutSec, maxTurns, intakeAnswers); err != nil {
+		return nil, err
+	}
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -1199,7 +1216,7 @@ func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string
 	if err := r.acquireRun(id, ref, queued); err != nil {
 		return nil, err
 	}
-	defer r.release()
+	defer r.releaseRun(id)
 	// The run's own context: quitting and Stop cancel it, the engine
 	// returns and tears down, and shutdown waits for that
 	// (services_quit.go).
@@ -1572,6 +1589,9 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 	}
 	if allowVulnerableMCP && !unsafe {
 		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Runs, or run a release that pins a fixed version")
+	}
+	if err := r.askRequiredConsent(reg, ref); err != nil {
+		return err
 	}
 	var accepting []string
 	if acceptUnsigned {

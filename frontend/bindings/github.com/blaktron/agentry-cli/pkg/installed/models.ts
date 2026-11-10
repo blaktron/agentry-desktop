@@ -323,6 +323,15 @@ export class Record {
      */
     "digest"?: string;
 
+    /**
+     * AssignedBy is the handle of the organization whose managed settings
+     * required this release, set when the client installed it on their
+     * behalf. Such a record carries no capabilities until the person
+     * consents in a run, so it is never a consent; the person's consent
+     * (Upsert, Reconsent) replaces the record and clears the field.
+     */
+    "assignedBy"?: string;
+
     /** Creates a new Record instance. */
     constructor($$source: Partial<Record> = {}) {
         if (!("registry" in $$source)) {

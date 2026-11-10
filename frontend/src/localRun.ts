@@ -16,7 +16,7 @@ export type RunProgress = JobProgress & { runId: string; ref: string; prepared: 
 /** One line of a run's log, with its id (runner:run-line). */
 export type RunLine = { runId: string; line: string };
 
-/** A run waiting for the run lock behind another job (runner:run-queue,
+/** A run waiting for a slot behind the runs or the job under way (runner:run-queue,
  *  RunAPI's QueuedRunView): Go sends the whole queue each time it changes. */
 export type QueuedRun = { runId: string; ref: string; position: number; waitingFor: string };
 
@@ -145,11 +145,11 @@ export function outcome(r: LocalRun): { line: string; tone: Tone } {
 }
 
 /** What the store needs from the app: Go's events, and the calls that stop
- *  and forget a run. Injected, so the store's rules are tested without a
- *  webview. */
+ *  a run by its id and forget a run. Injected, so the store's rules are
+ *  tested without a webview. */
 export type RunStoreDeps = {
   on: (event: string, cb: (v: never) => void) => () => void;
-  stop: () => Promise<void>;
+  stop: (runId: string) => Promise<void>;
   forget: (runId: string) => void;
   /** Cancel on a queued run's card. */
   cancelQueued?: (runId: string) => Promise<void>;
@@ -295,10 +295,10 @@ export function createRunStore<S>(deps: RunStoreDeps) {
 
     /** Stop: the run ends and its receipts are written as far as it got. */
     async stop(): Promise<void> {
-      if (!run || run.over) return;
+      if (!run || run.over || !run.runId) return;
       markStopping?.();
       try {
-        await deps.stop();
+        await deps.stop(run.runId);
       } catch {
         // The run ended as Stop was pressed: its own result is what shows.
       }

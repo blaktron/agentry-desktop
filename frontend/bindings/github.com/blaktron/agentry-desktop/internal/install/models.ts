@@ -169,6 +169,15 @@ export class Item {
     "digest"?: string;
 
     /**
+     * AssignedBy is the handle of the organization whose managed settings
+     * required this release, set when the client installed it on their
+     * behalf. Such a record carries no capabilities until the person
+     * consents in a run, so it is never a consent; the person's consent
+     * (Upsert, Reconsent) replaces the record and clears the field.
+     */
+    "assignedBy"?: string;
+
+    /**
      * Origin is the registry this record's QuickAgent is looked up at: the
      * record's own registry for an export, the app's default registry for
      * a runner record, whose key names none (a run resolves through the
@@ -431,6 +440,13 @@ export class Plan {
      * every declared name, for the consent.
      */
     "secrets"?: string[];
+
+    /**
+     * AssignedBy is the organization whose managed settings require this
+     * install; "" for an install the person asked for. Such an install
+     * records no consent: the person's first run asks.
+     */
+    "assignedBy"?: string;
 
     /** Creates a new Plan instance. */
     constructor($$source: Partial<Plan> = {}) {

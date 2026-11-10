@@ -2,10 +2,10 @@
 // Run or its session's End returns, deferred on the binding's goroutine; if
 // the app simply exits while that goroutine is still inside the engine, the
 // teardown never runs and the agent, gateway (holding the Docker socket) and
-// proxy containers outlive the app. So the app keeps a record of the one run
-// in flight, asks before a close would cut it short, and on shutdown ends it
-// and waits — bounded — for the engine's teardown, then sweeps the run's
-// label itself in case the wait ran out.
+// proxy containers outlive the app. So the app keeps a record of each run in
+// flight, asks before a close would cut them short, and on shutdown ends
+// them all and waits — bounded, one wait for all of them — for the engine's
+// teardowns, then sweeps each run's label itself in case the wait ran out.
 //
 // The same sweep runs for what is not live: at start for every recorded run
 // whose owner is gone, and at quit for those and for the records this app
@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,7 +40,8 @@ var quitWait = 90 * time.Second
 // sweepWait bounds the label sweep that follows.
 const sweepWait = 30 * time.Second
 
-// liveRun is the run or interactive session in flight.
+// liveRun is a run, or the one other job (an interactive session, a draft,
+// a build, a review), in flight.
 type liveRun struct {
 	id string
 	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild, jobReview):
@@ -79,6 +81,9 @@ type liveRun struct {
 	// leaves no opened copy in the store; one that does not leaves it for
 	// the store's own sweep, an hour on, as a killed app does.
 	release func()
+	// computer gives back the computer a computer-use run holds
+	// (holdComputer); endRun calls it, nil when the run holds none.
+	computer func()
 	// lines are the run's log lines as the page was shown them, the
 	// newest maxKeptLogLines of them, for the log the history keeps once
 	// the run has ended (keep, kept); logDropped counts the earlier ones.
@@ -131,11 +136,14 @@ func (r *RunAPI) beginRun(kind jobKind, ref string, cancel context.CancelFunc) (
 }
 
 // beginRunAs is beginRun for a run whose id was minted before it waited
-// for the run lock.
+// for a slot.
 func (r *RunAPI) beginRunAs(kind jobKind, ref, id string, cancel context.CancelFunc) (*liveRun, error) {
 	l := &liveRun{id: id, kind: kind, ref: ref, started: time.Now().UTC(), cancel: cancel, done: make(chan struct{})}
 	r.liveMu.Lock()
-	r.live = l
+	if r.lives == nil {
+		r.lives = map[string]*liveRun{}
+	}
+	r.lives[id] = l
 	r.liveMu.Unlock()
 	// The crash path's record: written before the engine creates anything,
 	// so a kill from here on leaves the next start a run id to sweep. Best
@@ -149,13 +157,14 @@ func (r *RunAPI) beginRunAs(kind jobKind, ref, id string, cancel context.CancelF
 	return l, nil
 }
 
-// addTurn records a later turn of the run in flight, under its own run id,
-// before the engine creates anything for it: its crash-path record, and
-// the id quitting sweeps with the run's.
+// addTurn records a later turn of the job in flight other than a run (a
+// draft's repair turn), under its own run id, before the engine creates
+// anything for it: its crash-path record, and the id quitting sweeps with
+// the job's. Such a job runs alone, so it is the one other job in flight.
 func (r *RunAPI) addTurn(id string) {
 	r.liveMu.Lock()
-	if r.live != nil {
-		r.live.turns = append(r.live.turns, id)
+	if l := r.liveJobLocked(); l != nil {
+		l.turns = append(l.turns, id)
 	}
 	r.liveMu.Unlock()
 	if dir, err := r.inFlight(); err == nil {
@@ -170,7 +179,7 @@ func (r *RunAPI) addTurn(id string) {
 // the run's crash-path records and closes done.
 func (r *RunAPI) endRun(l *liveRun) {
 	r.liveMu.Lock()
-	if r.live != l || l.ending {
+	if l.ending {
 		r.liveMu.Unlock()
 		return
 	}
@@ -178,14 +187,17 @@ func (r *RunAPI) endRun(l *liveRun) {
 	if l.release != nil {
 		l.release()
 	}
+	if l.computer != nil {
+		l.computer()
+	}
 	ids := append([]string{l.id}, l.turns...)
 	r.liveMu.Unlock()
 	// Deferred, so that a run whose settling panics is not left in flight
 	// with nobody ever told it is done.
 	defer func() {
 		r.liveMu.Lock()
-		if r.live == l {
-			r.live = nil
+		if r.lives[l.id] == l {
+			delete(r.lives, l.id)
 		}
 		close(l.done)
 		r.liveMu.Unlock()
@@ -194,7 +206,10 @@ func (r *RunAPI) endRun(l *liveRun) {
 		l.unsafeDone = true
 		if l.unsafe {
 			l.unsafe = false
-			emitEvent(r.app, eventUnsafeLive, false)
+			r.unsafeLive--
+			if r.unsafeLive == 0 {
+				emitEvent(r.app, eventUnsafeLive, false)
+			}
 		}
 	}()
 	// Settled outside the lock, which the close dialog and the Stop buttons
@@ -277,26 +292,50 @@ func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
 	return swept
 }
 
-func (r *RunAPI) current() *liveRun {
+// liveJob is the job in flight other than a run (a chat, a draft, a build,
+// a review), nil when there is none. Such a job runs alone.
+func (r *RunAPI) liveJob() *liveRun {
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	return r.live
+	return r.liveJobLocked()
+}
+
+// liveJobLocked is liveJob for a caller that holds liveMu.
+func (r *RunAPI) liveJobLocked() *liveRun {
+	for _, l := range r.lives {
+		if l.kind != jobRun {
+			return l
+		}
+	}
+	return nil
+}
+
+// liveNow is every run and job in flight, the earliest started first.
+func (r *RunAPI) liveNow() []*liveRun {
+	r.liveMu.Lock()
+	defer r.liveMu.Unlock()
+	out := make([]*liveRun, 0, len(r.lives))
+	for _, l := range r.lives {
+		out = append(out, l)
+	}
+	slices.SortFunc(out, func(a, b *liveRun) int { return a.started.Compare(b.started) })
+	return out
 }
 
 // beforeClose is OnBeforeClose: with a run in flight it asks, in a native
 // dialog, whether to quit and stop it. No keeps the window open. Yes — or
-// a dialog that cannot be shown — lets the close go ahead; the run is then
+// a dialog that cannot be shown — lets the close go ahead; the runs are then
 // ended in shutdown, never left running.
 //
 // A session In Agentry is not stopped by quitting: with no local run in
 // flight, the dialog says it goes on until its idle close, and that
 // reopening its run picks the conversation up.
 func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
-	l := r.current()
+	lives := r.liveNow()
 	if r.app == nil || r.app.confirm == nil {
 		return false
 	}
-	if l == nil {
+	if len(lives) == 0 {
 		cur := r.hostedCurrent()
 		if cur == nil || !cur.session {
 			return false
@@ -307,34 +346,47 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 		}
 		return !yes
 	}
-	queued := ""
-	switch n := r.queuedCount(); {
-	case n == 1:
-		queued = " The run waiting to start after it is cancelled."
-	case n > 1:
-		queued = fmt.Sprintf(" The %d runs waiting to start after it are cancelled.", n)
-	}
-	yes, err := r.app.confirm(ctx, "Quit Agentry Desktop?",
-		"A run of "+l.ref+" is in progress. Quitting stops it and removes its containers; its receipts are written as far as it got."+queued+" Quit anyway?")
+	yes, err := r.app.confirm(ctx, "Quit Agentry Desktop?", quitNote(lives, r.queuedCount()))
 	if err != nil {
 		return false
 	}
 	return !yes
 }
 
-// shutdown is the run half of OnShutdown: end the run in flight, wait for
-// the engine's teardown (bounded by quitWait), then sweep what it left; and,
-// with or without a run in flight, sweep what any earlier run of this app
+// quitNote is the close dialog's text for the runs in flight and the runs
+// waiting after them.
+func quitNote(lives []*liveRun, queued int) string {
+	waiting := ""
+	switch {
+	case queued == 1 && len(lives) == 1:
+		waiting = " The run waiting to start after it is cancelled."
+	case queued == 1:
+		waiting = " The run waiting to start after them is cancelled."
+	case queued > 1 && len(lives) == 1:
+		waiting = fmt.Sprintf(" The %d runs waiting to start after it are cancelled.", queued)
+	case queued > 1:
+		waiting = fmt.Sprintf(" The %d runs waiting to start after them are cancelled.", queued)
+	}
+	if len(lives) == 1 {
+		return "A run of " + lives[0].ref + " is in progress. Quitting stops it and removes its containers; its receipts are written as far as it got." + waiting + " Quit anyway?"
+	}
+	return fmt.Sprintf("%d runs are in progress. Quitting stops them and removes their containers; their receipts are written as far as each got.", len(lives)) + waiting + " Quit anyway?"
+}
+
+// shutdown is the run half of OnShutdown: end every run in flight, wait for
+// the engine's teardowns (all of them within quitWait), then sweep what each
+// left; and, with or without a run in flight, sweep what any earlier run of this app
 // and any run of an app that died left (run.SweepAtQuit). Another app's
 // run that is live on this machine is never touched.
 func (r *RunAPI) shutdown() {
 	defer r.removePDFCopies()
-	// The queued runs go first, so none is handed the lock as the run in
-	// flight ends.
+	// The queued runs go first, so none is handed a slot as the runs in
+	// flight end.
 	r.closeQueue()
 	var ids []string
-	if l := r.current(); l != nil {
-		if s := r.session; s != nil {
+	lives := r.liveNow()
+	for _, l := range lives {
+		if s := r.session; s != nil && l.kind == jobChat {
 			// The session's End asks the harness to quit, waits for it,
 			// writes the receipts as far as the chat got and runs the
 			// engine's teardown; bounded like the autonomous wait.
@@ -348,12 +400,21 @@ func (r *RunAPI) shutdown() {
 		} else {
 			l.cancel()
 		}
+	}
+	// One wait for them all: each run's teardown goes on beside the others'.
+	deadline := time.After(quitWait)
+wait:
+	for _, l := range lives {
 		select {
 		case <-l.done:
-		case <-time.After(quitWait):
+		case <-deadline:
+			break wait
 		}
+	}
+	for _, l := range lives {
 		r.liveMu.Lock()
-		ids = append([]string{l.id}, l.turns...)
+		ids = append(ids, l.id)
+		ids = append(ids, l.turns...)
 		r.liveMu.Unlock()
 	}
 	sweepCtx, cancel := context.WithTimeout(context.Background(), sweepWait)

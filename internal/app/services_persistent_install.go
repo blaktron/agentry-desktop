@@ -253,6 +253,11 @@ func (p *PersistentAPI) Uninstall(name string, removeData bool) error {
 	if !a.Published() {
 		return fmt.Errorf("%s is built into Agentry and is not uninstalled: turn it off instead", a.Title)
 	}
+	// Refused before anything is stopped or removed, so a required release
+	// never leaves its agent half removed.
+	if reason := managedCalls.current().UninstallRefusal(a.Ref); reason != "" {
+		return errors.New(reason)
+	}
 	home, err := p.home()
 	if err != nil {
 		return err

@@ -308,11 +308,11 @@ func TestKnowledgeBuildIsARunUnderTheRunLock(t *testing.T) {
 		return &build.Result{Documents: []string{"guide.txt"}, Applied: &kn.Result{Manifest: p.Manifest}}, nil
 	}
 
-	f.k.run.mu.Lock()
+	f.k.run.holdLock()
 	if _, err := f.k.Create(f.reg.URL, "notes", []string{doc}, knowledge.Sources{}, "", false); !errors.Is(err, errBusy) {
 		t.Fatalf("create while a run holds the lock: %v", err)
 	}
-	f.k.run.mu.Unlock()
+	f.k.run.release()
 
 	res, err := f.k.Create(f.reg.URL, "notes", []string{doc}, knowledge.Sources{}, "", false)
 	if err != nil {

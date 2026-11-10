@@ -8,8 +8,8 @@
 // the setup reopens the setup on that QuickAgent with the answers as they
 // were.
 //
-// The run lock is unchanged: this run is the one local job. A run started
-// meanwhile waits its turn in a card of its own, "Waiting to start", with
+// This card follows one run. A run started while every slot is taken
+// waits its turn in a card of its own, "Waiting to start", with
 // Cancel, and takes this card over when it begins; any other job started
 // meanwhile is refused with what is running. Every string the run wrote
 // (the log, the error, the result) is drawn as text.

@@ -435,10 +435,11 @@ func (a *DesignerAPI) StopHere() error {
 	r := a.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.ref != designerRunRef {
+	l := r.liveJobLocked()
+	if l == nil || l.ref != designerRunRef {
 		return errors.New("the Report Designer is not running on this computer")
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 

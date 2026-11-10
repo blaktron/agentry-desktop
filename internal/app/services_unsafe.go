@@ -95,11 +95,13 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	return runDefaultsView()
 }
 
-// setUnsafeLive records whether the live run is in Unsafe Mode and tells the
-// shell when that changes: true from the start of a run that read the switch
-// on, then its compile's answer, and false when endRun ends it. Turning the
-// switch off changes the next run, never this one, so the window keeps
-// saying so while this one is live. The change and its event are one step
+// setUnsafeLive records whether a live run is in Unsafe Mode and tells the
+// shell when "a run in Unsafe Mode is live" changes: true from the start of
+// the first run that read the switch on, then each compile's answer, and
+// false when the last such run's compile says otherwise or endRun ends it,
+// so one run ending never takes the edge away from another still live.
+// Turning the switch off changes the next run, never this one, so the
+// window keeps saying so while this one is live. The change and its event are one step
 // under unsafeMu, and nothing is recorded for a run that has ended.
 func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
 	r.unsafeMu.Lock()
@@ -108,7 +110,17 @@ func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
 		return
 	}
 	l.unsafe = on
-	emitEvent(r.app, eventUnsafeLive, on)
+	if on {
+		r.unsafeLive++
+		if r.unsafeLive == 1 {
+			emitEvent(r.app, eventUnsafeLive, true)
+		}
+		return
+	}
+	r.unsafeLive--
+	if r.unsafeLive == 0 {
+		emitEvent(r.app, eventUnsafeLive, false)
+	}
 }
 
 // UnsafeLive says whether a run or chat in Unsafe Mode is live on this
@@ -117,8 +129,7 @@ func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
 func (r *RunAPI) UnsafeLive() bool {
 	r.unsafeMu.Lock()
 	defer r.unsafeMu.Unlock()
-	l := r.current()
-	return l != nil && l.unsafe
+	return r.unsafeLive > 0
 }
 
 // UnsafeNoticeView is what Unsafe Mode means for one QuickAgent's run on

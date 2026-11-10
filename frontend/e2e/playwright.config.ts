@@ -18,7 +18,11 @@ export default defineConfig({
   workers: process.env.CI ? 4 : undefined,
   timeout: 60_000,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // On CI one retry: the browser shares the runner host's network, and
+  // another job creating or removing a Docker network there makes Chromium
+  // abort a navigation (net::ERR_NETWORK_CHANGED). A real violation fails
+  // both tries; Playwright reports a pass on the retry as flaky.
+  retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   use: {
     baseURL: `http://127.0.0.1:${port}`,

@@ -1,7 +1,8 @@
 // A run on this computer followed above the pages: the page's store follows
 // the run by its id through runner:run-progress and runner:run-line, Stop
-// ends it (StopRun, which stops a run and nothing else), the busy refusal
-// and InFlight say which job holds the run lock, and Dismiss removes the
+// ends it (StopRun, which stops the run it names and nothing else), the busy
+// refusal and InFlight say which job holds the lock or the slots, and
+// Dismiss removes the
 // run's card (ForgetRun; the run history keeps the run).
 package app
 
@@ -24,7 +25,7 @@ const (
 	eventRunLine     = "runner:run-line"
 )
 
-// jobKind is the kind of local job the run lock is held for.
+// jobKind is the kind of local job the lock or a slot is held for.
 type jobKind string
 
 const (
@@ -37,8 +38,8 @@ const (
 	jobSetup  jobKind = "setup"
 )
 
-// jobHolder is what holds the run lock: its kind and a noun phrase naming
-// it, which the busy refusal makes the subject of its sentence.
+// jobHolder is what holds the lock: its kind and a noun phrase naming it,
+// which the busy refusal makes the subject of its sentence.
 type jobHolder struct {
 	kind jobKind
 	what string
@@ -51,53 +52,48 @@ type busyError struct{ msg string }
 func (e busyError) Error() string        { return e.msg }
 func (e busyError) Is(target error) bool { return target == errBusy }
 
-// acquire takes the run lock for a job of kind, named by what, or refuses
-// with the job that holds it. A run waits for it instead (acquireRun).
+// acquire takes the lock for a job of kind other than a run, named by
+// what, or refuses with what holds the lock or the slots: such a job runs
+// alone, so it is refused while any run is running or waiting. A run takes
+// a slot instead (acquireRun).
 func (r *RunAPI) acquire(kind jobKind, what string) error {
-	if !r.mu.TryLock() {
+	r.queueMu.Lock()
+	if r.exclusive != nil || len(r.running) > 0 || len(r.queue) > 0 {
+		r.queueMu.Unlock()
 		return r.busy()
 	}
-	r.setHolder(&jobHolder{kind: kind, what: what})
+	r.exclusive = &jobHolder{kind: kind, what: what}
+	r.queueMu.Unlock()
 	return nil
 }
 
-// setHolder records what holds the run lock; nil when nothing does.
-func (r *RunAPI) setHolder(h *jobHolder) {
-	r.holderMu.Lock()
-	r.holder = h
-	r.holderMu.Unlock()
-}
-
-// release gives the run lock back, or hands it to the first run waiting
-// for it, which the lock is never free between: a job that asks meanwhile
-// is refused, and no queued run is overtaken.
+// release gives the lock acquire took back, and hands the slots to the
+// runs waiting for them, which the lock is never free between: a job that
+// asks meanwhile is refused, and no queued run is overtaken.
 func (r *RunAPI) release() {
 	r.queueMu.Lock()
-	if len(r.queue) > 0 {
-		q := r.queue[0]
-		r.queue = r.queue[1:]
-		r.setHolder(&jobHolder{kind: jobRun, what: q.what})
-		close(q.granted)
-		r.queueMu.Unlock()
-		r.emitQueue()
-		return
-	}
-	r.setHolder(nil)
+	r.exclusive = nil
+	granted := r.grantLocked()
 	r.queueMu.Unlock()
-	r.mu.Unlock()
+	if granted {
+		r.emitQueue()
+	}
 }
 
-// busy is the refusal while another job holds the run lock.
+// busy is the refusal while another job holds the lock, or runs hold the
+// slots.
 func (r *RunAPI) busy() error {
 	r.queueMu.Lock()
 	waiting := len(r.queue)
+	h := r.exclusive
+	running := len(r.running)
+	what := r.holderWhatLocked()
 	r.queueMu.Unlock()
-	r.holderMu.Lock()
-	h := r.holder
-	r.holderMu.Unlock()
-	what, how := "another job", ""
-	if h != nil {
-		what = h.what
+	how := ""
+	switch {
+	case h == nil && running > 0:
+		how = ", or stop it"
+	case h != nil:
 		switch h.kind {
 		case jobRun, jobDraft, jobBuild, jobReview:
 			how = ", or stop it"
@@ -112,6 +108,10 @@ func (r *RunAPI) busy() error {
 	case waiting > 1:
 		after = fmt.Sprintf(" and the %d runs waiting after it", waiting)
 	}
+	if h == nil && running > 1 {
+		after = strings.ReplaceAll(after, "after it", "after them")
+		return busyError{msg: fmt.Sprintf("%d runs are under way on this computer, and this job runs only when none is: wait for them%s to finish, or stop them.", running, after)}
+	}
 	return busyError{msg: fmt.Sprintf("%s is under way on this computer, and one job runs here at a time: wait for it%s to finish%s.", capitalize(what), after, how)}
 }
 
@@ -122,23 +122,30 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// InFlightView names the local job holding the run lock.
+// InFlightView names the local job holding the lock, or the runs holding
+// the slots.
 type InFlightView struct {
 	// Kind is run, chat, draft, build, review or setup.
 	Kind string `json:"kind"`
-	// Line names the job in a sentence's subject position.
+	// Line names the job in a sentence's subject position: "3 runs" when
+	// several runs are under way.
 	Line string `json:"line"`
 }
 
-// InFlight names the local job holding the run lock, or nil when there is
-// none.
+// InFlight names the local job holding the lock, or the runs holding the
+// slots, or nil when there is none.
 func (r *RunAPI) InFlight() *InFlightView {
-	r.holderMu.Lock()
-	defer r.holderMu.Unlock()
-	if r.holder == nil {
-		return nil
+	r.queueMu.Lock()
+	defer r.queueMu.Unlock()
+	switch {
+	case r.exclusive != nil:
+		return &InFlightView{Kind: string(r.exclusive.kind), Line: capitalize(r.exclusive.what)}
+	case len(r.running) == 1:
+		return &InFlightView{Kind: string(jobRun), Line: capitalize(r.running[0].what)}
+	case len(r.running) > 1:
+		return &InFlightView{Kind: string(jobRun), Line: fmt.Sprintf("%d runs", len(r.running))}
 	}
-	return &InFlightView{Kind: string(r.holder.kind), Line: capitalize(r.holder.what)}
+	return nil
 }
 
 // RunProgress is how far a run on this computer has got, for the progress
@@ -219,19 +226,21 @@ func (r *RunAPI) runLineWriter(runID string) *lineEventWriter {
 	return &lineEventWriter{ctx: r.app, event: eventRunLine, wrap: func(line string) any { return RunLine{RunID: runID, Line: line} }}
 }
 
-var errNoRun = errors.New("no run is under way on this computer")
+var errNoRun = errors.New("that run is not under way on this computer")
 
-// StopRun ends the run on this computer: its context is cancelled, the
-// engine tears the run down and writes its receipts as far as it got, and
-// RunAgent returns its result. It stops a run and nothing else: a draft, a
-// knowledge build and a chat each have their own way to end.
-func (r *RunAPI) StopRun() error {
+// StopRun ends the run runID on this computer: its context is cancelled,
+// the engine tears the run down and writes its receipts as far as it got,
+// and RunAgent returns its result. It stops that run and nothing else: the
+// other runs under way go on, and a draft, a knowledge build and a chat each
+// have their own way to end.
+func (r *RunAPI) StopRun(runID string) error {
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.kind != jobRun {
+	l := r.lives[runID]
+	if l == nil || l.kind != jobRun {
 		return errNoRun
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 

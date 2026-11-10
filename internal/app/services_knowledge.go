@@ -172,10 +172,11 @@ func (k *KnowledgeAPI) StopBuild() error {
 	r := k.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.ref != knowledgeRunRef {
+	l := r.liveJobLocked()
+	if l == nil || l.ref != knowledgeRunRef {
 		return errors.New("no knowledge build is running on this computer")
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 
