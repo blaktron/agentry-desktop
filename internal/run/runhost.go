@@ -149,7 +149,11 @@ func RunOnRunhost(ctx context.Context, req RunhostRequest, logw io.Writer) (*Res
 	// The run carries the saved model the run setup picked, else the
 	// default, with that one's key alone; the job names the saved model, so
 	// the runhost's receipt does.
-	chosen, err := localrun.ChooseRunModel(pol, req.Model, "")
+	model, err := presetModel(pol, req.Ref, req.Model, logw)
+	if err != nil {
+		return nil, ranOn, err
+	}
+	chosen, err := localrun.ChooseRunModel(pol, model, "")
 	if err != nil {
 		return nil, ranOn, err
 	}

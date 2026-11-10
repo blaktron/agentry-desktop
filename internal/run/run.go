@@ -669,7 +669,11 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// from nothing of another provider's. A picked model the computer lacks,
 	// or whose key or sign-in is not here, is refused by its name before
 	// anything is installed; nothing falls back to the default.
-	chosen, err := chooseModel(home, full, req.Model)
+	model, err := presetModel(full, req.Ref, req.Model, logw)
+	if err != nil {
+		return nil, err
+	}
+	chosen, err := chooseModel(home, full, model)
 	if err != nil {
 		return nil, err
 	}
