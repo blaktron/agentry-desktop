@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.35",
+      "highlights": [
+        "Questions and approvals now open in an Agentry card window instead of your system's message box.",
+        "No has the focus when a card opens, so Enter or Escape never says yes by accident."
+      ]
+    },
+    {
       "version": "0.7.34",
       "highlights": [
         "Settings, Coding tools: see which coding tools are on this computer, their desktop apps included, without running them.",
