@@ -16,6 +16,17 @@ import (
 // naming the runhost it ran on. What a run from the app does not carry to a
 // runhost yet is refused before anything is sent (run.RunhostCannotCarry).
 func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, outDir string, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, acceptUnscanned bool, model string) (*RunResultView, error) {
+	var began string
+	view, err := r.runOnRunhostBody(&began, name, reg, ref, task, inputPaths, outDir, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, acceptUnscanned, model)
+	if began != "" {
+		r.emitRunEnded(began, view, err)
+	}
+	return view, err
+}
+
+// runOnRunhostBody is RunOnRunhost's run; it sets began to the run's id once
+// the run has begun.
+func (r *RunAPI) runOnRunhostBody(began *string, name, reg, ref, task string, inputPaths []string, outDir string, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, acceptUnscanned bool, model string) (*RunResultView, error) {
 	var err error
 	if timeoutSec, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereRunhost, timeoutSec, maxTurns, intakeAnswers); err != nil {
 		return nil, err
@@ -40,6 +51,7 @@ func (r *RunAPI) RunOnRunhost(name, reg, ref, task string, inputPaths []string, 
 	defer r.endRun(live)
 	live.registry, live.runhost = reg, name
 	r.runMeter(live.id, ref).Emit()
+	*began = live.id
 	logw := r.runLineWriter(live.id)
 	logw.also = live.keep
 	defer logw.Flush()

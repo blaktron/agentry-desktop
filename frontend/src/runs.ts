@@ -44,13 +44,17 @@ const store = createRunStore<RunSetup>({
   cancelQueued: (runId) => RunAPI.CancelQueuedRun(runId),
 });
 
-// The runs waiting to start, for the app's life from the first use of the
-// run store (RunFlow is mounted with the app): read once, then as Go reports
-// each change. Not at module load, before the runtime is there.
+// The runs waiting to start, and the runs Go starts itself, for the app's
+// life from the first use of the run store (RunFlow is mounted with the app):
+// the queue is read once, then as Go reports each change. Not at module
+// load, before the runtime is there.
 let watchingQueue = false;
 function watchQueue(): void {
   if (watchingQueue) return;
   watchingQueue = true;
+  // The runs Go starts on its own behalf (the Helper's, an agent's) join the
+  // card too.
+  store.watch();
   EventsOn("runner:run-queue", (q: QueuedRun[]) => store.setQueue(q));
   void Promise.resolve()
     .then(() => RunAPI.QueuedRuns())

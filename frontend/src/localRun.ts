@@ -16,6 +16,12 @@ export type RunProgress = JobProgress & { runId: string; ref: string; prepared: 
 /** One line of a run's log, with its id (runner:run-line). */
 export type RunLine = { runId: string; line: string };
 
+/** How a run ended, as Go reports it once the run has given its slot back
+ *  (runner:run-ended, RunAPI's RunEnded): its result, or, when it ended with
+ *  none, the error. The page that started a run has the same from the call's
+ *  return; this is for a run it did not start. */
+export type RunEnded = { runId: string; result?: app.RunResultView; error?: string };
+
 /** A run waiting for a slot behind the runs or the job under way (runner:run-queue,
  *  RunAPI's QueuedRunView): Go sends the whole queue each time it changes. */
 export type QueuedRun = { runId: string; ref: string; position: number; waitingFor: string };
@@ -156,6 +162,10 @@ export type RunStoreDeps = {
   cancelQueued?: (runId: string) => Promise<void>;
 };
 
+/** How many ids of runs the store let go it remembers, so a late report of
+ *  one is not taken for a run it did not start. */
+const RETIRED_KEPT = 500;
+
 export type RunStoreState<S> = {
   /** The run the window follows: its dialog, or its card when it is the
    *  only one; null when none is followed. */
@@ -175,7 +185,10 @@ export const MAX_ENDED_RUNS = 10;
 
 /** The runs on this computer the app follows, and the runs waiting to start
  *  after them. Several runs can be under way at once; the window follows one
- *  of them, and the runs card lists them all. A start owns nothing shared
+ *  of them, and the runs card lists them all. A run Go starts on its own
+ *  behalf (the Agentry Helper's, an agent's) is followed too, once watch is
+ *  on: it joins the runs card when it reports progress, with no setup to go
+ *  back to, and ends with Go's end report. A start owns nothing shared
  *  until its own run has begun: the runs being followed are left as they are
  *  while a second Run waits for its consent and for Go's answer, and a start
  *  Go refuses changes nothing. A start Go queues closes its setup once the
@@ -183,15 +196,29 @@ export const MAX_ENDED_RUNS = 10;
  *  window over only if the window follows no run that is still under way.
  *  setup is whatever reopens the run's setup. */
 export function createRunStore<S>(deps: RunStoreDeps) {
-  type Entry = { run: LocalRun; setup: S; markStopping: () => void };
+  // setup is null for a run this app did not start, which has none to
+  // reopen; own says a start of this store made the entry, so its reports
+  // are its start's to follow.
+  type Entry = { run: LocalRun; setup: S | null; own: boolean; markStopping: () => void };
   // entries are the runs followed, by id, in the order they began.
   const entries = new Map<string, Entry>();
   // followed is the run the window follows.
   let followed: string | null = null;
-  // starting: a start is waiting for its run to begin. A report does not
-  // say which start it answers, so a second start waits for the first to
-  // begin, be queued or be refused.
-  let starting_ = false;
+  // pending: a start is waiting for its run to begin, with its release and
+  // the runs queued when it began. A report does not say which start it
+  // answers, so a second start waits for the first to begin, be queued or be
+  // refused.
+  let pending: { ref: string; queuedBefore: Set<string> } | null = null;
+  // claimed are the runs a start of this store queued and has not yet seen
+  // begin: their first report is that start's.
+  const claimed = new Set<string>();
+  // retired are runs the store let go, so a late report is not a new run.
+  const retired = new Set<string>();
+  const retire = (id: string) => {
+    retired.add(id);
+    if (retired.size > RETIRED_KEPT) retired.delete(retired.values().next().value as string);
+  };
+  let watching: (() => void) | null = null;
   let shown = false;
   let raised = 0;
   let queue: QueuedRun[] = [];
@@ -205,12 +232,14 @@ export function createRunStore<S>(deps: RunStoreDeps) {
     const room = MAX_ENDED_RUNS - (followed && entries.get(followed)?.run.over ? 1 : 0);
     for (const [id] of ended.slice(0, Math.max(0, ended.length - room))) {
       entries.delete(id);
+      retire(id);
       deps.forget(id);
     }
   };
 
   const forgetOne = (id: string) => {
     entries.delete(id);
+    retire(id);
     deps.forget(id);
     if (id === followed) {
       followed = null;
@@ -236,16 +265,70 @@ export function createRunStore<S>(deps: RunStoreDeps) {
       };
     },
 
+    /** Follows the runs Go starts on its own behalf, for as long as the app
+     *  lives: a run this store did not start joins the runs card when Go
+     *  first reports its progress, and takes its progress and log by its
+     *  id; Go's end report lists it as over. It takes the window over from
+     *  nothing, and it has no setup, so Back to the setup is not offered for
+     *  it. Idempotent. */
+    watch(): void {
+      if (watching) return;
+      const offs = [
+        deps.on("runner:run-progress", (p: RunProgress) => {
+          const e = entries.get(p.runId);
+          if (e) {
+            if (e.own) return;
+            e.run = withProgress(e.run, p);
+            notify();
+            return;
+          }
+          if (!p.runId || retired.has(p.runId) || claimed.has(p.runId)) return;
+          // A start waiting for its run takes the first report of its release
+          // that is not of a run that was queued before it.
+          if (pending && pending.ref === p.ref && !pending.queuedBefore.has(p.runId)) return;
+          const id = p.runId;
+          entries.set(id, {
+            run: withProgress(starting(p.ref), p),
+            setup: null,
+            own: false,
+            markStopping: () => {
+              const cur = entries.get(id);
+              if (!cur) return;
+              cur.run = stopAsked(cur.run);
+              notify();
+            },
+          });
+          forgetEnded();
+          notify();
+        }),
+        deps.on("runner:run-line", (l: RunLine) => {
+          const e = entries.get(l.runId);
+          if (!e || e.own) return;
+          e.run = withLine(e.run, l);
+          notify();
+        }),
+        deps.on("runner:run-ended", (end: RunEnded) => {
+          const e = entries.get(end.runId);
+          if (!e || e.own) return;
+          e.run = end.result ? finished(e.run, end.result) : failed(e.run, end.error || "The run did not finish.");
+          forgetEnded();
+          notify();
+        }),
+      ];
+      watching = () => offs.forEach((f) => f());
+    },
+
     /** Starts a run of ref by call: resolves once Go reports that the run
      *  has begun, which is when the setup closes, and rejects with Go's
      *  words if it never began. */
     start(s: S, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
-      if (starting_) return Promise.reject("A run is being started on this computer; wait for it to begin, then start another.");
-      starting_ = true;
+      if (pending) return Promise.reject("A run is being started on this computer; wait for it to begin, then start another.");
       // The runs followed and queued when this start began are not this
       // start's, whatever their reports say.
       const known = new Set<string>(entries.keys());
       const queuedBefore = new Set(queue.map((q) => q.runId));
+      const me = { ref, queuedBefore };
+      pending = me;
       let mine = starting(ref);
       let begun = false;
       // queued: Go put this start's run in the queue, and the setup closed.
@@ -262,15 +345,17 @@ export function createRunStore<S>(deps: RunStoreDeps) {
         const begin = () => {
           if (begun) return;
           begun = true;
-          starting_ = false;
+          if (pending === me) pending = null;
           const id = mine.runId ?? "";
           const prev = followed ? entries.get(followed) : undefined;
           // A run the person just started takes the window; a queued run
           // that begins takes it only from a run that is over, or none.
           const takeOver = !queued || !prev || prev.run.over;
+          claimed.delete(id);
           entries.set(id, {
             run: mine,
             setup: s,
+            own: true,
             markStopping: () => {
               mine = stopAsked(mine);
               publish();
@@ -294,7 +379,8 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           const entry = (q ?? []).find((e) => e.ref === ref && !queuedBefore.has(e.runId) && !known.has(e.runId));
           if (!entry) return;
           queued = true;
-          starting_ = false;
+          if (pending === me) pending = null;
+          claimed.add(entry.runId);
           mine = { ...mine, runId: entry.runId };
           resolve();
         });
@@ -327,7 +413,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
               // A queued run cancelled before it began has no card: the
               // queue's next report drops it. Its start was over when it
               // was queued, so another start pending now is left alone.
-              if (!queued) starting_ = false;
+              if (!queued && pending === me) pending = null;
               reject(e);
               return;
             }
@@ -335,6 +421,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
             publish();
           })
           .finally(() => {
+            if (mine.runId) claimed.delete(mine.runId);
             offQueue();
             offProgress();
             offLine();

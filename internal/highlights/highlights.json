@@ -4,7 +4,8 @@
       "version": "0.7.39",
       "highlights": [
         "Several runs can go at once: Settings, Runs at once, up to 2, 6 or 20 by this computer's memory.",
-        "With many runs, one card lists those under way, those waiting and those over, each with Stop, Open or Cancel."
+        "With many runs, one card lists those under way, those waiting and those over, each with Stop, Open or Cancel.",
+        "Runs the Agentry Helper or an agent starts are in that card too, while they run."
       ]
     },
     {

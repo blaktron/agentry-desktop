@@ -1177,8 +1177,28 @@ type runHooks struct {
 	outDirIn string
 }
 
-// runAgent is RunAgent with its hooks.
+// runAgent is RunAgent with its hooks. A run that began ends with a
+// runner:run-ended event, after its slot is given back, so a page that
+// followed it without starting it (a run the Agentry Helper or an agent
+// started) learns how it ended.
 func (r *RunAPI) runAgent(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
+	var began string
+	told := h.began
+	h.began = func(id string) {
+		began = id
+		if told != nil {
+			told(id)
+		}
+	}
+	view, err := r.runAgentBody(h, reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign, model)
+	if began != "" {
+		r.emitRunEnded(began, view, err)
+	}
+	return view, err
+}
+
+// runAgentBody is runAgent's run.
+func (r *RunAPI) runAgentBody(h runHooks, reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn, destinations []string, reportDesign, model string) (*RunResultView, error) {
 	var err error
 	if timeoutSec, maxTurns, intakeAnswers, err = applyPreset(managedCalls.current(), ref, managedsettings.WhereLocal, timeoutSec, maxTurns, intakeAnswers); err != nil {
 		return nil, err
