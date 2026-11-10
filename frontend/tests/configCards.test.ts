@@ -377,3 +377,11 @@ test("a desktop:<id> entry names the application it resolves; computer use and a
   assert.equal(desktopAppID({ kind: "desktop-exec", id: "desktop:my-cad:exec" }), null);
   assert.equal(desktopAppID({ kind: "server", id: "server:x" }), null);
 });
+
+test("an organization's entry says who set it, and a locked one has no switch", async () => {
+  const { cardSwitches, grantedWords } = await import("../src/configCards.ts");
+  assert.equal(grantedWords({ grantedBy: "organization", organization: "acme", locked: true }), "Managed by acme");
+  assert.equal(grantedWords({ grantedBy: "organization", organization: "acme" }), "Set by acme");
+  assert.equal(cardSwitches({ fixed: false, state: "on", on: true, locked: true }), false);
+  assert.equal(cardSwitches({ fixed: false, state: "on", on: true }), true);
+});

@@ -34,6 +34,9 @@ const CASES: [ManagedPart, string, string, string, string][] = [
   ["search-key", "webSearch.source", '{"source":"agentry-credits"}', '{"source":"organization-key","provider":"brave"}',
     "What pays for web search: acme's credits, through Agentry."],
   ["coding-tools", "codingTools.allowed", '["claude-code","codex"]', '["codex"]', "The coding tools runs may use: Claude Code and Codex."],
+  ["assistant-config", "agents.assistant.name", '"Ada"', '"Ada"', "The Assistant's name: “Ada”."],
+  ["coder-config", "agents.codingAgent.servers", '[{"name":"tickets","url":"https://mcp.acme.example/t","auth":"none"}]', '[]',
+    "MCP servers on the Coding agent: tickets (mcp.acme.example)."],
 ];
 
 for (const [part, id, lockedValue, defaultValue, sentence] of CASES) {
@@ -131,4 +134,15 @@ test("a row is found by its id", () => {
   assert.equal(rowOf(rows, "schedules")!.id, "schedules");
   assert.equal(rowOf(rows, "messengers"), null);
   assert.equal(rowOf(undefined, "messengers"), null);
+});
+
+test("the agent configuration rows say what they set", () => {
+  assert.equal(valueWords(row("agents.assistant.runOnStart", "true")), "on");
+  assert.equal(valueWords(row("agents.assistant.runOnStart", "false", "default")), "off");
+  assert.equal(valueWords(row("agents.assistant.personality", '"Brief."')), "6 characters of its own");
+  assert.equal(valueWords(row("agents.assistant.knowledge", '["handbook","sales"]')), "handbook and sales");
+  assert.equal(valueWords(row("codingTools.models", '{"codex":"gpt-5.5","claude-code":"claude-sonnet-5-5"}')),
+    "gpt-5.5 for Codex and claude-sonnet-5-5 for Claude Code");
+  assert.equal(rowNote(row("agents.unreviewed", '"forbidden"'))!.disabled, true);
+  assert.ok(PART_ROWS.agents.includes("agents.unreviewed"));
 });

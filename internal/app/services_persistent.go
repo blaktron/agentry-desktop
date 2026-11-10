@@ -261,7 +261,12 @@ func (p *PersistentAPI) startOnLaunch() {
 			continue
 		}
 		cfg, err := persistent.LoadConfig(home, name)
-		if err != nil || !cfg.Enabled || !cfg.RunOnStart {
+		if err != nil || !cfg.Enabled {
+			continue
+		}
+		// An organization's managed settings may start it with Agentry, or
+		// not, locked or as a default (persistent.ManagedConfig).
+		if held, _ := persistent.ManagedConfig(a, cfg, managedCalls.current()); !held.RunOnStart {
 			continue
 		}
 		if len(persistent.Unconsented(persistent.BuildRosterUnder(a, cfg, nil, malwareCheckOn()), cfg)) > 0 {
@@ -313,8 +318,13 @@ type PersistentAgentView struct {
 	// before the agent reads it.
 	MalwareCheck bool     `json:"malwareCheck"`
 	Knowledge    []string `json:"knowledge"`
-	// RunOnStart says the agent starts when the app does.
+	// RunOnStart says the agent starts when the app does, as an
+	// organization's managed settings may set it.
 	RunOnStart bool `json:"runOnStart"`
+	// Managed are the fields of its configuration an organization's
+	// managed settings set, locked or as a default; Personality is the
+	// person's own.
+	Managed []persistent.ManagedField `json:"managed"`
 	// DevHost is the Coding agent's dev server, user@host[:port], and
 	// DevHostKey the SHA256 fingerprint of its pinned host key; empty when
 	// it has none.
@@ -433,6 +443,11 @@ type PersistentRosterEntry struct {
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	GrantedBy string `json:"grantedBy"`
+	// Organization names the organization whose managed settings put the
+	// entry on the agent (GrantedBy "organization"); Locked says the entry
+	// is on with no switch.
+	Organization string `json:"organization,omitempty"`
+	Locked       bool   `json:"locked,omitempty"`
 	// State is on, off, pending or needs-sign-in, and for a server the
 	// person added installing or failed, with Reason saying why it failed.
 	State  string `json:"state"`
@@ -629,9 +644,11 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 	if err != nil {
 		return nil, err
 	}
+	held, managedFields := persistent.ManagedConfig(a, cfg, managedCalls.current())
 	v := &PersistentAgentView{
 		Name: a.Name, Title: a.Title, DisplayName: a.DisplayName(cfg), Personality: cfg.Personality,
-		DefaultShare: cfg.Share == "", Knowledge: append([]string{}, cfg.Knowledge...), Servers: []PersistentServerView{}, RunOnStart: cfg.RunOnStart,
+		DefaultShare: cfg.Share == "", Knowledge: append([]string{}, cfg.Knowledge...), Servers: []PersistentServerView{}, RunOnStart: held.RunOnStart,
+		Managed: managedFields,
 		Volumes: PersistentVolumesView{Session: persistent.SessionVolumeIn(home, a.Name), Data: persistent.DataVolumeIn(home, a.Name)},
 	}
 	v.Share, _ = persistent.ShareFolder(a, cfg)
@@ -753,7 +770,7 @@ func rosterView(r persistent.Roster, servers []manifest.MCPServer, f cardFacts) 
 	out := make([]PersistentRosterEntry, 0, len(r))
 	for _, e := range r {
 		v := PersistentRosterEntry{
-			ID: e.ID, Kind: string(e.Kind), Name: e.Name, GrantedBy: e.GrantedBy,
+			ID: e.ID, Kind: string(e.Kind), Name: e.Name, GrantedBy: e.GrantedBy, Organization: e.Organization, Locked: e.Locked,
 			State: string(e.State), On: e.On, Line: e.Line, Fixed: e.Fixed, Reason: e.Reason,
 			ShareSwitch: e.ShareSwitch, Share: e.Share,
 			IconKey: f.glyph[e.ID], SetUpSecret: f.secret[e.ID], SetUpAccount: f.account[e.ID],

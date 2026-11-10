@@ -381,6 +381,7 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   // This computer's saved models, read again with the agent: the one it
   // runs on is the one it names, or the default.
   const models = useModelChoices(agent?.model?.id);
+  const managedRows = useManagedRows();
 
   useEffect(() => {
     if (!agent) return;
@@ -431,6 +432,13 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
   const personalityBytes = new TextEncoder().encode(personality).length;
 
   const isCoder = agent.name === CODER_AGENT;
+  // The fields an organization's managed settings set: a locked one cannot
+  // be changed here, a default one can, and can go back to theirs.
+  const managedField = (field: string) => (agent.managed ?? []).find((m) => m.field === field);
+  const nameLocked = !!managedField("name")?.locked;
+  const personalityLocked = !!managedField("personality")?.locked;
+  const runOnStartLocked = !!managedField("runOnStart")?.locked;
+  const configPart = isCoder ? "coder-config" : "assistant-config";
   const saveDev = () => {
     // The sign-in goes to Go and is never read back: the fields are emptied.
     const sign = { keyFile: dev.keyFile, passphrase: dev.passphrase, password: dev.keyFile ? "" : dev.password } as run.HostSignIn;
@@ -443,10 +451,11 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
       <ErrorBox error={error} />
       {saved && <p className="small ok" role="status">{saved}</p>}
       <label className="check-row">
-        <input type="checkbox" role="switch" checked={agent.runOnStart} disabled={busy}
+        <input type="checkbox" role="switch" checked={agent.runOnStart} disabled={busy || runOnStartLocked}
           onChange={(e) => void change({ runOnStart: e.target.checked }, "Run when Agentry starts")} />
         Run when Agentry starts
       </label>
+      <ManagedNotes rows={managedRows} part={configPart} ids={["agents.assistant.runOnStart"]} busy={busy} />
       {models && models.length > 0 && (
         <div className="agent-model" data-agent-model={name}>
           <ModelPicker models={models} value={agent.model?.id ?? ""} disabled={busy} testId={`agent-${name}`}
@@ -560,19 +569,25 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
       )}
       {!isCoder && <h3>Name and personality</h3>}
       {!isCoder && <><Field label="Name" hint="What it goes by, in the sidebar and in conversation. Empty is its own name.">
-        <Input value={displayName} maxLength={64} onChange={(e) => setDisplayName(e.target.value)} />
+        <Input value={nameLocked ? agent.displayName : displayName} maxLength={64} disabled={nameLocked} onChange={(e) => setDisplayName(e.target.value)} />
       </Field>
+      <ManagedNotes rows={managedRows} part="assistant-config" ids={["agents.assistant.name"]} busy={busy}
+        use={() => void change({ name: "" }, "The name").then((ok) => { if (ok) setDisplayName(""); })} />
       <Field label="Personality" hint={`How it should sound and behave, in your words. ${personalityBytes.toLocaleString("en-US")} of ${MAX_PERSONALITY_BYTES.toLocaleString("en-US")} bytes.`}>
-        <Textarea rows={5} value={personality} onChange={(e) => setPersonality(e.target.value)} />
+        <Textarea rows={5} value={personality} disabled={personalityLocked} onChange={(e) => setPersonality(e.target.value)} />
       </Field>
+      <ManagedNotes rows={managedRows} part="assistant-config" ids={["agents.assistant.personality"]} busy={busy}
+        use={() => void change({ personality: "" }, "The personality").then((ok) => { if (ok) setPersonality(""); })} />
       <div className="row gap">
         <Button
-          disabled={busy || personalityBytes > MAX_PERSONALITY_BYTES}
-          onClick={() => void change({ name: displayName.trim(), personality }, "The name and personality")}
+          disabled={busy || personalityBytes > MAX_PERSONALITY_BYTES || (nameLocked && personalityLocked)}
+          onClick={() => void change({ ...(nameLocked ? {} : { name: displayName.trim() }), ...(personalityLocked ? {} : { personality }) }, "The name and personality")}
         >
           Save name and personality
         </Button>
       </div></>}
+      <ManagedNotes rows={managedRows} part={configPart}
+        ids={isCoder ? ["agents.codingAgent.servers", "agents.codingAgent.knowledge"] : ["agents.assistant.servers", "agents.assistant.knowledge"]} />
 
       <h3>Share folder</h3>
       <p className="small">

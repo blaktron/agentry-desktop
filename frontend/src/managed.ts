@@ -77,7 +77,7 @@ export type RowNote = {
 export type ManagedPart =
   | "budgets" | "where" | "runhosts" | "deliverables" | "destinations" | "malware" | "unsafe"
   | "applications" | "screen" | "agents" | "installs" | "scheduled" | "updates" | "bug-report"
-  | "provider" | "review-key" | "search-key" | "coding-tools";
+  | "provider" | "review-key" | "search-key" | "coding-tools" | "assistant-config" | "coder-config";
 
 export const PART_ROWS: Record<ManagedPart, string[]> = {
   budgets: ["run.timeout", "run.maxTurns", "run.maxCost"],
@@ -89,7 +89,7 @@ export const PART_ROWS: Record<ManagedPart, string[]> = {
   unsafe: ["run.unsafeMode"],
   applications: ["desktop.applications", "desktop.customServers"],
   screen: ["desktop.screen"],
-  agents: ["agents.assistant", "agents.codingAgent", "messengers", "persistentReleases"],
+  agents: ["agents.assistant", "agents.codingAgent", "messengers", "persistentReleases", "agents.unreviewed"],
   installs: ["install.sources", "install.acceptRisk"],
   scheduled: ["schedules"],
   updates: ["updates.minimumVersion"],
@@ -97,13 +97,25 @@ export const PART_ROWS: Record<ManagedPart, string[]> = {
   provider: ["model.source", "model.providers", "model.default", "model.signIns", "model.customEndpoints"],
   "review-key": ["review.source"],
   "search-key": ["webSearch.source"],
-  "coding-tools": ["codingTools.allowed"],
+  "coding-tools": ["codingTools.allowed", "codingTools.models"],
+  "assistant-config": ["agents.assistant.name", "agents.assistant.personality", "agents.assistant.runOnStart",
+    "agents.assistant.servers", "agents.assistant.knowledge"],
+  "coder-config": ["agents.codingAgent.servers", "agents.codingAgent.knowledge"],
 };
 
 // What each row decides, as the part's sentence names it.
 const LABELS: Record<string, string> = {
   "agents.assistant": "The Assistant",
+  "agents.assistant.knowledge": "Knowledge packs on the Assistant",
+  "agents.assistant.name": "The Assistant's name",
+  "agents.assistant.personality": "The Assistant's personality",
+  "agents.assistant.runOnStart": "Starting the Assistant with Agentry",
+  "agents.assistant.servers": "MCP servers on the Assistant",
   "agents.codingAgent": "The Coding agent",
+  "agents.codingAgent.knowledge": "Knowledge packs on the Coding agent",
+  "agents.codingAgent.servers": "MCP servers on the Coding agent",
+  "agents.unreviewed": "Reading web pages Without AI Review",
+  "codingTools.models": "The model each coding tool uses",
   "browser.publicWeb": "A run's browser reaching the public web",
   bugReports: "Bug reports",
   "codingTools.allowed": "The coding tools runs may use",
@@ -205,6 +217,19 @@ export function rowOf(rows: ManagedRow[] | null | undefined, id: string): Manage
  *  and In Agentry", "version 0.7.30 or later". */
 export function valueWords(row: ManagedRow): string {
   const v = rowValue(row);
+  if (row.id === "agents.assistant.name") return typeof v === "string" ? `“${v}”` : row.value;
+  if (row.id === "agents.assistant.personality") return typeof v === "string" ? `${v.length.toLocaleString("en-US")} characters of its own` : row.value;
+  if (typeof v === "boolean") return v ? "on" : "off";
+  if (row.id.endsWith(".servers") && Array.isArray(v)) {
+    if (!v.length) return "none";
+    return joinAnd(v.map((x) => {
+      const sv = x as { name?: string; url?: string };
+      try { return `${sv.name ?? ""} (${new URL(sv.url ?? "").host})`; } catch { return sv.name ?? ""; }
+    }));
+  }
+  if (row.id === "codingTools.models" && v && typeof v === "object" && !Array.isArray(v)) {
+    return joinAnd(Object.entries(v as Record<string, string>).map(([tool, model]) => `${model} for ${CODING_TOOLS[tool] ?? tool}`));
+  }
   if (SOURCE_ROWS.has(row.id)) return sourceWords(row, row.organization || "your organization");
   if (row.id === "model.default" && v && typeof v === "object") {
     const m = v as { provider?: string; model?: string };
