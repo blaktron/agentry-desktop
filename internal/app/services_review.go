@@ -150,10 +150,11 @@ func (b *BuildAPI) StopReview() error {
 	r := b.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.kind != jobReview {
+	l := r.liveJobLocked()
+	if l == nil || l.kind != jobReview {
 		return errors.New("no review is running on this computer")
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 

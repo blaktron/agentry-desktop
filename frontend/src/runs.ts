@@ -38,7 +38,7 @@ export type RunSetup = {
 
 const store = createRunStore<RunSetup>({
   on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
-  stop: () => RunAPI.StopRun(),
+  stop: (runId) => RunAPI.StopRun(runId),
   forget: (runId) => void RunAPI.ForgetRun(runId),
   cancelQueued: (runId) => RunAPI.CancelQueuedRun(runId),
 });

@@ -641,6 +641,9 @@ type agreed struct {
 	Runs    []string `json:"runs"`
 }
 
+// agreeMu orders the agreed-runs record's reads and writes.
+var agreeMu sync.Mutex
+
 // agreeToRun asks the person before Main's first run of a QuickAgent at a
 // version, and records a Yes; a later run of the same version asks nothing.
 // A run that fetches a repository or a file is agreed to with its
@@ -653,6 +656,10 @@ func (m *mainLink) agreeToRun(exact, task string, files []string, given *checked
 	if m.unasked != nil && m.unasked() {
 		return nil
 	}
+	// One question and one write of the record at a time: two runs asked
+	// for together each read the record, and neither loses the other's Yes.
+	agreeMu.Lock()
+	defer agreeMu.Unlock()
 	path, err := m.agreedPath()
 	if err != nil {
 		return err

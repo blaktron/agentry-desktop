@@ -279,7 +279,7 @@ func TestStopReviewStopsOnlyAReview(t *testing.T) {
 		done <- v
 	}()
 	<-started
-	if err := f.b.run.StopRun(); err == nil {
+	if err := f.b.run.StopRun(f.b.run.current().id); err == nil {
 		t.Fatal("StopRun stopped a review")
 	}
 	if err := f.b.StopDraft(); err == nil {

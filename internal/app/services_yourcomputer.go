@@ -215,12 +215,67 @@ func (y *YourComputerAPI) shutdown() {
 	y.link.StopAll()
 }
 
-// bindDesktop binds one of the app's own runs in process.
+// bindDesktop binds one of the app's own runs in process. A run that uses
+// the computer itself (computer use: one pointer, one keyboard, one screen)
+// first waits until no other run of this app holds the computer, then holds
+// it until it unbinds or its record ends (endRun), after the engine has
+// torn it down. A chat or a persistent agent binds as before.
 func (r *RunAPI) bindDesktop(ctx context.Context, req desktop.BindRequest) (*engine.DesktopLink, error) {
 	if r.link == nil {
 		return nil, desktop.ErrNoService
 	}
-	return r.link.BindInProcess(ctx, req)
+	if req.ComputerUse == "" {
+		return r.link.BindInProcess(ctx, req)
+	}
+	release, err := r.holdComputer(ctx, req.Run)
+	if err != nil {
+		return nil, err
+	}
+	link, err := r.link.BindInProcess(ctx, req)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	unbind := link.Unbind
+	link.Unbind = func(ctx context.Context) error {
+		defer release()
+		if unbind != nil {
+			return unbind(ctx)
+		}
+		return nil
+	}
+	return link, nil
+}
+
+// computerSlot is held by the run of this app that uses the computer.
+var computerSlot = make(chan struct{}, 1)
+
+// errComputerWaitStopped is a run stopped while it waited for another run
+// to finish using the computer.
+var errComputerWaitStopped = errors.New("the run was stopped while it waited for another run to finish using your computer")
+
+// holdComputer takes the computer for run runID, waiting while another run
+// holds it, and records the release on the run's record, which endRun calls.
+// A bind that is not one of this app's runs takes nothing. The release may
+// be called more than once.
+func (r *RunAPI) holdComputer(ctx context.Context, runID string) (release func(), err error) {
+	r.liveMu.Lock()
+	l := r.lives[runID]
+	r.liveMu.Unlock()
+	if l == nil || l.kind != jobRun {
+		return func() {}, nil
+	}
+	var once sync.Once
+	release = func() { once.Do(func() { <-computerSlot }) }
+	select {
+	case computerSlot <- struct{}{}:
+	case <-ctx.Done():
+		return nil, errComputerWaitStopped
+	}
+	r.liveMu.Lock()
+	l.computer = release
+	r.liveMu.Unlock()
+	return release, nil
 }
 
 // askExec is an exec call's native dialog: what would run, quoted, and

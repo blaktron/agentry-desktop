@@ -182,7 +182,7 @@ export function CancelHostedRun(): $CancellablePromise<$models.HostedRunView> {
 
 /**
  * CancelQueuedRun is Cancel on a queued run's card: the run leaves the
- * queue without starting, and the job running and the runs after it are
+ * queue without starting, and the runs under way and the runs after it are
  * left as they were. A run that has already started is refused: Stop ends
  * that.
  */
@@ -575,8 +575,8 @@ export function HybridKeyStatus(): $CancellablePromise<$models.HybridKeyView> {
 }
 
 /**
- * InFlight names the local job holding the run lock, or nil when there is
- * none.
+ * InFlight names the local job holding the lock, or the runs holding the
+ * slots, or nil when there is none.
  */
 export function InFlight(): $CancellablePromise<$models.InFlightView | null> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.InFlight").then(($result: any) => {
@@ -811,8 +811,7 @@ export function ProviderModels(id: string): $CancellablePromise<run$0.ProviderMo
 }
 
 /**
- * QueuedRuns lists the runs waiting for the run lock, the next to start
- * first.
+ * QueuedRuns lists the runs waiting for a slot, the next to start first.
  */
 export function QueuedRuns(): $CancellablePromise<$models.QueuedRunView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.QueuedRuns").then(($result: any) => {
@@ -1411,13 +1410,14 @@ export function StopAwaitingConnections(): $CancellablePromise<void> {
 }
 
 /**
- * StopRun ends the run on this computer: its context is cancelled, the
- * engine tears the run down and writes its receipts as far as it got, and
- * RunAgent returns its result. It stops a run and nothing else: a draft, a
- * knowledge build and a chat each have their own way to end.
+ * StopRun ends the run runID on this computer: its context is cancelled,
+ * the engine tears the run down and writes its receipts as far as it got,
+ * and RunAgent returns its result. It stops that run and nothing else: the
+ * other runs under way go on, and a draft, a knowledge build and a chat each
+ * have their own way to end.
  */
-export function StopRun(): $CancellablePromise<void> {
-    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StopRun");
+export function StopRun(runID: string): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StopRun", runID);
 }
 
 /**

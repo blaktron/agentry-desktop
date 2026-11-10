@@ -607,7 +607,9 @@ type prepared struct {
 	prof    *profile.Profile
 	profDir string
 	keep    bool
-	params  engine.Params
+	// hold is the run's hold on its profile folder, let go by finishProfile.
+	hold   *profileHold
+	params engine.Params
 }
 
 // creditsOf is the credits a run's credits session charged, as the
@@ -791,6 +793,11 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// The images the plan names, its harness's included: pulled, or for
 	// Claude Code and Copilot CLI built on this machine from their pinned
 	// artifacts, never one the plan does not use.
+	releasePrepare, err := holdPrepare(ctx, logw)
+	if err != nil {
+		return nil, err
+	}
+	defer releasePrepare()
 	if err := gateway.EnsureInstalledFor(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw, plan); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
@@ -820,6 +827,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			return nil, fmt.Errorf("mcp servers: %w", err)
 		}
 	}
+	releasePrepare()
 
 	// The MCP profile: the desktop never prompts here — the guided form
 	// (SaveProfile) runs before this, and a missing secret still refuses
@@ -840,12 +848,21 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if prof, err = ensureKeepProfile(profDir, sig, prof, req.KeepProfile); err != nil {
 		return nil, err
 	}
+	// The run holds the profile from here: finishProfile lets it go, and a
+	// way out of prepare that does not reach one lets it go here.
+	hold := useProfile(profDir)
+	prepared_ := false
+	defer func() {
+		if !prepared_ {
+			hold.leave()
+		}
+	}()
 	// The profile as this run holds it, for its crash-path record: read now,
 	// as it was loaded, so a profile saved again before the engine starts is
 	// the newer writer's.
 	held, err := heldProfile(profDir, installDir, keep)
 	if err != nil {
-		finishProfile(logw, prof, profDir, keep)
+		finishProfile(logw, prof, profDir, keep, hold)
 		return nil, err
 	}
 
@@ -855,7 +872,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// name.
 	conns, err := openConnections(ctx, home, meta.Ref, meta.Digest, m)
 	if err != nil {
-		finishProfile(logw, prof, profDir, keep)
+		finishProfile(logw, prof, profDir, keep, hold)
 		return nil, err
 	}
 	if conns.line != "" {
@@ -902,7 +919,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			}
 			if v := req.Intake[q.ID]; v != "" {
 				if err := req.PathPicked("intake "+q.ID, v); err != nil {
-					finishProfile(logw, prof, profDir, keep)
+					finishProfile(logw, prof, profDir, keep, hold)
 					return nil, engine.Classify(engine.ExitUsage, err)
 				}
 			}
@@ -912,13 +929,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// the browser's address, never an input source to fetch.
 	answers, err := intake.CollectRun(nil, m, req.Intake, nil)
 	if err != nil {
-		finishProfile(logw, prof, profDir, keep)
+		finishProfile(logw, prof, profDir, keep, hold)
 		return nil, engine.Classify(engine.ExitCLI, err)
 	}
 	if err := giveSourceTokens(answers, req.SourceTokens, func(msg string) {
 		_, _ = fmt.Fprintf(logw, "warning: %s\n", msg)
 	}); err != nil {
-		finishProfile(logw, prof, profDir, keep)
+		finishProfile(logw, prof, profDir, keep, hold)
 		return nil, engine.Classify(engine.ExitCLI, err)
 	}
 	// Each target host, readied as `agentry run` readies it, once the
@@ -927,7 +944,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		pol: pol, home: home, given: req.HostSignIns, picked: req.KeyFilePicked, trust: req.TrustHostKey,
 		say: func(msg string) { _, _ = fmt.Fprintln(logw, msg) },
 	}); err != nil {
-		finishProfile(logw, prof, profDir, keep)
+		finishProfile(logw, prof, profDir, keep, hold)
 		return nil, err
 	}
 	if len(answers.Secrets) > 0 {
@@ -957,8 +974,9 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// sessions take it the same way. Behind the filter (Linux, and macOS and
 	// Windows from CLI v0.6.117), each run's relays are on networks of its own and
 	// the engine takes no lock.
+	prepared_ = true
 	return &prepared{
-		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
+		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep, hold: hold,
 		params: engine.Params{
 			Plan:             plan,
 			PlanDir:          planDir,
@@ -1000,6 +1018,9 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Every return below reaches finishProfile; this lets the profile go on a
+	// way out that does not, a panic included. Only the first leave counts.
+	defer p.hold.leave()
 	if req.OnBudgets != nil {
 		req.OnBudgets(p.params.Budgets.TimeoutSeconds, p.params.Budgets.MaxTurns)
 	}
@@ -1012,19 +1033,19 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	// only now that the run starts, so a prepared run that never starts opens
 	// none. The engine renews it and ends it.
 	if err := p.openCredits(ctx, logw); err != nil {
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, err
 	}
 	// The applications on this computer, bound last before the sandbox.
 	if err := p.bindDesktop(ctx, req.BindDesktop); err != nil {
-		finishProfile(logw, p.prof, p.profDir, p.keep)
+		finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 		return nil, err
 	}
 	env, runErr := engine.Run(ctx, p.docker, p.params)
 	p.unbindDesktop()
 	// The run completed its lifecycle (success or failure): apply the
 	// profile's keep/remove choice exactly like the CLI.
-	finishProfile(logw, p.prof, p.profDir, p.keep)
+	finishProfile(logw, p.prof, p.profDir, p.keep, p.hold)
 
 	if env == nil {
 		return nil, runErr
@@ -1367,6 +1388,8 @@ func recordCapabilities(m *manifest.Manifest, meta *installdir.Meta, home string
 	// The key names the agent's directory under the runner home, the way
 	// the CLI's run and an install do, so all three share one record.
 	key := installdir.ConsentKey(home, meta.Namespace, meta.Name)
+	consentRecordMu.Lock()
+	defer consentRecordMu.Unlock()
 	state, err := installed.Load()
 	if err != nil {
 		state = installed.State{}
@@ -1403,8 +1426,11 @@ func ensureKeepProfile(profDir string, sig *Signature, prof *profile.Profile, ex
 
 // finishProfile applies the completion choice after the run's lifecycle
 // finished, success or failure: keep → persist + stamp lastUsedAt;
-// remove → the profile dies with the run.
-func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool) {
+// remove → the profile dies with the run, unless another run of the same
+// release is still under way and holds it, in which case the last of them
+// to end applies its own choice.
+func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool, hold *profileHold) {
+	last := hold.leave()
 	if prof == nil {
 		return
 	}
@@ -1413,6 +1439,10 @@ func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool)
 		if err := prof.Touch(dir); err != nil {
 			_, _ = fmt.Fprintf(logw, "warning: %v\n", err)
 		}
+		return
+	}
+	if !last {
+		_, _ = fmt.Fprintln(logw, "MCP profile left for another run of this release that is still under way")
 		return
 	}
 	if err := profile.Remove(dir); err != nil {

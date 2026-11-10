@@ -52,9 +52,11 @@ func TestRemoveAgentryImagesAsksAndRemovesOnlyAgentrys(t *testing.T) {
 		t.Fatalf("report %+v, removed %v, err %v", rep, f.removed, err)
 	}
 
-	r.mu.Lock()
+	if err := r.acquireRun("ab12cd99", "acme/agent@1.0.0", nil); err != nil {
+		t.Fatal(err)
+	}
 	_, err = r.RemoveAgentryImages()
-	r.mu.Unlock()
+	r.releaseRun("ab12cd99")
 	if !errors.Is(err, errBusy) {
 		t.Fatalf("while a run holds the lock: %v, want errBusy", err)
 	}

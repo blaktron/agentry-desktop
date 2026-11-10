@@ -552,10 +552,11 @@ func (b *BuildAPI) StopDraft() error {
 	r := b.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.ref != draftRunRef {
+	l := r.liveJobLocked()
+	if l == nil || l.ref != draftRunRef {
 		return errors.New("no draft is running on this computer")
 	}
-	r.live.cancel()
+	l.cancel()
 	return nil
 }
 

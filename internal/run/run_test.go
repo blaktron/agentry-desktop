@@ -154,7 +154,7 @@ func TestFinishProfile(t *testing.T) {
 	}
 
 	var log strings.Builder
-	finishProfile(&log, prof, dir, true)
+	finishProfile(&log, prof, dir, true, nil)
 	kept, err := profile.Load(dir)
 	if err != nil || kept == nil {
 		t.Fatalf("keep=true must retain the profile: %v %v", kept, err)
@@ -163,7 +163,7 @@ func TestFinishProfile(t *testing.T) {
 		t.Fatal("keep must stamp lastUsedAt")
 	}
 
-	finishProfile(&log, prof, dir, false)
+	finishProfile(&log, prof, dir, false, nil)
 	if gone, err := profile.Load(dir); err != nil || gone != nil {
 		t.Fatalf("keep=false must remove the profile: %v %v", gone, err)
 	}

@@ -261,7 +261,7 @@ g.go = { app: {
       else if (hash === "run-failed") setTimeout(() => reject("gateway/docker environment: the docker daemon did not answer: Cannot connect to the Docker daemon at unix:///var/run/docker.sock"), 160);
       else if (hash === "run-stopped") stop = () => setTimeout(() => resolve(result), 40);
     }),
-    StopRun: async () => stop?.(),
+    StopRun: async (_runId: string) => stop?.(),
     QueuedRuns: async () => (hash === "run-queue" ? [
       { runId: "q1000001", ref: "demo1/incident-summarizer@1.2.0", position: 1, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },
       { runId: "q1000002", ref: "acme/meeting-actions@0.4.1", position: 2, waitingFor: "A run of demo1/incident-summarizer@1.2.0" },

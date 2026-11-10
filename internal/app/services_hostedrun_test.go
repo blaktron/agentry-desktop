@@ -891,10 +891,10 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	}
 	// The run lock stayed free the whole time: a hosted run takes no
 	// docker lock, so a local run could have started beside it.
-	if !r.mu.TryLock() {
-		t.Fatal("the hosted run held the docker run lock")
+	if err := r.acquire(jobSetup, "x"); err != nil {
+		t.Fatalf("the hosted run held the docker run lock: %v", err)
 	}
-	r.mu.Unlock()
+	r.release()
 
 	// And nothing of this machine's run setup was touched: no operator
 	// policy, no runner cache, no MCP profile — a hosted run needs none of
