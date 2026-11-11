@@ -26,8 +26,8 @@ export function ModelPicker({ models, value, onChange, disabled, label = "Model"
   only?: string;
 }) {
   let options = extra ? [extra, ...modelOptions(models)] : modelOptions(models);
-  if (noDefault || only) options = options.filter((o) => o.value !== "");
   if (only) options = options.filter((o) => o.value === only);
+  else if (noDefault) options = options.filter((o) => o.value !== "");
   const line = [note, extra && value === extra.value ? extra.reason : pickLine(models, value)].filter(Boolean).join(" ");
   return (
     <label className="field" data-model-picker={testId ?? ""}>

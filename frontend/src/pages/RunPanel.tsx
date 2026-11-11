@@ -57,7 +57,7 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { MANAGED_REFUSAL, managedRefusalHeading, whereLeaves } from "../managed";
 import {
-  answerLocked, contractAsk, contractHeading, placeLockedOut, presetAnswers, presetModelStep, presetNote, presetNumber, type Preset,
+  answerLocked, contractAsk, contractHeading, placeLockedOut, presetAnswers, presetModelRecap, presetModelStep, presetNote, presetNumber, type Preset,
 } from "../assignments";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
@@ -619,11 +619,14 @@ export default function RunPanel({
   }, [pickList]);
   // The preset's saved model replaces an empty pick, and a locked preset
   // replaces every other.
-  const presetPick = !inAgentry && !(schedulingHere && onRunhost) ? presetModelStep(preset, model) : null;
+  const presetStep = !inAgentry && !(schedulingHere && onRunhost) ? presetModelStep(preset, model) : null;
   useEffect(() => {
-    if (!presetPick) return;
-    if (presetPick.locked ? model !== presetPick.pick : !model && presetPick.pick) setModel(presetPick.pick);
-  }, [presetPick?.pick, presetPick?.locked, model]);
+    if (!presetStep) return;
+    if (presetStep.locked ? model !== presetStep.pick : !model && presetStep.pick) setModel(presetStep.pick);
+  }, [presetStep?.pick, presetStep?.locked, model]);
+  // A locked preset model no saved model here is: the step says so in place
+  // of the list.
+  const presetModelMissing = !!presetStep?.locked && !presetStep.pick;
   const schedulingThere = scheduling && inAgentry;
   const whenSays = scheduling ? whenProblem(when) : null;
   const blockers: string[] = [];
@@ -736,8 +739,6 @@ export default function RunPanel({
   // An organization's preset model: the saved model that is it is the
   // pick the step starts on, and a locked preset's the only pick. It holds
   // for a run from this computer's list, never a runhost schedule's.
-  const presetStep = modelsHere ? presetPick : null;
-  const presetSaved = preset?.model && !preset.model.refusal ? preset.model.savedId ?? "" : "";
   if (presetStep?.blocker) blockers.push(presetStep.blocker);
   if (modelsHere && pickFrom && !presetStep?.blocker) {
     const b = pickBlocker(pickFrom, model);
@@ -1414,22 +1415,22 @@ export default function RunPanel({
                   )}
                 </>
               )}
-              {presetStep?.locked && !presetStep.pick && (
+              {presetStep && presetModelMissing && (
                 <div data-preset-model>
                   <Notice tone="warn">{presetStep.line}</Notice>
                 </div>
               )}
-              {modelsHere && pickFrom && pickFrom.length > 0 && !(presetStep?.locked && !presetStep.pick) && (
+              {modelsHere && pickFrom && pickFrom.length > 0 && !presetModelMissing && (
                 <div className="run-model" data-run-model>
                   <ModelPicker
                     models={pickFrom} value={model} onChange={setModel} disabled={running || !!presetStep?.locked} testId="run"
-                    note={presetStep?.line} noDefault={!!presetSaved} only={presetStep?.locked ? presetStep.pick : undefined}
+                    note={presetStep?.line} noDefault={!!presetStep?.saved} only={presetStep?.locked ? presetStep.pick : undefined}
                     hint={schedulingHere && onRunhost
                       ? `Every run of the schedule on ${onRunhost} is on it: one of the saved models ${onRunhost} holds (Settings → Models, Available on).`
                       : schedulingHere ? "Every run of the schedule is on it." : onRunhost ? `Its key, if it has one, goes to ${onRunhost} for this run alone.` : undefined}
                   />
                   {presetStep?.back && preset && (
-                    <Button variant="link" onClick={() => setModel(presetSaved)} disabled={running} data-preset-model-back>
+                    <Button variant="link" onClick={() => setModel(presetStep.saved)} disabled={running} data-preset-model-back>
                       Use {preset.organization}'s setting
                     </Button>
                   )}
@@ -1919,7 +1920,10 @@ export default function RunPanel({
                   <>
                     <dt>Model</dt>
                     <dd data-recap-model>
-                      <span>{model ? modelSaid(pickFrom, model) : modelSaid(pickFrom, "")}</span>
+                      <span>
+                        {model ? modelSaid(pickFrom, model) : modelSaid(pickFrom, "")}
+                        {presetModelRecap(preset, presetStep, model) && <span className="muted"> ({presetModelRecap(preset, presetStep, model)})</span>}
+                      </span>
                       <Button variant="link" onClick={() => goTo(0)} aria-label="Edit the model">Edit</Button>
                     </dd>
                   </>

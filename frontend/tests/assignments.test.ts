@@ -112,7 +112,7 @@ test("the preset's note names the organization and what it fixes or suggests", (
 });
 
 test("a preset model is the Model step's pick, managed when locked and suggested when not", async () => {
-  const { presetModelStep } = await import("../src/assignments.ts");
+  const { presetModelRecap, presetModelStep } = await import("../src/assignments.ts");
   const sonnet = { provider: "anthropic", model: "claude-sonnet-5-5", savedId: "m2", savedName: "Sonnet" };
   const p = (over: Partial<NonNullable<Parameters<typeof presetModelStep>[0]>>) => ({ organization: "acme", locked: false, ...over });
 
@@ -125,13 +125,18 @@ test("a preset model is the Model step's pick, managed when locked and suggested
 
   const missing = presetModelStep(p({ locked: true, model: { provider: "anthropic", model: "claude-sonnet-5-5" } }), "");
   assert.equal(missing?.locked, true);
-  assert.match(missing!.blocker, /no saved model on this computer is that model\. Save it in Settings → Models and keys first\./);
+  assert.match(missing!.line, /no saved model on this computer is that model\. Save it in Settings → Models and keys first\./);
+  assert.match(missing!.blocker, /^No saved model is anthropic\/claude-sonnet-5-5, the model acme fixes/);
 
   const suggested = presetModelStep(p({ model: sonnet }), "");
   assert.deepEqual({ pick: suggested?.pick, locked: suggested?.locked, back: suggested?.back }, { pick: "m2", locked: false, back: false });
   assert.match(suggested!.line, /^Set by acme for this QuickAgent: Sonnet/);
   const own = presetModelStep(p({ model: sonnet }), "m1");
   assert.deepEqual({ pick: own?.pick, back: own?.back, blocker: own?.blocker }, { pick: "m1", back: true, blocker: "" });
+
+  assert.equal(presetModelRecap(p({ locked: true, model: sonnet }), locked, "m2"), "managed by acme");
+  assert.equal(presetModelRecap(p({ model: sonnet }), suggested, "m2"), "set by acme");
+  assert.equal(presetModelRecap(p({ model: sonnet }), own, "m1"), "");
 
   const none = presetModelStep(p({ model: { provider: "anthropic", model: "claude-sonnet-5-5" } }), "");
   assert.deepEqual({ pick: none?.pick, blocker: none?.blocker }, { pick: "", blocker: "" });

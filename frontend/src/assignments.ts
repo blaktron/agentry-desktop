@@ -155,8 +155,9 @@ export const placeLockedOut = (preset: Preset | null | undefined, place: string)
  *  model the step starts on ("" for none); locked says the list offers no
  *  other; line is the sentence under it; blocker is why the run cannot
  *  start on what is picked ("" when it can); back says the step offers the
- *  way back to the organization's model. */
-export type PresetModelStep = { pick: string; locked: boolean; line: string; blocker: string; back: boolean };
+ *  way back to the organization's model, the saved model saved ("" when no
+ *  saved model is the preset's, or the managed model rows refuse it). */
+export type PresetModelStep = { pick: string; locked: boolean; line: string; blocker: string; back: boolean; saved: string };
 
 /** What the Model step shows when the preset gives the run a model, for
  *  the pick the step holds; null without a preset model. It says what a run
@@ -170,24 +171,34 @@ export function presetModelStep(preset: Preset | null | undefined, pick: string)
   const named = `${m.provider}/${m.model}`;
   const locked = !!preset.locked;
   const save = "Save it in Settings → Models and keys";
+  const step = (s: Partial<PresetModelStep>): PresetModelStep => ({ pick, locked: false, line: "", blocker: "", back: false, saved: "", ...s });
   if (m.refusal) {
-    const blocker = locked || !pick ? `${m.refusal}.` : "";
-    return { pick: "", locked: false, line: locked ? `${m.refusal}.` : `${m.refusal}: pick another saved model.`, blocker, back: false };
+    return step({
+      pick: "", line: locked ? `${m.refusal}.` : `${m.refusal}: pick another saved model.`, blocker: locked || !pick ? `${m.refusal}.` : "",
+    });
   }
   if (!m.savedId) {
     if (locked) {
-      const line = `Managed by ${org}: every run of this QuickAgent is on ${named}, and no saved model on this computer is that model. ${save} first.`;
-      return { pick: "", locked: true, line, blocker: line, back: false };
+      return step({
+        pick: "", locked: true,
+        line: `Managed by ${org}: every run of this QuickAgent is on ${named}, and no saved model on this computer is that model. ${save} first.`,
+        blocker: `No saved model is ${named}, the model ${org} fixes for this QuickAgent.`,
+      });
     }
-    return {
-      pick, locked: false, back: false, blocker: "",
-      line: `${org} suggests ${named} for this QuickAgent. No saved model on this computer is that model, so the run is on your own choice. ${save} to use it.`,
-    };
+    return step({ line: `${org} suggests ${named} for this QuickAgent. No saved model on this computer is that model, so the run is on your own choice. ${save} to use it.` });
   }
-  const saved = `${m.savedName || m.savedId} (${named})`;
-  if (locked) return { pick: m.savedId, locked: true, line: `Managed by ${org}: every run of this QuickAgent is on ${saved}.`, blocker: "", back: false };
-  if (!pick || pick === m.savedId) return { pick: m.savedId, locked: false, line: `Set by ${org} for this QuickAgent: ${saved}.`, blocker: "", back: false };
-  return { pick, locked: false, line: `${org} suggests ${saved} for this QuickAgent.`, blocker: "", back: true };
+  const saved = m.savedId;
+  const said = `${m.savedName || saved} (${named})`;
+  if (locked) return step({ pick: saved, locked: true, saved, line: `Managed by ${org}: every run of this QuickAgent is on ${said}.` });
+  if (!pick || pick === saved) return step({ pick: saved, saved, line: `Set by ${org} for this QuickAgent: ${said}.` });
+  return step({ saved, back: true, line: `${org} suggests ${said} for this QuickAgent.` });
+}
+
+/** Who set the model the review step names: "managed by <org>" or "set by
+ *  <org>" when the run is on the preset's saved model, else "". */
+export function presetModelRecap(preset: Preset | null | undefined, step: PresetModelStep | null, pick: string): string {
+  if (!preset || !step?.saved || pick !== step.saved) return "";
+  return `${step.locked ? "managed" : "set"} by ${preset.organization}`;
 }
 
 /** The note over the run setup's fixed or suggested values; "" when the
