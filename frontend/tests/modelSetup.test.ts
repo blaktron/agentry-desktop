@@ -70,7 +70,8 @@ test("what a kept sign-in says, and how it is removed", () => {
 test("how each way asks for the model", () => {
   assert.equal(modelAsk("openai", "chatgpt", ["gpt-5.2", "gpt-5-mini"]).mode, "plan");
   assert.equal(modelAsk("openai", "chatgpt", ["gpt-5.2"]).defaultModel, "gpt-5.2");
-  assert.deepEqual(modelAsk("anthropic", "claude", []).options, ["sonnet", "opus", "haiku"]);
+  assert.deepEqual(modelAsk("anthropic", "claude", []).options, ["sonnet", "opus", "haiku", "claude-fable-5-2"]);
+  assert.equal(modelAsk("anthropic", "claude", []).defaultModel, "sonnet", "Fable 5.2 is offered, not the default");
   assert.equal(modelAsk("copilot", "copilot", []).defaultModel, "auto");
   const hf = modelAsk("huggingface", "connect", []);
   assert.equal(hf.mode, "typed");
