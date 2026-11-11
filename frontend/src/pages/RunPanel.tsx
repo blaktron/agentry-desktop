@@ -627,6 +627,7 @@ export default function RunPanel({
   // A locked preset model no saved model here is: the step says so in place
   // of the list.
   const presetModelMissing = !!presetStep?.locked && !presetStep.pick;
+  const modelRecap = presetModelRecap(preset, presetStep, model);
   const schedulingThere = scheduling && inAgentry;
   const whenSays = scheduling ? whenProblem(when) : null;
   const blockers: string[] = [];
@@ -1921,8 +1922,8 @@ export default function RunPanel({
                     <dt>Model</dt>
                     <dd data-recap-model>
                       <span>
-                        {model ? modelSaid(pickFrom, model) : modelSaid(pickFrom, "")}
-                        {presetModelRecap(preset, presetStep, model) && <span className="muted"> ({presetModelRecap(preset, presetStep, model)})</span>}
+                        {modelRecap.model || (model ? modelSaid(pickFrom, model) : modelSaid(pickFrom, ""))}
+                        {modelRecap.by && <span className="muted"> ({modelRecap.by})</span>}
                       </span>
                       <Button variant="link" onClick={() => goTo(0)} aria-label="Edit the model">Edit</Button>
                     </dd>

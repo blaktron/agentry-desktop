@@ -194,11 +194,19 @@ export function presetModelStep(preset: Preset | null | undefined, pick: string)
   return step({ saved, back: true, line: `${org} suggests ${said} for this QuickAgent.` });
 }
 
-/** Who set the model the review step names: "managed by <org>" or "set by
- *  <org>" when the run is on the preset's saved model, else "". */
-export function presetModelRecap(preset: Preset | null | undefined, step: PresetModelStep | null, pick: string): string {
-  if (!preset || !step?.saved || pick !== step.saved) return "";
-  return `${step.locked ? "managed" : "set"} by ${preset.organization}`;
+/** What the review step says of the model under a preset: the model it
+ *  names in place of the pick ("" to name the pick), and who set it. A
+ *  locked preset model no saved model is names the preset's model, since a
+ *  run is on nothing else; a run on the preset's saved model adds "managed
+ *  by <org>" or "set by <org>". */
+export function presetModelRecap(preset: Preset | null | undefined, step: PresetModelStep | null, pick: string): { model: string; by: string } {
+  const m = preset?.model;
+  if (!preset || !m || !step) return { model: "", by: "" };
+  if (step.locked && !step.pick && !m.refusal) {
+    return { model: `${m.provider}/${m.model}`, by: `managed by ${preset.organization}, and no saved model is it` };
+  }
+  if (!step.saved || pick !== step.saved) return { model: "", by: "" };
+  return { model: "", by: `${step.locked ? "managed" : "set"} by ${preset.organization}` };
 }
 
 /** The note over the run setup's fixed or suggested values; "" when the

@@ -134,9 +134,12 @@ test("a preset model is the Model step's pick, managed when locked and suggested
   const own = presetModelStep(p({ model: sonnet }), "m1");
   assert.deepEqual({ pick: own?.pick, back: own?.back, blocker: own?.blocker }, { pick: "m1", back: true, blocker: "" });
 
-  assert.equal(presetModelRecap(p({ locked: true, model: sonnet }), locked, "m2"), "managed by acme");
-  assert.equal(presetModelRecap(p({ model: sonnet }), suggested, "m2"), "set by acme");
-  assert.equal(presetModelRecap(p({ model: sonnet }), own, "m1"), "");
+  assert.deepEqual(presetModelRecap(p({ locked: true, model: sonnet }), locked, "m2"), { model: "", by: "managed by acme" });
+  assert.deepEqual(presetModelRecap(p({ model: sonnet }), suggested, "m2"), { model: "", by: "set by acme" });
+  assert.deepEqual(presetModelRecap(p({ model: sonnet }), own, "m1"), { model: "", by: "" });
+  const unsaved = { provider: "anthropic", model: "claude-sonnet-5-5" };
+  assert.deepEqual(presetModelRecap(p({ locked: true, model: unsaved }), missing, ""),
+    { model: "anthropic/claude-sonnet-5-5", by: "managed by acme, and no saved model is it" });
 
   const none = presetModelStep(p({ model: { provider: "anthropic", model: "claude-sonnet-5-5" } }), "");
   assert.deepEqual({ pick: none?.pick, blocker: none?.blocker }, { pick: "", blocker: "" });
