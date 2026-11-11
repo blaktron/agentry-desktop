@@ -357,11 +357,19 @@ func TestARecordingStopsAtItsLongestLength(t *testing.T) {
 	if st := h.meeting(t, mt.ID).State; st == StateRecording {
 		t.Fatalf("state = %s", st)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if last := h.notices[len(h.notices)-1]; !strings.Contains(last, "Agentry stopped recording after") {
-		t.Fatalf("the last notice = %q, want the stop explained", last)
+	// The stop is explained once the recording has stopped, so the notice
+	// can arrive after the status clears.
+	lastNotice := func() string {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if len(h.notices) == 0 {
+			return ""
+		}
+		return h.notices[len(h.notices)-1]
 	}
+	waitFor(t, "the stop to be explained", func() bool {
+		return strings.Contains(lastNotice(), "Agentry stopped recording after")
+	})
 	if lengthWords(DefaultMaxLength) != "4 hours" || lengthWords(time.Hour) != "1 hour" || lengthWords(30*time.Minute) != "30 minutes" {
 		t.Fatalf("lengthWords: %q %q %q", lengthWords(DefaultMaxLength), lengthWords(time.Hour), lengthWords(30*time.Minute))
 	}
