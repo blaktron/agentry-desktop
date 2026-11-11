@@ -3,7 +3,10 @@
     {
       "version": "0.7.43",
       "highlights": [
-        "The Assistant now runs your QuickAgents without a dialog when you let it run them without asking."
+        "The Assistant now runs your QuickAgents without a dialog when you let it run them without asking.",
+        "Run setup shows the model your organization fixes for a QuickAgent, and offers no other while it is locked.",
+        "You can sign in to an agent's remote server from its card in Configuration, without a terminal.",
+        "Your administrator's machine settings can pin Agentry Desktop to one registry and require your organization's sign-in."
       ]
     },
     {

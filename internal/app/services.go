@@ -17,6 +17,7 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/managed"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
@@ -96,6 +97,38 @@ type SettingsView struct {
 	// ManagedProblems the cached copies that do not verify.
 	Managed         []ManagedView `json:"managed"`
 	ManagedProblems []string      `json:"managedProblems"`
+	// Machine is this computer's machine settings, nil when it has none.
+	Machine *MachineView `json:"machine,omitempty"`
+}
+
+// MachineView is the machine settings file this computer's administrator
+// deployed, as the app shows it.
+type MachineView struct {
+	// Where it was read: a file's path, or the Windows policy key.
+	Where string `json:"where"`
+	// Registry is the registry it pins, "" for none: the only one the app
+	// lists and signs in to.
+	Registry string `json:"registry,omitempty"`
+	// RequireOrg is the organization the person must be signed in to as an
+	// active member before anything runs, "" for none.
+	RequireOrg string `json:"requireOrg,omitempty"`
+	// Refusal is, while that sign-in is missing, the administrator's
+	// sentence the app opens on.
+	Refusal string `json:"refusal,omitempty"`
+}
+
+// machineView is held's machine settings as the app shows them.
+func machineView(held managed.Effective) *MachineView {
+	m := held.Machine
+	if m == nil {
+		return nil
+	}
+	v := &MachineView{Where: m.Where, Registry: settings.Normalize(m.Registry), RequireOrg: m.RequireOrg}
+	if held.RequireOrgRefusal() != "" {
+		v.Refusal = fmt.Sprintf("This computer's administrator requires you to be signed in to %s as an active member of %s before anything runs here. Sign in to it with an account of %s.",
+			settings.DisplayOrigin(v.Registry), m.RequireOrg, m.RequireOrg)
+	}
+	return v
 }
 
 func settingsView() (*SettingsView, error) {
@@ -110,8 +143,13 @@ func settingsView() (*SettingsView, error) {
 		UnsafeMode:            unsafeModeHeldOn(s.UnsafeMode, held),
 		SecureAgentryRegistry: settings.SecureAgentryRegistry(), SelfHostedRegistry: s.SelfHostedRegistry(),
 		Managed: managedViews(held), ManagedProblems: managedProblems(held),
+		Machine: machineView(held),
 	}
 	for _, r := range s.Registries {
+		// Under a pinned registry the app offers no other.
+		if settings.PinRefusal(r.URL) != nil {
+			continue
+		}
 		src := settings.TokenSource(r.URL)
 		kind, _ := s.SignInFor(r.URL)
 		rejected := src != "" && tokenRejected(r.URL)
@@ -262,6 +300,9 @@ func (s *SettingsAPI) SetDefault(url string) (*SettingsView, error) {
 	}
 	if cfg.Find(url) == nil {
 		return nil, fmt.Errorf("registry %s is not configured", url)
+	}
+	if err := settings.PinRefusal(url); err != nil {
+		return nil, err
 	}
 	cfg.DefaultRegistry = settings.Normalize(url)
 	if err := settings.Save(cfg); err != nil {

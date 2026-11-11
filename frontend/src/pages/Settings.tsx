@@ -43,7 +43,7 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
-import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, rowOf, whereLeaves } from "../managed";
+import { machinePinLine, managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, rowOf, whereLeaves } from "../managed";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { LockGlyph } from "../unsafe";
 import { PLACES } from "../firstRun";
@@ -1016,6 +1016,10 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
 
       <section id="settings-part-registries" className="settings-part">
       <h2>Registries</h2>
+      {settings.machine?.refusal && <Notice tone="warn">{settings.machine.refusal}</Notice>}
+      {settings.machine?.registry && (
+        <p className="muted small" data-machine-pin>{machinePinLine(settings.machine)}</p>
+      )}
       {settings.registries.map((r) => (
         <Card key={r.url}>
           <div className="spread">
@@ -1115,6 +1119,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
           registry keeps them. */}
       {activeRegistry && <SecretsCard registry={activeRegistry} />}
 
+      {!settings.machine?.registry && (
       <section id="settings-part-add-registry" className="settings-part">
       <h2>Add a registry</h2>
       <p className="muted small">
@@ -1134,6 +1139,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
         <Button variant="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</Button>
       </Toolbar>
       </section>
+      )}
 
       {signIn && (
         <Modal title={`${signInLabel(signIn.kind)}: ${signIn.url}`} onClose={() => setSignIn(null)}>

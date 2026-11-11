@@ -353,3 +353,19 @@ export function providerLocks(rows: ManagedRow[] | null | undefined): Record<str
 
 /** The note of one row, or null. */
 export const noteOf = (rows: ManagedRow[] | null | undefined, id: string) => rowNote(rowOf(rows, id));
+
+/** What this computer's machine settings hold, as the app shows them. */
+export type MachineSettings = { where: string; registry?: string; requireOrg?: string; refusal?: string };
+
+/** The line under Registries when the machine settings pin one: the app
+ *  offers no other. */
+export function machinePinLine(m: MachineSettings): string {
+  const org = m.requireOrg ? `, and requires you to be signed in to it as a member of ${m.requireOrg}` : "";
+  return `This computer's administrator pins Agentry to ${m.registry}${org} (${m.where}). No other registry can be added or signed in to.`;
+}
+
+/** The sentence the app opens on while the machine settings require a
+ *  sign-in the person has not made, or null. */
+export function machineGate(m: MachineSettings | null | undefined): string | null {
+  return m?.refusal ? m.refusal : null;
+}

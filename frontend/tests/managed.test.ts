@@ -75,3 +75,16 @@ test("a refusal the managed settings gave is headed as theirs, not the registry'
   assert.equal(hostedGapHeading("managed-settings"), "Your organization's managed settings do not allow this schedule.");
   assert.doesNotMatch(hostedGapHeading("managed-settings"), /registry/);
 });
+
+test("the machine settings pin the registry and gate the app on a sign-in", async () => {
+  const { machineGate, machinePinLine } = await import("../src/managed.ts");
+  assert.equal(machineGate(null), null);
+  assert.equal(machineGate({ where: "/etc/agentry/managed.json" }), null);
+  assert.equal(machineGate({ where: "/etc/agentry/managed.json", refusal: "Sign in first." }), "Sign in first.");
+  assert.equal(
+    machinePinLine({ where: "/etc/agentry/managed.json", registry: "https://registry.example.com" }),
+    "This computer's administrator pins Agentry to https://registry.example.com (/etc/agentry/managed.json). No other registry can be added or signed in to.",
+  );
+  assert.match(machinePinLine({ where: "HKLM\\SOFTWARE\\Policies\\SecureAgentry\\Agentry", registry: "https://r.example", requireOrg: "acme" }),
+    /requires you to be signed in to it as a member of acme/);
+});

@@ -376,7 +376,8 @@ func Path() (string, error) {
 }
 
 // Load reads the settings; a missing file yields the shippable default
-// (the production registry, nothing signed in).
+// (the production registry, nothing signed in). A registry the machine
+// settings pin is the default whatever the file says.
 func Load() (Settings, error) {
 	path, err := Path()
 	if err != nil {
@@ -388,7 +389,7 @@ func Load() (Settings, error) {
 			return Settings{
 				DefaultRegistry: DefaultRegistryURL,
 				Registries:      []Registry{{URL: DefaultRegistryURL}},
-			}, nil
+			}.applyPin(), nil
 		}
 		return Settings{}, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -396,7 +397,7 @@ func Load() (Settings, error) {
 	if err := yaml.Unmarshal(raw, &s); err != nil {
 		return Settings{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	return s, nil
+	return s.applyPin(), nil
 }
 
 // saveMu serializes this process's writes of the settings file, so the
