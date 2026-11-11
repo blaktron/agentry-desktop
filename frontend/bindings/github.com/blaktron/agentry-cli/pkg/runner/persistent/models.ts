@@ -6,6 +6,44 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * ManagedField is one field of an agent's configuration an organization's
+ * managed settings set: the row, the field it sets, the organization, and
+ * whether it is locked or a default.
+ */
+export class ManagedField {
+    "id": string;
+    "field": string;
+    "org": string;
+    "locked": boolean;
+
+    /** Creates a new ManagedField instance. */
+    constructor($$source: Partial<ManagedField> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("field" in $$source)) {
+            this["field"] = "";
+        }
+        if (!("org" in $$source)) {
+            this["org"] = "";
+        }
+        if (!("locked" in $$source)) {
+            this["locked"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ManagedField instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ManagedField {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ManagedField($$parsedSource as Partial<ManagedField>);
+    }
+}
+
+/**
  * SubagentPin is one subagent a published agent's release declares, pinned
  * at its install.
  */
