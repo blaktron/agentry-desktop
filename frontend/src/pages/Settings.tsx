@@ -253,7 +253,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
       )}
       {(settings.managedProblems ?? []).map((p) => <Notice key={p} tone="warn">{p}</Notice>)}
       <div className="settings-cards">
-        {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)) })).map((s) => (
+        {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)).filter((p) => !(p.id === "add-registry" && settings.machine?.registry)) })).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}
@@ -1000,7 +1000,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   return (
     <>
       <p className="muted small">
-        {twoSignIns(settings)} Credentials live in the OS keychain under the same convention
+        {settings.machine?.registry ? `This computer's administrator pins Agentry Desktop to ${settings.machine.registry}, and it signs in there alone.` : twoSignIns(settings)} Credentials live in the OS keychain under the same convention
         the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.
       </p>
       <ErrorBox error={error} />
@@ -1107,9 +1107,11 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                   </Button>
                 </>
               )}
-              <Button variant="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
-                Remove
-              </Button>
+              {r.url !== settings.machine?.registry && (
+                <Button variant="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
+                  Remove
+                </Button>
+              )}
             </div>
           </div>
         </Card>

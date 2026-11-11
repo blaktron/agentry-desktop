@@ -73,3 +73,22 @@ func TestNoPinLeavesTheRegistriesAlone(t *testing.T) {
 		t.Fatalf("loaded %+v", s)
 	}
 }
+
+// Under a pinned SecureAgentry address no self-hosted registry is named, and
+// a pinned self-hosted registry is the one.
+func TestThePinDecidesTheSelfHostedRegistry(t *testing.T) {
+	isolate(t)
+	s := Settings{Registries: []Registry{{URL: "https://registry.example.org"}}}
+	pinTo(t, "https://dev.secureagentry.net", nil)
+	if got := s.SelfHostedRegistry(); got != "" {
+		t.Fatalf("under a SecureAgentry pin: %q", got)
+	}
+	pinTo(t, "https://agentry.example.com", nil)
+	if got := s.SelfHostedRegistry(); got != "https://agentry.example.com" {
+		t.Fatalf("under a self-hosted pin: %q", got)
+	}
+	pinTo(t, "", errors.New("unusable"))
+	if got := s.SelfHostedRegistry(); got != "" {
+		t.Fatalf("under unusable machine settings: %q", got)
+	}
+}

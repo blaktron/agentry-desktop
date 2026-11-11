@@ -117,11 +117,17 @@ func SecureAgentryRegistry() string {
 
 // SelfHostedRegistry is the self-hosted registry the person added: the
 // first registry in the list that is not a SecureAgentry address, "" when
-// there is none. A self-hosted registry the machine settings pin is it,
-// whatever else the list holds.
+// there is none. Under machine settings that pin a registry, it is the
+// pinned one when that is self-hosted, and none otherwise.
 func (s Settings) SelfHostedRegistry() string {
-	if pin, err := PinnedRegistry(); err == nil && pin != "" && !IsSecureAgentry(pin) && Origin(pin) != "" {
-		return pin
+	switch pin, err := PinnedRegistry(); {
+	case err != nil:
+		return ""
+	case pin != "":
+		if !IsSecureAgentry(pin) && Origin(pin) != "" {
+			return pin
+		}
+		return ""
 	}
 	for _, r := range s.Registries {
 		if r.URL != "" && !IsSecureAgentry(r.URL) && Origin(r.URL) != "" {
