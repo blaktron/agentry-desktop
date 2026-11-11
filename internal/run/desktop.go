@@ -117,6 +117,24 @@ type DesktopEntry struct {
 	Use string `json:"use"`
 }
 
+// DesktopUse is what a release's desktop line uses of the person's
+// computer, in the install's words: each application, then computer use.
+// Nil when it declares none.
+func DesktopUse(m *manifest.Manifest) []string {
+	d := m.Capabilities.Desktop
+	if d == nil {
+		return nil
+	}
+	var use []string
+	for _, s := range d.Servers {
+		use = append(use, manifest.DescribeDesktopServer(s))
+	}
+	if words := manifest.DescribeComputerUse(d); words != "" {
+		use = append(use, words)
+	}
+	return use
+}
+
 // DesktopEntries are the applications a release's desktop line names, in
 // its order, with an application the person chooses last where app-scope
 // computer use names no window of its own.

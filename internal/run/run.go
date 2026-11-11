@@ -228,6 +228,9 @@ type ProfileInfo struct {
 	// (capabilities.desktop.servers), by id, each with what it uses of it:
 	// only a run on this computer reaches them. Nil when it declares none.
 	Desktop []DesktopEntry
+	// DesktopUse says what the release uses of this computer, in the
+	// install's words, for an agreement asked before an agent runs it.
+	DesktopUse []string
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -304,6 +307,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		info.BrowserSites = b.Sites
 	}
 	info.Desktop = DesktopEntries(sig.Manifest)
+	info.DesktopUse = DesktopUse(sig.Manifest)
 	if k := sig.Manifest.Knowledge; k != nil {
 		info.AcceptsKnowledge = k.Accepts
 	}

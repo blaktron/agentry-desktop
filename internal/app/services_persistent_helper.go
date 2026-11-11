@@ -188,7 +188,7 @@ func (s appSubagents) Check(_ context.Context, registry, exact string) (persiste
 	if slices.Contains(info.Modes, string(manifest.ModePersistent)) || !slices.Contains(info.Modes, string(manifest.ModeAutonomous)) {
 		return none, errors.New("it does not run as an autonomous QuickAgent, so it never runs as a subagent")
 	}
-	var u persistent.SubagentUsage
+	u := persistent.SubagentUsage{Desktop: info.DesktopUse}
 	for _, q := range info.Intake {
 		if personsOwn(q) {
 			continue
