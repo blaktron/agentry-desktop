@@ -152,3 +152,34 @@ func httpClientForTest(c *http.Client) func() {
 	operationsClient = func() *http.Client { return c }
 	return func() { operationsClient = was }
 }
+
+// Run setup shows the saved model a preset's model is on this computer, or
+// none, and the managed model rows' refusal of the preset's model itself.
+func TestRunSetupSeesThePresetModelHere(t *testing.T) {
+	pol, gpt := presetPolicy(t)
+	holdPreset(t, "openai", "gpt-5.5", true)
+	if got := presetModelOn(pol, "openai", "gpt-5.5"); got.SavedID != gpt.ID || got.SavedName != "GPT" || got.Refusal != "" {
+		t.Fatalf("a saved model of it: %+v", got)
+	}
+	if got := presetModelOn(pol, "openai", "gpt-6"); got.SavedID != "" || got.Refusal != "" {
+		t.Fatalf("no saved model of it: %+v", got)
+	}
+	if got := presetModelOn(nil, "openai", "gpt-5.5"); got.SavedID != "" {
+		t.Fatalf("no policy read: %+v", got)
+	}
+
+	raw, _ := json.Marshal([]managedsettings.Assignment{{Ref: "acme/demo", Version: "latest", Mode: managedsettings.AssignOffered,
+		Preset: &managedsettings.Preset{Model: &managedsettings.Model{Provider: "openai", Model: "gpt-5.5"}}, PresetLocked: true}})
+	doc := managedsettings.Document{Schema: managedsettings.Schema, Registry: "https://reg.example", Org: "acme", Version: 5,
+		IssuedAt: time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC),
+		Settings: map[string]managedsettings.Setting{
+			managedsettings.QuickAgents:    {Value: raw, Locked: true},
+			managedsettings.ModelProviders: {Value: json.RawMessage(`["anthropic"]`), Locked: true},
+		}}
+	heldManaged = func() managed.Effective {
+		return managed.Effective{Documents: []managed.State{{Registry: doc.Registry, Document: doc}}}
+	}
+	if got := presetModelOn(pol, "openai", "gpt-5.5"); got.SavedID != "" || !strings.Contains(got.Refusal, "acme") {
+		t.Fatalf("a preset model the model rows refuse: %+v", got)
+	}
+}

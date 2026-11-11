@@ -185,6 +185,7 @@ export {
     PersistentUsageView,
     PersistentVolumesView,
     PrereqView,
+    PresetModelView,
     PresetView,
     ProfileStatusView,
     ProfileView,

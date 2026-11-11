@@ -110,3 +110,40 @@ test("the preset's note names the organization and what it fixes or suggests", (
   assert.equal(presetLine({ organization: "acme", locked: false }), "");
   assert.equal(presetLine(null), "");
 });
+
+test("a preset model is the Model step's pick, managed when locked and suggested when not", async () => {
+  const { presetModelStep } = await import("../src/assignments.ts");
+  const sonnet = { provider: "anthropic", model: "claude-sonnet-5-5", savedId: "m2", savedName: "Sonnet" };
+  const p = (over: Partial<NonNullable<Parameters<typeof presetModelStep>[0]>>) => ({ organization: "acme", locked: false, ...over });
+
+  assert.equal(presetModelStep(null, ""), null);
+  assert.equal(presetModelStep(p({}), ""), null);
+
+  const locked = presetModelStep(p({ locked: true, model: sonnet }), "");
+  assert.deepEqual({ pick: locked?.pick, locked: locked?.locked, blocker: locked?.blocker }, { pick: "m2", locked: true, blocker: "" });
+  assert.match(locked!.line, /^Managed by acme: .*Sonnet \(anthropic\/claude-sonnet-5-5\)/);
+
+  const missing = presetModelStep(p({ locked: true, model: { provider: "anthropic", model: "claude-sonnet-5-5" } }), "");
+  assert.equal(missing?.locked, true);
+  assert.match(missing!.blocker, /no saved model on this computer is that model\. Save it in Settings → Models and keys first\./);
+
+  const suggested = presetModelStep(p({ model: sonnet }), "");
+  assert.deepEqual({ pick: suggested?.pick, locked: suggested?.locked, back: suggested?.back }, { pick: "m2", locked: false, back: false });
+  assert.match(suggested!.line, /^Set by acme for this QuickAgent: Sonnet/);
+  const own = presetModelStep(p({ model: sonnet }), "m1");
+  assert.deepEqual({ pick: own?.pick, back: own?.back, blocker: own?.blocker }, { pick: "m1", back: true, blocker: "" });
+
+  const none = presetModelStep(p({ model: { provider: "anthropic", model: "claude-sonnet-5-5" } }), "");
+  assert.deepEqual({ pick: none?.pick, blocker: none?.blocker }, { pick: "", blocker: "" });
+  assert.match(none!.line, /your own choice/);
+
+  const refused = { ...sonnet, savedId: "", refusal: "Running on anthropic is not allowed by acme's managed settings" };
+  assert.match(presetModelStep(p({ model: refused }), "")!.blocker, /not allowed/);
+  assert.equal(presetModelStep(p({ model: refused }), "m1")!.blocker, "");
+  assert.match(presetModelStep(p({ locked: true, model: refused }), "m1")!.blocker, /not allowed/);
+});
+
+test("an assignment's row names the preset model", () => {
+  assert.match(presetLine({ organization: "acme", locked: true, model: { provider: "anthropic", model: "claude-sonnet-5-5" } }),
+    /acme fixes anthropic\/claude-sonnet-5-5 as the model for its runs/);
+});

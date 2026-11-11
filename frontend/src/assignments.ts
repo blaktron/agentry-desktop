@@ -13,6 +13,18 @@ export type Preset = {
   maxTurns?: number;
   where?: string;
   inputs?: Record<string, string>;
+  model?: PresetModel | null;
+};
+
+/** The model a preset runs a QuickAgent on: provider/model, and the saved
+ *  model on this computer that is it (savedId, "" when none is), or the
+ *  managed model rows' refusal of it. */
+export type PresetModel = {
+  provider: string;
+  model: string;
+  savedId?: string;
+  savedName?: string;
+  refusal?: string;
 };
 
 /** One QuickAgent a held document lists, as Go lists it. */
@@ -91,6 +103,7 @@ export function presetLine(p: Preset | null | undefined): string {
   if (p.timeoutSeconds) parts.push(`a timeout of ${p.timeoutSeconds} seconds`);
   if (p.maxTurns) parts.push(`${p.maxTurns} turns`);
   if (p.where) parts.push(`runs on ${PLACES[p.where] ?? p.where}`);
+  if (p.model) parts.push(`${p.model.provider}/${p.model.model} as the model`);
   const n = Object.keys(p.inputs ?? {}).length;
   if (n) parts.push(n === 1 ? "an answer" : `${n} answers`);
   if (!parts.length) return "";
@@ -137,6 +150,45 @@ export const answerLocked = (preset: Preset | null | undefined, id: string): boo
  *  "hosted", "runhost"). */
 export const placeLockedOut = (preset: Preset | null | undefined, place: string): boolean =>
   !!preset?.locked && !!preset.where && preset.where !== place;
+
+/** The run setup's Model step under a preset model. pick is the saved
+ *  model the step starts on ("" for none); locked says the list offers no
+ *  other; line is the sentence under it; blocker is why the run cannot
+ *  start on what is picked ("" when it can); back says the step offers the
+ *  way back to the organization's model. */
+export type PresetModelStep = { pick: string; locked: boolean; line: string; blocker: string; back: boolean };
+
+/** What the Model step shows when the preset gives the run a model, for
+ *  the pick the step holds; null without a preset model. It says what a run
+ *  does: with nothing picked, it is on the saved model that is the preset's;
+ *  a locked preset refuses any other and refuses the run when no saved model
+ *  is the preset's; a default leaves the person's own choice standing. */
+export function presetModelStep(preset: Preset | null | undefined, pick: string): PresetModelStep | null {
+  const m = preset?.model;
+  if (!preset || !m) return null;
+  const org = preset.organization;
+  const named = `${m.provider}/${m.model}`;
+  const locked = !!preset.locked;
+  const save = "Save it in Settings → Models and keys";
+  if (m.refusal) {
+    const blocker = locked || !pick ? `${m.refusal}.` : "";
+    return { pick: "", locked: false, line: locked ? `${m.refusal}.` : `${m.refusal}: pick another saved model.`, blocker, back: false };
+  }
+  if (!m.savedId) {
+    if (locked) {
+      const line = `Managed by ${org}: every run of this QuickAgent is on ${named}, and no saved model on this computer is that model. ${save} first.`;
+      return { pick: "", locked: true, line, blocker: line, back: false };
+    }
+    return {
+      pick, locked: false, back: false, blocker: "",
+      line: `${org} suggests ${named} for this QuickAgent. No saved model on this computer is that model, so the run is on your own choice. ${save} to use it.`,
+    };
+  }
+  const saved = `${m.savedName || m.savedId} (${named})`;
+  if (locked) return { pick: m.savedId, locked: true, line: `Managed by ${org}: every run of this QuickAgent is on ${saved}.`, blocker: "", back: false };
+  if (!pick || pick === m.savedId) return { pick: m.savedId, locked: false, line: `Set by ${org} for this QuickAgent: ${saved}.`, blocker: "", back: false };
+  return { pick, locked: false, line: `${org} suggests ${saved} for this QuickAgent.`, blocker: "", back: true };
+}
 
 /** The note over the run setup's fixed or suggested values; "" when the
  *  preset says nothing the setup shows. */

@@ -57,7 +57,7 @@ import { ChangedInstallNotice } from "./ChangedInstall";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { MANAGED_REFUSAL, managedRefusalHeading, whereLeaves } from "../managed";
 import {
-  answerLocked, contractAsk, contractHeading, placeLockedOut, presetAnswers, presetNote, presetNumber, type Preset,
+  answerLocked, contractAsk, contractHeading, placeLockedOut, presetAnswers, presetModelStep, presetNote, presetNumber, type Preset,
 } from "../assignments";
 import type { ChangedInstall } from "../changedInstall";
 import { PrereqCard, RuntimeSetup } from "./RuntimeSetup";
@@ -617,6 +617,13 @@ export default function RunPanel({
       setModel("");
     }
   }, [pickList]);
+  // The preset's saved model replaces an empty pick, and a locked preset
+  // replaces every other.
+  const presetPick = !inAgentry && !(schedulingHere && onRunhost) ? presetModelStep(preset, model) : null;
+  useEffect(() => {
+    if (!presetPick) return;
+    if (presetPick.locked ? model !== presetPick.pick : !model && presetPick.pick) setModel(presetPick.pick);
+  }, [presetPick?.pick, presetPick?.locked, model]);
   const schedulingThere = scheduling && inAgentry;
   const whenSays = scheduling ? whenProblem(when) : null;
   const blockers: string[] = [];
@@ -726,7 +733,13 @@ export default function RunPanel({
   const pickFrom: PickModel[] | null = schedulingHere && onRunhost
     ? (runhostModels.runhost === onRunhost ? runhostModels.models : null)
     : models;
-  if (modelsHere && pickFrom) {
+  // An organization's preset model: the saved model that is it is the
+  // pick the step starts on, and a locked preset's the only pick. It holds
+  // for a run from this computer's list, never a runhost schedule's.
+  const presetStep = modelsHere ? presetPick : null;
+  const presetSaved = preset?.model && !preset.model.refusal ? preset.model.savedId ?? "" : "";
+  if (presetStep?.blocker) blockers.push(presetStep.blocker);
+  if (modelsHere && pickFrom && !presetStep?.blocker) {
     const b = pickBlocker(pickFrom, model);
     if (b) blockers.push(b);
   }
@@ -1401,14 +1414,25 @@ export default function RunPanel({
                   )}
                 </>
               )}
-              {modelsHere && pickFrom && pickFrom.length > 0 && (
+              {presetStep?.locked && !presetStep.pick && (
+                <div data-preset-model>
+                  <Notice tone="warn">{presetStep.line}</Notice>
+                </div>
+              )}
+              {modelsHere && pickFrom && pickFrom.length > 0 && !(presetStep?.locked && !presetStep.pick) && (
                 <div className="run-model" data-run-model>
                   <ModelPicker
-                    models={pickFrom} value={model} onChange={setModel} disabled={running} testId="run"
+                    models={pickFrom} value={model} onChange={setModel} disabled={running || !!presetStep?.locked} testId="run"
+                    note={presetStep?.line} noDefault={!!presetSaved} only={presetStep?.locked ? presetStep.pick : undefined}
                     hint={schedulingHere && onRunhost
                       ? `Every run of the schedule on ${onRunhost} is on it: one of the saved models ${onRunhost} holds (Settings → Models, Available on).`
                       : schedulingHere ? "Every run of the schedule is on it." : onRunhost ? `Its key, if it has one, goes to ${onRunhost} for this run alone.` : undefined}
                   />
+                  {presetStep?.back && preset && (
+                    <Button variant="link" onClick={() => setModel(presetSaved)} disabled={running} data-preset-model-back>
+                      Use {preset.organization}'s setting
+                    </Button>
+                  )}
                 </div>
               )}
               {modelsHere && schedulingHere && onRunhost && pickFrom && pickFrom.length === 0 && !runhostModels.error && (
