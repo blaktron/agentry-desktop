@@ -6,7 +6,7 @@ import * as app from "../../bindings/github.com/blaktron/agentry-desktop/interna
 import * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import {
-  COPILOT_PLANS, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, copilotModelLabel, copilotOffered, creditsLines, keptFor, modelAsk, modelOptionLabel, providerChoice, signInSaveHint, waysFor,
+  CLAUDE_SUGGESTED, COPILOT_PLANS, CREDITS_DOCS_URL, CREDITS_LOCK, PROVIDERS, copilotModelLabel, copilotOffered, creditsLines, keptFor, modelAsk, modelOptionLabel, providerChoice, signInSaveHint, waysFor,
   type KeptSignIn, type WayId,
 } from "../modelSetup";
 import { parseContextWindow } from "../providerForm";
@@ -671,7 +671,7 @@ function AddProviderDialog({ taken, names, first, kept, onKept, onClose, onSaved
         )}
         <ModelFields provider={vendor} way={way} model={model} setModel={takeModel} name={name} setName={pickName}
           window={window} setWindow={setWindow} makeDefault={makeDefault} setMakeDefault={setMakeDefault} first={first}
-          options={options} suggested={way === "claude" ? ["sonnet", "opus", "haiku"] : way === "copilot" ? ["auto"] : []}
+          options={options} suggested={way === "claude" ? CLAUDE_SUGGESTED : way === "copilot" ? ["auto"] : []}
           busy={s.busy}
           listHint={way === "copilot" && keptHere && !keptHere.broken ? <Button variant="link" disabled={!!listing} onClick={() => void listCopilot()}>{copilotModels ? "List again" : "List my plan's models"}</Button>
             : way === "connect" ? "Agentry does not list these models: type the id the provider shows." : undefined} />

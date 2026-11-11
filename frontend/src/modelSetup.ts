@@ -235,6 +235,12 @@ export interface ModelAsk {
   defaultModel: string;
 }
 
+/** The models offered for a Claude subscription: Claude Code's aliases,
+ *  then Claude Fable 5.2 by its full id, which names the same model on
+ *  every Claude Code release (an older installed Claude Code resolves its
+ *  own `fable` alias to an earlier Fable). */
+export const CLAUDE_SUGGESTED = ["sonnet", "opus", "haiku", "claude-fable-5-2"];
+
 const CONNECT_EXAMPLES: Record<string, string> = {
   openrouter: "anthropic/claude-sonnet-4.5",
   poe: "Claude-Sonnet-4.6",
@@ -246,7 +252,7 @@ export function modelAsk(provider: string, way: WayId, planModels: string[]): Mo
     case "chatgpt":
       return { mode: "plan", options: planModels, placeholder: "sign in to see your plan's models", defaultModel: planModels[0] ?? "" };
     case "claude":
-      return { mode: "pick", options: ["sonnet", "opus", "haiku"], placeholder: "sonnet, opus, or a Claude model id", defaultModel: "sonnet" };
+      return { mode: "pick", options: CLAUDE_SUGGESTED, placeholder: "sonnet, opus, or a Claude model id", defaultModel: "sonnet" };
     case "copilot":
       if (planModels.length > 0) {
         return { mode: "plan", options: copilotOffered(planModels), placeholder: "", defaultModel: COPILOT_AUTO };
