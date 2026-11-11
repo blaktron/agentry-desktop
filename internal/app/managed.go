@@ -111,6 +111,14 @@ func managedViews(e managed.Effective) []ManagedView {
 	for i := range e.Documents {
 		d := &e.Documents[i]
 		v := ManagedView{Registry: d.Registry, Organization: d.Document.Org, Version: d.Document.Version, Summary: d.Summary()}
+		if d.Registry == "" && d.Document.Org == managed.MachineOrg {
+			// The machine settings are the administrator's file, with no
+			// version: they are named by where they were read.
+			v.Summary = "set by this computer's administrator"
+			if e.Machine != nil && e.Machine.Where != "" {
+				v.Summary += " (" + e.Machine.Where + ")"
+			}
+		}
 		if !d.FetchedAt.IsZero() {
 			v.FetchedAt = d.FetchedAt.UTC().Format(time.RFC3339)
 		}
@@ -126,6 +134,10 @@ func managedViews(e managed.Effective) []ManagedView {
 func managedProblems(e managed.Effective) []string {
 	out := []string{}
 	for _, p := range e.Problems {
+		if p.Machine {
+			out = append(out, fmt.Sprintf("This computer's machine settings cannot be used: %v. No run starts on this computer until its administrator corrects them.", p.Err))
+			continue
+		}
 		where := p.Registry
 		if where == "" {
 			where = "this computer"
