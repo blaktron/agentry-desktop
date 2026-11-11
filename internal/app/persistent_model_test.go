@@ -12,6 +12,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/savedmodels"
 
 	"github.com/blaktron/agentry-desktop/internal/schedules"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // labModels writes a policy whose saved models are Qwen, the default, and
@@ -133,5 +134,43 @@ func TestRecentRunsNameTheSavedModel(t *testing.T) {
 	}
 	if savedModelIn(t.TempDir()) != "" {
 		t.Fatal("a folder with no receipt named a model")
+	}
+}
+
+// The supervisor answers an agent's quickagent_run itself, so the switch
+// that lets the Assistant run QuickAgents without asking reaches it in the
+// Assistant's options, read at each run; Agentry Helper's have none.
+func TestTheAssistantsSupervisorReadsTheRunsWithoutAskingSwitch(t *testing.T) {
+	rig := newPersistentRig(t)
+	options := func(name string) persistent.Options {
+		t.Helper()
+		a, err := rig.p.agent(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts, err := rig.p.options(rig.home, a, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return opts
+	}
+	if options(mainAgent).RunsWithoutAsking != nil {
+		t.Fatal("Agentry Helper's supervisor reads the switch")
+	}
+	unasked := options(assistantAgent).RunsWithoutAsking
+	if unasked == nil || unasked() {
+		t.Fatal("the Assistant runs without asking by default")
+	}
+	if err := settings.SetAssistantRunsWithoutAsking(true); err != nil {
+		t.Fatal(err)
+	}
+	if !unasked() {
+		t.Fatal("the switch is on and the Assistant's supervisor still asks")
+	}
+	if err := settings.SetAssistantRunsWithoutAsking(false); err != nil {
+		t.Fatal(err)
+	}
+	if unasked() {
+		t.Fatal("the switch is off and the Assistant's supervisor does not ask")
 	}
 }
