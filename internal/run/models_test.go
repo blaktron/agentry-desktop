@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -370,6 +371,29 @@ func TestMakeDefault(t *testing.T) {
 	}
 	if err := SetDefaultModel("nothing"); err == nil {
 		t.Fatal("a missing model was made the default")
+	}
+}
+
+// A Claude subscription has no list to ask, so Add a model offers Claude
+// Code's aliases and Claude Fable 5.2 by its full id, and saving Fable 5.2
+// records that id as typed.
+func TestAClaudeSubscriptionIsOfferedFable52(t *testing.T) {
+	l := newLab(t)
+	mustSave(t)(AddProviderModel(context.Background(), labEndpoint, ModelDraft{Name: "Qwen", Model: "qwen3"}, io.Discard))
+	pol := l.policy(t)
+	if err := pol.AddProvider("anthropic", policy.Provider{APIKeyKind: policy.KeyKindClaudeSignIn, ProxyAllow: policy.SignInProxyAllow(policy.KeyKindClaudeSignIn)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := policy.Save(l.path, pol); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ListProviderModels(context.Background(), "anthropic")
+	if err != nil || len(got.Models) != 0 || !slices.Equal(got.Suggested, []string{"sonnet", "opus", "haiku", "claude-fable-5-2"}) {
+		t.Fatalf("offered %+v (%v)", got, err)
+	}
+	sm := mustSave(t)(AddModel(context.Background(), "anthropic", ModelDraft{Name: "Fable", Model: "claude-fable-5-2", AgreedToMessage: true}, io.Discard))
+	if sm.Model != "claude-fable-5-2" || l.claudeAsks != 1 {
+		t.Fatalf("saved %+v, %d messages", sm, l.claudeAsks)
 	}
 }
 

@@ -18,7 +18,11 @@ package app
 // exists; AGENTRY_LIVE_AGENT_DESKTOP_UNLINK, a file, gives the runhosts'
 // links up while it exists, as closing the app would;
 // AGENTRY_LIVE_AGENT_DESKTOP_LIST, a your-computer.yaml, is the person's
-// list of applications the test starts from.
+// list of applications the test starts from. AGENTRY_LIVE_WINDOW_APP, a
+// comma-separated list of window identifiers, adds KCalc for its windows
+// alone, approves it for computer use and switches computer use on; while
+// AGENTRY_LIVE_AGENT_DESKTOP_COMPUTER_OFF, a file, exists, computer use is
+// switched off, as the person would in Plugins → Your computer.
 
 import (
 	"cmp"
@@ -45,6 +49,12 @@ func TestLiveAgentDesktop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), hold)
 	defer cancel()
 	app := &App{ctx: ctx}
+	// The approvals the test makes stand for the person's Yes in each native
+	// dialog; every dialog is logged.
+	app.confirm = func(_ context.Context, title, message string) (bool, error) {
+		t.Logf("consent dialog %q, answered yes:\n%s", title, message)
+		return true, nil
+	}
 	var mu sync.Mutex
 	answers := strings.Split(cmp.Or(os.Getenv("AGENTRY_LIVE_DESKTOP_ANSWERS"), "decline,once"), ",")
 	asked := 0
@@ -66,6 +76,15 @@ func TestLiveAgentDesktop(t *testing.T) {
 		}
 		return linkservice.ExecDecline, nil
 	}
+	app.chooseApp = func(_ context.Context, q linkservice.ChooseQuestion) (string, error) {
+		title, message := chooseDialogText(q)
+		if len(q.Candidates) == 0 {
+			t.Logf("chooser %q with no candidates:\n%s", title, message)
+			return "", nil
+		}
+		t.Logf("chooser %q, answered %s:\n%s", title, q.Candidates[0].ID, message)
+		return q.Candidates[0].ID, nil
+	}
 	r := &RunAPI{app: app}
 	y := newYourComputerAPI(app, r)
 	if list := os.Getenv("AGENTRY_LIVE_AGENT_DESKTOP_LIST"); list != "" {
@@ -80,6 +99,20 @@ func TestLiveAgentDesktop(t *testing.T) {
 			t.Logf("on the list: %s (%s), mcp=%v computer=%v ready=%v %s", a.ID, a.From, a.MCP, a.Computer, a.Ready, a.Missing)
 		}
 	}
+	if w := os.Getenv("AGENTRY_LIVE_WINDOW_APP"); w != "" {
+		if _, err := y.AddApplication(NewApplication{Name: "KCalc", ID: "kcalc", Windows: strings.Split(w, ",")}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := y.SetComputerUse(true); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := y.SetApproval("kcalc", "computer", true); err != nil {
+			t.Fatal(err)
+		}
+		t.Log("KCalc approved for computer use, computer use on")
+	}
+	computerOff := os.Getenv("AGENTRY_LIVE_AGENT_DESKTOP_COMPUTER_OFF")
+	computerOn := true
 	y.start(ctx)
 	defer y.shutdown()
 	if y.socketErr != "" {
@@ -116,6 +149,13 @@ func TestLiveAgentDesktop(t *testing.T) {
 					t.Logf("runhost %s: linked to this computer %v", v.Name, v.LinkedHere)
 				}
 			}
+		}
+		if computerOff != "" && liveFileExists(computerOff) == computerOn {
+			computerOn = !computerOn
+			if _, err := y.SetComputerUse(computerOn); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("computer use switched on: %v", computerOn)
 		}
 		if stop := os.Getenv("AGENTRY_LIVE_AGENT_DESKTOP_STOP"); stop != "" && liveFileExists(stop) {
 			t.Log("stopped by its stop file")

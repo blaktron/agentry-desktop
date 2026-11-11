@@ -582,7 +582,7 @@ func (m *mainLink) run(ctx context.Context, ref, task string, files []string, an
 	if err != nil {
 		return "", err
 	}
-	if err := m.agreeToRun(exact, task, files, given); err != nil {
+	if err := m.agreeToRun(exact, task, files, given, info.DesktopUse); err != nil {
 		return "", err
 	}
 	// began carries the run's id the first time it is known: when it waits
@@ -652,7 +652,7 @@ var agreeMu sync.Mutex
 // is asked or recorded; the checks before it (an installed, autonomous
 // QuickAgent, files from the share folder alone, answers that pass) hold
 // either way.
-func (m *mainLink) agreeToRun(exact, task string, files []string, given *checkedAnswers) error {
+func (m *mainLink) agreeToRun(exact, task string, files []string, given *checkedAnswers, desktop []string) error {
 	if m.unasked != nil && m.unasked() {
 		return nil
 	}
@@ -688,6 +688,11 @@ func (m *mainLink) agreeToRun(exact, task string, files []string, given *checked
 	if t := strings.TrimSpace(task); t != "" {
 		// Main's words, quoted, so they cannot pass for the dialog's own.
 		fmt.Fprintf(&msg, "\n\nThe task %s wrote for it: %s", who, quoted(cut(t, 500)))
+	}
+	if len(desktop) > 0 {
+		// The run reaches outside its sandbox, held to what the person
+		// approved in Your computer.
+		fmt.Fprintf(&msg, "\n\nIt uses your computer through Agentry Desktop, only as far as you approved it there:\n- %s", strings.Join(desktop, "\n- "))
 	}
 	again := " may run this version again without asking."
 	if len(given.sources) > 0 {

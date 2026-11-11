@@ -840,7 +840,11 @@ func ListProviderModels(ctx context.Context, id string) (*ProviderModels, error)
 		}
 		return out, nil
 	case WayClaude:
-		out.Suggested = []string{"sonnet", "opus", "haiku"}
+		// Claude Code's aliases, then Claude Fable 5.2 by its full id, which
+		// names the same model on every Claude Code release (an older
+		// installed Claude Code resolves its own fable alias to an earlier
+		// Fable).
+		out.Suggested = []string{"sonnet", "opus", "haiku", "claude-fable-5-2"}
 		return out, nil
 	case WayCopilot:
 		out.Suggested = []string{modelcheck.CopilotAuto}

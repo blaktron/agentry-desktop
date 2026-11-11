@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry/pkg/manifest"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/desktop"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
@@ -98,5 +100,21 @@ func TestTheAppsRunBindsAsTheCLIDoes(t *testing.T) {
 		!got.Servers[1].Chosen || got.Servers[1].ID != spec.DesktopChosenID ||
 		!slices.Equal(got.Windows, []string{"blender"}) || !got.ChooseWindows || got.ComputerUse != spec.ComputerUseApp {
 		t.Fatalf("the app's run asked for %+v", got)
+	}
+}
+
+// DesktopUse names what a release uses of the person's computer in the
+// install's words, each application and then computer use, and nothing for
+// a release without the line.
+func TestDesktopUseIsTheInstallsWords(t *testing.T) {
+	if got := DesktopUse(&manifest.Manifest{}); got != nil {
+		t.Errorf("no line: %q", got)
+	}
+	m := &manifest.Manifest{}
+	m.Capabilities.Desktop = &manifest.Desktop{Servers: []manifest.DesktopServer{{ID: "blender"}, {ID: "kcalc", Use: manifest.DesktopUseComputer}}, ComputerUse: manifest.ComputerUseApp}
+	d := m.Capabilities.Desktop
+	want := []string{manifest.DescribeDesktopServer(d.Servers[0]), manifest.DescribeDesktopServer(d.Servers[1]), manifest.DescribeComputerUse(d)}
+	if got := DesktopUse(m); !slices.Equal(got, want) {
+		t.Errorf("DesktopUse = %q, want %q", got, want)
 	}
 }
