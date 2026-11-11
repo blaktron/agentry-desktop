@@ -316,12 +316,35 @@ func connect(ctx context.Context, home, regURL, ref, digest string, m *manifest.
 	if alt := unsupportedAlternative(*srv); alt != "" {
 		return nil, unsupportedRefusal(*srv, alt)
 	}
+	k := connection.Key{Ref: ref, Digest: digest, Server: server}
+	if err := consentAndKeep(ctx, home, regURL, k, *srv, ui, publisherHelp(m, *srv)); err != nil {
+		return nil, err
+	}
+	store := openStores(home).conns
+	rc, err := connectionsOf(store, ref, digest, m)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range rc.Servers {
+		if s.Server == server {
+			return &s, nil
+		}
+	}
+	return nil, fmt.Errorf("the connection to %s was kept but cannot be read back", server)
+}
+
+// consentAndKeep runs the vendor's consent for srv and keeps the grant under
+// k, replacing the connection k had: revoked at the vendor unless it was
+// made with the same client at the same issuer, whose revocation would end
+// the new grant too. help is the publisher's note an own-client guide
+// carries.
+func consentAndKeep(ctx context.Context, home, regURL string, k connection.Key, srv manifest.MCPServer, ui ConsentUI, help string) error {
 	st := openStores(home)
 	store, clients, httpc := st.conns, st.clients, st.httpc
 	agentry := agentryClients(home, regURL)
 	c := mcpauth.Consent{
-		HTTP: httpc, ServerURL: srv.URL, Scopes: connectionScopes(*srv),
-		AgentryClient: func(ctx context.Context, issuer string) string { return agentry(ctx, *srv, issuer) },
+		HTTP: httpc, ServerURL: srv.URL, Scopes: connectionScopes(srv),
+		AgentryClient: func(ctx context.Context, issuer string) string { return agentry(ctx, srv, issuer) },
 		OwnClient:     clients.Get, CIMDURL: nativeCIMD,
 		Pasted: ui.Pasted, Say: ui.Say, Present: ui.Present,
 	}
@@ -331,14 +354,13 @@ func connect(ctx context.Context, home, regURL, ref, digest string, m *manifest.
 	g, err := c.Run(ctx)
 	var own *mcpauth.NeedsOwnClientError
 	if errors.As(err, &own) {
-		guide := OwnClientSteps(own.Issuer, *srv)
-		guide.Help = publisherHelp(m, *srv)
-		return nil, &NeedsOwnClient{Issuer: own.Issuer, Guide: guide}
+		guide := OwnClientSteps(own.Issuer, srv)
+		guide.Help = help
+		return &NeedsOwnClient{Issuer: own.Issuer, Guide: guide}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("connect %s: %w", server, err)
+		return fmt.Errorf("connect %s: %w", k.Server, err)
 	}
-	k := connection.Key{Ref: ref, Digest: digest, Server: server}
 	old, gerr := store.Get(k)
 	switch {
 	case gerr != nil || old == nil:
@@ -363,19 +385,8 @@ func connect(ctx context.Context, home, regURL, ref, digest string, m *manifest.
 			}
 		}
 	}
-	if _, err := store.Put(k, g, ""); err != nil {
-		return nil, err
-	}
-	rc, err := connectionsOf(store, ref, digest, m)
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range rc.Servers {
-		if s.Server == server {
-			return &s, nil
-		}
-	}
-	return nil, fmt.Errorf("the connection to %s was kept but cannot be read back", server)
+	_, err = store.Put(k, g, "")
+	return err
 }
 
 // runConnections is what a run is given of its connections: each server's

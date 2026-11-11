@@ -43,7 +43,7 @@ import * as RunhostsAPI from "../../bindings/github.com/blaktron/agentry-desktop
 import { LicencesSettings } from "./SettingsLicences";
 import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 import { rejectedLine } from "../signInState";
-import { managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, rowOf, whereLeaves } from "../managed";
+import { machinePinLine, managedLine, unsafeLockBadge, unsafeLockLines, unsafeLockStatus, forbids, lockedCap, rowOf, whereLeaves } from "../managed";
 import { ManagedNotes, useManagedRows } from "./ManagedNotes";
 import { LockGlyph } from "../unsafe";
 import { PLACES } from "../firstRun";
@@ -253,7 +253,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
       )}
       {(settings.managedProblems ?? []).map((p) => <Notice key={p} tone="warn">{p}</Notice>)}
       <div className="settings-cards">
-        {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)) })).map((s) => (
+        {SECTIONS.map((s) => ({ ...s, parts: partsShown(s, signedInTo(settings, activeRegistry)).filter((p) => !(p.id === "add-registry" && settings.machine?.registry)) })).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}
@@ -1000,7 +1000,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   return (
     <>
       <p className="muted small">
-        {twoSignIns(settings)} Credentials live in the OS keychain under the same convention
+        {settings.machine?.registry ? `This computer's administrator pins Agentry Desktop to ${settings.machine.registry}, and it signs in there alone.` : twoSignIns(settings)} Credentials live in the OS keychain under the same convention
         the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.
       </p>
       <ErrorBox error={error} />
@@ -1016,6 +1016,10 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
 
       <section id="settings-part-registries" className="settings-part">
       <h2>Registries</h2>
+      {settings.machine?.refusal && <Notice tone="warn">{settings.machine.refusal}</Notice>}
+      {settings.machine?.registry && (
+        <p className="muted small" data-machine-pin>{machinePinLine(settings.machine)}</p>
+      )}
       {settings.registries.map((r) => (
         <Card key={r.url}>
           <div className="spread">
@@ -1103,9 +1107,11 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                   </Button>
                 </>
               )}
-              <Button variant="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
-                Remove
-              </Button>
+              {r.url !== settings.machine?.registry && (
+                <Button variant="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
+                  Remove
+                </Button>
+              )}
             </div>
           </div>
         </Card>
@@ -1115,6 +1121,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
           registry keeps them. */}
       {activeRegistry && <SecretsCard registry={activeRegistry} />}
 
+      {!settings.machine?.registry && (
       <section id="settings-part-add-registry" className="settings-part">
       <h2>Add a registry</h2>
       <p className="muted small">
@@ -1134,6 +1141,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
         <Button variant="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</Button>
       </Toolbar>
       </section>
+      )}
 
       {signIn && (
         <Modal title={`${signInLabel(signIn.kind)}: ${signIn.url}`} onClose={() => setSignIn(null)}>

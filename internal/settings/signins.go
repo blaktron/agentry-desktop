@@ -117,8 +117,18 @@ func SecureAgentryRegistry() string {
 
 // SelfHostedRegistry is the self-hosted registry the person added: the
 // first registry in the list that is not a SecureAgentry address, "" when
-// there is none.
+// there is none. Under machine settings that pin a registry, it is the
+// pinned one when that is self-hosted, and none otherwise.
 func (s Settings) SelfHostedRegistry() string {
+	switch pin, err := PinnedRegistry(); {
+	case err != nil:
+		return ""
+	case pin != "":
+		if !IsSecureAgentry(pin) && Origin(pin) != "" {
+			return pin
+		}
+		return ""
+	}
 	for _, r := range s.Registries {
 		if r.URL != "" && !IsSecureAgentry(r.URL) && Origin(r.URL) != "" {
 			return Normalize(r.URL)
@@ -129,8 +139,12 @@ func (s Settings) SelfHostedRegistry() string {
 
 // SignInFor names the sign-in that may be sent to regURL: its kind and the
 // registry it is for. Both are "" when no sign-in this app keeps belongs to
-// regURL's origin.
+// regURL's origin, and for any registry but the one the machine settings
+// pin.
 func (s Settings) SignInFor(regURL string) (kind, reg string) {
+	if pinnedOut(regURL) != nil {
+		return "", ""
+	}
 	if sa := SecureAgentryRegistry(); sa != "" && SameOrigin(regURL, sa) {
 		return SignInSecureAgentry, sa
 	}
@@ -145,11 +159,15 @@ func (s Settings) SignInFor(regURL string) (kind, reg string) {
 
 // Admit says whether regURL may be added to the list and signed in to: the
 // SecureAgentry registry this build is for, the self-hosted registry already
-// added, or a self-hosted one when none is. The refusal says which sign-in
-// stands in the way.
+// added, or a self-hosted one when none is, and only the registry the
+// machine settings pin when they pin one. The refusal says what stands in
+// the way.
 func (s Settings) Admit(regURL string) error {
 	if Origin(regURL) == "" {
 		return fmt.Errorf("the registry address has no host this app can sign in to")
+	}
+	if err := pinnedOut(regURL); err != nil {
+		return err
 	}
 	if IsSecureAgentry(regURL) {
 		sa := SecureAgentryRegistry()

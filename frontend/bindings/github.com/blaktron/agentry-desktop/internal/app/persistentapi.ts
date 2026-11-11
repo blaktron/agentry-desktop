@@ -334,6 +334,16 @@ export function RemoveSecret(name: string, secret: string): $CancellablePromise<
 }
 
 /**
+ * RemoveServerSignIn removes agent name's connection to server, revoked at
+ * the vendor where it offers that, and returns the agent as it now stands.
+ */
+export function RemoveServerSignIn(name: string, server: string): $CancellablePromise<$models.PersistentAgentView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.RemoveServerSignIn", name, server).then(($result: any) => {
+        return $$createType1($result)!;
+    });
+}
+
+/**
  * RemoveSkill takes away a skill the person added, and its files. A
  * built-in skill is switched off, never removed.
  */
@@ -569,6 +579,20 @@ export function SignInCalendarFeed(name: string, feed: string, address: string):
 }
 
 /**
+ * SignInServer signs agent name in to its server at the address server:
+ * the vendor's consent in the person's browser, under way until the vendor
+ * answers, the person cancels (CancelConnect) or it times out. Its
+ * address and what it says reach the page as Connect tools' do, and a
+ * redirect pasted with PasteRedirect is taken. A connection the server had
+ * is replaced.
+ */
+export function SignInServer(name: string, server: string): $CancellablePromise<$models.ConnectView> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.SignInServer", name, server).then(($result: any) => {
+        return $$createType11($result)!;
+    });
+}
+
+/**
  * Start starts an agent: a roster with entries the person has not agreed to
  * on this computer asks first, in a native dialog, and records the
  * agreement. Its events then stream as runner:agent-event until it stops.
@@ -627,7 +651,7 @@ export function Tasks(name: string): $CancellablePromise<$models.PersistentTaskV
  */
 export function Transcript(name: string): $CancellablePromise<$models.SessionEventView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Transcript", name).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType13($result);
     });
 }
 
@@ -667,5 +691,7 @@ const $$createType6 = $Create.Nullable($$createType5);
 const $$createType7 = $Create.Array($$createType0);
 const $$createType8 = $models.ServerListView.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = $models.SessionEventView.createFrom;
-const $$createType11 = $Create.Array($$createType10);
+const $$createType10 = $models.ConnectView.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = $models.SessionEventView.createFrom;
+const $$createType13 = $Create.Array($$createType12);

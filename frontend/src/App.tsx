@@ -57,6 +57,7 @@ import { useAgents } from "./agents";
 import { agentNavEntries, CODER_AGENT, coderRunning, viewingAgent } from "./persistentAgents";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
+import { machineGate } from "./managed";
 import Notifications from "./pages/Notifications";
 import * as NotificationsAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/notificationsapi";
 import { bellCount, bellLabel, noticeRoute, showingKeys, type NoticeRoute } from "./notifications";
@@ -318,8 +319,11 @@ export default function App() {
       .then((s) => {
         // First-run gate: open the guided setup when the machine is
         // unconfigured — not yet onboarded and nothing signed in.
-        const wizard = !s.onboarded && !s.registries.some((r) => r.hasToken);
+        const wizard = !s.onboarded && !s.registries.some((r) => r.hasToken) && !machineGate(s.machine);
         if (wizard) setShowWizard(true);
+        // This computer's administrator requires a sign-in: the app opens
+        // on it.
+        if (machineGate(s.machine)) setRoute({ page: "settings", ...SETTINGS_FOR.homeSignIn });
         // Asked behind the wizard too: a fresh install records the version
         // it started at, so its next start has nothing new to show.
         WhatsNewAPI.Pending()
@@ -537,6 +541,16 @@ export default function App() {
         {/* A persistent agent's page lays its three panes over the whole
             content area, with no scroller of the content's own. */}
         <main ref={content} className={route.page === "persistent" ? "content content-full" : "content"}>
+          {/* This computer's administrator requires a sign-in nothing runs
+              without: said over every page, with the way to it. */}
+          {machineGate(settings?.machine) && !(route.page === "settings") && (
+            <div className="machine-gate" data-machine-gate>
+              <Notice tone="warn">
+                {machineGate(settings?.machine)}{" "}
+                <Button variant="link" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.homeSignIn })}>Sign in</Button>
+              </Notice>
+            </div>
+          )}
           {/* A render fault shows its way back here, under a sidebar that
               still works. */}
           <Recover subject="This page" resetKey={JSON.stringify(route)}>
