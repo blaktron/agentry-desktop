@@ -1820,6 +1820,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .config-card.tone-failed .config-card-state, .config-card-failed [role="alert"] { color: var(--color-sev-high); }
 .config-card-failed, .config-card-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .config-card-share { margin: 0; }
+.config-card-signin { border-top: 1px solid var(--color-border); padding-top: 6px; overflow-wrap: anywhere; }
+.config-card-signin p { margin: 0 0 6px; }
 .config-card-details { border-top: 1px solid var(--color-border); padding-top: 6px; overflow-wrap: anywhere; }
 .config-card-details p { margin: 0 0 4px; }
 .config-card-add { flex-direction: row; align-items: flex-start; gap: 10px; border-style: dashed; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }

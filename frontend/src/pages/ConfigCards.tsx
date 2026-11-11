@@ -15,14 +15,18 @@
 import { useEffect, useRef, useState } from "react";
 import * as YourComputerAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/yourcomputerapi";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
+import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
+import type * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { EventsOn } from "../host";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
 import type * as build from "../../bindings/github.com/blaktron/agentry-desktop/internal/build/models";
-import { addFormOf, calendarFeedLine, desktopAppID, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
+import { addFormOf, calendarFeedLine, desktopAppID, calendarFeedOf, calendarNameOK, cardIcon, cardMenu, cardState, cardSwitches, configGrids, signInOffer, nextTurnWords, disabledProviders, ENTRA_ID, fastmailWords, microsoftAdminWords, microsoftCanSignIn, googleScopeWords, microsoftScopeWords, microsoftWords, MICROSOFT_TENANTS, providerWords, googleWords, grantedWords, secretValueOK, setUpForm, SECRET_NAME, type AddForm, type AddKind, type GridKey, type RemoveAction, type SetUp } from "../configCards";
 import { AddGlyph, ConfigIcon } from "../configGlyphs";
 import { MeetingNotesCard } from "./MeetingNotesCard";
+import { ConsentWait, OwnClientForm, consentEvents } from "./ConnectTools";
+import { hostOf } from "../connections";
 import { SHARE_SWITCH_LABEL, agentCalled, canAddServer, portOpenable, retryChanges, serverListLine, serverRowOf, serverSearchNote, serverShareSwitch, shareSwitchNote, type ServerForm } from "../persistentAgents";
-import { Button, Field, Input, Modal, Notice, OptionsMenu, Select, Spinner } from "../ui";
+import { Button, ErrorBox, Field, Input, Modal, Notice, OptionsMenu, Select, Spinner } from "../ui";
 
 export type Act = (f: () => Promise<app.PersistentAgentView>, what?: string) => Promise<boolean>;
 
@@ -137,7 +141,10 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
   const [disabling, setDisabling] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
+  const [serverSignIn, setServerSignIn] = useState(false);
+  const [removingSignIn, setRemovingSignIn] = useState(false);
   const state = cardState(agent, e);
+  const offer = signInOffer(e);
   const feed = calendarFeedOf(e, agent);
   const line = feed ? calendarFeedLine(feed) : e.line;
   const switches = cardSwitches(e);
@@ -158,6 +165,8 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
     ...(menu.setUp ? [{ key: "setup", label: "Set up", onSelect: () => menu.setUp && onSetUp(menu.setUp) }] : []),
     { key: "details", label: details ? "Hide details" : "Details", onSelect: () => setDetails(!details) },
     ...(feed ? [{ key: "signin", label: feed.signedIn ? "Sign in again" : "Sign in in a browser window", onSelect: () => setSigningIn(true), disabled: busy }] : []),
+    ...(offer ? [{ key: "server-signin", label: offer.label, onSelect: () => setServerSignIn(true), disabled: busy || serverSignIn }] : []),
+    ...(offer?.remove ? [{ key: "server-signout", label: "Remove the sign-in", onSelect: () => setRemovingSignIn(true), disabled: busy }] : []),
     ...(menu.rename ? [{ key: "rename", label: "Rename", onSelect: () => setRenaming(true), disabled: busy }] : []),
     ...(menu.remove ? [{ key: "remove", label: "Remove", onSelect: () => setRemoving(true), disabled: busy }] : []),
     ...(menu.disable ? [{ key: "disable", label: `Disable ${menu.disable.name}`, onSelect: () => setDisabling(true), disabled: busy }] : []),
@@ -181,6 +190,12 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
         <div className="config-card-failed">
           <span className="small" role="alert">{state.reason ? `Could not be installed: ${state.reason}` : "Could not be installed"}</span>
           <Button variant="ghost" className="small" disabled={busy} onClick={() => void retry()}>Retry</Button>
+        </div>
+      )}
+      {offer?.now && !serverSignIn && (
+        <div className="config-card-failed">
+          <span className="small" role="status">It needs your sign-in at the vendor.</span>
+          <Button variant="ghost" className="small" disabled={busy} onClick={() => setServerSignIn(true)}>Sign in</Button>
         </div>
       )}
       {share && (
@@ -209,7 +224,97 @@ function ToggleCard({ agent, entry: e, busy, act, onSetUp }: {
       {removing && menu.remove && <RemoveConfirm agent={agent} action={menu.remove} busy={busy} act={act} onCancel={() => setRemoving(false)} />}
       {disabling && menu.disable && <DisableProvider agent={agent} provider={menu.disable} busy={busy} act={act} onCancel={() => setDisabling(false)} />}
       {renaming && menu.rename && <RenameCalendarFeed agent={agent} feed={menu.rename} busy={busy} act={act} onDone={() => setRenaming(false)} />}
+      {serverSignIn && offer && <ServerSignIn agent={agent} server={offer.server} again={offer.remove} act={act} onDone={() => setServerSignIn(false)} />}
+      {removingSignIn && offer && (
+        <div className="config-card-confirm small">
+          <p>
+            The {agent.displayName || agent.title || agent.name} agent&apos;s connection to <span className="mono">{offer.server}</span> is
+            removed from this computer and revoked at the vendor where it offers that. The server waits for a sign-in again.
+          </p>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={() => setRemovingSignIn(false)} disabled={busy}>Cancel</Button>
+            <Button variant="danger" disabled={busy} onClick={() => void act(() => PersistentAPI.RemoveServerSignIn(agent.name, offer.server), "Sign-in removed").then(() => setRemovingSignIn(false))}>
+              Remove the sign-in
+            </Button>
+          </div>
+        </div>
+      )}
       {signingIn && feed && <SignInCalendarFeed agent={agent} feed={feed.name} again={!!feed.signedIn} busy={busy} act={act} onDone={() => setSigningIn(false)} />}
+    </div>
+  );
+}
+
+/** A server's sign-in at its vendor, on its card: the consent in the
+ *  person's browser for the agent, the wait while it is under way, and the
+ *  own-client ask for a vendor that lets no app register itself. The agent
+ *  is given the server at its next turn. */
+function ServerSignIn({ agent, server, again, act, onDone }: { agent: app.PersistentAgentView; server: string; again: boolean; act: Act; onDone: () => void }) {
+  const [waiting, setWaiting] = useState(false);
+  const [consentURL, setConsentURL] = useState<string | null>(null);
+  const [said, setSaid] = useState<string[]>([]);
+  const [own, setOwn] = useState<run.OwnClientGuide | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const live = useRef(true);
+  useEffect(() => () => { live.current = false; }, []);
+  async function signIn() {
+    setWaiting(true);
+    setProblem(null);
+    setNote(null);
+    setConsentURL(null);
+    setSaid([]);
+    const off = consentEvents(server, (u) => live.current && setConsentURL(u), (l) => live.current && setSaid((s) => [...s, l]));
+    try {
+      const r = await PersistentAPI.SignInServer(agent.name, server);
+      if (!live.current) return;
+      if (r?.needsOwnClient) {
+        setOwn(r.needsOwnClient);
+      } else if (r?.done) {
+        await act(() => PersistentAPI.Get(agent.name), `Signed in to ${hostOf(server) || server}`);
+        if (live.current) onDone();
+      } else if (r?.cancelled) {
+        setNote("The sign-in was cancelled. Nothing was kept.");
+      }
+    } catch (e) {
+      if (live.current) setProblem(String(e));
+    } finally {
+      off();
+      if (live.current) {
+        setWaiting(false);
+        setConsentURL(null);
+      }
+    }
+  }
+  async function keep(id: string, secret: string) {
+    if (!own) return;
+    setProblem(null);
+    try {
+      await RunAPI.KeepOwnClient(own.issuer, id, secret);
+      setOwn(null);
+      await signIn();
+    } catch (e) {
+      setProblem(String(e));
+    }
+  }
+  return (
+    <div className="config-card-signin small">
+      {!waiting && !own && (
+        <>
+          <p>
+            {again ? "Sign in again at " : "Sign in at "}<span className="mono">{hostOf(server) || server}</span> for the {agent.displayName || agent.title || agent.name} agent,
+            on the vendor&apos;s own consent screen in your browser. What you approve is kept on this computer for this agent, its refresh token in the OS
+            keychain; the agent is given an access token at each turn, never the refresh token or a client secret.
+          </p>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={onDone}>Cancel</Button>
+            <Button variant="primary" onClick={() => void signIn()}>{again ? "Sign in again" : "Sign in"}</Button>
+          </div>
+        </>
+      )}
+      {waiting && <ConsentWait said={said} consentURL={consentURL} />}
+      {own && !waiting && <OwnClientForm guide={own} server={server} onCancel={() => { setOwn(null); onDone(); }} onKeep={(id, secret) => void keep(id, secret)} />}
+      {note && <Notice>{note}</Notice>}
+      <ErrorBox error={problem} />
     </div>
   );
 }

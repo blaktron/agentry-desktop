@@ -887,6 +887,11 @@ export class ConnectView {
     "needsOwnClient"?: run$0.OwnClientGuide | null;
     "cancelled"?: boolean;
 
+    /**
+     * Done says the connection was made and kept.
+     */
+    "done"?: boolean;
+
     /** Creates a new ConnectView instance. */
     constructor($$source: Partial<ConnectView> = {}) {
 
@@ -7445,6 +7450,14 @@ export class PersistentRosterEntry {
      * SetUpFastmail says the entry's Set up is Fastmail's: its token.
      */
     "setUpFastmail"?: boolean;
+
+    /**
+     * SignInServer is, for a remote server that signs in by OAuth, the
+     * address its connection is for; SignedIn says the agent keeps a
+     * connection to it the vendor has not refused.
+     */
+    "signInServer"?: string;
+    "signedIn"?: boolean;
 
     /** Creates a new PersistentRosterEntry instance. */
     constructor($$source: Partial<PersistentRosterEntry> = {}) {

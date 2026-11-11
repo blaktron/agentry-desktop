@@ -49,6 +49,8 @@ type ConnectView struct {
 	Connection     *run.ServerConnection `json:"connection,omitempty"`
 	NeedsOwnClient *run.OwnClientGuide   `json:"needsOwnClient,omitempty"`
 	Cancelled      bool                  `json:"cancelled,omitempty"`
+	// Done says the connection was made and kept.
+	Done bool `json:"done,omitempty"`
 }
 
 // KeptConnectionsView is Settings → Connections: never a token or a
@@ -89,6 +91,24 @@ func (r *RunAPI) ReleaseConnections(reg, ref string) (*run.ReleaseConnections, e
 // Agentry's steps for making one; KeepOwnClient keeps it, and Connect is
 // called again.
 func (r *RunAPI) Connect(reg, ref, server string) (*ConnectView, error) {
+	var c *run.ServerConnection
+	v, err := r.consent(server, func(ctx context.Context, ui run.ConsentUI) error {
+		var err error
+		c, err = runConnect(ctx, reg, ref, server, ui)
+		return err
+	})
+	if v != nil && v.Done {
+		v.Connection = c
+	}
+	return v, err
+}
+
+// consent runs one consent to server through do, at most one at a time:
+// the vendor's consent screen opened in the person's browser, its address
+// and what it says sent to the page, a pasted redirect and a cancel taken
+// from the page. It blocks until do returns. A vendor that needs the
+// person's own OAuth client answers with Agentry's steps for making one.
+func (r *RunAPI) consent(server string, do func(context.Context, run.ConsentUI) error) (*ConnectView, error) {
 	if !consentNow.mu.TryLock() {
 		return nil, errors.New("a sign-in is already under way: finish it in the browser, or cancel it")
 	}
@@ -117,7 +137,7 @@ func (r *RunAPI) Connect(reg, ref, server string) (*ConnectView, error) {
 			}
 		},
 	}
-	c, err := runConnect(ctx, reg, ref, server, ui)
+	err := do(ctx, ui)
 	var own *run.NeedsOwnClient
 	switch {
 	case errors.As(err, &own):
@@ -128,7 +148,7 @@ func (r *RunAPI) Connect(reg, ref, server string) (*ConnectView, error) {
 	case err != nil:
 		return nil, err
 	}
-	return &ConnectView{Connection: c}, nil
+	return &ConnectView{Done: true}, nil
 }
 
 // PasteRedirect hands the consent in progress the address the browser ended
