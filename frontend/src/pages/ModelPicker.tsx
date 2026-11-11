@@ -6,7 +6,7 @@ import * as RunAPI from "../../bindings/github.com/blaktron/agentry-desktop/inte
 import { Select } from "../primitives";
 import { greyedLines, modelOptions, pickLine, type PickModel, type PickOption } from "../modelPick";
 
-export function ModelPicker({ models, value, onChange, disabled, label = "Model", hint, testId, extra }: {
+export function ModelPicker({ models, value, onChange, disabled, label = "Model", hint, testId, extra, note, noDefault, only }: {
   models: PickModel[];
   value: string;
   onChange: (id: string) => void;
@@ -18,9 +18,17 @@ export function ModelPicker({ models, value, onChange, disabled, label = "Model"
   /** An option before the default, for a value that is none of the list's
    *  (a runhost schedule's model it was made with); its reason is the line. */
   extra?: PickOption | null;
+  /** A sentence before the picked model's line: who set the model. */
+  note?: string;
+  /** The list offers no default entry: an empty pick is not the default. */
+  noDefault?: boolean;
+  /** The list offers this saved model alone. */
+  only?: string;
 }) {
-  const options = extra ? [extra, ...modelOptions(models)] : modelOptions(models);
-  const line = extra && value === extra.value ? extra.reason : pickLine(models, value);
+  let options = extra ? [extra, ...modelOptions(models)] : modelOptions(models);
+  if (only) options = options.filter((o) => o.value === only);
+  else if (noDefault) options = options.filter((o) => o.value !== "");
+  const line = [note, extra && value === extra.value ? extra.reason : pickLine(models, value)].filter(Boolean).join(" ");
   return (
     <label className="field" data-model-picker={testId ?? ""}>
       <span className="field-label">{label}</span>

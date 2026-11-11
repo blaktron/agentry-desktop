@@ -260,6 +260,49 @@ func RenewedHere(vendor string) bool {
 // replaces it.
 var heldManaged = managed.Current
 
+// PresetModelHere is how this computer meets the model an organization's
+// preset gives a QuickAgent's runs: the saved model a run with none picked
+// is on (presetModel's choice), or why there is none.
+type PresetModelHere struct {
+	// SavedID is the saved model that is the preset's model, the default
+	// first; "" when no saved model on this computer is.
+	SavedID string `json:"savedId,omitempty"`
+	// SavedName is that saved model's name.
+	SavedName string `json:"savedName,omitempty"`
+	// Refusal is the managed model rows' refusal of the preset's model
+	// itself, which refuses a run on it whatever is saved; "" when they
+	// allow it.
+	Refusal string `json:"refusal,omitempty"`
+}
+
+// PresetModelOn is how this computer meets provider's model when a preset
+// names it: the saved model of it a run with none picked is on, and the
+// managed model rows' refusal of it. A policy that cannot be read keeps no
+// saved model.
+func PresetModelOn(provider, model string) PresetModelHere {
+	pol, _, _, err := readModelsPolicy()
+	if err != nil {
+		pol = nil
+	}
+	return presetModelOn(pol, provider, model)
+}
+
+// presetModelOn is PresetModelOn against pol; nil keeps no saved model.
+func presetModelOn(pol *policy.Policy, provider, model string) PresetModelHere {
+	var out PresetModelHere
+	if reason := heldManaged().ModelRefusal(managed.RunModel{Provider: provider, Model: model}); reason != "" {
+		out.Refusal = reason
+		return out
+	}
+	if pol == nil {
+		return out
+	}
+	if sm, ok := localrun.SavedModelFor(pol, provider, model); ok && sm.ID != "" {
+		out.SavedID, out.SavedName = sm.ID, choiceName(sm)
+	}
+	return out
+}
+
 // presetModel is the saved model a run of the QuickAgent ref is on when an
 // organization assigned it with a preset model (localrun.PresetModel): with
 // none picked in the Model list, the saved model that is the preset's;
