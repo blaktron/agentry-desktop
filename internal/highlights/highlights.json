@@ -1,6 +1,12 @@
 {
   "versions": [
     {
+      "version": "0.7.43",
+      "highlights": [
+        "The Assistant now runs your QuickAgents without a dialog when you let it run them without asking."
+      ]
+    },
+    {
       "version": "0.7.42",
       "highlights": [
         "With your Claude subscription you can pick Claude Fable 5.2 when you add a model.",

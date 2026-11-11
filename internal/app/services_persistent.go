@@ -1172,7 +1172,7 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 	if err != nil {
 		return persistent.Options{}, fmt.Errorf("operator policy: %w", err)
 	}
-	return persistent.Options{
+	opts := persistent.Options{
 		Home: home, Agent: a, Client: persistent.ClientDesktop,
 		Policy: pol, PolicySHA: sha, PolicyFile: &polFile, Build: version.Build(), Credits: run.CreditsClient(pol), CreditsFor: run.CreditsClient,
 		// Where an organization's credits pay for AI Review or web search,
@@ -1185,7 +1185,14 @@ func (p *PersistentAPI) options(home string, a persistent.Agent, logw io.Writer)
 		// A saved model whose key or sign-in is not here refuses the start or
 		// the turn by its name, as the CLI's supervisor does.
 		ModelUsable: run.AgentModelUsable(home),
-	}, nil
+	}
+	// The supervisor answers the Assistant's quickagent_run itself, so the
+	// switch that lets it run QuickAgents without asking is handed to it
+	// here; Agentry Helper and every other agent always ask.
+	if a.Name == assistantAgent {
+		opts.RunsWithoutAsking = assistantRunsWithoutAsking
+	}
+	return opts, nil
 }
 
 // bindDesktop binds an agent's segments to this app's own link service, in
