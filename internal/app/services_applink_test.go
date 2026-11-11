@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -740,4 +741,45 @@ func TestReadingTheAgentsTurnsOffAHelperTheAssistantSupersedes(t *testing.T) {
 	if cfg, _ := persistent.LoadConfig(rig.home, mainAgent); cfg.Enabled {
 		t.Fatal("the Helper is still enabled on disk")
 	}
+}
+
+// A run Agentry Helper or another agent starts of a release that uses the
+// person's computer says so: Agentry Helper's dialog names each use, and the
+// app's subagent host gives the same words to an agent's agreement.
+func TestAnAgentStartedRunNamesThePersonsComputer(t *testing.T) {
+	rig := newMainRig(t)
+	rig.installedHere("acme", "pdf-summary", "1.0.0")
+	uses := []string{"the application kcalc on your computer, through its windows only", "can see and use the windows of kcalc on your computer"}
+	rig.ops.usageInfo = &run.ProfileInfo{Ref: "acme/pdf-summary@1.0.0", Modes: []string{"autonomous"}, Takes: []string{"any"}, InputView: "both", DesktopUse: uses}
+	if a := rig.call(t, "quickagent_run", map[string]any{"ref": "acme/pdf-summary", "task": "add 7 and 5"}); a.IsError {
+		t.Fatalf("a run: %+v", a)
+	}
+	if len(rig.asked) != 1 {
+		t.Fatalf("dialogs: %v", rig.asked)
+	}
+	for _, want := range append([]string{"It uses your computer through Agentry Desktop, only as far as you approved it there:"}, uses...) {
+		if !strings.Contains(rig.asked[0], want) {
+			t.Errorf("the dialog lacks %q:\n%s", want, rig.asked[0])
+		}
+	}
+	u, err := appSubagents{ops: publishedOps{rig.ops}}.Check(context.Background(), "", "acme/pdf-summary@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(u.Desktop, uses) {
+		t.Errorf("the subagent host's usage names %q, want %q", u.Desktop, uses)
+	}
+}
+
+// publishedOps is fakeMainOps whose registry lists each release's latest
+// version as published.
+type publishedOps struct{ *fakeMainOps }
+
+func (p publishedOps) agent(reg, ns, name string) (*AgentDetailView, error) {
+	d, err := p.fakeMainOps.agent(reg, ns, name)
+	if err != nil {
+		return nil, err
+	}
+	d.Versions = append(d.Versions, VersionView{Version: d.Latest, Status: "published"})
+	return d, nil
 }
