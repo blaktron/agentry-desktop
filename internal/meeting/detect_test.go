@@ -310,7 +310,12 @@ func TestTheMicrophoneWaitsForTheMeetingApp(t *testing.T) {
 		t.Fatalf("the recorder was asked %d times before any call", n)
 	}
 	d.events <- CallEvent{Call: zoom}
-	waitFor(t, "the automatic recording", func() bool { return h.m.Status().Recording != nil })
+	// The recording is shown before its capture starts, so wait for the
+	// capture's app: only then has the recorder been asked for the call.
+	waitFor(t, "the automatic recording's capture", func() bool {
+		st := h.m.Status().Recording
+		return st != nil && st.App == zoom.App
+	})
 	_ = h.m.Stop()
 	if _, err := h.m.Record(context.Background()); err != nil {
 		t.Fatal(err)
