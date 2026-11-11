@@ -42,6 +42,17 @@ type PresetView struct {
 	MaxTurns       int               `json:"maxTurns,omitempty"`
 	Where          string            `json:"where,omitempty"`
 	Inputs         map[string]string `json:"inputs,omitempty"`
+	// Model is the model the preset runs the QuickAgent on, nil when it
+	// names none.
+	Model *PresetModelView `json:"model,omitempty"`
+}
+
+// PresetModelView is a preset's model: the provider's model it names and,
+// for the run setup, the saved model on this computer that is it.
+type PresetModelView struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	run.PresetModelHere
 }
 
 // AssignmentView is one QuickAgent an organization's held document lists,
@@ -79,10 +90,15 @@ func presetView(a managed.Assigned) *PresetView {
 		return nil
 	}
 	p := a.Preset
-	return &PresetView{Organization: a.Organization, Locked: a.PresetLocked, TimeoutSeconds: p.TimeoutSeconds, MaxTurns: p.MaxTurns, Where: p.Where, Inputs: p.Inputs}
+	v := &PresetView{Organization: a.Organization, Locked: a.PresetLocked, TimeoutSeconds: p.TimeoutSeconds, MaxTurns: p.MaxTurns, Where: p.Where, Inputs: p.Inputs}
+	if p.Model != nil {
+		v.Model = &PresetModelView{Provider: p.Model.Provider, Model: p.Model.Model}
+	}
+	return v
 }
 
-// presetOf is the preset the held documents give the release ref names.
+// presetOf is the preset the held documents give the release ref names,
+// its model with the saved model on this computer that is it.
 func presetOf(ref string) *PresetView {
 	ns, name, ok := splitRef(ref)
 	if !ok {
@@ -92,7 +108,11 @@ func presetOf(ref string) *PresetView {
 	if !ok {
 		return nil
 	}
-	return presetView(a)
+	v := presetView(a)
+	if v != nil && v.Model != nil {
+		v.Model.PresetModelHere = run.PresetModelOn(v.Model.Provider, v.Model.Model)
+	}
+	return v
 }
 
 // ManagedAssignments are the QuickAgents the held documents offer or
