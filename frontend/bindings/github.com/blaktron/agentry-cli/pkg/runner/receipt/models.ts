@@ -228,6 +228,13 @@ export enum ReasonCode {
     ReasonToolCallAsText = "tool-call-as-text",
 
     /**
+     * ReasonAnswerCut: the model's last answer stopped at its output limit,
+     * so the run has no complete answer (agent; exit 14). The run is not
+     * started again on its conversation, which would meet the same limit.
+     */
+    ReasonAnswerCut = "answer-cut",
+
+    /**
      * ReasonHostRefused: a target host the person named was not reached
      * (prepare or infra). Names: the host questions' ids; Detail: why (Host*).
      * Never the host's name or address: those are the person's.
