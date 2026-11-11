@@ -385,3 +385,17 @@ test("an organization's entry says who set it, and a locked one has no switch", 
   assert.equal(cardSwitches({ fixed: false, state: "on", on: true, locked: true }), false);
   assert.equal(cardSwitches({ fixed: false, state: "on", on: true }), true);
 });
+
+test("a server that signs in by OAuth offers its sign-in on its card", async () => {
+  const { signInOffer } = await import("../src/configCards.ts");
+  const server = (over: Partial<app.PersistentRosterEntry>) =>
+    ({ id: "server:x", kind: "server", name: "Tracker", grantedBy: "you", state: "on", on: true, line: "", ...over }) as app.PersistentRosterEntry;
+  assert.equal(signInOffer(server({})), null);
+  assert.equal(signInOffer({ ...server({ signInServer: "https://mcp.example/mcp" }), kind: "skill" }), null);
+  assert.deepEqual(signInOffer(server({ signInServer: "https://mcp.example/mcp", state: "needs-sign-in" })),
+    { server: "https://mcp.example/mcp", label: "Sign in", remove: false, now: true });
+  assert.deepEqual(signInOffer(server({ signInServer: "https://mcp.example/mcp", state: "off", on: false })),
+    { server: "https://mcp.example/mcp", label: "Sign in", remove: false, now: false });
+  assert.deepEqual(signInOffer(server({ signInServer: "https://mcp.example/mcp", signedIn: true })),
+    { server: "https://mcp.example/mcp", label: "Sign in again", remove: true, now: false });
+});

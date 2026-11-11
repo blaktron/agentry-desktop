@@ -56,12 +56,8 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [consentURL, setConsentURL] = useState<string | null>(null);
   const [said, setSaid] = useState<string[]>([]);
-  const [paste, setPaste] = useState("");
-  const [pasteProblem, setPasteProblem] = useState<string | null>(null);
   // The own-client ask, for the server it came from.
   const [own, setOwn] = useState<{ server: string; guide: run.OwnClientGuide } | null>(null);
-  const [clientID, setClientID] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<run.ServerConnection | null>(null);
@@ -74,14 +70,7 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
     setNote(null);
     setConsentURL(null);
     setSaid([]);
-    setPaste("");
-    setPasteProblem(null);
-    const offURL = EventsOn("connect:url", (v: { server: string; url: string }) => {
-      if (v.server === server && live.current) setConsentURL(v.url);
-    });
-    const offSay = EventsOn("connect:say", (v: { server: string; line: string }) => {
-      if (v.server === server && live.current) setSaid((s) => [...s, v.line]);
-    });
+    const off = consentEvents(server, (u) => live.current && setConsentURL(u), (l) => live.current && setSaid((s) => [...s, l]));
     try {
       const r = await RunAPI.Connect(registry, agentRef, server);
       if (!live.current) return;
@@ -97,8 +86,7 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
     } catch (e) {
       if (live.current) setError(String(e));
     } finally {
-      offURL();
-      offSay();
+      off();
       if (live.current) {
         setBusy(null);
         setConsentURL(null);
@@ -106,31 +94,12 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
     }
   }
 
-  async function sendPaste() {
-    const p = pastedProblem(paste);
-    setPasteProblem(p);
-    if (p) return;
-    try {
-      await RunAPI.PasteRedirect(paste.trim());
-      setPaste("");
-    } catch (e) {
-      setPasteProblem(String(e));
-    }
-  }
-
-  async function keepClient() {
+  async function keepClient(id: string, secret: string) {
     if (!own) return;
-    const issuer = own.guide.issuer;
     const server = own.server;
-    const id = clientID.trim();
-    const secret = clientSecret;
-    // The secret leaves the form before the call returns: nothing of it
-    // stays in the page's state.
-    setClientSecret("");
     setError(null);
     try {
-      await RunAPI.KeepOwnClient(issuer, id, secret);
-      setClientID("");
+      await RunAPI.KeepOwnClient(own.guide.issuer, id, secret);
       setOwn(null);
       await connect(server);
     } catch (e) {
@@ -176,57 +145,9 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
             </div>
             <p className="small" role="status" style={{ marginBottom: 0 }}>{connectionLine(c)}</p>
             <p className="muted small" style={{ marginTop: 4 }}>It asks for: {scopeWords(c.scopes)}.</p>
-            {busy === c.server && (
-              <div className="consent-wait">
-                <Notice>Approve the sign-in in your browser. This waits up to ten minutes.</Notice>
-                {said.map((l, i) => <p key={i} className="muted small selectable">{l}</p>)}
-                {consentURL && (
-                  <>
-                    <p className="small">If the browser did not open, or it is on another computer, open this address there:</p>
-                    <p className="mono small selectable consent-url">{consentURL}</p>
-                    <label className="small">
-                      If that browser is on another computer, the page it ends on does not load. Paste that page&apos;s whole address here:
-                      <Input
-                        aria-label="The address the browser ended on"
-                        type="text"
-                        autoComplete="off"
-                        value={paste}
-                        placeholder="http://127.0.0.1:…/callback?code=…"
-                        onChange={(e) => setPaste(e.target.value)}
-                      />
-                    </label>
-                    {pasteProblem && <p className="small step-problem" role="alert">{pasteProblem}</p>}
-                    <div className="row">
-                      <Button onClick={() => void sendPaste()} disabled={paste.trim() === ""}>Use this address</Button>
-                    </div>
-                  </>
-                )}
-                <div className="row" style={{ justifyContent: "flex-end" }}>
-                  <Button onClick={() => void RunAPI.CancelConnect()}>Cancel the sign-in</Button>
-                </div>
-              </div>
-            )}
+            {busy === c.server && <ConsentWait said={said} consentURL={consentURL} />}
             {own && own.server === c.server && busy === null && (
-              <div className="own-client">
-                <OwnClientSteps guide={own.guide} server={c.server} />
-                <label className="small">
-                  Client ID
-                  <Input aria-label="Client ID" type="text" autoComplete="off" value={clientID} onChange={(e) => setClientID(e.target.value)} />
-                </label>
-                <label className="small">
-                  Client secret
-                  <Input aria-label="Client secret" type="password" autoComplete="off" value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)} />
-                </label>
-                <p className="muted small">
-                  Kept once for {hostOf(own.guide.issuer)} on this computer, the secret in the OS keychain. It is never shown
-                  again, never logged, and never sent into a run. Settings → Connections lists it, with Forget.
-                </p>
-                <div className="row" style={{ justifyContent: "flex-end" }}>
-                  <Button onClick={() => { setOwn(null); setClientSecret(""); }}>Cancel</Button>
-                  <Button variant="primary" onClick={() => void keepClient()} disabled={clientID.trim() === ""}>Keep it and connect</Button>
-                </div>
-              </div>
+              <OwnClientForm guide={own.guide} server={c.server} onCancel={() => setOwn(null)} onKeep={(id, secret) => void keepClient(id, secret)} />
             )}
           </Card>
         ))}
@@ -250,6 +171,98 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
       )}
     </>
   );
+}
+
+/** The wait while a consent is under way: what it said, the address the
+ *  browser was sent to with a field for the address it ended on (for a
+ *  browser on another computer), and Cancel. */
+export function ConsentWait({ said, consentURL }: { said: string[]; consentURL: string | null }) {
+  const [paste, setPaste] = useState("");
+  const [pasteProblem, setPasteProblem] = useState<string | null>(null);
+  async function sendPaste() {
+    const p = pastedProblem(paste);
+    setPasteProblem(p);
+    if (p) return;
+    try {
+      await RunAPI.PasteRedirect(paste.trim());
+      setPaste("");
+    } catch (e) {
+      setPasteProblem(String(e));
+    }
+  }
+  return (
+    <div className="consent-wait">
+      <Notice>Approve the sign-in in your browser. This waits up to ten minutes.</Notice>
+      {said.map((l, i) => <p key={i} className="muted small selectable">{l}</p>)}
+      {consentURL && (
+        <>
+          <p className="small">If the browser did not open, or it is on another computer, open this address there:</p>
+          <p className="mono small selectable consent-url">{consentURL}</p>
+          <label className="small">
+            If that browser is on another computer, the page it ends on does not load. Paste that page&apos;s whole address here:
+            <Input
+              aria-label="The address the browser ended on"
+              type="text"
+              autoComplete="off"
+              value={paste}
+              placeholder="http://127.0.0.1:…/callback?code=…"
+              onChange={(e) => setPaste(e.target.value)}
+            />
+          </label>
+          {pasteProblem && <p className="small step-problem" role="alert">{pasteProblem}</p>}
+          <div className="row">
+            <Button onClick={() => void sendPaste()} disabled={paste.trim() === ""}>Use this address</Button>
+          </div>
+        </>
+      )}
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button onClick={() => void RunAPI.CancelConnect()}>Cancel the sign-in</Button>
+      </div>
+    </div>
+  );
+}
+
+/** The own-client ask with its form. The secret leaves the form when it is
+ *  kept: nothing of it stays in the page's state. */
+export function OwnClientForm({ guide, server, onKeep, onCancel }: {
+  guide: run.OwnClientGuide;
+  server: string;
+  onKeep: (clientID: string, secret: string) => void;
+  onCancel: () => void;
+}) {
+  const [clientID, setClientID] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  return (
+    <div className="own-client">
+      <OwnClientSteps guide={guide} server={server} />
+      <label className="small">
+        Client ID
+        <Input aria-label="Client ID" type="text" autoComplete="off" value={clientID} onChange={(e) => setClientID(e.target.value)} />
+      </label>
+      <label className="small">
+        Client secret
+        <Input aria-label="Client secret" type="password" autoComplete="off" value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)} />
+      </label>
+      <p className="muted small">
+        Kept once for {hostOf(guide.issuer)} on this computer, the secret in the OS keychain. It is never shown
+        again, never logged, and never sent into a run. Settings → Connections lists it, with Forget.
+      </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button onClick={() => { setClientSecret(""); onCancel(); }}>Cancel</Button>
+        <Button variant="primary" onClick={() => { const secret = clientSecret; setClientSecret(""); onKeep(clientID.trim(), secret); }}
+          disabled={clientID.trim() === ""}>Keep it and connect</Button>
+      </div>
+    </div>
+  );
+}
+
+/** consentEvents follows what the consent to server says and the address
+ *  it sends the browser to, until the returned function is called. */
+export function consentEvents(server: string, onURL: (url: string) => void, onSay: (line: string) => void): () => void {
+  const offURL = EventsOn("connect:url", (v: { server: string; url: string }) => { if (v.server === server) onURL(v.url); });
+  const offSay = EventsOn("connect:say", (v: { server: string; line: string }) => { if (v.server === server) onSay(v.line); });
+  return () => { offURL(); offSay(); };
 }
 
 /** The connection state of conns, for the pure helpers. */

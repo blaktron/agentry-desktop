@@ -173,6 +173,22 @@ export function cardSwitches(e: Pick<app.PersistentRosterEntry, "fixed" | "state
   return e.on || (e.state !== "installing" && e.state !== "needs-sign-in" && e.state !== "needs-set-up");
 }
 
+/** What a server's card offers for its sign-in, or null for a server that
+ *  does not sign in by OAuth: Sign in, or Sign in again and Remove the
+ *  sign-in once the agent keeps a connection. now says the card shows the
+ *  button itself, for a server that is on and waits for its sign-in. */
+export type SignInOffer = { server: string; label: string; remove: boolean; now: boolean };
+
+export function signInOffer(e: Pick<app.PersistentRosterEntry, "kind" | "state" | "signInServer" | "signedIn">): SignInOffer | null {
+  if (e.kind !== "server" || !e.signInServer) return null;
+  return {
+    server: e.signInServer,
+    label: e.signedIn ? "Sign in again" : "Sign in",
+    remove: !!e.signedIn,
+    now: e.state === "needs-sign-in" && !e.signedIn,
+  };
+}
+
 /** What Remove does to an entry the person added, or null where it has
  *  none: a built-in's entry is switched, never removed. */
 export type RemoveAction =

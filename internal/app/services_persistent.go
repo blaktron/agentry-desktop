@@ -480,6 +480,11 @@ type PersistentRosterEntry struct {
 	SetUpMicrosoft bool `json:"setUpMicrosoft,omitempty"`
 	// SetUpFastmail says the entry's Set up is Fastmail's: its token.
 	SetUpFastmail bool `json:"setUpFastmail,omitempty"`
+	// SignInServer is, for a remote server that signs in by OAuth, the
+	// address its connection is for; SignedIn says the agent keeps a
+	// connection to it the vendor has not refused.
+	SignInServer string `json:"signInServer,omitempty"`
+	SignedIn     bool   `json:"signedIn,omitempty"`
 }
 
 // PersistentStatusView is a running agent's segment.
@@ -694,7 +699,19 @@ func (p *PersistentAPI) Get(name string) (*PersistentAgentView, error) {
 			v.State = agentDisabled
 		}
 	}
+	// An agent that does not run here says which of its servers need a
+	// sign-in, as a running one's supervisor does.
+	signIns := run.AgentSignIns(home, a, cfg)
+	if !ours {
+		roster = persistent.WithSignIns(roster, a, cfg, persistent.StoreConnections(home))
+	}
 	v.Roster = rosterView(roster, cfg.Servers, factsOf(a, cfg))
+	for i, e := range v.Roster {
+		if si, ok := signIns[e.ID]; ok && e.Kind == string(persistent.KindServer) {
+			v.Roster[i].SignInServer, v.Roster[i].SignedIn = si.Server, si.Connected
+			v.Roster[i].Reason = cardSignInReason(e.Reason, a.Name)
+		}
+	}
 	if n := cfg.NotApplied; n != nil {
 		v.NotApplied = &PersistentNotAppliedView{At: n.At.Format(time.RFC3339), Reason: n.Reason, Entries: append([]string{}, n.Entries...)}
 		for i, e := range v.Roster {
@@ -761,6 +778,13 @@ func statusView(st persistent.Status) *PersistentStatusView {
 		InputTokens: st.Usage.InputTokens, OutputTokens: st.Usage.OutputTokens, TotalTokens: st.Usage.TotalTokens,
 		CostUSD: st.Usage.CostUSD, UserTurns: st.Usage.UserTurns, ToolCalls: st.Usage.Turns,
 	}
+}
+
+// cardSignInReason is the runner's reason a server waits for a sign-in as
+// its card says it: the card offers the sign-in, so the fix the runner
+// names for a terminal becomes the card's.
+func cardSignInReason(reason, name string) string {
+	return strings.Replace(reason, "connect it on a terminal: agentry agent connect "+name, "sign in to it from this card", 1)
 }
 
 // rosterView is the roster as the page draws it; servers are the agent's
