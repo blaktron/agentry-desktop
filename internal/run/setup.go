@@ -253,20 +253,25 @@ func providersToAsk(policyProvider string) []string {
 	return append(out, policyProvider)
 }
 
-// imagesReady reports whether the three images a run needs are present:
-// the pinned gateway image, the harness image model setup's choice runs on
-// (docker-agent's for a key, a model sign-in's own), and the locally built
-// runner image.
+// imagesReady reports whether the images a run needs are present: the
+// pinned gateway image, the locally built runner image, and the harness
+// image model setup's choice runs on (docker-agent's for a key, a model
+// sign-in's own). The runner's own harness, where the policy chooses it, is
+// a role of the runner image and has none.
 func imagesReady(ctx context.Context, docker dockerx.Client, pol *policy.Policy) bool {
-	harness := pol.Images.HarnessDockerAgent
-	if name := adapter.DefaultFor(pol); name != adapter.DefaultName {
+	refs := []string{pol.Images.Gateway, runnerImageTag(pol)}
+	switch name := adapter.DefaultFor(pol); name {
+	case adapter.DefaultName:
+		refs = append(refs, pol.Images.HarnessDockerAgent)
+	case adapter.AgentryHarnessAdapterName:
+	default:
 		h, ok := pol.Images.HarnessImageFor(name)
 		if !ok {
 			return false
 		}
-		harness = h.Ref
+		refs = append(refs, h.Ref)
 	}
-	for _, ref := range []string{pol.Images.Gateway, harness, runnerImageTag(pol)} {
+	for _, ref := range refs {
 		ok, err := docker.ImageExists(ctx, ref)
 		if err != nil || !ok {
 			return false
@@ -434,7 +439,8 @@ func configureKey(pol *policy.Policy, provider, source, kind string, opts SetupO
 // setup's choice runs on, and no other harness's: the pinned
 // docker-agent image for a key, or the Codex, Claude Code or Copilot CLI
 // image for a model sign-in, pulled or built on this machine from its
-// pinned artifact.
+// pinned artifact. The runner's own harness, where the policy chooses it,
+// is a role of the runner image: nothing more is prepared for it.
 func prepareImages(ctx context.Context, home, policyPath string, pol *policy.Policy, logw io.Writer) error {
 	docker := newDockerClient()
 	name := adapter.DefaultFor(pol)
@@ -443,7 +449,7 @@ func prepareImages(ctx context.Context, home, policyPath string, pol *policy.Pol
 		ownImage); err != nil {
 		return fmt.Errorf("gateway/docker environment: %w", err)
 	}
-	if !ownImage {
+	if !ownImage && name != adapter.AgentryHarnessAdapterName {
 		// Claude Code's and Codex's images are built from the vendor's
 		// newest release first, the tested release the fallback; the record
 		// sits beside the policy file the CLI reads too.

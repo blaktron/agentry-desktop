@@ -16,7 +16,9 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
@@ -79,6 +81,57 @@ func TestGetStatusImagesReady(t *testing.T) {
 	}
 	if !st.DockerOK || st.ImagesReady {
 		t.Fatalf("a missing image must report not-ready: %+v", st)
+	}
+}
+
+// With the runner's own harness chosen in the policy, the images are ready
+// without docker-agent's, and preparing them pulls and builds no harness
+// image: that harness is a role of the runner image.
+func TestTheRunnersOwnHarnessNeedsNoHarnessImage(t *testing.T) {
+	home := isolateRunEnv(t)
+	path, err := policy.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pol, _, err := policy.EnsureDefault(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pol.ContainerHarness = adapter.AgentryHarnessAdapterName
+	if err := policy.Save(path, pol); err != nil {
+		t.Fatal(err)
+	}
+	fake := &dockerx.Fake{ExistingImages: map[string]bool{pol.Images.Gateway: true, runnerImageTag(pol): true}}
+	withFakeDocker(t, fake)
+	st, err := GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.ImagesReady {
+		t.Fatalf("the gateway and runner images are present, and the status is %+v", st)
+	}
+	var log strings.Builder
+	if err := prepareImages(context.Background(), home, path, pol, &log); err != nil {
+		t.Fatalf("preparing images: %v\n%s", err, log.String())
+	}
+	for _, op := range fake.Ops() {
+		if strings.HasPrefix(op, "Pull:") || strings.HasPrefix(op, "Build:") {
+			t.Errorf("preparing images did %s", op)
+		}
+	}
+	// A run on the default model compiles on the harness the policy chose.
+	rm, err := localrun.ChooseRunModel(pol, "", "")
+	if err != nil || rm.Adapter != adapter.AgentryHarnessAdapterName {
+		t.Fatalf("a run takes %q, %v", rm.Adapter, err)
+	}
+
+	// Back on the default, docker-agent's image is asked for again.
+	pol.ContainerHarness = ""
+	if err := policy.Save(path, pol); err != nil {
+		t.Fatal(err)
+	}
+	if st, err = GetStatus(context.Background()); err != nil || st.ImagesReady {
+		t.Fatalf("with docker-agent's image missing the status is %+v, %v", st, err)
 	}
 }
 
