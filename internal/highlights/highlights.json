@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.45",
+      "highlights": [
+        "Settings, Models and keys now chooses the harness your runs use: Docker Agent or the Agentry harness.",
+        "A run's details now name the harness that ran it."
+      ]
+    },
+    {
       "version": "0.7.44",
       "highlights": [
         "Agentry Desktop follows the harness you choose with agentry harness use, Docker Agent or the one built into Agentry.",

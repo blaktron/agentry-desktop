@@ -99,6 +99,19 @@ func (r *RunAPI) CheckSavedModel(id string, agreed bool) (*run.SaveResult, error
 	return run.CheckSavedModel(r.ctx(), id, agreed, logw)
 }
 
+// ContainerHarness is the container harness this computer's runs use, the
+// two it is chosen from, and the harness a run on the default model takes.
+func (r *RunAPI) ContainerHarness() (*run.HarnessChoice, error) {
+	return run.ContainerHarness()
+}
+
+// SetContainerHarness chooses the container harness runs, chats and
+// persistent agents on this computer use from their next start: the
+// policy's containerHarness, the key `agentry harness use` sets.
+func (r *RunAPI) SetContainerHarness(name string) (*run.HarnessChoice, error) {
+	return run.SetContainerHarness(name)
+}
+
 // SetDefaultModel makes a saved model the default.
 func (r *RunAPI) SetDefaultModel(id string) error {
 	if err := run.SetDefaultModel(id); err != nil {

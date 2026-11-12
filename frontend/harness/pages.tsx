@@ -73,6 +73,8 @@ const meetingAPI = {
 // #models-unreachable refuses every check as the endpoint cannot be
 // reached, with Retry.
 const modelsHash = window.location.hash;
+let harnessChosen = modelsHash === "#harness-agentry" ? "agentry-harness" : "docker-agent";
+const harnessChoice = () => ({ harness: harnessChosen, choices: ["docker-agent", "agentry-harness"], runsOn: harnessChosen, policyPath: "~/.agentry/runner/policy.yaml" });
 const smProviders = () => [
   { id: "anthropic", vendor: "anthropic", way: "key", keyEnv: "ANTHROPIC_API_KEY", keySource: "keyring", state: modelsHash === "#models-key-missing" ? "key-missing" : "ready", models: ["a1"] },
   { id: "custom-home-gpu", vendor: "custom", name: "Home GPU", baseUrl: "http://gpu-box.lan:8000/v1", way: "key", takesNoKey: true, state: "ready",
@@ -1760,6 +1762,10 @@ g.go = { app: {
       { vendor: "poe", provider: "poe", kind: "api", connected: true, keyExpiresAt: "2026-11-11T00:00:00Z", image: true, createdAt: "2026-10-11T12:00:00Z" },
     ] : []),
     SavedModels: async () => smList(),
+    // Settings → Models and keys → Harness: Docker Agent unless the hash is
+    // #harness-agentry, which has the Agentry harness chosen.
+    ContainerHarness: async () => harnessChoice(),
+    SetContainerHarness: async (name: string) => { harnessChosen = name; return harnessChoice(); },
     ModelChoices: async () => smChoices(),
     ProviderModels: async (id: string) => (id === "openai" ? { models: [{ id: "gpt-5.5" }, { id: "gpt-5.5-mini" }], suggested: [], error: "", warning: "" }
       : id === "anthropic" ? { models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5" }], suggested: [], error: "", warning: "" }
