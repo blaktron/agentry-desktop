@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.44",
+      "highlights": [
+        "Agentry Desktop follows the harness you choose with agentry harness use, Docker Agent or the one built into Agentry.",
+        "A run your model provider refuses for lack of credit now ends as out of credits, not as a failure to retry."
+      ]
+    },
+    {
       "version": "0.7.43",
       "highlights": [
         "The Assistant now runs your QuickAgents without a dialog when you let it run them without asking.",
