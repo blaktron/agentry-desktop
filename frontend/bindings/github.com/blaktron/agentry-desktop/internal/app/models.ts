@@ -10892,6 +10892,12 @@ export class RunResultView {
      */
     "savedModel"?: receipt$0.SavedModel | null;
 
+    /**
+     * Harness is the adapter that ran the model, as the receipt names it;
+     * omitted when the envelope names none.
+     */
+    "harness"?: string;
+
     /** Creates a new RunResultView instance. */
     constructor($$source: Partial<RunResultView> = {}) {
         if (!("status" in $$source)) {

@@ -74,6 +74,67 @@ export class DesktopEntry {
 }
 
 /**
+ * HarnessChoice is Settings → Models' harness: the container harness the
+ * runner policy chooses, the two it is chosen from, and the harness a run on
+ * the default model takes, which is the vendor's own for a model paid by a
+ * model sign-in whatever the choice says. It is what `agentry harness
+ * --json` reports, read through the same packages.
+ */
+export class HarnessChoice {
+    /**
+     * Harness is the container harness the policy chooses: docker-agent
+     * when the policy does not name one.
+     */
+    "harness": string;
+
+    /**
+     * Choices are the container harnesses, the default first.
+     */
+    "choices": string[];
+
+    /**
+     * RunsOn is the harness a run on the default model uses when it names
+     * none: Harness, or the vendor's for a model paid by a model sign-in.
+     */
+    "runsOn": string;
+
+    /**
+     * PolicyPath is the policy file that holds the choice.
+     */
+    "policyPath": string;
+
+    /** Creates a new HarnessChoice instance. */
+    constructor($$source: Partial<HarnessChoice> = {}) {
+        if (!("harness" in $$source)) {
+            this["harness"] = "";
+        }
+        if (!("choices" in $$source)) {
+            this["choices"] = [];
+        }
+        if (!("runsOn" in $$source)) {
+            this["runsOn"] = "";
+        }
+        if (!("policyPath" in $$source)) {
+            this["policyPath"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new HarnessChoice instance from a string or object.
+     */
+    static createFrom($$source: any = {}): HarnessChoice {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("choices" in $$parsedSource) {
+            $$parsedSource["choices"] = $$createField1_0($$parsedSource["choices"]);
+        }
+        return new HarnessChoice($$parsedSource as Partial<HarnessChoice>);
+    }
+}
+
+/**
  * HostSignIn is the sign-in the run setup was given for one target host,
  * for this run: a key file a native picker returned and its passphrase,
  * or a password, and a sudo password. Empty fields leave each to the

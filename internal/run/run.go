@@ -596,6 +596,9 @@ type Result struct {
 	// SavedModel is the saved model the run was on, as its receipt names
 	// it; nil for a run on a policy with no saved model.
 	SavedModel *receipt.SavedModel
+	// Harness is the adapter that ran the model, as its receipt names it
+	// (docker-agent, agentry-harness, or a vendor's for a model sign-in).
+	Harness string
 }
 
 // Run executes the whole lifecycle for one registry release. Progress and
@@ -1093,6 +1096,7 @@ func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 		Stage:            env.Stage,
 		Reason:           env.Reason,
 		SavedModel:       env.Harness.SavedModel,
+		Harness:          env.Harness.Adapter,
 	}
 }
 

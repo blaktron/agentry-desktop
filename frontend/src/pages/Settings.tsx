@@ -14,6 +14,7 @@ import { fmtDuration } from "../usage";
 import { rewrapLine } from "../knowledge";
 import { PrereqCard, EngineWarnings, CHECKING_ENGINE, providerLabel } from "./RuntimeSetup";
 import { ModelsSettings } from "./SettingsModels";
+import { HarnessSettings } from "./SettingsHarness";
 import { paidBy } from "../modelSetup";
 import { CodingAgentsCard, CodingToolPlugins, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
@@ -139,6 +140,7 @@ export default function Settings({
       {section === "provider" && (
         <>
           <ModelsSettings onOpenAccount={() => onOpen("account", "registries")} />
+          <HarnessSettings />
           <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
           <PartSection id="web-search" title="Web search"><WebSearchKeyCard /></PartSection>
           <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>

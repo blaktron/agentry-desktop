@@ -7,7 +7,8 @@
 //                    profile, the subscription and the account's Writing Voice
 //   Report design    how the PDFs runs export look
 //   Models and keys  the saved models runs use and the providers that pay
-//                    for them, and the person's own service keys
+//                    for them, the harness that drives them, and the
+//                    person's own service keys
 //   Runs             how runs behave, where they go (runhosts included), what
 //                    they keep and the container engine they use
 //   Connections      the sign-ins to MCP servers and the destinations a run
@@ -30,7 +31,7 @@ export type SettingsSection = "account" | "report-design" | "provider" | "run-de
 export type SettingsPart =
   | "profile" | "subscription" | "account-voice" | "registries" | "add-registry"
   | "library" | "design-editor" | "design-preview" | "design-images"
-  | "models" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
+  | "models" | "harness" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "budgets" | "chats" | "runs-at-once" | "where" | "runhosts" | "output" | "deliverables" | "history" | "voice" | "unsafe" | "malware" | "docker" | "images"
   | "connections" | "own-clients" | "destinations"
   | "desktop" | "quickagents" | "coding-tools"
@@ -61,9 +62,9 @@ export const SECTIONS: SectionMeta[] = [
   },
   {
     id: "provider", title: "Models and keys",
-    sentence: "Your saved models, the default runs use and the providers that pay for them, and your own AI Review, web search and Hybrid Analysis keys.",
+    sentence: "Your saved models, the default runs use and the providers that pay for them, the harness that drives them, and your own AI Review, web search and Hybrid Analysis keys.",
     parts: [
-      { id: "models", label: "Models" }, { id: "ai-review-key", label: "AI Review key" },
+      { id: "models", label: "Models" }, { id: "harness", label: "Harness" }, { id: "ai-review-key", label: "AI Review key" },
       { id: "web-search", label: "Web search" }, { id: "hybrid-analysis-key", label: "Hybrid Analysis key" },
     ],
   },
