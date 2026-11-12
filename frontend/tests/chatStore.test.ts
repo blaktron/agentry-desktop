@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { createChatStore, working } from "../src/sessionChat.ts";
+import { applyEvent, createChatStore, newChat, working } from "../src/sessionChat.ts";
 
 type Cb = (v: never) => void;
 
@@ -15,12 +15,16 @@ function harness() {
   const forgotten: string[] = [];
   let endAnswer: () => Promise<app.RunResultView> = async () => ({ runId: "c1", status: "ok", exitCode: 0 }) as unknown as app.RunResultView;
   let sendAnswer: () => Promise<void> = async () => undefined;
+  let steerAnswer: () => Promise<string> = async () => "sent";
+  let interruptAnswer: () => Promise<void> = async () => undefined;
   const store = createChatStore<string>({
     on: (event, cb) => {
       (listeners[event] ??= []).push(cb);
       return () => { listeners[event] = (listeners[event] ?? []).filter((c) => c !== cb); };
     },
     sendLocal: async (t) => { calls.push(`send ${t}`); return sendAnswer(); },
+    steerLocal: async (t) => { calls.push(`steer ${t}`); return steerAnswer(); },
+    interruptLocal: async () => { calls.push("interrupt"); return interruptAnswer(); },
     addLocal: async (p) => { calls.push(`add ${p}`); },
     endLocal: async (f) => { calls.push(`end ${f}`); return endAnswer(); },
     sendHosted: async (t) => { calls.push(`hsend ${t}`); },
@@ -34,6 +38,8 @@ function harness() {
     store, fire, calls, forgotten,
     answerEnd: (f: () => Promise<app.RunResultView>) => { endAnswer = f; },
     answerSend: (f: () => Promise<void>) => { sendAnswer = f; },
+    answerSteer: (f: () => Promise<string>) => { steerAnswer = f; },
+    answerInterrupt: (f: () => Promise<void>) => { interruptAnswer = f; },
   };
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -85,7 +91,7 @@ test("a start Go refuses is the chat's error, over, with its setup to go back to
   assert.equal(h.store.state().setup, "setup B");
 });
 
-test("the QuickAgent is working while a message is out, and a second message waits", async () => {
+test("the QuickAgent is working while a message is out, and a second message goes into its turn", async () => {
   const h = harness();
   let answer!: () => void;
   h.answerSend(() => new Promise((r) => { answer = r; }));
@@ -94,11 +100,57 @@ test("the QuickAgent is working while a message is out, and a second message wai
   const sent = h.store.send("first");
   await tick();
   assert.equal(working(h.store.state().chat!), true);
-  await h.store.send("second");
+  assert.equal(await h.store.send("second"), "sent");
   answer();
   await sent;
-  assert.deepEqual(h.calls, ["send first"]);
+  assert.deepEqual(h.calls, ["send first", "steer second"]);
   assert.equal(working(h.store.state().chat!), false);
+});
+
+test("a harness that takes a message only between turns holds it, and a turn that ended as it went takes it as the next", async () => {
+  const h = harness();
+  let answer!: () => void;
+  h.answerSend(() => new Promise((r) => { answer = r; }));
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  const sent = h.store.send("first");
+  await tick();
+  h.answerSteer(async () => "between-turns");
+  assert.equal(await h.store.send("second"), "held");
+  // The turn ends just as the next message goes: it is sent as a turn.
+  h.answerSteer(async () => { answer(); await sent; return "no-turn"; });
+  h.answerSend(async () => undefined);
+  assert.equal(await h.store.send("third"), "sent");
+  assert.deepEqual(h.calls, ["send first", "steer second", "steer third", "send third"]);
+});
+
+test("a message In Agentry still waits for the answer", async () => {
+  const h = harness();
+  h.store.followHosted({ registry: "r", run: hostedRun("h1"), terms: null, opening: "", task: "" }, "setup", false);
+  h.fire("runner:hosted-session-event", { kind: "user_turn", time: new Date().toISOString(), text: "first" });
+  assert.equal(working(h.store.state().chat!), true);
+  assert.equal(await h.store.send("second"), "ignored");
+  assert.deepEqual(h.calls.filter((c) => c.startsWith("hsend") || c.startsWith("steer")), []);
+});
+
+test("Stop turn stops the turn in flight on this computer, and the chat goes on", async () => {
+  const h = harness();
+  h.answerSend(() => new Promise(() => {}));
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  void h.store.send("first");
+  await tick();
+  await h.store.stopTurn();
+  assert.deepEqual(h.calls, ["send first", "interrupt"]);
+  const r = h.store.state().chat!;
+  assert.equal(r.stopping, false);
+  assert.equal(r.over, false);
+  assert.equal(r.error, null);
+  // A turn that would not stop says so, and the chat stays.
+  h.answerInterrupt(async () => { throw new Error("the turn did not stop: timeout"); });
+  await h.store.stopTurn();
+  assert.match(h.store.state().chat!.error ?? "", /did not stop/);
+  assert.equal(h.store.state().chat!.over, false);
 });
 
 test("Finish on this computer brings its envelope back; Dismiss then forgets it", async () => {
@@ -232,4 +284,24 @@ test("a waiting chat In Agentry that has ended keeps its last word when a later 
   await h.store.end(true);
   h.store.dismiss();
   assert.equal(h.store.state().chat?.over, true);
+});
+
+test("a message sent during a turn is drawn where it was sent, counted, and marked joined once the harness took it", () => {
+  const t = new Date().toISOString();
+  let chat = newChat("", "go");
+  chat = applyEvent(chat, { kind: "user_turn", time: t, text: "Summarise INC-4821." }, Date.now());
+  chat = applyEvent(chat, { kind: "assistant_text", time: t, text: "INC-4821 began" }, Date.now());
+  chat = applyEvent(chat, { kind: "steer", time: t, text: "Use the UTC times only." }, Date.now());
+  chat = applyEvent(chat, { kind: "steer", time: t, text: "input added: /inputs/pager.csv", synthetic: true }, Date.now());
+  assert.equal(chat.turns, 2, "the person's message counts, the runner's notice does not");
+  assert.equal(chat.busy, true, "the turn goes on");
+  assert.deepEqual(chat.lines.slice(1).map((l) => l.kind === "user" ? [l.text, l.synthetic, l.during] : l.kind), [
+    ["Use the UTC times only.", false, "waiting"],
+    ["input added: /inputs/pager.csv", true, "waiting"],
+  ]);
+  chat = applyEvent(chat, { kind: "steered", time: t }, Date.now());
+  assert.deepEqual(chat.lines.filter((l) => l.kind === "user").map((l) => l.kind === "user" && l.during), [undefined, "joined", "joined"]);
+  // A steered event with nothing waiting changes no line.
+  const again = applyEvent(chat, { kind: "steered", time: t }, Date.now());
+  assert.equal(again.lines, chat.lines);
 });

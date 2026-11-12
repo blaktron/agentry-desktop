@@ -347,6 +347,8 @@ type fakeChat struct {
 func (c *fakeChat) Ref() string                            { return "acme/agent@1.0.0" }
 func (c *fakeChat) Events() <-chan session.Event           { return c.events }
 func (c *fakeChat) Send(context.Context, string) error     { return nil }
+func (c *fakeChat) Steer(context.Context, string) error    { return nil }
+func (c *fakeChat) Interrupt(context.Context) error        { return nil }
 func (c *fakeChat) AddInput(context.Context, string) error { return nil }
 func (c *fakeChat) End(_ context.Context, finish bool) (*run.Result, error) {
 	time.Sleep(20 * time.Millisecond) // the teardown takes a moment

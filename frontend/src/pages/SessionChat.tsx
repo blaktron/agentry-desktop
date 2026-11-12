@@ -2,9 +2,11 @@
 // component with two transports.
 //
 // On this machine it drives the runner's session API: every message goes
-// through RunAPI.SendTurn, every file through RunAPI.AddSessionInput, and
+// through RunAPI.SendTurn, or while the agent is answering into its turn
+// through RunAPI.SteerTurn, Stop turn through RunAPI.InterruptTurn, every
+// file through RunAPI.AddSessionInput, and
 // the engine ends the session on the operator's caps whatever this view
-// does. Finish asks the agent for its final result before teardown; Stop
+// does. Finish asks the agent for its final result before teardown; End
 // ends without one. Either way the receipts folder holds transcript.md and
 // the session's events. Its strip has no caps and no meter.
 //
@@ -21,8 +23,8 @@ import { ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { ChatAnnouncer } from "../chatAnnounce";
 import { plainName } from "../reveal";
-import { addChatFiles, endChat, sendChat } from "../runs";
-import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
+import { addChatFiles, endChat, sendChat, stopChatTurn } from "../runs";
+import { DURING_WORDS, HELD_NOTE, SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
 
 // The chat's store (runs.ts over sessionChat.ts's
 // createChatStore) starts the session and owns its events, messages, files
@@ -35,6 +37,9 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const [input, setInput] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [sentAt, setSentAt] = useState<number | null>(null);
+  // The harness took no message during the turn: the text stays, and the
+  // composer says why until the answer arrives.
+  const [held, setHeld] = useState(false);
   const paneRef = useRef<HTMLDivElement | null>(null);
   // How many lines a hosted chat opened with (the opening, or none): it has
   // started talking once there are more.
@@ -54,6 +59,12 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const { starting, ending, over } = c;
   const running = !inAgentry || state?.status === "running";
   const busy = working(c);
+  // On this computer a message can go into the turn in flight; In Agentry it
+  // waits for the answer.
+  const intoTurn = !inAgentry && busy;
+  useEffect(() => {
+    if (!busy) setHeld(false);
+  }, [busy]);
   const outOfCredits = !!state?.session?.outOfCredits;
   // What a screen reader hears of each new line: the agent's replies, the
   // warnings and the end.
@@ -67,11 +78,21 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
 
   function send() {
     const text = input.trim();
-    if (!text || busy || over || !running) return;
+    if (!text || (busy && !intoTurn) || c.steering || over || !running) return;
     setInput("");
+    setHeld(false);
     setSentAt(Date.now());
-    // A message the host did not take stays in the field to send again.
-    sendChat(text).catch(() => inAgentry && setInput(text));
+    // A message the host or the turn did not take stays in the field to
+    // send again; a harness that takes one only between turns keeps it with
+    // a word why.
+    sendChat(text)
+      .then((r) => {
+        if (r === "held") {
+          setInput(text);
+          setHeld(true);
+        }
+      })
+      .catch(() => (inAgentry || intoTurn) && setInput(text));
   }
 
   async function addFile() {
@@ -111,7 +132,12 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
         )}
         {chat.lines.map((l, i) => {
           if (l.kind === "user") return (
-            <div key={i} className="chat-msg user"><div className="chat-bubble"><div className="chat-who">{l.synthetic ? "Runner" : "You"}</div>{l.text}</div></div>
+            <div key={i} className="chat-msg user" data-during={l.during}>
+              <div className="chat-bubble">
+                <div className="chat-who">{l.synthetic ? "Runner" : "You"}{l.during ? <span className="muted small"> · {DURING_WORDS[l.during]}</span> : null}</div>
+                {l.text}
+              </div>
+            </div>
           );
           if (l.kind === "assistant" || l.kind === "told") return (
             <div key={i} className="chat-msg assistant"><div className="chat-bubble"><div className="chat-who">Agent</div>{l.text}</div></div>
@@ -127,21 +153,26 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
       <ChatAnnouncer items={chat.lines} say={sayChatLine} />
       <p className="muted small" style={{ margin: "6px 0" }} aria-label="Session status">{line}</p>
       <ErrorBox error={c.error} />
+      {held && <p className="muted small" role="status" style={{ margin: "0 0 6px" }}>{HELD_NOTE}</p>}
       <div className="row">
         <Input
           type="text"
           className="grow"
-          placeholder={over ? "the session has ended" : "message the agent"}
+          aria-label="Message the agent"
+          placeholder={over ? "the session has ended" : intoTurn ? "message the agent: it joins the turn in progress" : "message the agent"}
           value={input}
           maxLength={inAgentry ? 16384 : undefined}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && send()}
-          disabled={locked || busy}
+          disabled={locked || (busy && !intoTurn)}
         />
-        <Button onClick={send} disabled={locked || busy || !input.trim()}>Send</Button>
+        <Button onClick={send} busy={c.steering} busyLabel="Sending…" disabled={locked || (busy && !intoTurn) || c.steering || !input.trim()}>Send</Button>
+        {intoTurn && !locked && (
+          <Button onClick={() => void stopChatTurn()} busy={c.stopping} busyLabel="Stopping…" disabled={c.stopping} title="Stop the agent's answer here; the chat goes on with your next message">Stop turn</Button>
+        )}
         <Button onClick={() => void addFile()} disabled={locked || c.adding} title="Give the agent another file, read-only under /inputs">{c.adding ? "Adding…" : "Add file…"}</Button>
         <Button variant="primary" onClick={() => void endChat(true)} busy={ending} busyLabel="Ending…" disabled={locked || busy} title="Ask the agent for its final result, then end">Finish</Button>
-        <Button onClick={() => void endChat(false)} disabled={starting || ending || over} title="End now without a final result">Stop</Button>
+        <Button onClick={() => void endChat(false)} disabled={starting || ending || over} title="End the chat now without a final result">End</Button>
       </div>
       {inAgentry && (
         <>

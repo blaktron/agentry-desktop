@@ -38,8 +38,12 @@ export interface SessionEvent {
   costUsd?: number;
 }
 
+/** Where a message sent during a turn stands: handed to the harness and
+ *  waiting for the model's next step, or put into the conversation. */
+export type During = "waiting" | "joined";
+
 export type Line =
-  | { kind: "user"; text: string; synthetic: boolean; task?: string; upkeep?: boolean }
+  | { kind: "user"; text: string; synthetic: boolean; task?: string; upkeep?: boolean; during?: During }
   | { kind: "assistant"; text: string }
   | { kind: "told"; text: string; task?: string }
   | { kind: "note"; text: string }
@@ -124,6 +128,20 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
           ...(ev.upkeep ? { upkeep: true } : {}),
         }],
       };
+    // A message handed to the turn in flight: the person's, or with
+    // synthetic the runner's own (a file added during the turn). It is drawn
+    // where it was sent, and the turn goes on.
+    case "steer":
+      return {
+        ...next,
+        turns: ev.synthetic ? c.turns : c.turns + 1,
+        lines: [...c.lines, { kind: "user", text, synthetic: !!ev.synthetic, during: "waiting" }],
+      };
+    // The harness has put the messages it was handed into the conversation.
+    case "steered":
+      return c.lines.some((l) => l.kind === "user" && l.during === "waiting")
+        ? { ...next, lines: c.lines.map((l) => (l.kind === "user" && l.during === "waiting" ? { ...l, during: "joined" as const } : l)) }
+        : next;
     case "assistant_text":
       return { ...next, streaming: c.streaming + text };
     case "assistant_turn": {
@@ -166,6 +184,17 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
       return next;
   }
 }
+
+/** DURING_WORDS label a message sent during a turn, by where it stands. */
+export const DURING_WORDS: Record<During, string> = {
+  waiting: "sent during the turn",
+  joined: "joined the turn",
+};
+
+/** HELD_NOTE is what the composer says when the session's harness takes a
+ *  message only between turns: the text stays, to send once the answer
+ *  arrives. */
+export const HELD_NOTE = "The agent is still answering, and this chat's harness takes a message only between turns. Your text stays here: send it once the answer arrives.";
 
 /** endText is the end note's words: the session's own reason, or "out of
  * credits" where a minute the balance could not cover stopped it. */
@@ -272,6 +301,11 @@ export type ChatRecord = {
    *  this computer, once the host has it In Agentry). */
   sending: boolean;
   adding: boolean;
+  /** On this computer: a message is being handed to the turn in flight. */
+  steering: boolean;
+  /** On this computer: Stop turn was asked for and the turn has not ended
+   *  yet. */
+  stopping: boolean;
   /** Finish or Stop was asked for, or the engine ended it and its result is
    *  being collected. */
   ending: boolean;
@@ -310,6 +344,11 @@ function overNow(c: ChatRecord): boolean {
 export type ChatDeps = {
   on: (event: string, cb: (v: never) => void) => () => void;
   sendLocal: (text: string) => Promise<void>;
+  /** Hands a message to the turn in flight (RunAPI.SteerTurn): "sent",
+   *  "no-turn" or "between-turns". */
+  steerLocal: (text: string) => Promise<string>;
+  /** Stops the turn in flight; the chat goes on (RunAPI.InterruptTurn). */
+  interruptLocal: () => Promise<void>;
   addLocal: (path: string) => Promise<void>;
   endLocal: (finish: boolean) => Promise<app.RunResultView>;
   sendHosted: (text: string) => Promise<void>;
@@ -419,7 +458,7 @@ export function createChatStore<S>(deps: ChatDeps) {
   const blank = (kind: ChatKind, ref: string, task: string, opening: string): ChatRecord => ({
     kind, ref, task, opening, registry: "",
     chat: newChat(kind === "hosted" ? opening : "", task),
-    starting: false, sending: false, adding: false, ending: false, log: [],
+    starting: false, sending: false, adding: false, steering: false, stopping: false, ending: false, log: [],
     run: null, hosted: null, terms: null, result: null, error: null, failed: false, over: false,
   });
 
@@ -482,9 +521,29 @@ export function createChatStore<S>(deps: ChatDeps) {
       return true;
     },
 
-    /** Sends the agent one message. */
-    async send(text: string): Promise<void> {
-      if (!c || c.over || c.starting || working(c) || !text.trim()) return;
+    /** Sends the agent one message. On this computer, while the agent is
+     *  on a turn, the message goes into that turn where the harness takes
+     *  one; "held" says the harness takes it only between turns, and the
+     *  page keeps the text. A message In Agentry waits for the answer. */
+    async send(text: string): Promise<"sent" | "held" | "ignored"> {
+      if (!c || c.over || c.starting || c.ending || !text.trim()) return "ignored";
+      if (working(c)) {
+        if (c.kind !== "local" || c.steering) return "ignored";
+        const g = gen;
+        update(g, (r) => ({ ...r, steering: true, error: null }));
+        let answer: string;
+        try {
+          answer = await deps.steerLocal(text);
+        } catch (e) {
+          update(g, (r) => ({ ...r, steering: false, error: String(e) }));
+          throw e;
+        }
+        update(g, (r) => ({ ...r, steering: false }));
+        if (answer === "between-turns") return "held";
+        if (answer !== "no-turn") return "sent";
+        // The turn ended as the message went: it is the next turn.
+        if (!c || c.over || working(c)) return "held";
+      }
       const g = gen;
       const hosted = c.kind === "hosted";
       update(g, (r) => ({ ...r, sending: true, error: null }));
@@ -494,6 +553,21 @@ export function createChatStore<S>(deps: ChatDeps) {
       } catch (e) {
         update(g, (r) => ({ ...r, sending: false, error: String(e) }));
         throw e;
+      }
+      return "sent";
+    },
+
+    /** Stop turn: ends the turn in flight on this computer, and the chat
+     *  goes on with the next message. */
+    async stopTurn(): Promise<void> {
+      if (!c || c.kind !== "local" || c.over || c.starting || c.ending || c.stopping || !working(c)) return;
+      const g = gen;
+      update(g, (r) => ({ ...r, stopping: true, error: null }));
+      try {
+        await deps.interruptLocal();
+        update(g, (r) => ({ ...r, stopping: false }));
+      } catch (e) {
+        update(g, (r) => ({ ...r, stopping: false, error: String(e) }));
       }
     },
 

@@ -94,6 +94,29 @@ func (s *Session) Events() <-chan session.Event { return s.inner.Events() }
 // Send delivers one user turn and returns when the harness ends it.
 func (s *Session) Send(ctx context.Context, text string) error { return s.inner.Send(ctx, text) }
 
+// Steer hands text to the turn in flight, which takes it after the calls
+// it is running or when the model next answers. With no turn in flight it
+// returns session.ErrNoTurn; on a harness that takes a message only between
+// turns, an error that is session.ErrCannotSteer.
+func (s *Session) Steer(ctx context.Context, text string) error {
+	st, ok := s.inner.(session.Steerer)
+	if !ok {
+		return fmt.Errorf("%w: this session takes a message only between turns", session.ErrCannotSteer)
+	}
+	return st.Steer(ctx, text)
+}
+
+// Interrupt stops the turn in flight and returns once it has ended; the
+// session goes on and takes the next message. With no turn in flight it
+// returns session.ErrNoTurn.
+func (s *Session) Interrupt(ctx context.Context) error {
+	it, ok := s.inner.(session.Interrupter)
+	if !ok {
+		return errors.New("this session cannot stop a turn")
+	}
+	return it.Interrupt(ctx)
+}
+
 // AddInput stages one host file under /inputs and tells the agent.
 func (s *Session) AddInput(ctx context.Context, path string) error {
 	return s.inner.AddInput(ctx, path)

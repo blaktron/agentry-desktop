@@ -177,6 +177,8 @@ type localSession interface {
 	Ref() string
 	Events() <-chan session.Event
 	Send(ctx context.Context, text string) error
+	Steer(ctx context.Context, text string) error
+	Interrupt(ctx context.Context) error
 	AddInput(ctx context.Context, path string) error
 	End(ctx context.Context, finish bool) (*run.Result, error)
 }
@@ -346,7 +348,65 @@ func (r *RunAPI) SendTurn(text string) error {
 	if s == nil {
 		return errNoSession
 	}
-	return s.Send(r.app.ctx, text)
+	// A turn the person stopped was answered as far as it went: its
+	// assistant_turn says so, and the chat goes on.
+	if err := s.Send(r.app.ctx, text); !errors.Is(err, session.ErrInterrupted) {
+		return err
+	}
+	return nil
+}
+
+// What SteerTurn did with a message.
+const (
+	// SteerSent: the turn in flight took it.
+	SteerSent = "sent"
+	// SteerNoTurn: no turn was in flight; the page sends it as a turn.
+	SteerNoTurn = "no-turn"
+	// SteerBetweenTurns: the session's harness takes a message only
+	// between turns; the page keeps the text until the answer arrives.
+	SteerBetweenTurns = "between-turns"
+)
+
+// SteerTurn hands a message to the turn in flight, as the terminal chat
+// does: the harness adds it to the conversation and the turn goes on with
+// it, and the session records it as a steer event. It answers what became
+// of it (SteerSent, SteerNoTurn, SteerBetweenTurns); any other refusal is
+// an error, and the page keeps the text.
+func (r *RunAPI) SteerTurn(text string) (string, error) {
+	s := r.session
+	if s == nil {
+		return "", errNoSession
+	}
+	err := s.Steer(r.app.ctx, text)
+	switch {
+	case err == nil:
+		return SteerSent, nil
+	case errors.Is(err, session.ErrNoTurn):
+		return SteerNoTurn, nil
+	case errors.Is(err, session.ErrCannotSteer):
+		return SteerBetweenTurns, nil
+	}
+	return "", err
+}
+
+// chatInterruptWait bounds how long a turn may take to stop once its
+// harness is told to.
+const chatInterruptWait = 30 * time.Second
+
+// InterruptTurn stops the turn in flight and returns once it has ended;
+// the chat goes on and takes the next message. With no turn in flight it
+// does nothing.
+func (r *RunAPI) InterruptTurn() error {
+	s := r.session
+	if s == nil {
+		return errNoSession
+	}
+	ctx, cancel := context.WithTimeout(r.app.ctx, chatInterruptWait)
+	defer cancel()
+	if err := s.Interrupt(ctx); err != nil && !errors.Is(err, session.ErrNoTurn) {
+		return fmt.Errorf("the turn did not stop: %w", err)
+	}
+	return nil
 }
 
 // AddSessionInput gives the agent one more file, read-only under /inputs.
