@@ -1136,6 +1136,9 @@ type RunResultView struct {
 	// SavedModel is the saved model the run was on, as its receipt names
 	// it; omitted for a run on a policy with no saved model.
 	SavedModel *receipt.SavedModel `json:"savedModel,omitempty"`
+	// Harness is the adapter that ran the model, as the receipt names it;
+	// omitted when the envelope names none.
+	Harness string `json:"harness,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -1369,6 +1372,7 @@ func runResultView(res *run.Result) *RunResultView {
 		Stage:            res.Stage,
 		Reason:           res.Reason,
 		SavedModel:       res.SavedModel,
+		Harness:          res.Harness,
 	}
 	if res.Unsafe {
 		v.UnsafeExec = res.Exec

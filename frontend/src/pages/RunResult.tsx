@@ -23,6 +23,7 @@ import { PdfViewer } from "../PdfViewer";
 import { pdfActions } from "../reportPdf";
 import { withheldLine } from "../deliverables";
 import { DeliverableItem, SentTo } from "./Deliverables";
+import { harnessName } from "../containerHarness";
 
 export function RunResultView({
   runId, headline, tone, error, lead, resultJson, knowledge, decode, unsafeExec, ask, children,
@@ -298,6 +299,12 @@ export function LocalRunDetails({ result, log }: { result: app.RunResultView; lo
           <div className="kv" data-run-saved-model={result.savedModel.id}>
             <span className="k">model</span>
             <span><strong>{result.savedModel.name}</strong> <span className="muted small">the saved model the receipt names</span></span>
+          </div>
+        )}
+        {result.harness && (
+          <div className="kv" data-run-harness={result.harness}>
+            <span className="k">harness</span>
+            <span>{harnessName(result.harness)} <span className="muted small mono">{result.harness}</span></span>
           </div>
         )}
         <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>

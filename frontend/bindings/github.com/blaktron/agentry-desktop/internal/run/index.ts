@@ -4,6 +4,7 @@
 export {
     CopilotModel,
     DesktopEntry,
+    HarnessChoice,
     HostSignIn,
     KeptClient,
     KeptConnection,

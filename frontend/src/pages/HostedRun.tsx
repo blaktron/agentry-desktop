@@ -16,6 +16,7 @@ import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, se
 import { hostedConnectAsk } from "../connections";
 import { askReady, askToSet } from "../runSetup";
 import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starAskWanted, starredSentence } from "../earnings";
+import { harnessName } from "../containerHarness";
 
 /** What a run In Agentry holds and what the account has, before anything
  *  is created: the hold in credits, the time and the turns, never tokens or
@@ -536,6 +537,12 @@ export function HostedResult({ run }: { run: app.HostedRunView }) {
             <div key={k} className="mono small">{k}: {v}</div>
           ))}
         </>
+      )}
+      {run.adapter && (
+        <div className="kv" data-run-harness={run.adapter}>
+          <span className="k">harness</span>
+          <span>{harnessName(run.adapter)} <span className="muted small mono">{run.adapter}</span></span>
+        </div>
       )}
       <div className="kv"><span className="k">run</span><span className="mono">{run.id}</span></div>
       <div className="kv"><span className="k">release</span><span className="mono">{run.ref}</span></div>

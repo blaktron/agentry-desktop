@@ -288,6 +288,16 @@ export function Connections(): $CancellablePromise<$models.KeptConnectionsView> 
 }
 
 /**
+ * ContainerHarness is the container harness this computer's runs use, the
+ * two it is chosen from, and the harness a run on the default model takes.
+ */
+export function ContainerHarness(): $CancellablePromise<run$0.HarnessChoice> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ContainerHarness").then(($result: any) => {
+        return $$createType22($result)!;
+    });
+}
+
+/**
  * CopilotModels lists the models the kept Copilot sign-in's plan offers,
  * asked of Copilot CLI. It may build the runner and Copilot CLI images
  * first, so it takes the docker job and reports their progress on the setup
@@ -295,7 +305,7 @@ export function Connections(): $CancellablePromise<$models.KeptConnectionsView> 
  */
 export function CopilotModels(plan: string): $CancellablePromise<run$0.CopilotModel[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.CopilotModels", plan).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType24($result);
     });
 }
 
@@ -306,7 +316,7 @@ export function CopilotModels(plan: string): $CancellablePromise<run$0.CopilotMo
  */
 export function CreditsOffer(): $CancellablePromise<$models.CreditsOfferView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.CreditsOffer").then(($result: any) => {
-        return $$createType24($result)!;
+        return $$createType26($result)!;
     });
 }
 
@@ -358,7 +368,7 @@ export function Disconnect(ref: string, digest: string, server: string): $Cancel
  */
 export function DownloadHostedOutput(reg: string, runID: string): $CancellablePromise<$models.HostedRecordView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.DownloadHostedOutput", reg, runID).then(($result: any) => {
-        return $$createType26($result)!;
+        return $$createType28($result)!;
     });
 }
 
@@ -401,7 +411,7 @@ export function EndHostedSession(finish: boolean): $CancellablePromise<void> {
  */
 export function EndSession(finish: boolean): $CancellablePromise<$models.RunResultView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.EndSession", finish).then(($result: any) => {
-        return $$createType28($result)!;
+        return $$createType30($result)!;
     });
 }
 
@@ -412,7 +422,7 @@ export function EndSession(finish: boolean): $CancellablePromise<$models.RunResu
  */
 export function EndpointModels(baseURL: string, key: string): $CancellablePromise<run$0.ProviderModels> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.EndpointModels", baseURL, key).then(($result: any) => {
-        return $$createType30($result)!;
+        return $$createType32($result)!;
     });
 }
 
@@ -445,7 +455,7 @@ export function ForgetHarness(name: string): $CancellablePromise<$models.Harness
  */
 export function ForgetHostSignIn(answer: string): $CancellablePromise<$models.TargetHostView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ForgetHostSignIn", answer).then(($result: any) => {
-        return $$createType32($result)!;
+        return $$createType34($result)!;
     });
 }
 
@@ -455,7 +465,7 @@ export function ForgetHostSignIn(answer: string): $CancellablePromise<$models.Ta
  */
 export function ForgetHybridKey(): $CancellablePromise<$models.HybridKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ForgetHybridKey").then(($result: any) => {
-        return $$createType34($result)!;
+        return $$createType36($result)!;
     });
 }
 
@@ -465,7 +475,7 @@ export function ForgetHybridKey(): $CancellablePromise<$models.HybridKeyView> {
  */
 export function ForgetJevKey(): $CancellablePromise<$models.JevKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ForgetJevKey").then(($result: any) => {
-        return $$createType36($result)!;
+        return $$createType38($result)!;
     });
 }
 
@@ -505,7 +515,7 @@ export function ForgetRun(runID: string): $CancellablePromise<void> {
  */
 export function ForgetSearchKey(): $CancellablePromise<$models.SearchKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ForgetSearchKey").then(($result: any) => {
-        return $$createType38($result)!;
+        return $$createType40($result)!;
     });
 }
 
@@ -516,7 +526,7 @@ export function ForgetSearchKey(): $CancellablePromise<$models.SearchKeyView> {
  */
 export function ForgetSourceKey(qtype: string, answer: string): $CancellablePromise<$models.SourceKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ForgetSourceKey", qtype, answer).then(($result: any) => {
-        return $$createType40($result)!;
+        return $$createType42($result)!;
     });
 }
 
@@ -527,7 +537,7 @@ export function ForgetSourceKey(qtype: string, answer: string): $CancellableProm
  */
 export function GatewayRequirements(reg: string, ns: string, name: string): $CancellablePromise<$models.MCPView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.GatewayRequirements", reg, ns, name).then(($result: any) => {
-        return $$createType42($result)!;
+        return $$createType44($result)!;
     });
 }
 
@@ -549,7 +559,7 @@ export function HarnessStatus(): $CancellablePromise<$models.HarnessView[]> {
  */
 export function HostedAvailability(reg: string, ref: string): $CancellablePromise<$models.HostedAvailabilityView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.HostedAvailability", reg, ref).then(($result: any) => {
-        return $$createType44($result)!;
+        return $$createType46($result)!;
     });
 }
 
@@ -559,7 +569,7 @@ export function HostedAvailability(reg: string, ref: string): $CancellablePromis
  */
 export function HostedRecord(reg: string, runID: string): $CancellablePromise<$models.HostedRecordView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.HostedRecord", reg, runID).then(($result: any) => {
-        return $$createType26($result)!;
+        return $$createType28($result)!;
     });
 }
 
@@ -570,7 +580,7 @@ export function HostedRecord(reg: string, runID: string): $CancellablePromise<$m
  */
 export function HybridKeyStatus(): $CancellablePromise<$models.HybridKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.HybridKeyStatus").then(($result: any) => {
-        return $$createType34($result)!;
+        return $$createType36($result)!;
     });
 }
 
@@ -580,7 +590,7 @@ export function HybridKeyStatus(): $CancellablePromise<$models.HybridKeyView> {
  */
 export function InFlight(): $CancellablePromise<$models.InFlightView | null> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.InFlight").then(($result: any) => {
-        return $$createType46($result);
+        return $$createType48($result);
     });
 }
 
@@ -631,7 +641,7 @@ export function InstallWindowsEngine(): $CancellablePromise<$models.PrereqView> 
  */
 export function InstalledChanges(reg: string, ref: string): $CancellablePromise<$models.ChangedInstallView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.InstalledChanges", reg, ref).then(($result: any) => {
-        return $$createType48($result)!;
+        return $$createType50($result)!;
     });
 }
 
@@ -641,7 +651,7 @@ export function InstalledChanges(reg: string, ref: string): $CancellablePromise<
  */
 export function JevKeyStatus(): $CancellablePromise<$models.JevKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.JevKeyStatus").then(($result: any) => {
-        return $$createType36($result)!;
+        return $$createType38($result)!;
     });
 }
 
@@ -670,7 +680,7 @@ export function KeepsSecrets(reg: string): $CancellablePromise<boolean> {
  */
 export function ListEngines(): $CancellablePromise<$models.EngineChoicesView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ListEngines").then(($result: any) => {
-        return $$createType50($result)!;
+        return $$createType52($result)!;
     });
 }
 
@@ -684,7 +694,7 @@ export function ListEngines(): $CancellablePromise<$models.EngineChoicesView> {
  */
 export function ListModels(provider: string, baseURL: string, key: string): $CancellablePromise<$models.CatalogView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ListModels", provider, baseURL, key).then(($result: any) => {
-        return $$createType52($result)!;
+        return $$createType54($result)!;
     });
 }
 
@@ -695,7 +705,7 @@ export function ListModels(provider: string, baseURL: string, key: string): $Can
  */
 export function ModelChoices(): $CancellablePromise<run$0.ModelChoices> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ModelChoices").then(($result: any) => {
-        return $$createType54($result)!;
+        return $$createType56($result)!;
     });
 }
 
@@ -705,7 +715,7 @@ export function ModelChoices(): $CancellablePromise<run$0.ModelChoices> {
  */
 export function ModelSignIns(): $CancellablePromise<run$0.ModelSignIn[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ModelSignIns").then(($result: any) => {
-        return $$createType56($result);
+        return $$createType58($result);
     });
 }
 
@@ -784,7 +794,7 @@ export function PrereqStatus(): $CancellablePromise<$models.PrereqView> {
  */
 export function ProbeContextWindow(provider: string, baseURL: string, model: string, key: string): $CancellablePromise<$models.ContextWindowView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ProbeContextWindow", provider, baseURL, model, key).then(($result: any) => {
-        return $$createType58($result)!;
+        return $$createType60($result)!;
     });
 }
 
@@ -796,7 +806,7 @@ export function ProbeContextWindow(provider: string, baseURL: string, model: str
  */
 export function ProfileStatus(reg: string, ref: string): $CancellablePromise<$models.ProfileStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ProfileStatus", reg, ref).then(($result: any) => {
-        return $$createType60($result)!;
+        return $$createType62($result)!;
     });
 }
 
@@ -806,7 +816,7 @@ export function ProfileStatus(reg: string, ref: string): $CancellablePromise<$mo
  */
 export function ProviderModels(id: string): $CancellablePromise<run$0.ProviderModels> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ProviderModels", id).then(($result: any) => {
-        return $$createType30($result)!;
+        return $$createType32($result)!;
     });
 }
 
@@ -815,7 +825,7 @@ export function ProviderModels(id: string): $CancellablePromise<run$0.ProviderMo
  */
 export function QueuedRuns(): $CancellablePromise<$models.QueuedRunView[]> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.QueuedRuns").then(($result: any) => {
-        return $$createType62($result);
+        return $$createType64($result);
     });
 }
 
@@ -829,7 +839,7 @@ export function QueuedRuns(): $CancellablePromise<$models.QueuedRunView[]> {
  */
 export function RecentDeliverables(limit: number): $CancellablePromise<$models.RecentDeliverablesView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RecentDeliverables", limit).then(($result: any) => {
-        return $$createType64($result)!;
+        return $$createType66($result)!;
     });
 }
 
@@ -851,7 +861,7 @@ export function RecentHosts(): $CancellablePromise<string[]> {
  */
 export function RecentRuns(reg: string, limit: number): $CancellablePromise<$models.RecentRunsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RecentRuns", reg, limit).then(($result: any) => {
-        return $$createType66($result)!;
+        return $$createType68($result)!;
     });
 }
 
@@ -865,7 +875,7 @@ export function RecentRuns(reg: string, limit: number): $CancellablePromise<$mod
  */
 export function RecordedReview(runID: string): $CancellablePromise<$models.ReviewView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RecordedReview", runID).then(($result: any) => {
-        return $$createType68($result)!;
+        return $$createType70($result)!;
     });
 }
 
@@ -875,7 +885,7 @@ export function RecordedReview(runID: string): $CancellablePromise<$models.Revie
  */
 export function RecordedRun(runID: string): $CancellablePromise<$models.RecordedRunView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RecordedRun", runID).then(($result: any) => {
-        return $$createType70($result)!;
+        return $$createType72($result)!;
     });
 }
 
@@ -886,7 +896,7 @@ export function RecordedRun(runID: string): $CancellablePromise<$models.Recorded
  */
 export function RedetectEngine(): $CancellablePromise<$models.EngineView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RedetectEngine").then(($result: any) => {
-        return $$createType72($result)!;
+        return $$createType74($result)!;
     });
 }
 
@@ -896,7 +906,7 @@ export function RedetectEngine(): $CancellablePromise<$models.EngineView> {
  */
 export function ReleaseConnections(reg: string, ref: string): $CancellablePromise<run$0.ReleaseConnections> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.ReleaseConnections", reg, ref).then(($result: any) => {
-        return $$createType74($result)!;
+        return $$createType76($result)!;
     });
 }
 
@@ -908,7 +918,7 @@ export function ReleaseConnections(reg: string, ref: string): $CancellablePromis
  */
 export function RemoveAgentryImages(): $CancellablePromise<dockerimages$0.Report> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RemoveAgentryImages").then(($result: any) => {
-        return $$createType76($result)!;
+        return $$createType78($result)!;
     });
 }
 
@@ -939,7 +949,7 @@ export function RemoveModelSignIn(vendor: string): $CancellablePromise<string> {
  */
 export function RemoveProvider(id: string, moveTo: string, keepCredential: boolean): $CancellablePromise<run$0.Removed> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RemoveProvider", id, moveTo, keepCredential).then(($result: any) => {
-        return $$createType78($result)!;
+        return $$createType80($result)!;
     });
 }
 
@@ -960,7 +970,7 @@ export function RemoveRecordedRun(runID: string): $CancellablePromise<void> {
  */
 export function RemoveSavedModel(id: string, moveTo: string): $CancellablePromise<run$0.Removed> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RemoveSavedModel", id, moveTo).then(($result: any) => {
-        return $$createType78($result)!;
+        return $$createType80($result)!;
     });
 }
 
@@ -989,7 +999,7 @@ export function RestartNow(): $CancellablePromise<void> {
  */
 export function RetryDelivery(runID: string, destination: string): $CancellablePromise<$models.RunDeliverablesView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RetryDelivery", runID, destination).then(($result: any) => {
-        return $$createType80($result)!;
+        return $$createType82($result)!;
     });
 }
 
@@ -1014,7 +1024,7 @@ export function RetryDelivery(runID: string, destination: string): $CancellableP
  */
 export function RunAgent(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, timeoutSec: number, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[], reportDesign: string, model: string): $CancellablePromise<$models.RunResultView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunAgent", reg, ref, task, inputPaths, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign, model).then(($result: any) => {
-        return $$createType28($result)!;
+        return $$createType30($result)!;
     });
 }
 
@@ -1033,7 +1043,7 @@ export function RunDeliverablePDF(runID: string, rel: string): $CancellablePromi
  */
 export function RunDeliverableText(runID: string, rel: string): $CancellablePromise<$models.DeliverableTextView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunDeliverableText", runID, rel).then(($result: any) => {
-        return $$createType82($result)!;
+        return $$createType84($result)!;
     });
 }
 
@@ -1043,7 +1053,7 @@ export function RunDeliverableText(runID: string, rel: string): $CancellableProm
  */
 export function RunDeliverables(runID: string): $CancellablePromise<$models.RunDeliverablesView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunDeliverables", runID).then(($result: any) => {
-        return $$createType80($result)!;
+        return $$createType82($result)!;
     });
 }
 
@@ -1056,7 +1066,7 @@ export function RunDeliverables(runID: string): $CancellablePromise<$models.RunD
  */
 export function RunOnRunhost(name: string, reg: string, ref: string, task: string, inputPaths: string[], outDir: string, timeoutSec: number, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, acceptUnscanned: boolean, model: string): $CancellablePromise<$models.RunResultView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunOnRunhost", name, reg, ref, task, inputPaths, outDir, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, acceptUnscanned, model).then(($result: any) => {
-        return $$createType28($result)!;
+        return $$createType30($result)!;
     });
 }
 
@@ -1065,7 +1075,7 @@ export function RunOnRunhost(name: string, reg: string, ref: string, task: strin
  */
 export function RunOutputs(runID: string): $CancellablePromise<$models.RunOutputsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunOutputs", runID).then(($result: any) => {
-        return $$createType84($result)!;
+        return $$createType86($result)!;
     });
 }
 
@@ -1084,7 +1094,7 @@ export function RunPDF(runID: string, rel: string): $CancellablePromise<string> 
  */
 export function RunRequirements(reg: string, ref: string): $CancellablePromise<$models.MCPView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.RunRequirements", reg, ref).then(($result: any) => {
-        return $$createType42($result)!;
+        return $$createType44($result)!;
     });
 }
 
@@ -1096,7 +1106,7 @@ export function RunRequirements(reg: string, ref: string): $CancellablePromise<$
  */
 export function SaveProfile(reg: string, ref: string, secrets: { [_ in string]?: string }, keep: boolean): $CancellablePromise<$models.ProfileStatusView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SaveProfile", reg, ref, secrets, keep).then(($result: any) => {
-        return $$createType60($result)!;
+        return $$createType62($result)!;
     });
 }
 
@@ -1121,7 +1131,7 @@ export function SaveRunPDF(runID: string, rel: string): $CancellablePromise<stri
  */
 export function SaveSourceKey(qtype: string, answer: string, token: string): $CancellablePromise<$models.SourceKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SaveSourceKey", qtype, answer, token).then(($result: any) => {
-        return $$createType40($result)!;
+        return $$createType42($result)!;
     });
 }
 
@@ -1131,7 +1141,7 @@ export function SaveSourceKey(qtype: string, answer: string, token: string): $Ca
  */
 export function SavedModels(): $CancellablePromise<run$0.ModelsList> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SavedModels").then(($result: any) => {
-        return $$createType86($result)!;
+        return $$createType88($result)!;
     });
 }
 
@@ -1142,7 +1152,7 @@ export function SavedModels(): $CancellablePromise<run$0.ModelsList> {
  */
 export function SearchKeyStatus(): $CancellablePromise<$models.SearchKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SearchKeyStatus").then(($result: any) => {
-        return $$createType38($result)!;
+        return $$createType40($result)!;
     });
 }
 
@@ -1171,6 +1181,17 @@ export function SendTurn(text: string): $CancellablePromise<void> {
 }
 
 /**
+ * SetContainerHarness chooses the container harness runs, chats and
+ * persistent agents on this computer use from their next start: the
+ * policy's containerHarness, the key `agentry harness use` sets.
+ */
+export function SetContainerHarness(name: string): $CancellablePromise<run$0.HarnessChoice> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SetContainerHarness", name).then(($result: any) => {
+        return $$createType22($result)!;
+    });
+}
+
+/**
  * SetDefaultModel makes a saved model the default.
  */
 export function SetDefaultModel(id: string): $CancellablePromise<void> {
@@ -1184,7 +1205,7 @@ export function SetDefaultModel(id: string): $CancellablePromise<void> {
  */
 export function SetEngineChoice(choice: string): $CancellablePromise<$models.EngineView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SetEngineChoice", choice).then(($result: any) => {
-        return $$createType72($result)!;
+        return $$createType74($result)!;
     });
 }
 
@@ -1216,7 +1237,7 @@ export function SetHostedSecret(reg: string, name: string, value: string, keep: 
  */
 export function SetUnsafeMode(on: boolean): $CancellablePromise<$models.RunDefaultsView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SetUnsafeMode", on).then(($result: any) => {
-        return $$createType88($result)!;
+        return $$createType90($result)!;
     });
 }
 
@@ -1286,7 +1307,7 @@ export function SignInCopilot(oauthApp: boolean): $CancellablePromise<$models.Si
  */
 export function SourceKeyStatus(qtype: string, answer: string): $CancellablePromise<$models.SourceKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SourceKeyStatus", qtype, answer).then(($result: any) => {
-        return $$createType40($result)!;
+        return $$createType42($result)!;
     });
 }
 
@@ -1302,7 +1323,7 @@ export function SourceKeyStatus(qtype: string, answer: string): $CancellableProm
  */
 export function StarAsk(reg: string, ref: string): $CancellablePromise<$models.StarAskView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StarAsk", reg, ref).then(($result: any) => {
-        return $$createType90($result)!;
+        return $$createType92($result)!;
     });
 }
 
@@ -1387,7 +1408,7 @@ export function StartManagedEngine(): $CancellablePromise<$models.PrereqView> {
  */
 export function StartSession(reg: string, ref: string, task: string, inputPaths: string[], outDir: string, keepProfile: boolean | null, maxTurns: number, acceptUnsigned: boolean, intakeAnswers: { [_ in string]?: string }, allowVulnerableMCP: boolean, acceptUnscanned: boolean, knowledge: string[], writeInVoice: boolean, sourceTokens: { [_ in string]?: string }, hostSignIns: { [_ in string]?: run$0.HostSignIn }, destinations: string[], reportDesign: string, model: string): $CancellablePromise<$models.SessionView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartSession", reg, ref, task, inputPaths, outDir, keepProfile, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP, acceptUnscanned, knowledge, writeInVoice, sourceTokens, hostSignIns, destinations, reportDesign, model).then(($result: any) => {
-        return $$createType92($result)!;
+        return $$createType94($result)!;
     });
 }
 
@@ -1429,7 +1450,7 @@ export function StopRun(runID: string): $CancellablePromise<void> {
  */
 export function StoreHybridKey(key: string): $CancellablePromise<$models.HybridKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StoreHybridKey", key).then(($result: any) => {
-        return $$createType34($result)!;
+        return $$createType36($result)!;
     });
 }
 
@@ -1443,7 +1464,7 @@ export function StoreHybridKey(key: string): $CancellablePromise<$models.HybridK
  */
 export function StoreJevKey(key: string): $CancellablePromise<$models.JevKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StoreJevKey", key).then(($result: any) => {
-        return $$createType36($result)!;
+        return $$createType38($result)!;
     });
 }
 
@@ -1481,7 +1502,7 @@ export function StoreProviderKey(np: run$0.NewProvider, key: string): $Cancellab
  */
 export function StoreSearchKey(provider: string, key: string): $CancellablePromise<$models.SearchKeyView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StoreSearchKey", provider, key).then(($result: any) => {
-        return $$createType38($result)!;
+        return $$createType40($result)!;
     });
 }
 
@@ -1492,7 +1513,7 @@ export function StoreSearchKey(provider: string, key: string): $CancellablePromi
  */
 export function TargetHostStatus(answer: string): $CancellablePromise<$models.TargetHostView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.TargetHostStatus", answer).then(($result: any) => {
-        return $$createType32($result)!;
+        return $$createType34($result)!;
     });
 }
 
@@ -1505,7 +1526,7 @@ export function TargetHostStatus(answer: string): $CancellablePromise<$models.Ta
  */
 export function TestHybridKey(): $CancellablePromise<$models.HybridKeyTestView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.TestHybridKey").then(($result: any) => {
-        return $$createType94($result)!;
+        return $$createType96($result)!;
     });
 }
 
@@ -1517,7 +1538,7 @@ export function TestHybridKey(): $CancellablePromise<$models.HybridKeyTestView> 
  */
 export function TestJevKey(): $CancellablePromise<$models.JevKeyTestView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.TestJevKey").then(($result: any) => {
-        return $$createType96($result)!;
+        return $$createType98($result)!;
     });
 }
 
@@ -1528,7 +1549,7 @@ export function TestJevKey(): $CancellablePromise<$models.JevKeyTestView> {
  */
 export function TestSearchKey(): $CancellablePromise<$models.SearchKeyTestView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.TestSearchKey").then(($result: any) => {
-        return $$createType98($result)!;
+        return $$createType100($result)!;
     });
 }
 
@@ -1549,7 +1570,7 @@ export function UnsafeLive(): $CancellablePromise<boolean> {
  */
 export function UnsafeNotice(reg: string, ref: string): $CancellablePromise<$models.UnsafeNoticeView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.UnsafeNotice", reg, ref).then(($result: any) => {
-        return $$createType100($result)!;
+        return $$createType102($result)!;
     });
 }
 
@@ -1575,83 +1596,85 @@ const $$createType17 = $models.SignInView.createFrom;
 const $$createType18 = $Create.Nullable($$createType17);
 const $$createType19 = $models.KeptConnectionsView.createFrom;
 const $$createType20 = $Create.Nullable($$createType19);
-const $$createType21 = run$0.CopilotModel.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = $models.CreditsOfferView.createFrom;
-const $$createType24 = $Create.Nullable($$createType23);
-const $$createType25 = $models.HostedRecordView.createFrom;
+const $$createType21 = run$0.HarnessChoice.createFrom;
+const $$createType22 = $Create.Nullable($$createType21);
+const $$createType23 = run$0.CopilotModel.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = $models.CreditsOfferView.createFrom;
 const $$createType26 = $Create.Nullable($$createType25);
-const $$createType27 = $models.RunResultView.createFrom;
+const $$createType27 = $models.HostedRecordView.createFrom;
 const $$createType28 = $Create.Nullable($$createType27);
-const $$createType29 = run$0.ProviderModels.createFrom;
+const $$createType29 = $models.RunResultView.createFrom;
 const $$createType30 = $Create.Nullable($$createType29);
-const $$createType31 = $models.TargetHostView.createFrom;
+const $$createType31 = run$0.ProviderModels.createFrom;
 const $$createType32 = $Create.Nullable($$createType31);
-const $$createType33 = $models.HybridKeyView.createFrom;
+const $$createType33 = $models.TargetHostView.createFrom;
 const $$createType34 = $Create.Nullable($$createType33);
-const $$createType35 = $models.JevKeyView.createFrom;
+const $$createType35 = $models.HybridKeyView.createFrom;
 const $$createType36 = $Create.Nullable($$createType35);
-const $$createType37 = $models.SearchKeyView.createFrom;
+const $$createType37 = $models.JevKeyView.createFrom;
 const $$createType38 = $Create.Nullable($$createType37);
-const $$createType39 = $models.SourceKeyView.createFrom;
+const $$createType39 = $models.SearchKeyView.createFrom;
 const $$createType40 = $Create.Nullable($$createType39);
-const $$createType41 = $models.MCPView.createFrom;
+const $$createType41 = $models.SourceKeyView.createFrom;
 const $$createType42 = $Create.Nullable($$createType41);
-const $$createType43 = $models.HostedAvailabilityView.createFrom;
+const $$createType43 = $models.MCPView.createFrom;
 const $$createType44 = $Create.Nullable($$createType43);
-const $$createType45 = $models.InFlightView.createFrom;
+const $$createType45 = $models.HostedAvailabilityView.createFrom;
 const $$createType46 = $Create.Nullable($$createType45);
-const $$createType47 = $models.ChangedInstallView.createFrom;
+const $$createType47 = $models.InFlightView.createFrom;
 const $$createType48 = $Create.Nullable($$createType47);
-const $$createType49 = $models.EngineChoicesView.createFrom;
+const $$createType49 = $models.ChangedInstallView.createFrom;
 const $$createType50 = $Create.Nullable($$createType49);
-const $$createType51 = $models.CatalogView.createFrom;
+const $$createType51 = $models.EngineChoicesView.createFrom;
 const $$createType52 = $Create.Nullable($$createType51);
-const $$createType53 = run$0.ModelChoices.createFrom;
+const $$createType53 = $models.CatalogView.createFrom;
 const $$createType54 = $Create.Nullable($$createType53);
-const $$createType55 = run$0.ModelSignIn.createFrom;
-const $$createType56 = $Create.Array($$createType55);
-const $$createType57 = $models.ContextWindowView.createFrom;
-const $$createType58 = $Create.Nullable($$createType57);
-const $$createType59 = $models.ProfileStatusView.createFrom;
+const $$createType55 = run$0.ModelChoices.createFrom;
+const $$createType56 = $Create.Nullable($$createType55);
+const $$createType57 = run$0.ModelSignIn.createFrom;
+const $$createType58 = $Create.Array($$createType57);
+const $$createType59 = $models.ContextWindowView.createFrom;
 const $$createType60 = $Create.Nullable($$createType59);
-const $$createType61 = $models.QueuedRunView.createFrom;
-const $$createType62 = $Create.Array($$createType61);
-const $$createType63 = $models.RecentDeliverablesView.createFrom;
-const $$createType64 = $Create.Nullable($$createType63);
-const $$createType65 = $models.RecentRunsView.createFrom;
+const $$createType61 = $models.ProfileStatusView.createFrom;
+const $$createType62 = $Create.Nullable($$createType61);
+const $$createType63 = $models.QueuedRunView.createFrom;
+const $$createType64 = $Create.Array($$createType63);
+const $$createType65 = $models.RecentDeliverablesView.createFrom;
 const $$createType66 = $Create.Nullable($$createType65);
-const $$createType67 = $models.ReviewView.createFrom;
+const $$createType67 = $models.RecentRunsView.createFrom;
 const $$createType68 = $Create.Nullable($$createType67);
-const $$createType69 = $models.RecordedRunView.createFrom;
+const $$createType69 = $models.ReviewView.createFrom;
 const $$createType70 = $Create.Nullable($$createType69);
-const $$createType71 = $models.EngineView.createFrom;
+const $$createType71 = $models.RecordedRunView.createFrom;
 const $$createType72 = $Create.Nullable($$createType71);
-const $$createType73 = run$0.ReleaseConnections.createFrom;
+const $$createType73 = $models.EngineView.createFrom;
 const $$createType74 = $Create.Nullable($$createType73);
-const $$createType75 = dockerimages$0.Report.createFrom;
+const $$createType75 = run$0.ReleaseConnections.createFrom;
 const $$createType76 = $Create.Nullable($$createType75);
-const $$createType77 = run$0.Removed.createFrom;
+const $$createType77 = dockerimages$0.Report.createFrom;
 const $$createType78 = $Create.Nullable($$createType77);
-const $$createType79 = $models.RunDeliverablesView.createFrom;
+const $$createType79 = run$0.Removed.createFrom;
 const $$createType80 = $Create.Nullable($$createType79);
-const $$createType81 = $models.DeliverableTextView.createFrom;
+const $$createType81 = $models.RunDeliverablesView.createFrom;
 const $$createType82 = $Create.Nullable($$createType81);
-const $$createType83 = $models.RunOutputsView.createFrom;
+const $$createType83 = $models.DeliverableTextView.createFrom;
 const $$createType84 = $Create.Nullable($$createType83);
-const $$createType85 = run$0.ModelsList.createFrom;
+const $$createType85 = $models.RunOutputsView.createFrom;
 const $$createType86 = $Create.Nullable($$createType85);
-const $$createType87 = $models.RunDefaultsView.createFrom;
+const $$createType87 = run$0.ModelsList.createFrom;
 const $$createType88 = $Create.Nullable($$createType87);
-const $$createType89 = $models.StarAskView.createFrom;
+const $$createType89 = $models.RunDefaultsView.createFrom;
 const $$createType90 = $Create.Nullable($$createType89);
-const $$createType91 = $models.SessionView.createFrom;
+const $$createType91 = $models.StarAskView.createFrom;
 const $$createType92 = $Create.Nullable($$createType91);
-const $$createType93 = $models.HybridKeyTestView.createFrom;
+const $$createType93 = $models.SessionView.createFrom;
 const $$createType94 = $Create.Nullable($$createType93);
-const $$createType95 = $models.JevKeyTestView.createFrom;
+const $$createType95 = $models.HybridKeyTestView.createFrom;
 const $$createType96 = $Create.Nullable($$createType95);
-const $$createType97 = $models.SearchKeyTestView.createFrom;
+const $$createType97 = $models.JevKeyTestView.createFrom;
 const $$createType98 = $Create.Nullable($$createType97);
-const $$createType99 = $models.UnsafeNoticeView.createFrom;
+const $$createType99 = $models.SearchKeyTestView.createFrom;
 const $$createType100 = $Create.Nullable($$createType99);
+const $$createType101 = $models.UnsafeNoticeView.createFrom;
+const $$createType102 = $Create.Nullable($$createType101);
