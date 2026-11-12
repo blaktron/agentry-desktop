@@ -646,6 +646,15 @@ export function InstalledChanges(reg: string, ref: string): $CancellablePromise<
 }
 
 /**
+ * InterruptTurn stops the turn in flight and returns once it has ended;
+ * the chat goes on and takes the next message. With no turn in flight it
+ * does nothing.
+ */
+export function InterruptTurn(): $CancellablePromise<void> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.InterruptTurn");
+}
+
+/**
  * JevKeyStatus reports the AI Review key's standing. Read-only: it reads the
  * keychain's presence marker, never the key, and creates no policy.
  */
@@ -1420,6 +1429,17 @@ export function StartWindowsEngine(): $CancellablePromise<$models.PrereqView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.StartWindowsEngine").then(($result: any) => {
         return $$createType3($result)!;
     });
+}
+
+/**
+ * SteerTurn hands a message to the turn in flight, as the terminal chat
+ * does: the harness adds it to the conversation and the turn goes on with
+ * it, and the session records it as a steer event. It answers what became
+ * of it (SteerSent, SteerNoTurn, SteerBetweenTurns); any other refusal is
+ * an error, and the page keeps the text.
+ */
+export function SteerTurn(text: string): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.RunAPI.SteerTurn", text);
 }
 
 /**

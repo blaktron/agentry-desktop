@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "0.7.46",
+      "highlights": [
+        "In a QuickAgent chat, a message you send while the agent answers goes into that answer where its harness allows.",
+        "Stop turn ends the agent's answer and the chat goes on; End is now the button that ends the chat."
+      ]
+    },
+    {
       "version": "0.7.45",
       "highlights": [
         "Settings, Models and keys now chooses the harness your runs use: Docker Agent or the Agentry harness.",

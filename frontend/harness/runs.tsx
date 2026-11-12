@@ -71,6 +71,8 @@
 //   #chat-local           the dialog is the chat: the conversation, the strip
 //   #chat-local-working   its card while a message is out: working, turns
 //   #chat-local-waiting   its card between turns: waiting for you
+//   #chat-local-steered   the dialog while the agent answers: a message sent
+//                         into the turn, joined, and Stop turn
 //   #chat-local-ended     the engine ended it with the dialog closed: its
 //                         result, collected by the store
 //   #chat-hosted          a chat In Agentry: replayed from the host, a hostile
@@ -303,6 +305,16 @@ g.go = { app: {
       return {};
     },
     SendTurn: () => new Promise(() => {}),
+    // A message into the turn in flight: the session records it, then
+    // says it joined.
+    SteerTurn: async (text: string) => {
+      fire("runner:session-event", { kind: "steer", time: new Date().toISOString(), text });
+      setTimeout(() => fire("runner:session-event", { kind: "steered", time: new Date().toISOString() }), 60);
+      return "sent";
+    },
+    InterruptTurn: async () => {
+      fire("runner:session-event", { kind: "assistant_turn", time: new Date().toISOString(), text: "The timeline moves by", stopReason: "interrupted" });
+    },
     EndSession: async () => ({ ...result, runId: "5b18c7d1" }),
     ReplayHostedSession: async () => {
       fire("runner:hosted-session-state", { status: "running", startedAt: sStarted, session: sessionRecord });
@@ -489,7 +501,8 @@ const chatSetup = { ...setup, form: { ...form, mode: hash.startsWith("chat-hoste
 if (hash.startsWith("chat-local")) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startLocalChat(chatSetup, REF, "", "", () => g.go.app.RunAPI.StartSession() as Promise<any>);
-  if (hash === "chat-local-working") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
+  if (hash === "chat-local-working" || hash === "chat-local-steered") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
+  if (hash === "chat-local-steered") setTimeout(() => void sendChat("Use the UTC times only.").catch(() => {}), 320);
 }
 if (hash.startsWith("chat-hosted")) followHostedChat(chatSetup, hosted.session, terms as never, "", "");
 if (hash === "hosted-card" || hash === "hosted-card-finished") void attachHostedRun(REG);

@@ -550,6 +550,8 @@ type unsafeChat struct{ events chan session.Event }
 func (c *unsafeChat) Ref() string                                    { return "acme/x@1.0.0" }
 func (c *unsafeChat) Events() <-chan session.Event                   { return c.events }
 func (c *unsafeChat) Send(context.Context, string) error             { return nil }
+func (c *unsafeChat) Steer(context.Context, string) error            { return nil }
+func (c *unsafeChat) Interrupt(context.Context) error                { return nil }
 func (c *unsafeChat) AddInput(context.Context, string) error         { return nil }
 func (c *unsafeChat) End(context.Context, bool) (*run.Result, error) { return &run.Result{}, nil }
 
