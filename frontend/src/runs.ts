@@ -184,6 +184,8 @@ export function backToHostedSetup(): RunSetup | null {
 const chatStore = createChatStore<RunSetup>({
   on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
   sendLocal: (text) => RunAPI.SendTurn(text),
+  steerLocal: (text) => RunAPI.SteerTurn(text),
+  interruptLocal: () => RunAPI.InterruptTurn(),
   addLocal: (path) => RunAPI.AddSessionInput(path),
   endLocal: (finish) => RunAPI.EndSession(finish),
   sendHosted: (text) => RunAPI.SendHostedTurn(text),
@@ -216,7 +218,8 @@ export function followHostedChat(s: RunSetup, run: app.HostedRunView, terms: app
 /** Whether a chat is starting, going or ending. */
 export const chatLive = (): boolean => chatStore.live();
 
-export const sendChat = (text: string): Promise<void> => chatStore.send(text);
+export const sendChat = (text: string): Promise<"sent" | "held" | "ignored"> => chatStore.send(text);
+export const stopChatTurn = (): Promise<void> => chatStore.stopTurn();
 export const addChatFiles = (paths: string[]): Promise<void> => chatStore.addFiles(paths);
 export const endChat = (finish: boolean): Promise<void> => chatStore.end(finish);
 export const showChat = (): void => chatStore.show();
