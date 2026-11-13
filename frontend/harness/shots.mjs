@@ -725,6 +725,8 @@ const states = [
     expectSelector: '[data-preview="home"] [data-home-card="recent-runs"][data-cols="3"][data-rows="3"]' },
   { name: "page-home-agent-assistant", url: "/pages.html?homeagent=assistant", note: "Home's agent card given the Assistant: its name, its own chat, and its switcher", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
     expectSelector: '[data-preview="home"] [data-home-agent="assistant"]', expectText: ["Sandra", "Could you word a note asking my neighbour"] },
+  { name: "page-home-agent-composer", url: "/pages.html?homeagent=assistant", note: "a conversation longer than the card holds: the conversation scrolls inside the card, and the line to type in stays at the card's foot, in view", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
+    expectInside: ['[data-preview="home"] [data-home-card="main"] .main-card-prompt', '[data-preview="home"] [data-home-card="main"] .build-way-body'] },
   { name: "page-home-agent-default", url: "/pages.html", note: "the Assistant on and the Helper off: the card draws the Assistant, and its switcher does not offer the Helper", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
     expectSelector: '[data-preview="home"] [data-home-agent="assistant"]', expectNone: '[data-preview="home"] [data-home-agent-switch] option[value="main"]' },
   { name: "page-home-agent-helper", url: "/pages.html?helper=on", note: "the Helper on and the Assistant off: the card draws the Helper", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
@@ -1491,6 +1493,23 @@ try {
         if (widths.length === 0) throw new Error(`${state.name}: nothing matches ${sel}`);
         const narrow = widths.filter((w) => w < min);
         if (narrow.length) throw new Error(`${state.name}: ${narrow.length} of ${widths.length} ${sel} narrower than ${min}px (${narrow.map((w) => Math.round(w)).join(", ")})`);
+      }
+      if (state.expectInside) {
+        // A layout check: the first element lies wholly inside the second's
+        // box, as drawn, with nothing scrolled (a card's composer pushed
+        // into the card's hidden overflow fails it).
+        const [inner, outer] = state.expectInside;
+        const boxes = await page.evaluate(([i, o]) => {
+          const a = document.querySelector(i)?.getBoundingClientRect();
+          const b = document.querySelector(o)?.getBoundingClientRect();
+          return a && b ? { a: [a.top, a.bottom, a.left, a.right], b: [b.top, b.bottom, b.left, b.right] } : null;
+        }, [inner, outer]);
+        if (!boxes) throw new Error(`${state.name}: nothing matches ${inner} or ${outer}`);
+        const [at, ab, al, ar] = boxes.a;
+        const [bt, bb, bl, br] = boxes.b;
+        if (at < bt - 0.5 || ab > bb + 0.5 || al < bl - 0.5 || ar > br + 0.5) {
+          throw new Error(`${state.name}: ${inner} (${boxes.a.map(Math.round).join(",")}) is not inside ${outer} (${boxes.b.map(Math.round).join(",")})`);
+        }
       }
       if (state.expectValue) {
         const [sel, want] = state.expectValue;

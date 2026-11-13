@@ -1400,6 +1400,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-term-prompt.main-card-prompt { padding: 0; border-top: none; align-items: center; }
 .agent-term-prompt.main-card-prompt > span { padding-bottom: 0; }
 .main-card-prompt input { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 13px; }
+/* In Home's grid the card's height is its cell's: the conversation takes
+   the room the other lines leave and scrolls, so the line to type in stays
+   at the card's foot however long the conversation grows. Only a card too
+   small for both scrolls as a whole. */
+.home-grid .main-card > .build-way-body { display: flex; flex-direction: column; }
+.home-grid .main-card-chat { flex: 1 1 auto; min-height: 0; }
+.home-grid .main-card-chat > * { flex: none; }
+.home-grid .main-card-chat > .main-card-scroll { flex: 1 1 auto; min-height: 72px; max-height: none; }
 .home-card-cell > .card { flex: 1; min-width: 0; }
 .home-card-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .recent-runs li { display: flex; flex-direction: column; align-items: flex-start; }
