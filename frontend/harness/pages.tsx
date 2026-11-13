@@ -1185,6 +1185,9 @@ g.go = { app: {
     ] : [
       { kind: "user_turn", time: "2026-10-20T19:00:00Z", text: "Could you word a note asking my neighbour to keep the hallway clear?" },
       { kind: "tool_call", time: "2026-10-20T19:00:01Z", text: "fs_read" },
+      // A message sent while the agent answered, which joined the turn.
+      { kind: "steer", time: "2026-10-20T19:00:02Z", text: "Keep it short and friendly" },
+      { kind: "steered", time: "2026-10-20T19:00:02Z" },
       { kind: "assistant_turn", time: "2026-10-20T19:00:03Z", text: "Here is one: *Hi, could we keep the hallway clear? Thanks!*" },
       // What it did on its own since: two runs of a task and a compaction,
       // which the chat folds into one line.
@@ -1217,6 +1220,8 @@ g.go = { app: {
     Start: async () => harnessAssistant,
     Stop: async () => harnessAssistant,
     Send: async () => {},
+    // A message during the person's turn joins it, as on the Agentry harness.
+    Steer: async () => "sent",
     Configure: async () => harnessAssistant,
     ChooseShare: async () => harnessAssistant,
     AddServer: async () => harnessAssistant,

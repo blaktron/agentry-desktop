@@ -21,8 +21,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChatAnnouncer, sayTermBlock } from "../chatAnnounce";
 import * as PersistentAPI from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { sendToAgent, startAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
-import { AGENT_STATES, agentStateWords, isLive, notAppliedWords, pendingChange, runningInBackground, showsStop, subagentRunsShown, subagentRunWords, termBlocks } from "../persistentAgents";
+import { sendToAgent, startAgent, steerAgent, stopStart, stopTurn, updateAgent, useAgentChat, useAgents } from "../agents";
+import { AGENT_HELD_NOTE, AGENT_STATES, agentStateWords, isLive, notAppliedWords, pendingChange, runningInBackground, showsStop, subagentRunsShown, subagentRunWords, termBlocks } from "../persistentAgents";
 import { agentUsageRows } from "../usage";
 import { AGENT_VIEWS, agentView, DEFAULT_AGENT_VIEW, usageLine, type AgentViewId } from "../agentView";
 import { Button, ErrorBox, Modal } from "../ui";
@@ -45,6 +45,8 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
   const [note, setNote] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   const [stopping, setStopping] = useState(false);
+  // The turn in flight took no message: the text stays, and the note says why.
+  const [held, setHeld] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [viewId, setViewId] = useState<AgentViewId>(DEFAULT_AGENT_VIEW);
   const [showRoster, setShowRoster] = useState(false);
@@ -111,9 +113,22 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
   if (!agent) return <p className="muted">Reading the agent…</p>;
   const running = isLive(agent);
   const answering = rec.sending || rec.chat.busy;
+  // A message while the agent answers the person's own turn goes into that
+  // turn; on a turn the agent runs on its own the text stays.
   const send = async () => {
     const text = draft.trim();
-    if (!text || answering || !running) return;
+    if (!text || !running) return;
+    if (answering) {
+      if (!rec.sending) {
+        setHeld(true);
+        return;
+      }
+      const r = await steerAgent(name, text);
+      setHeld(r === "held");
+      if (r === "sent") setDraft("");
+      return;
+    }
+    setHeld(false);
     setDraft("");
     await sendToAgent(name, text);
   };
@@ -206,6 +221,7 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
         {agent.notApplied && running && <p className="agent-term-pending">{notAppliedWords(agent.notApplied)}</p>}
         {(rec.error || error) && <ErrorBox error={rec.error || error} />}
         {note && <p className="small muted">{note}</p>}
+        {held && answering && <p className="muted small" role="status" data-held-note>{AGENT_HELD_NOTE}</p>}
         <form
           className="agent-term-prompt"
           onSubmit={(e) => {
@@ -228,12 +244,11 @@ export default function PersistentAgentPage({ name, registry, onOpenRun }: { nam
               }
             }}
           />
-          {showsStop(agent, answering) ? (
+          <Button type="submit" variant="primary" disabled={!running || !draft.trim()}>Send</Button>
+          {showsStop(agent, answering) && (
             <Button type="button" busy={stopping} busyLabel="Stopping…" onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
               Stop
             </Button>
-          ) : (
-            <Button type="submit" variant="primary" disabled={!running || !draft.trim()}>Send</Button>
           )}
           <Button type="button" onClick={addFiles} title="Copy files into the agent's share folder">Add file</Button>
         </form>
