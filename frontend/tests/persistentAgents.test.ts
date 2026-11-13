@@ -34,6 +34,7 @@ import {
   coderRunning,
   enableOutcome,
   termBlocks,
+  AGENT_HELD_NOTE,
   runningInBackground,
   runSummary,
   backgroundSummary,
@@ -564,4 +565,32 @@ test("the server search's note", () => {
   assert.match(serverSearchNote({ query: "x y", total: 2, shown: 2, partial: true }), /^Nothing matches every word/);
   assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "Error: this registry has no MCP server list" }), /has no MCP server list to search/);
   assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "timeout" }), /could not be searched: timeout/);
+});
+
+test("a message sent during the person's turn is drawn as sent during it, then as joined, and the turn goes on", () => {
+  let c = newAgentChat();
+  for (const ev of [
+    { kind: "user_turn", time: t, text: "Summarise the two files" },
+    { kind: "tool_call", time: t, text: "fs_read" },
+    { kind: "steer", time: t, text: "and say which is longer" },
+  ]) c = applyAgentEvent(c, ev, now);
+  assert.equal(c.busy, true, "the turn is still in flight");
+  assert.deepEqual(termBlocks(c).filter((b) => b.kind === "person"), [
+    { kind: "person", text: "Summarise the two files" },
+    { kind: "person", text: "and say which is longer", during: "waiting" },
+  ]);
+  c = applyAgentEvent(c, { kind: "steered", time: t }, now);
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "The second is longer." }, now);
+  const blocks = termBlocks(c);
+  assert.deepEqual(blocks.filter((b) => b.kind === "person")[1], { kind: "person", text: "and say which is longer", during: "joined" });
+  assert.deepEqual(blocks[blocks.length - 1], { kind: "agent", text: "The second is longer." });
+  // The transcript, read again, draws it the same way.
+  const again = chatFromTranscript([
+    { kind: "user_turn", time: t, text: "Summarise the two files" },
+    { kind: "steer", time: t, text: "and say which is longer" },
+    { kind: "steered", time: t },
+    { kind: "assistant_turn", time: t, text: "The second is longer." },
+  ], now);
+  assert.deepEqual(termBlocks(again).filter((b) => b.kind === "person")[1], { kind: "person", text: "and say which is longer", during: "joined" });
+  assert.match(AGENT_HELD_NOTE, /Your text stays here/);
 });

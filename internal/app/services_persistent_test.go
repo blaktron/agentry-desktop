@@ -36,6 +36,9 @@ type fakeAgent struct {
 	sendErr      error
 	interruptErr error
 	interrupts   int
+	// steered is each text Steer took, which answers steerErr.
+	steered  []string
+	steerErr error
 }
 
 func newFakeAgent() *fakeAgent {
@@ -64,6 +67,15 @@ func (f *fakeAgent) Interrupt(context.Context) error {
 	defer f.mu.Unlock()
 	f.interrupts++
 	return f.interruptErr
+}
+func (f *fakeAgent) Steer(_ context.Context, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.steerErr != nil {
+		return f.steerErr
+	}
+	f.steered = append(f.steered, text)
+	return nil
 }
 func (f *fakeAgent) Done() <-chan struct{} { return f.done }
 func (f *fakeAgent) Stop(context.Context) (*receipt.Envelope, error) {

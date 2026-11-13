@@ -4,7 +4,7 @@
 // tests share it. Every text here is data the agent or the person wrote, or
 // the runner's sentence, drawn as text.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { applyEvent, newChat, type Chat, type SessionEvent } from "./sessionChat.ts";
+import { applyEvent, newChat, type Chat, type During, type SessionEvent } from "./sessionChat.ts";
 
 /** The states an agent's view reads. */
 export const AGENT_STATES = { disabled: "disabled", stopped: "stopped", starting: "starting", running: "running", elsewhere: "elsewhere" } as const;
@@ -74,7 +74,7 @@ export function chatFromTranscript(events: SessionEvent[], now: number): AgentCh
  *  the person (a reminder) is the agent's message, drawn whole after the
  *  folded line, never inside it. */
 export type TermBlock =
-  | { kind: "person"; text: string }
+  | { kind: "person"; text: string; during?: During }
   | { kind: "agent"; text: string; told?: boolean }
   | { kind: "tools"; names: string[] }
   | { kind: "note"; text: string }
@@ -135,7 +135,7 @@ export function termBlocks(c: Pick<Chat, "lines" | "busy">): TermBlock[] {
       run = null;
       if (l.synthetic && !l.task && !l.upkeep) continue;
       if (!l.task && !l.upkeep) {
-        blocks.push({ kind: "person", text: l.text });
+        blocks.push(l.during ? { kind: "person", text: l.text, during: l.during } : { kind: "person", text: l.text });
         continue;
       }
       run = l.upkeep ? upkeepRun(l.text) : { kind: "task", ...taskTurn(l.text), memory: false, blocks: [], answer: "", running: false };
@@ -398,6 +398,12 @@ export function shareCheckWords(coder: boolean, malwareCheck: boolean): string {
 export function showsStop(agent: Pick<app.PersistentAgentView, "state">, answering: boolean, starting = false): boolean {
   return answering && !starting && isLive(agent);
 }
+
+/** AGENT_HELD_NOTE is what the composer says when the agent's turn in flight
+ *  takes no message: one it runs on its own (a task, a messenger's message,
+ *  upkeep), or any turn on a harness that takes a message only between
+ *  turns. The text stays, to send once the turn ends. */
+export const AGENT_HELD_NOTE = "The agent is on a turn that takes no message now: one it runs on its own, or any turn on a harness that takes a message only between turns. Your text stays here: send it once the turn ends.";
 
 /** notAppliedWords tells the person that the running agent could not start
  *  its next turn with their last change, and went on without what it added. */

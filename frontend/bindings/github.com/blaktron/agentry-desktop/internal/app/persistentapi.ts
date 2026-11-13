@@ -615,6 +615,20 @@ export function StartsAtSignIn(): $CancellablePromise<boolean> {
 }
 
 /**
+ * Steer hands the person's message to the chat turn the agent is answering,
+ * as a QuickAgent chat's composer does: the harness adds it to the
+ * conversation and the turn goes on with it, and the segment records it as
+ * a steer event. It answers what became of it: SteerSent; SteerNoTurn when
+ * no chat turn is in flight, and the page sends the text as a turn; or
+ * SteerBetweenTurns when the turn in flight is the agent's own or its
+ * harness takes a message only between turns, and the page keeps the text.
+ * An agent another client runs takes it through its supervisor's socket.
+ */
+export function Steer(name: string, text: string): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Steer", name, text);
+}
+
+/**
  * Stop stops an agent this app runs: its segment ends without a final
  * result and its volumes stay, so the next start continues the
  * conversation. An agent still starting has its start cancelled, which
