@@ -34,6 +34,7 @@ import {
   coderRunning,
   enableOutcome,
   termBlocks,
+  AGENT_HELD_NOTE,
   runningInBackground,
   runSummary,
   backgroundSummary,
@@ -53,6 +54,7 @@ import {
   showsStop,
   upkeepWords,
   compactingWords,
+  compactedWords,
 } from "../src/persistentAgents.ts";
 
 const t = "2026-10-20T19:00:00Z";
@@ -150,6 +152,16 @@ test("an upkeep turn is the runner's, never the person's: one folded line saying
   assert.equal(runSummary((handoffOnly[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Compacted the conversation: went on in a fresh one with a handoff");
   const tidy = termBlocks(chatFromTranscript([{ kind: "user_turn", time: t, text: "Upkeep: consolidate your memory (memory-consolidate).", upkeep: true }, { kind: "assistant_turn", time: t, text: "done" }], now));
   assert.equal(runSummary((tidy[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0]), "Tidied its memory");
+  // The save that follows a compaction the harness made in place is a save,
+  // not another compaction.
+  const saveText = "Upkeep: save the compacted conversation to memory (memory-compact).";
+  const save = termBlocks(chatFromTranscript([{ kind: "user_turn", time: t, text: saveText, upkeep: true }, { kind: "assistant_turn", time: t, text: "Saved two facts." }], now));
+  const saveRun = (save[0] as { runs: Parameters<typeof runSummary>[0][] }).runs[0];
+  assert.equal(saveRun.kind, "save");
+  assert.equal(runSummary(saveRun), "Saved the compacted conversation to memory");
+  assert.equal(runSummary({ ...saveRun, answer: "" }), "Saving the compacted conversation to memory did not finish: the summary keeps what it was to save");
+  assert.equal(runSummary({ ...saveRun, running: true }), "Saving the compacted conversation to memory…");
+  assert.equal(backgroundSummary([saveRun, saveRun]), "On its own, the compacted conversation was saved to memory twice. Latest: Saved the compacted conversation to memory");
 });
 
 test("what a task's run tells the person is the agent's message after the folded line, its work still folded, live and from the transcript", () => {
@@ -427,14 +439,30 @@ test("the Configuration names the memory's last upkeep: when, why, and what came
   assert.match(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "consolidate", done: false, reason: "the memory has not changed since it was last consolidated" }, now),
     /did not run: the memory has not changed/);
   assert.doesNotMatch(upkeepWords({ time: new Date("2026-10-20T09:05:00").toISOString(), trigger: "manual", done: true }, now), /today/);
+  // A compaction the running harness made in place opened no fresh
+  // conversation, and a save after it that did not finish is said.
+  assert.match(upkeepWords({ time: at, trigger: "in-use", done: true, inPlace: true }, now),
+    /^Last compacted today at .*, as its conversation grew large: the running harness summarised the conversation in place\.$/);
+  assert.match(upkeepWords({ time: at, trigger: "cold", done: true, inPlace: true, saveFailed: "prompt: context deadline exceeded" }, now),
+    /after a long pause: the running harness summarised the conversation in place\. Saving it to memory did not finish: prompt: context deadline exceeded\.$/);
 });
 
 test("Compact now says what a compaction does, naming a memory only for an agent that keeps one", () => {
   const withMemory = compactingWords(true);
-  assert.match(withMemory, /saves this conversation to its memory first/);
+  assert.match(withMemory, /saved to the agent's memory/);
+  assert.match(withMemory, /up to half an hour on a model server of your own/);
   const without = compactingWords(false);
-  assert.match(without, /writes a handoff/);
+  assert.match(without, /in place or in a handoff/);
   assert.doesNotMatch(without, /memory/);
+});
+
+test("Compact now says what the compaction did: in place, with or without the save, or a fresh conversation", () => {
+  assert.equal(compactedWords({ inPlace: true }, true), "Compacted: the running harness replaced the conversation with a summary of it, and what it holds of lasting use is saved to memory.");
+  assert.equal(compactedWords({ inPlace: true }, false), "Compacted: the running harness replaced the conversation with a summary of it.");
+  assert.equal(compactedWords({ inPlace: true, saveFailed: "prompt: context deadline exceeded" }, true),
+    "Compacted: the running harness replaced the conversation with a summary of it, but saving it to memory did not finish: prompt: context deadline exceeded. The summary keeps what it was to save.");
+  assert.equal(compactedWords({}, true), "Compacted: a fresh conversation opens with the agent's handoff.");
+  assert.equal(compactedWords(null, false), "Compacted: a fresh conversation opens with the agent's handoff.");
 });
 
 test("a turn that fails ends the turn: the chat stops thinking and takes the person's next message", () => {
@@ -564,4 +592,32 @@ test("the server search's note", () => {
   assert.match(serverSearchNote({ query: "x y", total: 2, shown: 2, partial: true }), /^Nothing matches every word/);
   assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "Error: this registry has no MCP server list" }), /has no MCP server list to search/);
   assert.match(serverSearchNote({ query: "x", total: 0, shown: 0, partial: false, error: "timeout" }), /could not be searched: timeout/);
+});
+
+test("a message sent during the person's turn is drawn as sent during it, then as joined, and the turn goes on", () => {
+  let c = newAgentChat();
+  for (const ev of [
+    { kind: "user_turn", time: t, text: "Summarise the two files" },
+    { kind: "tool_call", time: t, text: "fs_read" },
+    { kind: "steer", time: t, text: "and say which is longer" },
+  ]) c = applyAgentEvent(c, ev, now);
+  assert.equal(c.busy, true, "the turn is still in flight");
+  assert.deepEqual(termBlocks(c).filter((b) => b.kind === "person"), [
+    { kind: "person", text: "Summarise the two files" },
+    { kind: "person", text: "and say which is longer", during: "waiting" },
+  ]);
+  c = applyAgentEvent(c, { kind: "steered", time: t }, now);
+  c = applyAgentEvent(c, { kind: "assistant_turn", time: t, text: "The second is longer." }, now);
+  const blocks = termBlocks(c);
+  assert.deepEqual(blocks.filter((b) => b.kind === "person")[1], { kind: "person", text: "and say which is longer", during: "joined" });
+  assert.deepEqual(blocks[blocks.length - 1], { kind: "agent", text: "The second is longer." });
+  // The transcript, read again, draws it the same way.
+  const again = chatFromTranscript([
+    { kind: "user_turn", time: t, text: "Summarise the two files" },
+    { kind: "steer", time: t, text: "and say which is longer" },
+    { kind: "steered", time: t },
+    { kind: "assistant_turn", time: t, text: "The second is longer." },
+  ], now);
+  assert.deepEqual(termBlocks(again).filter((b) => b.kind === "person")[1], { kind: "person", text: "and say which is longer", during: "joined" });
+  assert.match(AGENT_HELD_NOTE, /Your text stays here/);
 });

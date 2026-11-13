@@ -1,6 +1,20 @@
 {
   "versions": [
     {
+      "version": "0.7.48",
+      "highlights": [
+        "Compact now works for agents on the Agentry harness, and waits as long as a slow model server of your own needs.",
+        "The agent card on Home keeps its message box in view, however long the conversation grows."
+      ]
+    },
+    {
+      "version": "0.7.47",
+      "highlights": [
+        "In an agent's chat, a message you send while it answers you goes into that answer when its harness allows.",
+        "The agent's chat keeps Stop beside Send while it answers, and says why when a message has to wait."
+      ]
+    },
+    {
       "version": "0.7.46",
       "highlights": [
         "In a QuickAgent chat, a message you send while the agent answers goes into that answer where its harness allows.",

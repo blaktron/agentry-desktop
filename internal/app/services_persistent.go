@@ -290,6 +290,7 @@ type agentSupervisor interface {
 	Stop(ctx context.Context) (*receipt.Envelope, error)
 	Compact(ctx context.Context) (persistent.Compacted, error)
 	Interrupt(ctx context.Context) error
+	Steer(ctx context.Context, text string) error
 }
 
 // PersistentAgentView is how an agent stands, for Settings and its page.
@@ -404,10 +405,16 @@ type PersistentUpkeepView struct {
 	Time time.Time `json:"time"`
 	// Trigger is idle, in-use, manual or consolidate.
 	Trigger string `json:"trigger"`
-	// Done says it finished: a compaction started a fresh conversation, a
-	// tidy ran. Reason is why not when it did not.
-	Done        bool   `json:"done"`
-	Reason      string `json:"reason,omitempty"`
+	// Done says it finished: a compaction started a fresh conversation or
+	// was made in place, a tidy ran. Reason is why not when it did not.
+	Done   bool   `json:"done"`
+	Reason string `json:"reason,omitempty"`
+	// InPlace says the running harness summarised the conversation in
+	// place, and no fresh conversation opened.
+	InPlace bool `json:"inPlace,omitempty"`
+	// SaveFailed says why the save to memory after a compaction in place
+	// did not finish; the compaction stands.
+	SaveFailed  string `json:"saveFailed,omitempty"`
 	FactsBefore int    `json:"factsBefore"`
 	FactsAfter  int    `json:"factsAfter"`
 }
@@ -417,11 +424,13 @@ func upkeepView(r *persistent.UpkeepRecord) *PersistentUpkeepView {
 	if r == nil {
 		return nil
 	}
-	done := r.Swapped
+	inPlace := r.Swap == persistent.SwapInPlace
+	done := r.Swapped || (inPlace && r.Reason == "")
 	if r.Trigger == persistent.UpkeepConsolidate {
-		done = r.Reason == ""
+		done, inPlace = r.Reason == "", false
 	}
-	return &PersistentUpkeepView{Time: r.Time, Trigger: r.Trigger, Done: done, Reason: r.Reason, FactsBefore: r.FactsBefore, FactsAfter: r.FactsAfter}
+	return &PersistentUpkeepView{Time: r.Time, Trigger: r.Trigger, Done: done, Reason: r.Reason, InPlace: inPlace, SaveFailed: r.SaveFailed,
+		FactsBefore: r.FactsBefore, FactsAfter: r.FactsAfter}
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the
@@ -1474,6 +1483,59 @@ func (p *PersistentAPI) Send(name, text string) error {
 		return err
 	}
 	return nil
+}
+
+// steerWait bounds how long a message sent during a turn may take to reach
+// the harness of an agent another client runs.
+const steerWait = 15 * time.Second
+
+// Steer hands the person's message to the chat turn the agent is answering,
+// as a QuickAgent chat's composer does: the harness adds it to the
+// conversation and the turn goes on with it, and the segment records it as
+// a steer event. It answers what became of it: SteerSent; SteerNoTurn when
+// no chat turn is in flight, and the page sends the text as a turn; or
+// SteerBetweenTurns when the turn in flight is the agent's own or its
+// harness takes a message only between turns, and the page keeps the text.
+// An agent another client runs takes it through its supervisor's socket.
+func (p *PersistentAPI) Steer(name, text string) (string, error) {
+	a, err := p.agent(name)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", errors.New("the message is empty")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), steerWait)
+	defer cancel()
+	var st session.Steerer
+	if sv, ok := p.running(a.Name); ok {
+		st = sv
+	} else {
+		home, err := p.home()
+		if err != nil {
+			return "", err
+		}
+		if held, _ := p.heldElsewhere(home, a.Name); !held {
+			return "", fmt.Errorf("the %s is not running: start it first", a.Title)
+		}
+		s := p.viewerOf(home, a.Name)
+		if s == nil {
+			return "", fmt.Errorf("the %s is running in another client and does not answer yet: try again in a moment", a.Title)
+		}
+		if st, ok = s.(session.Steerer); !ok {
+			return SteerBetweenTurns, nil
+		}
+	}
+	err = st.Steer(ctx, text)
+	switch {
+	case err == nil:
+		return SteerSent, nil
+	case errors.Is(err, session.ErrNoTurn):
+		return SteerNoTurn, nil
+	case errors.Is(err, session.ErrCannotSteer):
+		return SteerBetweenTurns, nil
+	}
+	return "", err
 }
 
 // interruptWait bounds how long a turn may take to stop once its harness is

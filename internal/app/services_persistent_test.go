@@ -36,6 +36,9 @@ type fakeAgent struct {
 	sendErr      error
 	interruptErr error
 	interrupts   int
+	// steered is each text Steer took, which answers steerErr.
+	steered  []string
+	steerErr error
 }
 
 func newFakeAgent() *fakeAgent {
@@ -64,6 +67,15 @@ func (f *fakeAgent) Interrupt(context.Context) error {
 	defer f.mu.Unlock()
 	f.interrupts++
 	return f.interruptErr
+}
+func (f *fakeAgent) Steer(_ context.Context, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.steerErr != nil {
+		return f.steerErr
+	}
+	f.steered = append(f.steered, text)
+	return nil
 }
 func (f *fakeAgent) Done() <-chan struct{} { return f.done }
 func (f *fakeAgent) Stop(context.Context) (*receipt.Envelope, error) {
@@ -783,6 +795,30 @@ func TestCompactNowCompactsTheRunningAgent(t *testing.T) {
 	}
 	if c := v.LastConsolidation; c == nil || !c.Done || c.FactsAfter != 13 {
 		t.Errorf("the view's last consolidation = %+v", c)
+	}
+
+	// A harness that summarises its own conversation compacts in place: no
+	// fresh conversation opens, and the compaction still finished. A save to
+	// memory after it that did not finish leaves it finished.
+	if err := os.WriteFile(filepath.Join(dir, "upkeep.ndjson"), []byte(
+		`{"time":"2026-10-25T13:00:00Z","trigger":"manual","swapped":false,"swap":"in-place","factsBefore":13,"factsAfter":15}`+"\n"+
+			`{"time":"2026-10-25T14:00:00Z","trigger":"in-use","swapped":false,"swap":"in-place","factsBefore":-1,"factsAfter":-1,"saveFailed":"prompt: context deadline exceeded"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rig.agent.compacted = persistent.Compacted{Trigger: persistent.UpkeepManual, Swap: persistent.SwapInPlace, FactsBefore: 13, FactsAfter: 15}
+	v, err = rig.p.Compact("assistant")
+	if err != nil {
+		t.Fatalf("a compaction in place: %v", err)
+	}
+	if c := v.LastCompaction; c == nil || !c.Done || !c.InPlace || c.Trigger != persistent.UpkeepInUse || c.SaveFailed != "prompt: context deadline exceeded" {
+		t.Errorf("the view's last compaction in place = %+v", c)
+	}
+	rig.agent.compacted = persistent.Compacted{Trigger: persistent.UpkeepManual, Swap: persistent.SwapInPlace, Reason: "the harness's own compaction failed: compact: refused"}
+	if _, err := rig.p.Compact("assistant"); err == nil || !strings.Contains(err.Error(), "compact: refused") {
+		t.Fatalf("a compaction in place that failed: %v", err)
+	}
+	if compactWait < persistent.CompactWait {
+		t.Errorf("Compact now waits %v, less than the CLI's %v", compactWait, persistent.CompactWait)
 	}
 }
 

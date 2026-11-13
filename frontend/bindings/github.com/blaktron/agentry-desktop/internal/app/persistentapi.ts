@@ -154,12 +154,15 @@ export function ChooseShare(name: string): $CancellablePromise<$models.Persisten
 }
 
 /**
- * Compact compacts the agent's conversation now: it writes a handoff, after
- * saving what the conversation produced to its memory when it keeps one, and
- * goes on in a fresh conversation that opens with the handoff. The chat is
- * told while it runs, and a message sent meanwhile waits for it. An agent
- * another client runs is compacted through its supervisor's socket. A
- * compaction that did not finish is an error that says why.
+ * Compact compacts the agent's conversation now. On a harness that
+ * summarises its own conversation, the harness replaces it with a summary in
+ * place, and an agent that keeps a memory then saves what the summary holds;
+ * on any other, the agent writes a handoff, after saving what the
+ * conversation produced to its memory when it keeps one, and goes on in a
+ * fresh conversation that opens with the handoff. The chat is told while it
+ * runs, and a message sent meanwhile waits for it. An agent another client
+ * runs is compacted through its supervisor's socket. A compaction that did
+ * not finish is an error that says why.
  */
 export function Compact(name: string): $CancellablePromise<$models.PersistentAgentView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Compact", name).then(($result: any) => {
@@ -612,6 +615,20 @@ export function Start(name: string): $CancellablePromise<$models.PersistentAgent
  */
 export function StartsAtSignIn(): $CancellablePromise<boolean> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.StartsAtSignIn");
+}
+
+/**
+ * Steer hands the person's message to the chat turn the agent is answering,
+ * as a QuickAgent chat's composer does: the harness adds it to the
+ * conversation and the turn goes on with it, and the segment records it as
+ * a steer event. It answers what became of it: SteerSent; SteerNoTurn when
+ * no chat turn is in flight, and the page sends the text as a turn; or
+ * SteerBetweenTurns when the turn in flight is the agent's own or its
+ * harness takes a message only between turns, and the page keeps the text.
+ * An agent another client runs takes it through its supervisor's socket.
+ */
+export function Steer(name: string, text: string): $CancellablePromise<string> {
+    return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Steer", name, text);
 }
 
 /**

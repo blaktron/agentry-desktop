@@ -18,11 +18,13 @@ import (
 
 // fakeRemote is the app's chat with an agent another client runs.
 type fakeRemote struct {
-	mu     sync.Mutex
-	sent   []string
-	busy   bool
-	ended  bool
-	events chan session.Event
+	mu       sync.Mutex
+	steered  []string
+	steerErr error
+	sent     []string
+	busy     bool
+	ended    bool
+	events   chan session.Event
 }
 
 func (f *fakeRemote) Events() <-chan session.Event { return f.events }
@@ -36,6 +38,15 @@ func (f *fakeRemote) Send(_ context.Context, text string) error {
 	return nil
 }
 func (f *fakeRemote) AddInput(context.Context, string) error { return errors.New("no files") }
+func (f *fakeRemote) Steer(_ context.Context, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.steerErr != nil {
+		return f.steerErr
+	}
+	f.steered = append(f.steered, text)
+	return nil
+}
 func (f *fakeRemote) End(context.Context, bool) (*receipt.Envelope, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

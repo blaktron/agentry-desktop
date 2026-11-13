@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatAnnouncer, sayTermBlock } from "../../chatAnnounce";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
-import { agentNamed, pickHomeAgent, sendToAgent, startAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
+import { agentNamed, pickHomeAgent, sendToAgent, startAgent, steerAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, agentModelLine, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
+import { AGENT_HELD_NOTE, AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
 import { Button } from "../../ui";
 import { AgentTermBlocks } from "../AgentTerm";
 import { AgentConfigModal } from "../SettingsPersistentAgents";
@@ -39,6 +39,8 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
   const [starting, setStarting] = useState(false);
   const [picking, setPicking] = useState(false);
   const [stopping, setStopping] = useState(false);
+  // The turn in flight took no message: the text stays, and the note says why.
+  const [held, setHeld] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The agent's settings, opened from its model line.
   const [configuring, setConfiguring] = useState(false);
@@ -68,8 +70,21 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || answering || !agent) return;
+    if (!text || starting || !agent) return;
     setError(null);
+    // A message while the agent answers the person's own turn goes into that
+    // turn; on a turn the agent runs on its own the text stays.
+    if (answering) {
+      if (!rec.sending) {
+        setHeld(true);
+        return;
+      }
+      const r = await steerAgent(name, text);
+      setHeld(r === "held");
+      if (r === "sent") setDraft("");
+      return;
+    }
+    setHeld(false);
     if (!running) {
       // The first message starts the agent; Go asks natively first where its
       // folders have not been agreed to on this computer.
@@ -161,14 +176,14 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
             placeholder={noModel ? "Set up a model first" : `Message ${called}`}
             onChange={(e) => setDraft(e.target.value)}
           />
-          {agent && showsStop(agent, answering, starting) ? (
+          <Button type="submit" variant="primary" disabled={noModel || elsewhere || starting || !draft.trim()}>Send</Button>
+          {agent && showsStop(agent, answering, starting) && (
             <Button type="button" busy={stopping} busyLabel="Stopping…" onClick={() => void stop()} title="Stop this turn. The agent keeps running.">
               Stop
             </Button>
-          ) : (
-            <Button type="submit" variant="primary" disabled={noModel || elsewhere || answering || !draft.trim()}>Send</Button>
           )}
         </form>
+        {held && answering && <p className="muted small" role="status" data-held-note>{AGENT_HELD_NOTE}</p>}
       </div>
       {configuring && <AgentConfigModal name={name} registry={registry} onClose={() => setConfiguring(false)} />}
     </CardFrame>

@@ -9,6 +9,7 @@
 import type { ReactNode } from "react";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { backgroundSummary, runSummary, toolsSummary, type BackgroundRun, type TermBlock } from "../persistentAgents";
+import { DURING_WORDS } from "../sessionChat";
 
 /** How the person's and the agent's lines are drawn: in a terminal's
  *  manner when absent, as chat bubbles under these names when given. */
@@ -29,9 +30,11 @@ export function AgentBubble({ who, streaming, children }: { who: string; streami
 
 function Block({ b, bubbles }: { b: TermBlock; bubbles: Bubbles }) {
   switch (b.kind) {
-    case "person":
-      if (bubbles) return <div className="chat-msg user agent-chat-msg"><div className="chat-bubble"><div className="chat-who">You</div>{b.text}</div></div>;
-      return <div className="agent-term-person"><span aria-hidden="true">&gt; </span>{b.text}</div>;
+    case "person": {
+      const during = b.during ? DURING_WORDS[b.during] : "";
+      if (bubbles) return <div className="chat-msg user agent-chat-msg" data-during={b.during}><div className="chat-bubble"><div className="chat-who">You{during && <span className="muted small"> · {during}</span>}</div>{b.text}</div></div>;
+      return <div className="agent-term-person" data-during={b.during}><span aria-hidden="true">&gt; </span>{b.text}{during && <span className="muted small"> ({during})</span>}</div>;
+    }
     case "agent":
       if (bubbles) return <AgentBubble who={bubbles.agent}><AgentMarkdown text={b.text} /></AgentBubble>;
       return <div className="agent-term-agent"><AgentMarkdown text={b.text} /></div>;

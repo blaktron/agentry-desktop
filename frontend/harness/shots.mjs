@@ -493,7 +493,7 @@ const states = [
   { name: "agents-page-calendar-rename", url: "/pages.html", note: "a calendar feed's menu: Rename and Remove, and Rename's field on the card", locator: ".modal", click: ['[data-preview="agents"] .persistent-agent-card button:has-text("Configure")', '.modal [aria-label="Family (calendar feed): options"]', 'text=Rename'], expectSelector: '.modal [aria-label="Rename Family"] input[aria-label="New name"]', expectText: ["Rename", "Cancel"] },
   { name: "agents-page-account", url: "/pages.html", note: "the Coding agent's Add an account: whose account first, its guidance, then the host, user, commit identity and token", locator: ".modal", click: ['[data-preview="agents"] .persistent-agent-card:has-text("Coding agent") button:has-text("Configure")', '.modal .config-card-add:has-text("Add an account")', '.modal label:has-text("Its own account")'], expectText: ["Whose account is it?", "Its own account (recommended)", "taking access away is removing a collaborator", "Commit email", "Keep the account"] },
   { name: "agents-page-add-server", url: "/pages.html", note: "the Assistant's Add a server: its suggestions first, then a package or an address", locator: ".modal", click: ['[data-preview="agents"] .persistent-agent-card button:has-text("Configure")', '.modal .config-card-add:has-text("Add a server")'], expectText: ["Suggested for the Assistant", "Weather (Open-Meteo)", "Maps (OpenStreetMap)", "Add server"] },
-  { name: "persistent-agent-page", url: "/pages.html", note: "the Assistant's page: the chat from its transcript in a terminal's manner, the usage panel saying 'not reported' and 'unknown' for what the harness gave nothing, and its cards, with no Add card", locator: '[data-preview="persistent"]', expectText: ["Sandra", "Could you word a note", "1 tool call: fs_read", "Usage", "not reported", "unknown", "What it has", "Share folder", "Wikipedia"] },
+  { name: "persistent-agent-page", url: "/pages.html", note: "the Assistant's page: the chat from its transcript in a terminal's manner, the usage panel saying 'not reported' and 'unknown' for what the harness gave nothing, and its cards, with no Add card", locator: '[data-preview="persistent"]', expectText: ["Sandra", "Could you word a note", "Keep it short and friendly", "joined the turn", "1 tool call: fs_read", "Usage", "not reported", "unknown", "What it has", "Share folder", "Wikipedia"] },
   { name: "persistent-agent-subagent-runs-few", url: "/pages.html?subagentruns=4", note: "four subagent runs: the usage panel lists all four and offers no See more", locator: '[data-preview="persistent"] .agent-usage',
     expectText: ["Subagent runs", "running since", "did not run", "finished"], expectCount: ['[data-preview="persistent"] [data-subagent-runs] li', 4], expectNone: '[data-preview="persistent"] .agent-subagent-runs-more' },
   { name: "persistent-agent-subagent-runs-capped", url: "/pages.html?subagentruns=12", note: "twelve subagent runs: the usage panel lists the five newest, then See more…", locator: '[data-preview="persistent"] .agent-usage',
@@ -725,6 +725,8 @@ const states = [
     expectSelector: '[data-preview="home"] [data-home-card="recent-runs"][data-cols="3"][data-rows="3"]' },
   { name: "page-home-agent-assistant", url: "/pages.html?homeagent=assistant", note: "Home's agent card given the Assistant: its name, its own chat, and its switcher", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
     expectSelector: '[data-preview="home"] [data-home-agent="assistant"]', expectText: ["Sandra", "Could you word a note asking my neighbour"] },
+  { name: "page-home-agent-composer", url: "/pages.html?homeagent=assistant", note: "a conversation longer than the card holds: the conversation scrolls inside the card, and the line to type in stays at the card's foot, in view", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
+    expectInside: ['[data-preview="home"] [data-home-card="main"] .main-card-prompt', '[data-preview="home"] [data-home-card="main"] .build-way-body'] },
   { name: "page-home-agent-default", url: "/pages.html", note: "the Assistant on and the Helper off: the card draws the Assistant, and its switcher does not offer the Helper", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
     expectSelector: '[data-preview="home"] [data-home-agent="assistant"]', expectNone: '[data-preview="home"] [data-home-agent-switch] option[value="main"]' },
   { name: "page-home-agent-helper", url: "/pages.html?helper=on", note: "the Helper on and the Assistant off: the card draws the Helper", wait: 1000, locator: '[data-preview="home"] [data-home-card="main"]',
@@ -1491,6 +1493,23 @@ try {
         if (widths.length === 0) throw new Error(`${state.name}: nothing matches ${sel}`);
         const narrow = widths.filter((w) => w < min);
         if (narrow.length) throw new Error(`${state.name}: ${narrow.length} of ${widths.length} ${sel} narrower than ${min}px (${narrow.map((w) => Math.round(w)).join(", ")})`);
+      }
+      if (state.expectInside) {
+        // A layout check: the first element lies wholly inside the second's
+        // box, as drawn, with nothing scrolled (a card's composer pushed
+        // into the card's hidden overflow fails it).
+        const [inner, outer] = state.expectInside;
+        const boxes = await page.evaluate(([i, o]) => {
+          const a = document.querySelector(i)?.getBoundingClientRect();
+          const b = document.querySelector(o)?.getBoundingClientRect();
+          return a && b ? { a: [a.top, a.bottom, a.left, a.right], b: [b.top, b.bottom, b.left, b.right] } : null;
+        }, [inner, outer]);
+        if (!boxes) throw new Error(`${state.name}: nothing matches ${inner} or ${outer}`);
+        const [at, ab, al, ar] = boxes.a;
+        const [bt, bb, bl, br] = boxes.b;
+        if (at < bt - 0.5 || ab > bb + 0.5 || al < bl - 0.5 || ar > br + 0.5) {
+          throw new Error(`${state.name}: ${inner} (${boxes.a.map(Math.round).join(",")}) is not inside ${outer} (${boxes.b.map(Math.round).join(",")})`);
+        }
       }
       if (state.expectValue) {
         const [sel, want] = state.expectValue;

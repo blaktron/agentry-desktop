@@ -120,6 +120,29 @@ export async function sendToAgent(name: string, text: string): Promise<void> {
   }
 }
 
+/** What became of a message sent while the agent answers the person's turn:
+ *  "sent" when the turn took it, or when no turn was in flight after all and
+ *  it went as the next turn; "held" when the turn takes no message, and the
+ *  composer keeps the text. */
+export type SteerResult = "sent" | "held";
+
+/** steerAgent hands the person's message to the chat turn the agent is
+ *  answering. The turn's steer event draws it, as "sent during the turn" and
+ *  then "joined the turn". With no turn in flight it is sent as a turn. A
+ *  refusal for any other reason is the record's error, and the text is kept. */
+export async function steerAgent(name: string, text: string): Promise<SteerResult> {
+  let answer: string;
+  try {
+    answer = await PersistentAPI.Steer(name, text);
+  } catch (e) {
+    put(name, { ...record(name), error: String(e) });
+    return "held";
+  }
+  if (answer === "between-turns") return "held";
+  if (answer === "no-turn") await sendToAgent(name, text);
+  return "sent";
+}
+
 /** useAgents is the list of agents, read on first use and kept current. */
 export function useAgents(): app.PersistentAgentView[] {
   const [, setBump] = useState(bump);
