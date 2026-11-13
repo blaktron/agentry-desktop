@@ -3,6 +3,7 @@
     {
       "version": "0.7.48",
       "highlights": [
+        "Compact now works for agents on the Agentry harness, and waits as long as a slow model server of your own needs.",
         "The agent card on Home keeps its message box in view, however long the conversation grows."
       ]
     },
