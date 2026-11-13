@@ -17,7 +17,7 @@ import type * as app from "../../bindings/github.com/blaktron/agentry-desktop/in
 import type * as run from "../../bindings/github.com/blaktron/agentry-desktop/internal/run/models";
 import { forgetChat, refreshAgents, setAgentEnabled, startAgent, stopStart, updateAgent, useAgents } from "../agents";
 import { helperSuperseded } from "../homeAgent";
-import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, publishedLine, shareCheckWords, upkeepWords, compactingWords } from "../persistentAgents";
+import { AGENT_STATES, ASSISTANT_AGENT, CODER_AGENT, CODER_WARNING, MAIN_AGENT, agentCalled, agentStateWords, chosenReset, isLive, enableOutcome, portFormOK, publishedLine, shareCheckWords, upkeepWords, compactingWords, compactedWords } from "../persistentAgents";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Textarea } from "../ui";
 import { ConfigCards } from "./ConfigCards";
 import { TasksView } from "./TasksView";
@@ -489,8 +489,9 @@ export function AgentConfigModal({ name, registry, onClose }: { name: string; re
             setError(null);
             setSaved(compactingWords(agent.keepsMemory));
             try {
-              updateAgent(await PersistentAPI.Compact(name));
-              setSaved("Compacted: a fresh conversation opens with the agent's handoff.");
+              const v = await PersistentAPI.Compact(name);
+              updateAgent(v);
+              setSaved(compactedWords(v.lastCompaction, agent.keepsMemory));
             } catch (e) {
               setSaved(null);
               setError(String(e));

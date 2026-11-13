@@ -7858,11 +7858,23 @@ export class PersistentUpkeepView {
     "trigger": string;
 
     /**
-     * Done says it finished: a compaction started a fresh conversation, a
-     * tidy ran. Reason is why not when it did not.
+     * Done says it finished: a compaction started a fresh conversation or
+     * was made in place, a tidy ran. Reason is why not when it did not.
      */
     "done": boolean;
     "reason"?: string;
+
+    /**
+     * InPlace says the running harness summarised the conversation in
+     * place, and no fresh conversation opened.
+     */
+    "inPlace"?: boolean;
+
+    /**
+     * SaveFailed says why the save to memory after a compaction in place
+     * did not finish; the compaction stands.
+     */
+    "saveFailed"?: string;
     "factsBefore": number;
     "factsAfter": number;
 

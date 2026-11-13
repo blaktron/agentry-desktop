@@ -154,12 +154,15 @@ export function ChooseShare(name: string): $CancellablePromise<$models.Persisten
 }
 
 /**
- * Compact compacts the agent's conversation now: it writes a handoff, after
- * saving what the conversation produced to its memory when it keeps one, and
- * goes on in a fresh conversation that opens with the handoff. The chat is
- * told while it runs, and a message sent meanwhile waits for it. An agent
- * another client runs is compacted through its supervisor's socket. A
- * compaction that did not finish is an error that says why.
+ * Compact compacts the agent's conversation now. On a harness that
+ * summarises its own conversation, the harness replaces it with a summary in
+ * place, and an agent that keeps a memory then saves what the summary holds;
+ * on any other, the agent writes a handoff, after saving what the
+ * conversation produced to its memory when it keeps one, and goes on in a
+ * fresh conversation that opens with the handoff. The chat is told while it
+ * runs, and a message sent meanwhile waits for it. An agent another client
+ * runs is compacted through its supervisor's socket. A compaction that did
+ * not finish is an error that says why.
  */
 export function Compact(name: string): $CancellablePromise<$models.PersistentAgentView> {
     return $Call.ByName("github.com/blaktron/agentry-desktop/internal/app.PersistentAPI.Compact", name).then(($result: any) => {

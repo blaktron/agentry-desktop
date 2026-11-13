@@ -82,7 +82,7 @@ export type TermBlock =
   | { kind: "background"; runs: BackgroundRun[] };
 
 /** What a run on the agent's own was: a task's, a compaction or a tidy. */
-export type BackgroundKind = "task" | "compaction" | "tidy";
+export type BackgroundKind = "task" | "compaction" | "save" | "tidy";
 
 /** One run on the agent's own: the turn the runner sent and what the
  *  agent did with it, its last answer apart. Running while it is the turn
@@ -115,12 +115,16 @@ function pushFolding(blocks: TermBlock[], b: TermBlock) {
 
 // upkeepRun is a run for an upkeep turn, read from the text the runner
 // sends: "Upkeep: consolidate your memory (memory-consolidate)." for a
-// tidy, "Upkeep: compact this conversation (memory-compact)." for a
-// compaction that saves to the memory, and without the skill's name for
-// one that writes a handoff only.
+// tidy, "Upkeep: save the compacted conversation to memory (memory-compact)."
+// for the save that follows a compaction the harness made in place,
+// "Upkeep: compact this conversation (memory-compact)." for a compaction
+// that saves to the memory, and without the skill's name for one that
+// writes a handoff only.
 function upkeepRun(text: string): BackgroundRun {
   const tidy = text.includes("memory-consolidate");
-  return { kind: tidy ? "tidy" : "compaction", name: "", instruction: text.trim(), memory: tidy || text.includes("memory-compact"), blocks: [], answer: "", running: false };
+  const save = text.includes("save the compacted conversation");
+  const kind: BackgroundKind = tidy ? "tidy" : save ? "save" : "compaction";
+  return { kind, name: "", instruction: text.trim(), memory: tidy || text.includes("memory-compact"), blocks: [], answer: "", running: false };
 }
 
 /** termBlocks is the chat as its page draws it. A run on the agent's own
@@ -212,6 +216,10 @@ export function runSummary(r: BackgroundRun): string {
       if (r.running) return r.memory ? "Compacting: saving this conversation to memory first…" : "Compacting: writing a handoff…";
       if (!r.answer) return "A compaction did not finish: the conversation went on as it was";
       return r.memory ? "Compacted the conversation: saved it to memory and went on in a fresh one" : "Compacted the conversation: went on in a fresh one with a handoff";
+    case "save":
+      if (r.running) return "Saving the compacted conversation to memory…";
+      if (!r.answer) return "Saving the compacted conversation to memory did not finish: the summary keeps what it was to save";
+      return "Saved the compacted conversation to memory";
     case "tidy":
       if (r.running) return "Tidying its memory…";
       return r.answer ? "Tidied its memory" : "A memory tidy did not finish";
@@ -228,7 +236,11 @@ export function backgroundSummary(runs: BackgroundRun[]): string {
   if (runs.length === 1) return runSummary(runs[0]);
   const counts = new Map<string, number>();
   for (const r of runs) {
-    const key = r.kind === "task" ? (r.name ? `task “${r.name}” ran` : "a task ran") : r.kind === "compaction" ? "the conversation was compacted" : "the memory was tidied";
+    const key =
+      r.kind === "task" ? (r.name ? `task “${r.name}” ran` : "a task ran")
+      : r.kind === "compaction" ? "the conversation was compacted"
+      : r.kind === "save" ? "the compacted conversation was saved to memory"
+      : "the memory was tidied";
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const parts = [...counts].map(([what, n]) => `${what} ${times(n)}`);
@@ -580,18 +592,32 @@ const upkeepTriggers: Record<string, string> = {
   idle: "after a quiet spell",
   "in-use": "as its conversation grew large",
   manual: "when asked",
+  cold: "after a long pause",
 };
 
-/** What Compact now tells the person while it runs: an agent that keeps a
- * memory saves to it first, and every agent writes a handoff. */
+/** What Compact now tells the person while it runs. The conversation is
+ * summarised, by the running harness in place where it can and otherwise in
+ * a handoff a fresh conversation opens with; an agent that keeps a memory
+ * saves to it. A model server of the person's own may take far longer. */
 export function compactingWords(keepsMemory: boolean): string {
+  const wait = "This can take a few minutes, and up to half an hour on a model server of your own.";
   return keepsMemory
-    ? "Compacting: the agent saves this conversation to its memory first, then goes on in a fresh one. This can take a few minutes."
-    : "Compacting: the agent writes a handoff, then goes on in a fresh conversation that opens with it. This can take a few minutes.";
+    ? `Compacting: the conversation is summarised and what it holds of lasting use is saved to the agent's memory, then it goes on with a small context. ${wait}`
+    : `Compacting: the conversation is summarised, in place or in a handoff a fresh conversation opens with, then the agent goes on with a small context. ${wait}`;
+}
+
+/** What Compact now says once it finished, from the compaction the view
+ * names: one the running harness made in place, with the save to memory
+ * after it, or one that opened a fresh conversation with a handoff. */
+export function compactedWords(u: Pick<app.PersistentUpkeepView, "inPlace" | "saveFailed"> | null | undefined, keepsMemory: boolean): string {
+  if (!u?.inPlace) return "Compacted: a fresh conversation opens with the agent's handoff.";
+  const summary = "Compacted: the running harness replaced the conversation with a summary of it";
+  if (u.saveFailed) return `${summary}, but saving it to memory did not finish: ${u.saveFailed}. The summary keeps what it was to save.`;
+  return keepsMemory ? `${summary}, and what it holds of lasting use is saved to memory.` : `${summary}.`;
 }
 
 /** One run of an agent's upkeep, as its Configuration names it. */
-export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger" | "done" | "reason">, now: Date = new Date()): string {
+export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger" | "done" | "reason" | "inPlace" | "saveFailed">, now: Date = new Date()): string {
   const at = new Date(u.time);
   const day = at.toDateString() === now.toDateString() ? "today" : at.toLocaleDateString();
   const when = `${day} at ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
@@ -599,6 +625,10 @@ export function upkeepWords(u: Pick<app.PersistentUpkeepView, "time" | "trigger"
     return u.done ? `Memory last tidied ${when}.` : `The memory's last tidy, ${when}, did not run: ${u.reason}.`;
   }
   const why = upkeepTriggers[u.trigger] ?? u.trigger;
+  if (u.done && u.inPlace) {
+    const unsaved = u.saveFailed ? ` Saving it to memory did not finish: ${u.saveFailed}.` : "";
+    return `Last compacted ${when}, ${why}: the running harness summarised the conversation in place.${unsaved}`;
+  }
   return u.done
     ? `Last compacted ${when}, ${why}: a fresh conversation opened with its handoff.`
     : `The last compaction, ${when}, ${why}, did not finish: ${u.reason}. The conversation went on as it was.`;

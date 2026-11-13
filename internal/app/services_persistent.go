@@ -405,10 +405,16 @@ type PersistentUpkeepView struct {
 	Time time.Time `json:"time"`
 	// Trigger is idle, in-use, manual or consolidate.
 	Trigger string `json:"trigger"`
-	// Done says it finished: a compaction started a fresh conversation, a
-	// tidy ran. Reason is why not when it did not.
-	Done        bool   `json:"done"`
-	Reason      string `json:"reason,omitempty"`
+	// Done says it finished: a compaction started a fresh conversation or
+	// was made in place, a tidy ran. Reason is why not when it did not.
+	Done   bool   `json:"done"`
+	Reason string `json:"reason,omitempty"`
+	// InPlace says the running harness summarised the conversation in
+	// place, and no fresh conversation opened.
+	InPlace bool `json:"inPlace,omitempty"`
+	// SaveFailed says why the save to memory after a compaction in place
+	// did not finish; the compaction stands.
+	SaveFailed  string `json:"saveFailed,omitempty"`
 	FactsBefore int    `json:"factsBefore"`
 	FactsAfter  int    `json:"factsAfter"`
 }
@@ -418,11 +424,13 @@ func upkeepView(r *persistent.UpkeepRecord) *PersistentUpkeepView {
 	if r == nil {
 		return nil
 	}
-	done := r.Swapped
+	inPlace := r.Swap == persistent.SwapInPlace
+	done := r.Swapped || (inPlace && r.Reason == "")
 	if r.Trigger == persistent.UpkeepConsolidate {
-		done = r.Reason == ""
+		done, inPlace = r.Reason == "", false
 	}
-	return &PersistentUpkeepView{Time: r.Time, Trigger: r.Trigger, Done: done, Reason: r.Reason, FactsBefore: r.FactsBefore, FactsAfter: r.FactsAfter}
+	return &PersistentUpkeepView{Time: r.Time, Trigger: r.Trigger, Done: done, Reason: r.Reason, InPlace: inPlace, SaveFailed: r.SaveFailed,
+		FactsBefore: r.FactsBefore, FactsAfter: r.FactsAfter}
 }
 
 // PersistentPort is one of the Coding agent's published ports: a name the

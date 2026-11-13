@@ -386,17 +386,20 @@ func (p *PersistentAPI) oneShotReady(ctx context.Context, engine bool) (string, 
 	return home, pol, d, tag, nil
 }
 
-// compactWait bounds a compaction the person asked for: an upkeep turn of
-// up to five minutes, the counts of the memory and the fresh conversation's
-// start.
-const compactWait = 10 * time.Minute
+// compactWait bounds a compaction the person asked for: as long as the CLI
+// waits, which covers a compaction and the save to memory after it on a
+// model server of the person's own.
+const compactWait = persistent.CompactWait
 
-// Compact compacts the agent's conversation now: it writes a handoff, after
-// saving what the conversation produced to its memory when it keeps one, and
-// goes on in a fresh conversation that opens with the handoff. The chat is
-// told while it runs, and a message sent meanwhile waits for it. An agent
-// another client runs is compacted through its supervisor's socket. A
-// compaction that did not finish is an error that says why.
+// Compact compacts the agent's conversation now. On a harness that
+// summarises its own conversation, the harness replaces it with a summary in
+// place, and an agent that keeps a memory then saves what the summary holds;
+// on any other, the agent writes a handoff, after saving what the
+// conversation produced to its memory when it keeps one, and goes on in a
+// fresh conversation that opens with the handoff. The chat is told while it
+// runs, and a message sent meanwhile waits for it. An agent another client
+// runs is compacted through its supervisor's socket. A compaction that did
+// not finish is an error that says why.
 func (p *PersistentAPI) Compact(name string) (*PersistentAgentView, error) {
 	a, err := p.agent(name)
 	if err != nil {
@@ -422,7 +425,7 @@ func (p *PersistentAPI) Compact(name string) (*PersistentAgentView, error) {
 		return nil, fmt.Errorf("the %s is answering a message: compact it when it has answered", a.Title)
 	case err != nil:
 		return nil, err
-	case !out.Swapped:
+	case !out.Done():
 		return nil, fmt.Errorf("the %s's conversation was not compacted: %s", a.Title, out.Reason)
 	}
 	p.stateChanged(a.Name)
