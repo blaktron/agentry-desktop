@@ -3,7 +3,9 @@
 // line of what can still be done with it. Send now stops the turn in flight
 // and sends it; Edit takes it back into the composer; Add to this turn, where
 // the turn takes one, hands it to the turn in flight. The QuickAgent chat,
-// a persistent agent's page and Home's agent card draw it alike.
+// a persistent agent's page and Home's agent card draw it alike. A long
+// message is cut to its first lines here (Edit shows the whole of it), so
+// the composer under it stays in view.
 import { Button } from "../ui";
 import { QUEUED_SAID, QUEUED_WORDS } from "../queued";
 
@@ -30,13 +32,14 @@ export function QueuedMessage({ text, bubble, flush, note, onSendNow, sendingNow
         <div className="chat-msg user">
           <div className="chat-bubble">
             <div className="chat-who">You<span className="muted small"> · {QUEUED_WORDS}</span></div>
-            {text}
+            <div className="queued-text">{text}</div>
           </div>
         </div>
       ) : (
-        <div className="agent-term-person"><span aria-hidden="true">&gt; </span>{text}<span className="muted small"> ({QUEUED_WORDS})</span></div>
+        <div className="agent-term-person"><div className="queued-text"><span aria-hidden="true">&gt; </span>{text}</div></div>
       )}
       <div className="queued-actions small" role="group" aria-label="Queued message">
+        {!bubble && <span className="muted">{QUEUED_WORDS}</span>}
         {onSendNow && (
           <Button variant="link" busy={sendingNow} busyLabel="Stopping the turn…" onClick={onSendNow}
             title="Stop the agent's turn and send this message now">
