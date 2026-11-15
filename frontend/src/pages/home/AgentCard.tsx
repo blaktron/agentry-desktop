@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatAnnouncer, sayTermBlock } from "../../chatAnnounce";
 import * as RunAPI from "../../../bindings/github.com/blaktron/agentry-desktop/internal/app/runapi";
-import { agentNamed, pickHomeAgent, sendToAgent, startAgent, steerAgent, stopTurn, useAgentChat, useAgents, useHomeAgent } from "../../agents";
+import { addQueuedToTurn, agentNamed, answering as onTurn, pickHomeAgent, sendQueuedNow, sendToAgent, startAgent, stopTurn, takeQueued, useAgentChat, useAgents, useHomeAgent } from "../../agents";
 import { CardFrame } from "../../cards";
 import { agentCardHint, agentModelLine, helperSuperseded, homeAgentDrawn } from "../../homeAgent";
-import { AGENT_HELD_NOTE, AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
+import { AGENT_STATES, MAIN_AGENT, isLive, mainStatusLine, runningInBackground, showsStop, startFailureLines, termBlocks } from "../../persistentAgents";
 import { Button } from "../../ui";
 import { AgentTermBlocks } from "../AgentTerm";
+import { QueuedMessage } from "../QueuedMessage";
+import { editText } from "../../queued";
 import { AgentConfigModal } from "../SettingsPersistentAgents";
 
 // Home's agent card: a chat with a persistent agent, in a terminal's manner,
@@ -39,12 +41,11 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
   const [starting, setStarting] = useState(false);
   const [picking, setPicking] = useState(false);
   const [stopping, setStopping] = useState(false);
-  // The turn in flight took no message: the text stays, and the note says why.
-  const [held, setHeld] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The agent's settings, opened from its model line.
   const [configuring, setConfiguring] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const prompt = useRef<HTMLInputElement>(null);
   const blocks = termBlocks(rec.chat);
   const inBackground = runningInBackground(blocks);
   const called = agent?.displayName || "Agentry Helper";
@@ -65,27 +66,15 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
   useEffect(() => { setError(null); }, [name]);
 
   const running = !!agent && isLive(agent);
-  const answering = starting || rec.sending || rec.chat.busy;
+  const answering = starting || onTurn(rec);
   const elsewhere = agent?.state === AGENT_STATES.elsewhere;
 
   const send = async () => {
     const text = draft.trim();
     if (!text || starting || !agent) return;
     setError(null);
-    // A message while the agent answers the person's own turn goes into that
-    // turn; on a turn the agent runs on its own the text stays.
-    if (answering) {
-      if (!rec.sending) {
-        setHeld(true);
-        return;
-      }
-      const r = await steerAgent(name, text);
-      setHeld(r === "held");
-      if (r === "sent") setDraft("");
-      return;
-    }
-    setHeld(false);
-    if (!running) {
+    // A message while the agent is on a turn is queued for the next one.
+    if (!running && !onTurn(rec)) {
       // The first message starts the agent; Go asks natively first where its
       // folders have not been agreed to on this computer.
       setStarting(true);
@@ -102,6 +91,21 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
     }
     setDraft("");
     await sendToAgent(name, text);
+  };
+
+  // Send now stops the turn in flight, and the queued message is the next.
+  const sendNow = async () => {
+    setStopping(true);
+    setError(await sendQueuedNow(name));
+    setStopping(false);
+  };
+  // Edit: the queued message back in the prompt, before whatever was typed
+  // since.
+  const editQueued = () => {
+    const text = takeQueued(name);
+    if (text === null) return;
+    setDraft((now) => editText(text, now, false));
+    prompt.current?.focus();
   };
 
   // Stop ends the turn the agent is on; the agent keeps running.
@@ -160,6 +164,18 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
         )}
         {elsewhere && <p className="small muted">{called} is running in {agent?.holder || "another client"}; you can talk to it here.</p>}
         {(error || rec.error) && <p className="small agent-term-warn" role="alert">{error || rec.error}</p>}
+        {rec.queued && (
+          <QueuedMessage
+            text={rec.queued}
+            flush
+            note={rec.queueNote}
+            onSendNow={running ? () => void sendNow() : undefined}
+            sendingNow={stopping}
+            onEdit={editQueued}
+            onAddToTurn={rec.sending && running ? () => void addQueuedToTurn(name) : undefined}
+            adding={rec.steering}
+          />
+        )}
         <form
           className="agent-term-prompt main-card-prompt"
           onSubmit={(e) => {
@@ -169,6 +185,7 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
         >
           <span aria-hidden="true">&gt;</span>
           <input
+            ref={prompt}
             type="text"
             aria-label={`Message ${called}`}
             value={draft}
@@ -183,7 +200,6 @@ export function AgentCard({ registry, onOpenSettings, onOpenAgent, onSetUpModel 
             </Button>
           )}
         </form>
-        {held && answering && <p className="muted small" role="status" data-held-note>{AGENT_HELD_NOTE}</p>}
       </div>
       {configuring && <AgentConfigModal name={name} registry={registry} onClose={() => setConfiguring(false)} />}
     </CardFrame>

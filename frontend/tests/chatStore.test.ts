@@ -17,6 +17,7 @@ function harness() {
   let sendAnswer: () => Promise<void> = async () => undefined;
   let steerAnswer: () => Promise<string> = async () => "sent";
   let interruptAnswer: () => Promise<void> = async () => undefined;
+  let hostedFailure: Error | null = null;
   const store = createChatStore<string>({
     on: (event, cb) => {
       (listeners[event] ??= []).push(cb);
@@ -27,7 +28,7 @@ function harness() {
     interruptLocal: async () => { calls.push("interrupt"); return interruptAnswer(); },
     addLocal: async (p) => { calls.push(`add ${p}`); },
     endLocal: async (f) => { calls.push(`end ${f}`); return endAnswer(); },
-    sendHosted: async (t) => { calls.push(`hsend ${t}`); },
+    sendHosted: async (t) => { calls.push(`hsend ${t}`); if (hostedFailure) throw hostedFailure; },
     addHosted: async (p) => { calls.push(`hadd ${p}`); },
     endHosted: async (f) => { calls.push(`hend ${f}`); },
     replay: async () => { calls.push("replay"); },
@@ -40,6 +41,7 @@ function harness() {
     answerSend: (f: () => Promise<void>) => { sendAnswer = f; },
     answerSteer: (f: () => Promise<string>) => { steerAnswer = f; },
     answerInterrupt: (f: () => Promise<void>) => { interruptAnswer = f; },
+    failHostedSend: (e: Error | null) => { hostedFailure = e; },
   };
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -91,7 +93,7 @@ test("a start Go refuses is the chat's error, over, with its setup to go back to
   assert.equal(h.store.state().setup, "setup B");
 });
 
-test("the QuickAgent is working while a message is out, and a second message goes into its turn", async () => {
+test("a message sent while the QuickAgent works is queued, joins the next one, and goes by itself when the turn ends", async () => {
   const h = harness();
   let answer!: () => void;
   h.answerSend(() => new Promise((r) => { answer = r; }));
@@ -100,14 +102,47 @@ test("the QuickAgent is working while a message is out, and a second message goe
   const sent = h.store.send("first");
   await tick();
   assert.equal(working(h.store.state().chat!), true);
-  assert.equal(await h.store.send("second"), "sent");
+  assert.equal(await h.store.send("second"), "queued");
+  assert.equal(await h.store.send("and third"), "queued");
+  assert.equal(h.store.state().chat!.queued, "second\nand third", "one message waits at a time");
+  assert.deepEqual(h.calls, ["send first"], "nothing goes into the turn by itself");
+  h.answerSend(async () => undefined);
   answer();
   await sent;
-  assert.deepEqual(h.calls, ["send first", "steer second"]);
-  assert.equal(working(h.store.state().chat!), false);
+  await tick();
+  assert.deepEqual(h.calls, ["send first", "send second\nand third"]);
+  assert.equal(h.store.state().chat!.queued, null);
 });
 
-test("a harness that takes a message only between turns holds it, and a turn that ended as it went takes it as the next", async () => {
+test("Send now stops the turn, and the queued message is the next turn", async () => {
+  const h = harness();
+  let answer!: () => void;
+  h.answerSend(() => new Promise((r) => { answer = r; }));
+  // The turn stops as the harness ends it: SendTurn answers.
+  h.answerInterrupt(async () => { answer(); });
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  const sent = h.store.send("first");
+  await tick();
+  await h.store.send("never mind, do this");
+  h.answerSend(async () => undefined);
+  await h.store.sendQueuedNow();
+  await sent;
+  await tick();
+  assert.deepEqual(h.calls, ["send first", "interrupt", "send never mind, do this"]);
+  // A turn that would not stop keeps the message queued, and says why.
+  h.answerSend(() => new Promise(() => {}));
+  void h.store.send("long one");
+  await tick();
+  await h.store.send("waits");
+  h.answerInterrupt(async () => { throw new Error("the turn did not stop: timeout"); });
+  await h.store.sendQueuedNow();
+  const r = h.store.state().chat!;
+  assert.equal(r.queued, "waits");
+  assert.match(r.error ?? "", /did not stop/);
+});
+
+test("Edit takes the queued message back, and nothing is sent", async () => {
   const h = harness();
   let answer!: () => void;
   h.answerSend(() => new Promise((r) => { answer = r; }));
@@ -115,22 +150,112 @@ test("a harness that takes a message only between turns holds it, and a turn tha
   await tick();
   const sent = h.store.send("first");
   await tick();
-  h.answerSteer(async () => "between-turns");
-  assert.equal(await h.store.send("second"), "held");
-  // The turn ends just as the next message goes: it is sent as a turn.
-  h.answerSteer(async () => { answer(); await sent; return "no-turn"; });
-  h.answerSend(async () => undefined);
-  assert.equal(await h.store.send("third"), "sent");
-  assert.deepEqual(h.calls, ["send first", "steer second", "steer third", "send third"]);
+  await h.store.send("draft thought");
+  assert.equal(h.store.takeQueued(), "draft thought");
+  assert.equal(h.store.takeQueued(), null);
+  answer();
+  await sent;
+  await tick();
+  assert.deepEqual(h.calls, ["send first"]);
 });
 
-test("a message In Agentry still waits for the answer", async () => {
+test("Add to this turn hands the queued message to the turn; a harness that takes none keeps it queued and says so", async () => {
+  const h = harness();
+  let answer!: () => void;
+  h.answerSend(() => new Promise((r) => { answer = r; }));
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  const sent = h.store.send("first");
+  await tick();
+  await h.store.send("use UTC");
+  await h.store.addQueuedToTurn();
+  assert.equal(h.store.state().chat!.queued, null);
+  assert.deepEqual(h.calls, ["send first", "steer use UTC"]);
+  await h.store.send("and be brief");
+  h.answerSteer(async () => "between-turns");
+  await h.store.addQueuedToTurn();
+  let r = h.store.state().chat!;
+  assert.equal(r.queued, "and be brief");
+  assert.equal(r.canSteer, false, "the link goes for the rest of the chat");
+  assert.match(r.queueNote ?? "", /takes no message/);
+  // The turn ends: the message goes as the next.
+  h.answerSend(async () => undefined);
+  answer();
+  await sent;
+  await tick();
+  r = h.store.state().chat!;
+  assert.deepEqual(h.calls.slice(-1), ["send and be brief"]);
+  assert.equal(r.queued, null);
+  assert.equal(r.queueNote, null);
+});
+
+test("a turn that ended as Add to this turn went sends the message as the next turn", async () => {
+  const h = harness();
+  let answer!: () => void;
+  h.answerSend(() => new Promise((r) => { answer = r; }));
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  const sent = h.store.send("first");
+  await tick();
+  await h.store.send("late");
+  h.answerSteer(async () => { answer(); await sent; return "no-turn"; });
+  h.answerSend(async () => undefined);
+  await h.store.addQueuedToTurn();
+  await tick();
+  assert.deepEqual(h.calls, ["send first", "steer late", "send late"]);
+});
+
+test("a queued message that could not be sent waits for the person, and goes with the next one", async () => {
   const h = harness();
   h.store.followHosted({ registry: "r", run: hostedRun("h1"), terms: null, opening: "", task: "" }, "setup", false);
-  h.fire("runner:hosted-session-event", { kind: "user_turn", time: new Date().toISOString(), text: "first" });
+  h.fire("runner:hosted-session-state", { status: "running" });
+  h.fire("runner:hosted-session-event", { seq: 1, kind: "user_turn", time: new Date().toISOString(), text: "first" });
+  assert.equal(await h.store.send("second"), "queued");
+  h.failHostedSend(new Error("the host is not answering"));
+  h.fire("runner:hosted-session-event", { seq: 2, kind: "assistant_turn", time: new Date().toISOString(), text: "done" });
+  await tick();
+  await tick();
+  let r = h.store.state().chat!;
+  assert.equal(r.queued, "second", "it never reached the agent, so it is back");
+  assert.equal(r.queuePaused, true);
+  assert.match(r.queueNote ?? "", /was not sent/);
+  // Not tried again by itself; the person's next message takes it along.
+  h.failHostedSend(null);
+  assert.equal(await h.store.send("third"), "sent");
+  r = h.store.state().chat!;
+  assert.equal(r.queued, null);
+  assert.deepEqual(h.calls.filter((c) => c.startsWith("hsend")), ["hsend second", "hsend second\nthird"]);
+});
+
+test("a message In Agentry is queued while the agent answers, and goes when the answer arrives", async () => {
+  const h = harness();
+  h.store.followHosted({ registry: "r", run: hostedRun("h1"), terms: null, opening: "", task: "" }, "setup", false);
+  h.fire("runner:hosted-session-state", { status: "running" });
+  h.fire("runner:hosted-session-event", { seq: 1, kind: "user_turn", time: new Date().toISOString(), text: "first" });
   assert.equal(working(h.store.state().chat!), true);
-  assert.equal(await h.store.send("second"), "ignored");
+  assert.equal(await h.store.send("second"), "queued");
   assert.deepEqual(h.calls.filter((c) => c.startsWith("hsend") || c.startsWith("steer")), []);
+  // A hosted turn cannot be stopped or steered.
+  await h.store.addQueuedToTurn();
+  assert.equal(h.calls.some((c) => c.startsWith("steer") || c === "interrupt"), false);
+  h.fire("runner:hosted-session-event", { seq: 2, kind: "assistant_turn", time: new Date().toISOString(), text: "done" });
+  await tick();
+  assert.deepEqual(h.calls.filter((c) => c.startsWith("hsend")), ["hsend second"]);
+});
+
+test("a chat that ends drops its queued message", async () => {
+  const h = harness();
+  h.answerSend(() => new Promise(() => {}));
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  void h.store.send("first");
+  await tick();
+  await h.store.send("too late");
+  h.fire("runner:session-event", { kind: "session_end", reason: "idle", time: new Date().toISOString() });
+  await tick();
+  await tick();
+  assert.equal(h.store.state().chat!.queued, null);
+  assert.equal(h.calls.includes("send too late"), false);
 });
 
 test("Stop turn stops the turn in flight on this computer, and the chat goes on", async () => {
