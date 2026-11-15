@@ -123,3 +123,74 @@ func TestClipText(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestSearchServerListPutsAWSsOwnServerFirstForAnAWSQuery(t *testing.T) {
+	answer := `{"list": {"page": "/build/mcp-servers"}, "total": 3, "match": "all", "items": [
+    {"id": "pypi:awslabs.aws-api-mcp-server", "kind": "pypi", "status": "works", "toolCount": 2, "version": "1.5.6", "tested": "2026-10-20"},
+    {"id": "remote:https://aws-mcp.eu-west-1.api.aws/mcp", "kind": "remote", "status": "works", "toolCount": 8, "tested": "2026-10-22"},
+    {"id": "remote:https://knowledge-mcp.global.api.aws/mcp", "kind": "remote", "status": "works", "toolCount": 6, "tested": "2026-10-22"}
+  ]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+
+	for _, q := range []string{"aws", "AWS cost reports", "an s3 bucket", "Amazon Web Services"} {
+		v, err := searchServerList(context.Background(), srv.Client(), srv.URL, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(v.Items) != 3 {
+			t.Fatalf("%q: want AWS's server and the two other servers, got %+v", q, v.Items)
+		}
+		first := v.Items[0]
+		if r := first.Row; r.Source != "url" || r.URL != awsMCPServerURL || r.Auth != "none" || first.Ref != awsMCPServerURL {
+			t.Fatalf("%q: first item %+v", q, first)
+		}
+		if !strings.Contains(first.Description, "agentry agent connect") {
+			t.Fatalf("%q: the row does not say how it signs in: %q", q, first.Description)
+		}
+		for _, it := range v.Items[1:] {
+			if isAWSMCPServerAddress(it.Row.URL) {
+				t.Fatalf("%q: AWS's server is offered twice: %+v", q, v.Items)
+			}
+		}
+	}
+}
+
+func TestSearchServerListShowsAWSsServerOnlyForAnAWSQuery(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(serverListAnswer))
+	}))
+	defer srv.Close()
+
+	for _, q := range []string{"weather", "laws", "gnaws", "amazon", "draws"} {
+		v, err := searchServerList(context.Background(), srv.Client(), srv.URL, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range v.Items {
+			if it.Row.URL == awsMCPServerURL {
+				t.Fatalf("%q: AWS's server was offered", q)
+			}
+		}
+	}
+}
+
+func TestIsAWSMCPServerAddress(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"https://aws-mcp.us-east-1.api.aws/mcp":      true,
+		"https://AWS-MCP.ap-southeast-2.api.aws/mcp": true,
+		"https://knowledge-mcp.global.api.aws/mcp":   false,
+		"https://aws-mcp.example.com/mcp":            false,
+		"https://aws-mcp.a.b.api.aws/mcp":            false,
+		"http://aws-mcp.us-east-1.api.aws/mcp":       false,
+		"":                                           false,
+	} {
+		if got := isAWSMCPServerAddress(addr); got != want {
+			t.Errorf("%q: %v, want %v", addr, got, want)
+		}
+	}
+}
