@@ -34,7 +34,6 @@ import {
   coderRunning,
   enableOutcome,
   termBlocks,
-  AGENT_HELD_NOTE,
   runningInBackground,
   runSummary,
   backgroundSummary,
@@ -619,5 +618,4 @@ test("a message sent during the person's turn is drawn as sent during it, then a
     { kind: "assistant_turn", time: t, text: "The second is longer." },
   ], now);
   assert.deepEqual(termBlocks(again).filter((b) => b.kind === "person")[1], { kind: "person", text: "and say which is longer", during: "joined" });
-  assert.match(AGENT_HELD_NOTE, /Your text stays here/);
 });

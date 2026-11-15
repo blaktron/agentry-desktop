@@ -218,7 +218,13 @@ export function followHostedChat(s: RunSetup, run: app.HostedRunView, terms: app
 /** Whether a chat is starting, going or ending. */
 export const chatLive = (): boolean => chatStore.live();
 
-export const sendChat = (text: string): Promise<"sent" | "held" | "ignored"> => chatStore.send(text);
+export const sendChat = (text: string): Promise<"sent" | "queued" | "ignored"> => chatStore.send(text);
+/** Send now: the queued message goes at once, the turn in flight stopped. */
+export const sendQueuedNow = (): Promise<void> => chatStore.sendQueuedNow();
+/** Edit: the queued message, out of the queue, for the composer. */
+export const takeQueued = (): string | null => chatStore.takeQueued();
+/** Add to this turn: the queued message handed to the turn in flight. */
+export const addQueuedToTurn = (): Promise<void> => chatStore.addQueuedToTurn();
 export const stopChatTurn = (): Promise<void> => chatStore.stopTurn();
 export const addChatFiles = (paths: string[]): Promise<void> => chatStore.addFiles(paths);
 export const endChat = (finish: boolean): Promise<void> => chatStore.end(finish);

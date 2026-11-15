@@ -411,12 +411,6 @@ export function showsStop(agent: Pick<app.PersistentAgentView, "state">, answeri
   return answering && !starting && isLive(agent);
 }
 
-/** AGENT_HELD_NOTE is what the composer says when the agent's turn in flight
- *  takes no message: one it runs on its own (a task, a messenger's message,
- *  upkeep), or any turn on a harness that takes a message only between
- *  turns. The text stays, to send once the turn ends. */
-export const AGENT_HELD_NOTE = "The agent is on a turn that takes no message now: one it runs on its own, or any turn on a harness that takes a message only between turns. Your text stays here: send it once the turn ends.";
-
 /** notAppliedWords tells the person that the running agent could not start
  *  its next turn with their last change, and went on without what it added. */
 export function notAppliedWords(n: Pick<app.PersistentNotAppliedView, "reason" | "entries">): string {

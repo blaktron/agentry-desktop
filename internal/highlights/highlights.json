@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "0.7.49",
+      "highlights": [
+        "A message you send while an agent answers now waits for its next turn, and goes by itself when the answer ends.",
+        "Under a waiting message, Send now stops the answer and sends it, and Edit takes it back to change it.",
+        "Add to this turn still hands a waiting message to the answer in progress where the agent's harness allows.",
+        "Searching for an AWS server in a persistent agent's Add card shows AWS's own AWS MCP Server first."
+      ]
+    },
+    {
       "version": "0.7.48",
       "highlights": [
         "Compact now works for agents on the Agentry harness, and waits as long as a slow model server of your own needs.",

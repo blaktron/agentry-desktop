@@ -1059,6 +1059,12 @@ if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state =
 // newest still running, the third failed to start, the rest finished, every
 // other one with a run of its own to open.
 const harnessSubagentRuns = Number(new URLSearchParams(window.location.search).get("subagentruns") ?? 0);
+// ?queued=1: the Assistant running, on a turn the person sent that never
+// ends, and a second message queued for its next turn; ?queued=long adds a
+// long third one, which joins it.
+const harnessQueuedParam = new URLSearchParams(window.location.search).get("queued");
+const harnessQueued = harnessQueuedParam === "1" || harnessQueuedParam === "long";
+if (harnessQueued) harnessAssistant.state = "running";
 Object.assign(harnessAssistant, {
   subagentRuns: Array.from({ length: harnessSubagentRuns }, (_, i) => {
     const started = new Date(Date.UTC(2026, 10, 7, 12, 0) - i * 47 * 60_000).toISOString();
@@ -1219,7 +1225,12 @@ g.go = { app: {
     },
     Start: async () => harnessAssistant,
     Stop: async () => harnessAssistant,
-    Send: async () => {},
+    Send: harnessQueued
+      ? (name: string, text: string) => {
+          emitPage("runner:agent-event", { agent: name, event: { kind: "user_turn", time: new Date().toISOString(), text } });
+          return new Promise(() => {});
+        }
+      : async () => {},
     // A message during the person's turn joins it, as on the Agentry harness.
     Steer: async () => "sent",
     Configure: async () => harnessAssistant,
@@ -1922,6 +1933,17 @@ import VoiceFlow from "../src/pages/VoiceFlow";
 import DesignerFlow from "../src/pages/DesignerFlow";
 import Publisher from "../src/pages/Publisher";
 import PersistentAgentPage from "../src/pages/PersistentAgentPage";
+import { sendToAgent } from "../src/agents";
+// ?queued=1: the person's message, then one more while the agent answers it.
+if (harnessQueued) {
+  setTimeout(() => {
+    void sendToAgent("assistant", "Draft a reply to the neighbour's note");
+    setTimeout(() => void sendToAgent("assistant", "Keep it under three lines"), 120);
+    if (harnessQueuedParam === "long") {
+      setTimeout(() => void sendToAgent("assistant", "And mention the bike that is usually parked by the stairs, the boxes from the move last month, and that the landlord asked everyone to keep the hallway clear for the fire inspection next Tuesday, which is why it matters now rather than later."), 240);
+    }
+  }, 250);
+}
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 import MeetingNotes from "../src/pages/MeetingNotes";
 import Agents from "../src/pages/Agents";
