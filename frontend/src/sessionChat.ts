@@ -8,6 +8,7 @@
 // not cover stopped it. Every text here is data the agent or the person wrote,
 // drawn as text.
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
+import { QUEUE_NOT_SENT_NOTE, QUEUE_NO_STEER_NOTE, personLines, queueJoin } from "./queued";
 
 /** One session event (app.SessionEventView on the Go side; it travels
  * only over the event bus, so it is not in the bindings). */
@@ -191,11 +192,6 @@ export const DURING_WORDS: Record<During, string> = {
   joined: "joined the turn",
 };
 
-/** HELD_NOTE is what the composer says when the session's harness takes a
- *  message only between turns: the text stays, to send once the answer
- *  arrives. */
-export const HELD_NOTE = "The agent is still answering, and this chat's harness takes a message only between turns. Your text stays here: send it once the answer arrives.";
-
 /** endText is the end note's words: the session's own reason, or "out of
  * credits" where a minute the balance could not cover stopped it. */
 export function endText(reason: string, outOfCredits?: boolean): string {
@@ -306,6 +302,19 @@ export type ChatRecord = {
   /** On this computer: Stop turn was asked for and the turn has not ended
    *  yet. */
   stopping: boolean;
+  /** A message sent while the agent was on a turn, waiting for its next
+   *  one (queued.ts). */
+  queued: string | null;
+  /** The queued message is not sent by itself when the turn ends: sending it
+   *  then failed, and the person sends it or edits it. */
+  queuePaused: boolean;
+  /** Why the queued message is still waiting, when the person asked for
+   *  more. */
+  queueNote: string | null;
+  /** On this computer: the turn in flight may take a message (Add to this
+   *  turn). False once the harness answered that it takes one only between
+   *  turns. */
+  canSteer: boolean;
   /** Finish or Stop was asked for, or the engine ended it and its result is
    *  being collected. */
   ending: boolean;
@@ -390,8 +399,43 @@ export function createChatStore<S>(deps: ChatDeps) {
   const update = (g: number, f: (r: ChatRecord) => ChatRecord) => {
     if (g !== gen || !c) return;
     const next = f(c);
-    c = { ...next, over: overNow(next) };
+    const over = overNow(next);
+    // A chat that is over has no next turn for a queued message.
+    c = over ? { ...next, over, queued: null, queueNote: null } : { ...next, over };
     notify();
+    if (c.queued) queueMicrotask(() => flush(g));
+  };
+
+  // The queued message goes as the next turn once the agent is between
+  // turns, and the session can take one.
+  const flush = (g: number) => {
+    if (g !== gen || !c || !c.queued || c.queuePaused || c.over || c.ending || c.steering || working(c)) return;
+    if (c.kind === "hosted" && c.hosted?.status !== "running") return;
+    const text = c.queued;
+    update(g, (r) => ({ ...r, queued: null, queueNote: null }));
+    deliver(g, text, true).catch(() => {});
+  };
+
+  // Sends one message as a turn. One from the queue that failed before its
+  // turn was drawn goes back to the queue, first, and waits for the person.
+  const deliver = async (g: number, text: string, fromQueue: boolean): Promise<void> => {
+    if (!c) return;
+    const hosted = c.kind === "hosted";
+    const before = personLines(c.chat.lines);
+    update(g, (r) => ({ ...r, sending: true, error: null }));
+    try {
+      await (hosted ? deps.sendHosted(text) : deps.sendLocal(text));
+      update(g, (r) => ({ ...r, sending: false }));
+    } catch (e) {
+      update(g, (r) => {
+        const back = fromQueue && personLines(r.chat.lines) === before;
+        return {
+          ...r, sending: false, error: String(e),
+          ...(back ? { queued: queueJoin(text, r.queued), queuePaused: true, queueNote: QUEUE_NOT_SENT_NOTE } : {}),
+        };
+      });
+      throw e;
+    }
   };
 
   // The engine ended a chat on this computer: its envelope is collected
@@ -459,6 +503,7 @@ export function createChatStore<S>(deps: ChatDeps) {
     kind, ref, task, opening, registry: "",
     chat: newChat(kind === "hosted" ? opening : "", task),
     starting: false, sending: false, adding: false, steering: false, stopping: false, ending: false, log: [],
+    queued: null, queuePaused: false, queueNote: null, canSteer: true,
     run: null, hosted: null, terms: null, result: null, error: null, failed: false, over: false,
   });
 
@@ -521,40 +566,70 @@ export function createChatStore<S>(deps: ChatDeps) {
       return true;
     },
 
-    /** Sends the agent one message. On this computer, while the agent is
-     *  on a turn, the message goes into that turn where the harness takes
-     *  one; "held" says the harness takes it only between turns, and the
-     *  page keeps the text. A message In Agentry waits for the answer. */
-    async send(text: string): Promise<"sent" | "held" | "ignored"> {
+    /** Sends the agent one message. While the agent is on a turn the
+     *  message is queued for its next one ("queued"), joining any message
+     *  already waiting, and is sent by itself when the turn ends. A message
+     *  waiting from before goes with this one. */
+    async send(text: string): Promise<"sent" | "queued" | "ignored"> {
       if (!c || c.over || c.starting || c.ending || !text.trim()) return "ignored";
-      if (working(c)) {
-        if (c.kind !== "local" || c.steering) return "ignored";
-        const g = gen;
-        update(g, (r) => ({ ...r, steering: true, error: null }));
-        let answer: string;
-        try {
-          answer = await deps.steerLocal(text);
-        } catch (e) {
-          update(g, (r) => ({ ...r, steering: false, error: String(e) }));
-          throw e;
-        }
-        update(g, (r) => ({ ...r, steering: false }));
-        if (answer === "between-turns") return "held";
-        if (answer !== "no-turn") return "sent";
-        // The turn ended as the message went: it is the next turn.
-        if (!c || c.over || working(c)) return "held";
-      }
       const g = gen;
-      const hosted = c.kind === "hosted";
-      update(g, (r) => ({ ...r, sending: true, error: null }));
-      try {
-        await (hosted ? deps.sendHosted(text) : deps.sendLocal(text));
-        update(g, (r) => ({ ...r, sending: false }));
-      } catch (e) {
-        update(g, (r) => ({ ...r, sending: false, error: String(e) }));
-        throw e;
+      if (working(c) || c.steering) {
+        update(g, (r) => ({ ...r, queued: queueJoin(r.queued, text), queuePaused: false, queueNote: null, error: null }));
+        return "queued";
       }
+      const waiting = c.queued;
+      if (waiting) update(g, (r) => ({ ...r, queued: null, queuePaused: false, queueNote: null }));
+      await deliver(g, queueJoin(waiting, text) ?? text, false);
       return "sent";
+    },
+
+    /** Send now: the queued message goes at once. While the agent is on a
+     *  turn on this computer, the turn is stopped and the message is the
+     *  next turn; between turns it is sent. */
+    async sendQueuedNow(): Promise<void> {
+      if (!c || !c.queued || c.over || c.ending || c.starting) return;
+      const g = gen;
+      update(g, (r) => ({ ...r, queuePaused: false, queueNote: null }));
+      if (!working(c)) {
+        flush(g);
+        return;
+      }
+      if (c.kind === "local") await store.stopTurn();
+    },
+
+    /** Edit: takes the queued message out of the queue, for the composer.
+     *  Nothing is sent. */
+    takeQueued(): string | null {
+      if (!c || !c.queued) return null;
+      const text = c.queued;
+      update(gen, (r) => ({ ...r, queued: null, queuePaused: false, queueNote: null }));
+      return text;
+    },
+
+    /** Add to this turn: hands the queued message to the turn in flight on
+     *  this computer. A harness that takes a message only between turns
+     *  keeps it queued, and says so; a turn that ended as it went sends it
+     *  as the next. */
+    async addQueuedToTurn(): Promise<void> {
+      if (!c || c.kind !== "local" || !c.queued || c.over || c.steering || !working(c)) return;
+      const g = gen;
+      const text = c.queued;
+      update(g, (r) => ({ ...r, queued: null, queueNote: null, steering: true, error: null }));
+      let answer: string;
+      try {
+        answer = await deps.steerLocal(text);
+      } catch (e) {
+        update(g, (r) => ({ ...r, steering: false, queued: queueJoin(text, r.queued), error: String(e) }));
+        return;
+      }
+      if (answer === "sent") {
+        update(g, (r) => ({ ...r, steering: false }));
+        return;
+      }
+      update(g, (r) => ({
+        ...r, steering: false, queued: queueJoin(text, r.queued),
+        ...(answer === "between-turns" ? { canSteer: false, queueNote: QUEUE_NO_STEER_NOTE } : {}),
+      }));
     },
 
     /** Stop turn: ends the turn in flight on this computer, and the chat

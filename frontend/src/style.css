@@ -1758,6 +1758,17 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .agent-term-tools > ol { margin: 4px 0 0 14px; padding-left: 18px; }
 .main-card-scroll > details { margin: 0 0 8px; }
 .agent-term-pending { margin: 0; padding: 6px 14px; color: var(--color-warm); font-size: 12px; border-top: 1px solid var(--color-border); }
+/* A message waiting for the agent's next turn, above the composer: the
+   person's line marked as not yet sent (a dashed bubble, or italics in a
+   terminal's manner) at full contrast, and a short line of links under it. */
+.queued-message { padding: 6px 14px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.queued-message .chat-msg.user .chat-bubble { border-style: dashed; }
+.queued-message .agent-term-person { font-style: italic; }
+.queued-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; margin-top: 2px; }
+.queued-message .agent-term-person + .queued-actions { justify-content: flex-start; }
+.queued-actions button.link { min-height: 24px; font-size: 12px; }
+.queued-note { margin: 2px 0 0; }
+.queued-message.flush { padding: 4px 0 6px; }
 .agent-term-prompt { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
 .agent-term-prompt > span { color: var(--color-accent); font-weight: 700; padding-bottom: 8px; }
 .agent-term-prompt textarea { flex: 1; font-family: var(--font-mono); font-size: 13px; resize: vertical; min-height: 40px; }

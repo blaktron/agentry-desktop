@@ -8,8 +8,9 @@ import * as HomeAPI from "../bindings/github.com/blaktron/agentry-desktop/intern
 import * as PersistentAPI from "../bindings/github.com/blaktron/agentry-desktop/internal/app/persistentapi";
 import { EventsOn } from "./host";
 import type * as app from "../bindings/github.com/blaktron/agentry-desktop/internal/app/models";
-import { AGENT_STATES, ASSISTANT_AGENT, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
+import { AGENT_STATES, ASSISTANT_AGENT, MAIN_AGENT, applyAgentEvent, chatFromTranscript, holdEarly, installingAny, isLive, newAgentChat, refreshesView, type AgentChat } from "./persistentAgents";
 import type { SessionEvent } from "./sessionChat";
+import { QUEUE_NOT_SENT_NOTE, QUEUE_NO_STEER_NOTE, personLines, queueJoin } from "./queued";
 
 export type AgentRecord = {
   chat: AgentChat;
@@ -18,6 +19,16 @@ export type AgentRecord = {
   /** A message the person sent that has not been answered. */
   sending: boolean;
   error: string;
+  /** A message sent while the agent was on a turn, waiting for its next
+   *  one (queued.ts). */
+  queued: string | null;
+  /** Sending the queued message when the turn ended failed: it waits for
+   *  the person to send it or edit it. */
+  queuePaused: boolean;
+  /** Why the queued message still waits, when the person asked for more. */
+  queueNote: string | null;
+  /** The queued message is being handed to the turn in flight. */
+  steering: boolean;
 };
 
 const records = new Map<string, AgentRecord>();
@@ -29,11 +40,27 @@ const changed = () => {
   listeners.forEach((l) => l());
 };
 
-const record = (name: string): AgentRecord => records.get(name) ?? { chat: newAgentChat(), loaded: false, sending: false, error: "" };
+const record = (name: string): AgentRecord =>
+  records.get(name) ?? { chat: newAgentChat(), loaded: false, sending: false, error: "", queued: null, queuePaused: false, queueNote: null, steering: false };
 const put = (name: string, r: AgentRecord) => {
   records.set(name, r);
   changed();
+  if (r.queued) queueMicrotask(() => flushQueued(name));
 };
+
+/** answering says the agent is on a turn: the person's, or one of its own. */
+export const answering = (r: Pick<AgentRecord, "sending" | "chat">): boolean => r.sending || r.chat.busy;
+
+// The queued message goes as the next turn once the agent is running and
+// between turns.
+function flushQueued(name: string) {
+  const r = record(name);
+  const agent = agentNamed(name);
+  if (!r.queued || r.queuePaused || r.steering || !r.loaded || answering(r) || !agent || !isLive(agent)) return;
+  const text = r.queued;
+  put(name, { ...r, queued: null, queueNote: null });
+  void deliver(name, text, true);
+}
 
 // Events that arrive before the transcript is read are held, then applied
 // after it, so the reload never draws a live turn above the history; one the
@@ -104,10 +131,29 @@ export async function loadChat(name: string): Promise<void> {
 // How long a failed send waits for its turn's error to reach the chat.
 const TURN_ERROR_WAIT_MS = 500;
 
-/** sendToAgent sends the person's message as the agent's next turn. */
-export async function sendToAgent(name: string, text: string): Promise<void> {
+/** sendToAgent sends the person's message as the agent's next turn. While
+ *  the agent is on a turn it is queued for the next one instead, joining any
+ *  message already waiting, and goes by itself when the turn ends; a
+ *  message waiting from before goes with this one. */
+export async function sendToAgent(name: string, text: string): Promise<"sent" | "queued"> {
+  const r = record(name);
+  if (answering(r) || r.steering) {
+    put(name, { ...r, queued: queueJoin(r.queued, text), queuePaused: false, queueNote: null, error: "" });
+    return "queued";
+  }
+  const waiting = r.queued;
+  if (waiting) put(name, { ...r, queued: null, queuePaused: false, queueNote: null });
+  await deliver(name, queueJoin(waiting, text) ?? text, false);
+  return "sent";
+}
+
+// Sends one message as a turn. One from the queue that failed before its
+// turn was drawn goes back to the queue, first, and waits for the person.
+async function deliver(name: string, text: string, fromQueue: boolean): Promise<void> {
   put(name, { ...record(name), sending: true, error: "" });
-  const before = record(name).chat.lines.length;
+  const lines = record(name).chat.lines;
+  const before = lines.length;
+  const people = personLines(lines);
   try {
     await PersistentAPI.Send(name, text);
     put(name, { ...record(name), sending: false });
@@ -115,33 +161,71 @@ export async function sendToAgent(name: string, text: string): Promise<void> {
     // A turn that failed says why in the chat; its events can land just
     // after the call answers, so they are given a moment first.
     await new Promise((r) => setTimeout(r, TURN_ERROR_WAIT_MS));
-    const said = record(name).chat.lines.slice(before).some((l) => l.kind === "warn");
-    put(name, { ...record(name), sending: false, error: said ? "" : String(e) });
+    const now = record(name);
+    const said = now.chat.lines.slice(before).some((l) => l.kind === "warn");
+    const back = fromQueue && personLines(now.chat.lines) === people;
+    put(name, {
+      ...now, sending: false, error: said ? "" : String(e),
+      ...(back ? { queued: queueJoin(text, now.queued), queuePaused: true, queueNote: QUEUE_NOT_SENT_NOTE } : {}),
+    });
   }
 }
 
-/** What became of a message sent while the agent answers the person's turn:
- *  "sent" when the turn took it, or when no turn was in flight after all and
- *  it went as the next turn; "held" when the turn takes no message, and the
- *  composer keeps the text. */
-export type SteerResult = "sent" | "held";
+/** sendQueuedNow is Send now: the queued message goes at once. While the
+ *  agent is on a turn the turn is stopped, and the message is the next turn.
+ *  It answers the error to show, or null. */
+export async function sendQueuedNow(name: string): Promise<string | null> {
+  const r = record(name);
+  if (!r.queued) return null;
+  put(name, { ...r, queuePaused: false, queueNote: null });
+  if (!answering(r)) {
+    flushQueued(name);
+    return null;
+  }
+  return stopTurn(name);
+}
 
-/** steerAgent hands the person's message to the chat turn the agent is
- *  answering. The turn's steer event draws it, as "sent during the turn" and
- *  then "joined the turn". With no turn in flight it is sent as a turn. A
- *  refusal for any other reason is the record's error, and the text is kept. */
-export async function steerAgent(name: string, text: string): Promise<SteerResult> {
+/** takeQueued is Edit: the queued message, out of the queue, for the
+ *  composer. Nothing is sent. */
+export function takeQueued(name: string): string | null {
+  const r = record(name);
+  if (!r.queued) return null;
+  put(name, { ...r, queued: null, queuePaused: false, queueNote: null });
+  return r.queued;
+}
+
+/** addQueuedToTurn is Add to this turn: the queued message handed to the
+ *  chat turn the agent is answering. The turn's steer event draws it, as
+ *  "sent during the turn" and then "joined the turn". A turn that takes no
+ *  message (one the agent runs on its own, or any on a harness that takes a
+ *  message only between turns) keeps it queued, and says so; a turn that
+ *  ended as it went sends it as the next. */
+export async function addQueuedToTurn(name: string): Promise<void> {
+  const r = record(name);
+  if (!r.queued || r.steering || !answering(r)) return;
+  const text = r.queued;
+  put(name, { ...r, queued: null, queueNote: null, steering: true, error: "" });
   let answer: string;
   try {
     answer = await PersistentAPI.Steer(name, text);
   } catch (e) {
-    put(name, { ...record(name), error: String(e) });
-    return "held";
+    const now = record(name);
+    put(name, { ...now, steering: false, queued: queueJoin(text, now.queued), error: String(e) });
+    return;
   }
-  if (answer === "between-turns") return "held";
-  if (answer === "no-turn") await sendToAgent(name, text);
-  return "sent";
+  const now = record(name);
+  if (answer === "sent") {
+    put(name, { ...now, steering: false });
+    return;
+  }
+  put(name, {
+    ...now, steering: false, queued: queueJoin(text, now.queued),
+    queueNote: answer === "between-turns" ? QUEUE_NO_STEER_NOTE : now.queueNote,
+  });
 }
+
+/** agentRecord is one agent's record as the store holds it now. */
+export const agentRecord = (name: string): AgentRecord => record(name);
 
 /** useAgents is the list of agents, read on first use and kept current. */
 export function useAgents(): app.PersistentAgentView[] {
@@ -192,6 +276,7 @@ export function updateAgent(v: app.PersistentAgentView) {
   list = i < 0 ? [...list, v] : list.map((a, j) => (j === i ? v : a));
   changed();
   pollWhileInstalling();
+  if (records.get(v.name)?.queued) queueMicrotask(() => flushQueued(v.name));
 }
 
 /** forgetChat drops an agent's chat after a reset, so its page reads the

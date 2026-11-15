@@ -71,8 +71,11 @@
 //   #chat-local           the dialog is the chat: the conversation, the strip
 //   #chat-local-working   its card while a message is out: working, turns
 //   #chat-local-waiting   its card between turns: waiting for you
-//   #chat-local-steered   the dialog while the agent answers: a message sent
-//                         into the turn, joined, and Stop turn
+//   #chat-local-queued    the dialog while the agent answers: a message sent
+//                         meanwhile, queued, with Send now, Edit and Add to
+//                         this turn, and Stop turn
+//   #chat-local-steered   a queued message added to the turn: drawn where it
+//                         was sent, joined, and Stop turn
 //   #chat-local-ended     the engine ended it with the dialog closed: its
 //                         result, collected by the store
 //   #chat-hosted          a chat In Agentry: replayed from the host, a hostile
@@ -419,7 +422,7 @@ import RunFlow from "../src/pages/RunFlow";
 import HostedRunFlow from "../src/pages/HostedRunFlow";
 import ChatFlow from "../src/pages/ChatFlow";
 import DraftFlow from "../src/pages/DraftFlow";
-import { attachHostedRun, cancelHostedRun, followHostedChat, sendChat, startHostedRun, startLocalChat, startLocalRun, stopLocalRun } from "../src/runs";
+import { addQueuedToTurn, attachHostedRun, cancelHostedRun, followHostedChat, sendChat, startHostedRun, startLocalChat, startLocalRun, stopLocalRun } from "../src/runs";
 import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
 import RunPage from "../src/pages/RunPage";
@@ -501,8 +504,9 @@ const chatSetup = { ...setup, form: { ...form, mode: hash.startsWith("chat-hoste
 if (hash.startsWith("chat-local")) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   startLocalChat(chatSetup, REF, "", "", () => g.go.app.RunAPI.StartSession() as Promise<any>);
-  if (hash === "chat-local-working" || hash === "chat-local-steered") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
-  if (hash === "chat-local-steered") setTimeout(() => void sendChat("Use the UTC times only.").catch(() => {}), 320);
+  if (hash === "chat-local-working" || hash === "chat-local-steered" || hash === "chat-local-queued") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
+  if (hash === "chat-local-steered" || hash === "chat-local-queued") setTimeout(() => void sendChat("Use the UTC times only.").catch(() => {}), 320);
+  if (hash === "chat-local-steered") setTimeout(() => void addQueuedToTurn(), 380);
 }
 if (hash.startsWith("chat-hosted")) followHostedChat(chatSetup, hosted.session, terms as never, "", "");
 if (hash === "hosted-card" || hash === "hosted-card-finished") void attachHostedRun(REG);

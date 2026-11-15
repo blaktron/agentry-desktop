@@ -2,9 +2,11 @@
 // component with two transports.
 //
 // On this machine it drives the runner's session API: every message goes
-// through RunAPI.SendTurn, or while the agent is answering into its turn
-// through RunAPI.SteerTurn, Stop turn through RunAPI.InterruptTurn, every
-// file through RunAPI.AddSessionInput, and
+// through RunAPI.SendTurn; one sent while the agent is answering is queued
+// for its next turn (QueuedMessage), and goes by itself when the turn ends,
+// at once with Send now (RunAPI.InterruptTurn, then SendTurn), or into the
+// turn in flight with Add to this turn (RunAPI.SteerTurn). Stop turn is
+// RunAPI.InterruptTurn, every file goes through RunAPI.AddSessionInput, and
 // the engine ends the session on the operator's caps whatever this view
 // does. Finish asks the agent for its final result before teardown; End
 // ends without one. Either way the receipts folder holds transcript.md and
@@ -13,7 +15,9 @@
 // In Agentry it follows a hosted session the registry relays: the same events,
 // from runner:hosted-session-event, with the run's state and session record
 // from runner:hosted-session-state; messages, files and the end go through
-// SendHostedTurn, AddHostedSessionFile and EndHostedSession. Its strip says the
+// SendHostedTurn, AddHostedSessionFile and EndHostedSession; a message sent
+// while the agent answers is queued the same way, with Edit and no Send now,
+// since a hosted turn cannot be stopped. Its strip says the
 // time it has run, the free minutes left, the credits its time has cost and the
 // idle close, and the transport sentence sits beside the input. The result,
 // once it ends, is the chat's flow's result view (ChatFlow) over the sealed
@@ -23,8 +27,10 @@ import { ChooseFiles } from "../../bindings/github.com/blaktron/agentry-desktop/
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { ChatAnnouncer } from "../chatAnnounce";
 import { plainName } from "../reveal";
-import { addChatFiles, endChat, sendChat, stopChatTurn } from "../runs";
-import { DURING_WORDS, HELD_NOTE, SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
+import { addChatFiles, addQueuedToTurn, endChat, sendChat, sendQueuedNow, stopChatTurn, takeQueued } from "../runs";
+import { DURING_WORDS, SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord, type Line } from "../sessionChat";
+import { editText } from "../queued";
+import { QueuedMessage } from "./QueuedMessage";
 
 // The chat's store (runs.ts over sessionChat.ts's
 // createChatStore) starts the session and owns its events, messages, files
@@ -37,10 +43,8 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const [input, setInput] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [sentAt, setSentAt] = useState<number | null>(null);
-  // The harness took no message during the turn: the text stays, and the
-  // composer says why until the answer arrives.
-  const [held, setHeld] = useState(false);
   const paneRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   // How many lines a hosted chat opened with (the opening, or none): it has
   // started talking once there are more.
   const [openingLines] = useState(() => (c.kind === "hosted" && !c.task.trim() && c.opening.trim() ? 1 : 0));
@@ -59,12 +63,8 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
   const { starting, ending, over } = c;
   const running = !inAgentry || state?.status === "running";
   const busy = working(c);
-  // On this computer a message can go into the turn in flight; In Agentry it
-  // waits for the answer.
-  const intoTurn = !inAgentry && busy;
-  useEffect(() => {
-    if (!busy) setHeld(false);
-  }, [busy]);
+  // On this computer the turn in flight can be stopped; In Agentry it cannot.
+  const stoppable = !inAgentry && busy;
   const outOfCredits = !!state?.session?.outOfCredits;
   // What a screen reader hears of each new line: the agent's replies, the
   // warnings and the end.
@@ -76,23 +76,23 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
     return said === null ? null : plainName(said);
   }, [outOfCredits]);
 
+  // A message while the agent answers is queued for its next turn; one the
+  // host did not take stays in the field to send again.
   function send() {
     const text = input.trim();
-    if (!text || (busy && !intoTurn) || c.steering || over || !running) return;
+    if (!text || over || !running) return;
     setInput("");
-    setHeld(false);
     setSentAt(Date.now());
-    // A message the host or the turn did not take stays in the field to
-    // send again; a harness that takes one only between turns keeps it with
-    // a word why.
-    sendChat(text)
-      .then((r) => {
-        if (r === "held") {
-          setInput(text);
-          setHeld(true);
-        }
-      })
-      .catch(() => (inAgentry || intoTurn) && setInput(text));
+    sendChat(text).catch(() => inAgentry && setInput((now) => now || text));
+  }
+
+  // Edit: the queued message back in the field, before whatever was typed
+  // since, to change it before it is sent.
+  function editQueued() {
+    const text = takeQueued();
+    if (text === null) return;
+    setInput((now) => editText(text, now, false));
+    inputRef.current?.focus();
   }
 
   async function addFile() {
@@ -153,21 +153,34 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
       <ChatAnnouncer items={chat.lines} say={sayChatLine} />
       <p className="muted small" style={{ margin: "6px 0" }} aria-label="Session status">{line}</p>
       <ErrorBox error={c.error} />
-      {held && <p className="muted small" role="status" style={{ margin: "0 0 6px" }}>{HELD_NOTE}</p>}
+      {c.queued && !over && (
+        <QueuedMessage
+          text={c.queued}
+          bubble
+          flush
+          note={c.queueNote}
+          onSendNow={inAgentry ? undefined : () => void sendQueuedNow()}
+          sendingNow={c.stopping}
+          onEdit={editQueued}
+          onAddToTurn={stoppable && c.canSteer ? () => void addQueuedToTurn() : undefined}
+          adding={c.steering}
+        />
+      )}
       <div className="row">
         <Input
+          ref={inputRef}
           type="text"
           className="grow"
           aria-label="Message the agent"
-          placeholder={over ? "the session has ended" : intoTurn ? "message the agent: it joins the turn in progress" : "message the agent"}
+          placeholder={over ? "the session has ended" : busy ? "message the agent: it is sent when this turn ends" : "message the agent"}
           value={input}
           maxLength={inAgentry ? 16384 : undefined}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && send()}
-          disabled={locked || (busy && !intoTurn)}
+          disabled={locked}
         />
-        <Button onClick={send} busy={c.steering} busyLabel="Sending…" disabled={locked || (busy && !intoTurn) || c.steering || !input.trim()}>Send</Button>
-        {intoTurn && !locked && (
+        <Button onClick={send} disabled={locked || !input.trim()}>Send</Button>
+        {stoppable && !locked && (
           <Button onClick={() => void stopChatTurn()} busy={c.stopping} busyLabel="Stopping…" disabled={c.stopping} title="Stop the agent's answer here; the chat goes on with your next message">Stop turn</Button>
         )}
         <Button onClick={() => void addFile()} disabled={locked || c.adding} title="Give the agent another file, read-only under /inputs">{c.adding ? "Adding…" : "Add file…"}</Button>
