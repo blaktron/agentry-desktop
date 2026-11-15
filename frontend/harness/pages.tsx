@@ -1060,8 +1060,10 @@ if (harnessHelper === "on" || harnessHelper === "none") harnessAssistant.state =
 // other one with a run of its own to open.
 const harnessSubagentRuns = Number(new URLSearchParams(window.location.search).get("subagentruns") ?? 0);
 // ?queued=1: the Assistant running, on a turn the person sent that never
-// ends, and a second message queued for its next turn.
-const harnessQueued = new URLSearchParams(window.location.search).get("queued") === "1";
+// ends, and a second message queued for its next turn; ?queued=long adds a
+// long third one, which joins it.
+const harnessQueuedParam = new URLSearchParams(window.location.search).get("queued");
+const harnessQueued = harnessQueuedParam === "1" || harnessQueuedParam === "long";
 if (harnessQueued) harnessAssistant.state = "running";
 Object.assign(harnessAssistant, {
   subagentRuns: Array.from({ length: harnessSubagentRuns }, (_, i) => {
@@ -1937,6 +1939,9 @@ if (harnessQueued) {
   setTimeout(() => {
     void sendToAgent("assistant", "Draft a reply to the neighbour's note");
     setTimeout(() => void sendToAgent("assistant", "Keep it under three lines"), 120);
+    if (harnessQueuedParam === "long") {
+      setTimeout(() => void sendToAgent("assistant", "And mention the bike that is usually parked by the stairs, the boxes from the move last month, and that the landlord asked everyone to keep the hallway clear for the fire inspection next Tuesday, which is why it matters now rather than later."), 240);
+    }
   }, 250);
 }
 import Settings, { SECTIONS, SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";

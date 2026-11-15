@@ -26,5 +26,5 @@ export const STATES: string[] = [
   "/drafts.html#draft-local", "/drafts.html#draft-landed", "/drafts.html#draft-failed",
   "/reviews.html#validate", "/reviews.html#review-running", "/reviews.html#report-held",
   "/runs.html#run-running", "/runs.html#run-finished", "/runs.html#run-failed", "/runs.html#hosted-running",
-  "/runs.html#chat-local-queued", "/pages.html?queued=1",
+  "/runs.html#chat-local-queued", "/pages.html?queued=1", "/pages.html?homeagent=assistant&queued=long",
 ];

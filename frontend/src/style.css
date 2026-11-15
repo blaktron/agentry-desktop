@@ -1764,6 +1764,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .queued-message { padding: 6px 14px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .queued-message .chat-msg.user .chat-bubble { border-style: dashed; }
 .queued-message .agent-term-person { font-style: italic; }
+/* A long queued message shows its first lines; Edit brings back all of it.
+   In Home's agent card, whose height is its cell's, one line, and the
+   conversation above it may shrink further, so the line to type in stays at
+   the card's foot. */
+.queued-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; }
+.main-card-chat .queued-text { -webkit-line-clamp: 1; line-clamp: 1; }
+.home-grid .main-card-chat:has(.queued-message) > .main-card-scroll { min-height: 36px; }
+.queued-actions > .muted { font-style: italic; align-self: center; }
 .queued-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; margin-top: 2px; }
 .queued-message .agent-term-person + .queued-actions { justify-content: flex-start; }
 .queued-actions button.link { min-height: 24px; font-size: 12px; }
