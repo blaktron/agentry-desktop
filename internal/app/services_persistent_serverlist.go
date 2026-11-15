@@ -6,6 +6,7 @@ package app
 // the version it tested, so one click adds a server that installs and
 // lists tools. A server that signs in by OAuth is left out (a persistent
 // agent cannot sign in), and so is one that refused an anonymous request.
+// A search about AWS also shows AWS's own server first (awsMCPServerItem).
 // The list is advice: what is added still goes through AddServer and the
 // consent dialog.
 
@@ -19,6 +20,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
@@ -148,12 +150,16 @@ func searchServerList(ctx context.Context, client *http.Client, reg, q string) (
 	if page := strings.TrimSpace(r.List.Page); strings.HasPrefix(page, "/") {
 		view.Page = reg + page
 	}
+	aws := isAWSQuery(q)
+	if aws {
+		view.Items = append(view.Items, awsMCPServerItem())
+	}
 	for _, it := range r.Items {
 		if it.Status != "works" {
 			continue
 		}
 		row, name, ok := serverListRow(it.Kind, it.ID, it.Version)
-		if !ok {
+		if !ok || (aws && isAWSMCPServerAddress(row.URL)) {
 			continue
 		}
 		item := ServerListItem{
@@ -217,4 +223,60 @@ func clipText(s string, n int) string {
 		cut--
 	}
 	return strings.TrimRight(s[:cut], " ") + "…"
+}
+
+// AWS's own MCP server for agents, the AWS MCP Server of the Agent Toolkit
+// for AWS, runs at one address per Region; the survey list does not hold it.
+// A search about AWS shows it first, added with no sign-in, which answers its
+// documentation, skill and Region tools; a search about anything else does
+// not show it.
+const awsMCPServerURL = "https://aws-mcp.us-east-1.api.aws/mcp"
+
+// awsQueryWords are the words that make a search one about AWS, each matched
+// as a whole word of the query.
+var awsQueryWords = map[string]bool{
+	"aws": true, "awslabs": true, "s3": true, "ec2": true, "cloudformation": true,
+	"cloudwatch": true, "dynamodb": true,
+}
+
+// isAWSQuery says whether q is a search about AWS: one of awsQueryWords, or
+// "amazon web services".
+func isAWSQuery(q string) bool {
+	words := strings.FieldsFunc(strings.ToLower(q), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	for i, w := range words {
+		if awsQueryWords[w] {
+			return true
+		}
+		if w == "amazon" && i+2 < len(words) && words[i+1] == "web" && words[i+2] == "services" {
+			return true
+		}
+	}
+	return false
+}
+
+// isAWSMCPServerAddress says whether address is AWS's own server, in any
+// Region.
+func isAWSMCPServerAddress(address string) bool {
+	u, err := url.Parse(address)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	region, ok := strings.CutPrefix(strings.ToLower(u.Hostname()), "aws-mcp.")
+	region, isAPI := strings.CutSuffix(region, ".api.aws")
+	return ok && isAPI && region != "" && !strings.Contains(region, ".")
+}
+
+// awsMCPServerItem is the search's row for AWS's own server.
+func awsMCPServerItem() ServerListItem {
+	return ServerListItem{
+		ID:   "remote:" + awsMCPServerURL,
+		Kind: "remote",
+		Name: "AWS MCP Server (Agent Toolkit for AWS)",
+		Ref:  awsMCPServerURL,
+		Description: "AWS's own server for agents, the one AWS recommends. Added here, with no sign-in, it answers from AWS's documentation, skills and Regions. " +
+			"For work in your AWS account, add it with auth oauth and sign in from a terminal with agentry agent connect.",
+		Row: build.MCPServerRow{Source: "url", URL: awsMCPServerURL, Auth: "none", Tools: []string{}},
+	}
 }
