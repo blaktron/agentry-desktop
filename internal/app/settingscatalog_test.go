@@ -164,11 +164,16 @@ func TestSettingsReadNeverCarriesACredential(t *testing.T) {
 	// The registry answers nothing an account read can use, so the account's
 	// rows say why they could not be read; the token must not be in that
 	// either.
+	var echoed string
 	reg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "no", http.StatusUnauthorized)
+		// A registry that echoes what it was sent: its words never reach
+		// the agent.
+		http.Error(w, "refused "+r.Header.Get("Authorization")+" "+echoed, http.StatusUnauthorized)
 	}))
 	t.Cleanup(reg.Close)
 	planted := map[string]string{
+		"registry userinfo":  "plantedregistrypassword0013",
+		"registry query":     "plantedregistryquery0014",
 		"registry token":     "ags_planted_registry_token_0001",
 		"model key":          "sk-ant-planted-model-key-0002",
 		"model key (env)":    "sk-planted-env-key-0003",
@@ -182,8 +187,10 @@ func TestSettingsReadNeverCarriesACredential(t *testing.T) {
 		"agent secret":       "planted-agent-secret-0011",
 		"agent mail token":   "fmu1-planted-mail-token-0012",
 	}
+	echoed = planted["registry token"]
 	s, _ := settings.Load()
-	s.Registries = append(s.Registries, settings.Registry{URL: reg.URL})
+	s.Registries = append(s.Registries, settings.Registry{URL: reg.URL},
+		settings.Registry{URL: "https://someone:" + planted["registry userinfo"] + "@registry.example/?key=" + planted["registry query"]})
 	s.DefaultRegistry = reg.URL
 	if err := settings.Save(s); err != nil {
 		t.Fatal(err)
@@ -211,13 +218,22 @@ func TestSettingsReadNeverCarriesACredential(t *testing.T) {
 	if err := run.SaveSourceKey("repository", "https://github.com/acme/app", planted["source key"]); err != nil {
 		t.Fatal(err)
 	}
-	keys := persistent.KeychainSecrets{}
-	if err := keys.Set(persistent.SecretAccount(assistantAgent, "PLANTED_SECRET"), planted["agent secret"]); err != nil {
+	if _, err := rig.p.SetSecret(assistantAgent, "PLANTED_SECRET", planted["agent secret"]); err != nil {
 		t.Fatal(err)
 	}
-	if err := keys.Set(persistent.SecretAccount(assistantAgent, "FASTMAIL_TOKEN"), planted["agent mail token"]); err != nil {
+	if err := (persistent.KeychainSecrets{}).Set(persistent.SecretAccount(assistantAgent, "FASTMAIL_TOKEN"), planted["agent mail token"]); err != nil {
 		t.Fatal(err)
 	}
+	// Keeping the secret asked; settings_read must ask nothing.
+	rig.mu.Lock()
+	rig.asked = nil
+	rig.mu.Unlock()
+
+	// A run holds the run lock throughout: no row waits for it or takes it.
+	if err := rig.p.run.acquire(jobSetup, "a run"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(rig.p.run.release)
 
 	var all []SettingRow
 	for _, section := range append([]string{""}, sectionIDs()...) {
@@ -234,10 +250,22 @@ func TestSettingsReadNeverCarriesACredential(t *testing.T) {
 			all = rows
 		}
 	}
-	for _, id := range []string{"account.signIn." + reg.URL, "models.key.anthropic", "keys.aiReview", "keys.webSearch", "keys.hybridAnalysis", "destinations.hooks"} {
+	for _, id := range []string{"account.signIn." + reg.URL, "keys.aiReview", "keys.webSearch", "keys.hybridAnalysis", "destinations.hooks",
+		"agents.assistant.secret.PLANTED_SECRET"} {
 		r, ok := rowByID(all, id)
 		if !ok || r.Kind != settingCredential || r.Value != credentialSet {
 			t.Errorf("%s: %+v (listed %v)", id, r, ok)
+		}
+	}
+	if r, _ := rowByID(all, "account.displayName"); r.Unread != errRegistryUnread.Error() {
+		t.Errorf("a registry's refusal reads %+v", r)
+	}
+	if r, _ := rowByID(all, "account.signIn.https://registry.example"); r.Name != "Signed in to https://registry.example" {
+		t.Errorf("a registry with a user and a query is named %+v", r)
+	}
+	for _, r := range all {
+		if r.Unread != "" && r.ID != "account.displayName" && r.ID != "account.voice" && r.ID != "reports.design" {
+			t.Errorf("%s could not be read: %s", r.ID, r.Unread)
 		}
 	}
 	for _, r := range all {
@@ -267,7 +295,7 @@ func sectionIDs() []string {
 // Every row the catalogue lists by itself is in a section settings_open
 // opens, so an agent can always show the person where a setting is.
 func TestTheCatalogueIsInSettingsOpensSections(t *testing.T) {
-	for _, e := range settingsCatalog {
+	for _, e := range catalogueEntries {
 		if _, _, ok := settingsSection(e.section); !ok {
 			t.Errorf("%s is in %q, which settings_open does not open", e.id, e.section)
 		}

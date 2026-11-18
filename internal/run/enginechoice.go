@@ -142,6 +142,18 @@ type EngineChoices struct {
 	Locked      string
 }
 
+// EngineChoiceNow is the engine chosen in Settings, "" for automatic, and,
+// when the app's environment names an engine, why that choice is not used.
+// It reads the settings and the environment alone: no engine is asked, and
+// the adoption is not touched.
+func EngineChoiceNow() (choice, locked string, err error) {
+	choice, err = loadEngineChoice()
+	if launchNamed() {
+		locked = errLaunchNamed.Error()
+	}
+	return choice, locked, err
+}
+
 // The seams the choice reads: the remembered choice in the app's settings
 // and the docker CLI's contexts. Each is a var so a test hands it a
 // stand-in.

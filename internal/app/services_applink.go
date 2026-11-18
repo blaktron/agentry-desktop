@@ -991,7 +991,7 @@ func settingsSection(name string) (id, title string, ok bool) {
 func (m *mainLink) settingsOpen(section string) (string, error) {
 	id, title, ok := settingsSection(section)
 	if !ok {
-		return "", fmt.Errorf("there is no Settings section %s; the sections are %s", quoted(section), listedSections())
+		return "", noSection(section)
 	}
 	emitEvent(m.app, eventOpenSettings, id)
 	return fmt.Sprintf("Opened %s for the person. Nothing was changed: any change there is theirs to make.", title), nil
