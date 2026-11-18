@@ -1,6 +1,12 @@
 {
   "versions": [
     {
+      "version": "0.7.51",
+      "highlights": [
+        "The Assistant's remote servers, such as Fastmail or the AWS MCP Server, keep working when a chat stays open for hours."
+      ]
+    },
+    {
       "version": "0.7.50",
       "highlights": [
         "A run the Assistant starts now goes to the output folder you chose in Settings, like every other run.",
