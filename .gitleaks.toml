@@ -1,7 +1,14 @@
 # gitleaks configuration for the desktop. The CI job
 # `gitleaks` scans every pull request's commits and every push with it.
-# The default rules apply and nothing is allowlisted. A false positive
+# The default rules apply. A false positive
 # gets a narrow entry here naming the one file (or a regex target), with the
 # reason beside it; never a whole tree.
 [extend]
 useDefault = true
+
+[[allowlists]]
+description = "the made-up values settings_read's test plants in each credential store to prove no answer carries one"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^internal/app/settingscatalog_test\.go$''']
+regexes = ['''planted''']
