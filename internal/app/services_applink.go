@@ -4,6 +4,7 @@
 // of these tools to this handler, one at a time per connection, from a
 // server with no network of its own; nothing here changes a setting's value,
 // starts or stops an agent, publishes, signs in or touches a credential.
+// settings_read reads every setting, a credential only as set or not set.
 //
 // What an agent asks for is a claim, as a page's is: an install, a first
 // run of a QuickAgent, a schedule and a schedule's removal are each put to
@@ -141,6 +142,9 @@ type mainLink struct {
 	// forkFollow bounds how long a fork's copy is followed; zero is
 	// forkWait.
 	forkFollow time.Duration
+	// catalogue reads Agentry's settings for settings_read
+	// (settingscatalog.go); nil where this link answers it not.
+	catalogue *settingsCatalogue
 
 	mu   sync.Mutex
 	runs map[string]*mainRun
@@ -299,6 +303,23 @@ func (m *mainLink) call(ctx context.Context, tool string, raw json.RawMessage) (
 			return "", err
 		}
 		return m.settingsOpen(a.Section)
+	case applink.SettingsRead:
+		var a struct {
+			Section string `json:"section"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return m.settingsRead(a.Section)
+	case applink.SettingsChange:
+		var a struct {
+			ID    string `json:"id"`
+			Value string `json:"value"`
+		}
+		if err := args(raw, &a); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("this version of Agentry Desktop does not change a setting for an agent yet; nothing was changed. Open the setting's section for the person with settings_open, and they can change it there")
 	case "docs_read":
 		var a struct {
 			Page string `json:"page"`
@@ -970,13 +991,7 @@ func settingsSection(name string) (id, title string, ok bool) {
 func (m *mainLink) settingsOpen(section string) (string, error) {
 	id, title, ok := settingsSection(section)
 	if !ok {
-		names := make([]string, 0, len(settingsSections))
-		for _, s := range settingsSections {
-			if s.listed {
-				names = append(names, strings.TrimPrefix(s.title, "Settings → "))
-			}
-		}
-		return "", fmt.Errorf("there is no Settings section %s; the sections are %s", quoted(section), strings.Join(names, ", "))
+		return "", fmt.Errorf("there is no Settings section %s; the sections are %s", quoted(section), listedSections())
 	}
 	emitEvent(m.app, eventOpenSettings, id)
 	return fmt.Sprintf("Opened %s for the person. Nothing was changed: any change there is theirs to make.", title), nil
