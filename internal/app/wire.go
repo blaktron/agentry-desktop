@@ -75,25 +75,39 @@ func New(notices string) *Services {
 	notifications := newNotificationsAPI(app)
 	app.notifications = notifications
 	yourComputer := newYourComputerAPI(app, run)
+	settingsAPI := &SettingsAPI{app: app, run: run, installs: installs}
+	home := &HomeAPI{}
+	voice := &VoiceAPI{app: app, run: run}
+	selfUpdate := newSelfUpdateAPI(app, meetings.suspendForUpdate)
+	destinationsAPI := &DestinationsAPI{app: app}
+	runhosts := &RunhostsAPI{app: app, run: run}
+	// Both agents read Agentry's settings through the pages' own views.
+	catalogue := &settingsCatalogue{
+		settings: settingsAPI, run: run, home: home, selfUpdate: selfUpdate, persistent: persistentAPI,
+		meeting: meetings, yourComputer: yourComputer, runhosts: runhosts, voice: voice, destinations: destinationsAPI,
+	}
+	for _, l := range links {
+		l.catalogue = catalogue
+	}
 	return &Services{
 		app:           app,
-		settings:      &SettingsAPI{app: app, run: run, installs: installs},
+		settings:      settingsAPI,
 		browse:        browse,
 		install:       installs,
 		validate:      &ValidateAPI{app: app},
 		run:           run,
 		build:         buildAPI,
 		knowledge:     &KnowledgeAPI{app: app, run: run},
-		voice:         &VoiceAPI{app: app, run: run},
+		voice:         voice,
 		designer:      &DesignerAPI{app: app, run: run},
-		home:          &HomeAPI{},
+		home:          home,
 		publisher:     publisher,
-		selfUpdate:    newSelfUpdateAPI(app, meetings.suspendForUpdate),
+		selfUpdate:    selfUpdate,
 		whatsNew:      newWhatsNewAPI(),
 		schedule:      schedule,
-		destinations:  &DestinationsAPI{app: app},
+		destinations:  destinationsAPI,
 		notices:       &NoticesAPI{text: notices},
-		runhosts:      &RunhostsAPI{app: app, run: run},
+		runhosts:      runhosts,
 		persistent:    persistentAPI,
 		meeting:       meetings,
 		yourComputer:  yourComputer,

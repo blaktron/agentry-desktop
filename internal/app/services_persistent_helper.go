@@ -204,7 +204,16 @@ func (s appSubagents) Run(_ context.Context, r persistent.SubagentRunSpec) (*rec
 		registry = s.ops.registry()
 	}
 	in := filepath.Join(filepath.Dir(r.OutDir), "in")
-	res, err := s.ops.run(registry, r.Exact, r.Task, r.Files, r.Answers, in, r.OutDir, func(string, bool) {})
+	// The run is an ordinary run on this computer, so it goes where every
+	// other run goes once the person has saved an output folder: a folder
+	// of its own inside it. With none saved it keeps the folder the
+	// supervisor named. Either way the envelope is read from the folder
+	// the run reports.
+	out := r.OutDir
+	if saved := s.ops.outputDir(); saved != "" {
+		out = saved
+	}
+	res, err := s.ops.run(registry, r.Exact, r.Task, r.Files, r.Answers, in, out, func(string, bool) {})
 	if err != nil && res == nil {
 		return nil, err
 	}

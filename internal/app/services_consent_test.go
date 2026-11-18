@@ -12,6 +12,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The renderer is not a principal. A consent the page passes is asked again
@@ -219,5 +220,27 @@ func TestASubagentRunsOwnOutputFolderNeedsNoPick(t *testing.T) {
 		if err := run(out); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 			t.Errorf("output folder %s: err = %v, want the picker refusal", out, err)
 		}
+	}
+}
+
+// An agent's run with an output folder saved in Settings → Runs goes there,
+// as every other run on this computer does: the run gates admit the saved
+// folder for it without a pick.
+func TestAnAgentsRunAdmitsTheSavedOutputFolder(t *testing.T) {
+	setUserHome(t, t.TempDir())
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	saved := t.TempDir()
+	st, _ := settings.Load()
+	st.DefaultOutputDir = saved
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}
+	home := t.TempDir()
+	r := &RunAPI{app: app, runnerHomeDir: home}
+	h := runHooks{outDirIn: filepath.Join(home, "persistent")}
+	_, err := r.runAgent(h, "http://127.0.0.1:9", "acme/x@1.0.0", "go", nil, saved, nil, 0, -1, false, nil, false, false, nil, false, nil, nil, nil, "", "")
+	if err != nil && strings.Contains(err.Error(), "not chosen through the file dialog") {
+		t.Fatalf("the saved output folder for an agent's run: %v", err)
 	}
 }

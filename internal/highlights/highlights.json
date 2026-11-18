@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "0.7.50",
+      "highlights": [
+        "A run the Assistant starts now goes to the output folder you chose in Settings, like every other run.",
+        "The Assistant and Agentry Helper can now read your settings for you; a key shows only as set or not set.",
+        "Asking either of them to open a section of Settings now opens it."
+      ]
+    },
+    {
       "version": "0.7.49",
       "highlights": [
         "A message you send while an agent answers now waits for its next turn, and goes by itself when the answer ends.",
